@@ -519,7 +519,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     scrollDirection: Axis.horizontal,
                     itemCount: subcategories.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
                     itemBuilder: (context, index) {
                       final subcategory = subcategories[index];
                       final isSelected = selectedSubcategory == subcategory;
@@ -839,7 +839,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
             ),
             const SizedBox(height: 20),
             DropdownButtonFormField<String>(
-              value: selectedCategory,
+              initialValue: selectedCategory,
               decoration: const InputDecoration(labelText: 'Main Category'),
               items: appCategories
                   .where((category) => category.title != 'All')
@@ -865,7 +865,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: subcategories.contains(selectedSubcategory)
+              initialValue: subcategories.contains(selectedSubcategory)
                   ? selectedSubcategory
                   : subcategories.first,
               decoration: const InputDecoration(labelText: 'Subcategory'),
@@ -1092,7 +1092,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
             ),
             const SizedBox(height: 20),
             DropdownButtonFormField<String>(
-              value: selectedCategory,
+              initialValue: selectedCategory,
               decoration: const InputDecoration(labelText: 'Main Category'),
               items: appCategories
                   .where((category) => category.title != 'All')
@@ -1116,7 +1116,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: subcategories.contains(selectedSubcategory)
+              initialValue: subcategories.contains(selectedSubcategory)
                   ? selectedSubcategory
                   : subcategories.first,
               decoration: const InputDecoration(labelText: 'Subcategory'),
