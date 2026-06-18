@@ -162,6 +162,54 @@ ThemeData buildAppTheme() {
 /// True on phone-width screens (used to tune density/spacing for mobile).
 bool isPhone(BuildContext context) => MediaQuery.of(context).size.width < 600;
 
+/// Friendly empty-state placeholder (icon + message) for screens shown over
+/// the green background.
+class EmptyState extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const EmptyState({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.subtitle = '',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 72, color: Colors.white.withValues(alpha: 0.5)),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (subtitle.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Full-screen flag-green gradient with a faint crescent-and-star motif.
 /// Rendered once behind every route via [MaterialApp.builder]; scaffolds are
 /// transparent so this shows through on every page.
@@ -3318,11 +3366,10 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
             ),
             Expanded(
               child: filtered.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No listings found',
-                        style: TextStyle(color: Colors.white70),
-                      ),
+                  ? const EmptyState(
+                      icon: Icons.search_off,
+                      title: 'No listings found',
+                      subtitle: 'Try a different search or adjust your filters.',
                     )
                   : ListView(
                       padding: const EdgeInsets.all(16),
@@ -4000,11 +4047,10 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
           final docs = snapshot.data!.docs;
 
           if (docs.isEmpty) {
-            return const Center(
-              child: Text(
-                'No ads posted yet',
-                style: TextStyle(color: Colors.white70),
-              ),
+            return const EmptyState(
+              icon: Icons.inventory_2_outlined,
+              title: 'No ads posted yet',
+              subtitle: 'Tap the green SELL button to post your first ad.',
             );
           }
 
@@ -5524,11 +5570,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           final docs = snapshot.data!.docs;
 
           if (docs.isEmpty) {
-            return const Center(
-              child: Text(
-                'No favorites yet',
-                style: TextStyle(color: Colors.white70),
-              ),
+            return const EmptyState(
+              icon: Icons.favorite_border,
+              title: 'No favorites yet',
+              subtitle: 'Tap the heart on any ad to save it here.',
             );
           }
 
@@ -5724,11 +5769,10 @@ class ChatsScreen extends StatelessWidget {
             });
 
           if (chats.isEmpty) {
-            return const Center(
-              child: Text(
-                'No chats yet. Message a seller to start one.',
-                style: TextStyle(color: Colors.white70),
-              ),
+            return const EmptyState(
+              icon: Icons.chat_bubble_outline,
+              title: 'No chats yet',
+              subtitle: 'Message a seller from any ad to start a conversation.',
             );
           }
 
