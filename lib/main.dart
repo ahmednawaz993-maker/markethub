@@ -2524,14 +2524,26 @@ class FeaturedBusinessesRail extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          CircleAvatar(
-                            radius: 28,
-                            backgroundColor: kPakGreen.withValues(alpha: 0.12),
-                            child: const Icon(
-                              Icons.storefront,
-                              color: kPakGreen,
-                              size: 30,
-                            ),
+                          Builder(
+                            builder: (context) {
+                              final logo = d['logoUrl']?.toString() ?? '';
+                              return CircleAvatar(
+                                radius: 28,
+                                backgroundColor: kPakGreen.withValues(
+                                  alpha: 0.12,
+                                ),
+                                backgroundImage: logo.isNotEmpty
+                                    ? NetworkImage(logo)
+                                    : null,
+                                child: logo.isEmpty
+                                    ? const Icon(
+                                        Icons.storefront,
+                                        color: kPakGreen,
+                                        size: 30,
+                                      )
+                                    : null,
+                              );
+                            },
                           ),
                           const SizedBox(height: 8),
                           Text(
@@ -6080,11 +6092,41 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
   bool saving = false;
   final nameController = TextEditingController();
   final taglineController = TextEditingController();
+  final ImagePicker picker = ImagePicker();
+  String? logoUrl;
+  bool uploadingLogo = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  Future<void> _pickLogo() async {
+    final img = await picker.pickImage(source: ImageSource.gallery);
+    if (img == null) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    setState(() => uploadingLogo = true);
+    try {
+      final bytes = await img.readAsBytes();
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('business_logos')
+          .child('$uid.jpg');
+      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      final url = await ref.getDownloadURL();
+      if (!mounted) return;
+      setState(() => logoUrl = url);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Logo upload failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => uploadingLogo = false);
+    }
   }
 
   Future<void> _load() async {
@@ -6100,6 +6142,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       isBusiness = d?['isBusiness'] == true;
       nameController.text = d?['businessName']?.toString() ?? '';
       taglineController.text = d?['tagline']?.toString() ?? '';
+      logoUrl = d?['logoUrl']?.toString();
       loaded = true;
     });
   }
@@ -6112,6 +6155,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       'isBusiness': isBusiness,
       'businessName': nameController.text.trim(),
       'tagline': taglineController.text.trim(),
+      'logoUrl': logoUrl ?? '',
     }, SetOptions(merge: true));
     if (!mounted) return;
     setState(() => saving = false);
@@ -6142,6 +6186,36 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
               onChanged: loaded ? (v) => setState(() => isBusiness = v) : null,
             ),
             if (isBusiness) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundColor: kPakGreen.withValues(alpha: 0.12),
+                      backgroundImage:
+                          (logoUrl != null && logoUrl!.isNotEmpty)
+                          ? NetworkImage(logoUrl!)
+                          : null,
+                      child: (logoUrl == null || logoUrl!.isEmpty)
+                          ? const Icon(Icons.storefront, color: kPakGreen)
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    OutlinedButton.icon(
+                      onPressed: uploadingLogo ? null : _pickLogo,
+                      icon: uploadingLogo
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.upload),
+                      label: Text(uploadingLogo ? 'Uploading…' : 'Upload logo'),
+                    ),
+                  ],
+                ),
+              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: TextField(
