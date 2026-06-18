@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
@@ -4583,6 +4584,24 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
     );
   }
 
+  Future<void> shareAd() async {
+    final l = widget.listing;
+    final loc = [l.city, l.location].where((e) => e.isNotEmpty).join(', ');
+    final text = [
+      l.title,
+      '${formatPrice(l.price)}${loc.isEmpty ? '' : ' · $loc'}',
+      if (l.phone.isNotEmpty) 'Contact: ${l.phone}',
+      'See more on PakBazar: https://pakbazar.web.app',
+    ].join('\n');
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Ad details copied — paste anywhere to share'),
+      ),
+    );
+  }
+
   Future<void> reportAd() async {
     final reasons = [
       'Spam or scam',
@@ -4692,6 +4711,11 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
       appBar: AppBar(
         title: Text(listing.title),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.share),
+            tooltip: 'Share',
+            onPressed: shareAd,
+          ),
           IconButton(
             icon: const Icon(Icons.flag_outlined),
             tooltip: 'Report ad',
