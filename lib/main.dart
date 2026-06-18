@@ -1562,14 +1562,14 @@ class AdsRail extends StatelessWidget {
 class PromoBannerData {
   final String title;
   final String subtitle;
-  final IconData icon;
-  final List<Color> colors;
+  final String image;
+  final List<Color> colors; // gradient fallback if the image fails to load
   final Widget Function() destination;
 
   const PromoBannerData({
     required this.title,
     required this.subtitle,
-    required this.icon,
+    required this.image,
     required this.colors,
     required this.destination,
   });
@@ -1590,38 +1590,44 @@ class _PromoCarouselState extends State<PromoCarousel> {
 
   static const _banners = <PromoBannerData>[
     PromoBannerData(
-      title: 'Sell faster',
-      subtitle: 'Boost your ad to Featured',
-      icon: Icons.rocket_launch,
-      colors: [kPakGreen, kPakGreenLight],
-      destination: _toPostAd,
-    ),
-    PromoBannerData(
-      title: 'Post in 2 minutes',
-      subtitle: 'List your item for free',
-      icon: Icons.add_circle_outline,
-      colors: [Color(0xFF1565C0), Color(0xFF42A5F5)],
-      destination: _toPostAd,
-    ),
-    PromoBannerData(
       title: 'Cars & more',
       subtitle: 'Explore the best Motors deals',
-      icon: Icons.directions_car,
+      image:
+          'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=900&q=70',
       colors: [Color(0xFFB71C1C), Color(0xFFEF5350)],
       destination: _toMotors,
     ),
     PromoBannerData(
       title: 'Find your home',
       subtitle: 'Browse Properties across Pakistan',
-      icon: Icons.home_work,
+      image:
+          'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=900&q=70',
       colors: [Color(0xFF6A1B9A), Color(0xFFAB47BC)],
       destination: _toProperties,
+    ),
+    PromoBannerData(
+      title: 'Latest mobiles',
+      subtitle: 'Phones, tablets & gadgets',
+      image:
+          'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=70',
+      colors: [Color(0xFF1565C0), Color(0xFF42A5F5)],
+      destination: _toMobiles,
+    ),
+    PromoBannerData(
+      title: 'Sell faster',
+      subtitle: 'Post your ad free in 2 minutes',
+      image:
+          'https://images.unsplash.com/photo-1556742502-ec7c0e9f34b1?auto=format&fit=crop&w=900&q=70',
+      colors: [kPakGreen, kPakGreenLight],
+      destination: _toPostAd,
     ),
   ];
 
   static Widget _toPostAd() => const AddListingScreen();
   static Widget _toMotors() => const CategoryScreen(title: 'Motors');
   static Widget _toProperties() => const CategoryScreen(title: 'Properties');
+  static Widget _toMobiles() =>
+      const CategoryScreen(title: 'Mobiles & Tablets');
 
   @override
   void initState() {
@@ -1642,6 +1648,16 @@ class _PromoCarouselState extends State<PromoCarousel> {
     _controller.dispose();
     super.dispose();
   }
+
+  Widget _bannerGradient(List<Color> colors) => DecoratedBox(
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        colors: colors,
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -1665,63 +1681,75 @@ class _PromoCarouselState extends State<PromoCarousel> {
                       context,
                       MaterialPageRoute(builder: (_) => b.destination()),
                     ),
-                    child: Ink(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: b.colors,
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Real photo (with gradient fallback while loading/on error).
+                        Image.network(
+                          b.image,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, progress) =>
+                              progress == null
+                              ? child
+                              : _bannerGradient(b.colors),
+                          errorBuilder: (context, e, s) =>
+                              _bannerGradient(b.colors),
                         ),
-                      ),
-                      padding: const EdgeInsets.fromLTRB(18, 14, 8, 14),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  b.title,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  b.subtitle,
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    'Tap to explore',
-                                    style: TextStyle(
-                                      color: b.colors.first,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                        // Dark scrim so the text stays readable over any photo.
+                        const DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                              colors: [Colors.black87, Colors.transparent],
                             ),
                           ),
-                          Icon(b.icon, color: Colors.white24, size: 70),
-                        ],
-                      ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                b.title,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 21,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                b.subtitle,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  'Tap to explore',
+                                  style: TextStyle(
+                                    color: b.colors.first,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
