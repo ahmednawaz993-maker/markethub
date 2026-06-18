@@ -1851,13 +1851,127 @@ class SearchScreen extends StatelessWidget {
   }
 }
 
+/// Lists the current user's saved searches, with run + delete. Alerts fire
+/// server-side (notifyOnNewListing) when a new ad matches one of these.
+class SavedSearchesScreen extends StatelessWidget {
+  const SavedSearchesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (uid == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Saved Searches')),
+        body: const Center(
+          child: Text(
+            'Please log in to see saved searches',
+            style: TextStyle(color: Colors.white70),
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Saved Searches')),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('savedSearches')
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final docs = snapshot.data!.docs;
+          if (docs.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'No saved searches yet.\nTap the bell icon while browsing to '
+                  'save a search and get alerts on new matching ads.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final d = docs[index].data() as Map<String, dynamic>;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: ListTile(
+                  leading: const Icon(Icons.bookmark, color: kPakGreen),
+                  title: Text(d['label']?.toString() ?? 'Saved search'),
+                  subtitle: const Text('Tap to run · alerts on new matches'),
+                  onTap: () {
+                    final cat = d['category']?.toString();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => Scaffold(
+                          appBar: AppBar(
+                            title: Text(d['label']?.toString() ?? 'Results'),
+                          ),
+                          body: ListingsBrowser(
+                            category: (cat == null || cat == 'All')
+                                ? null
+                                : cat,
+                            initialQuery: d['query']?.toString() ?? '',
+                            initialSubcategory: d['subcategory']?.toString(),
+                            initialCity: d['city']?.toString(),
+                            initialMinPrice: (d['minPrice'] as num?)?.toDouble(),
+                            initialMaxPrice: (d['maxPrice'] as num?)?.toDouble(),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () => FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(uid)
+                        .collection('savedSearches')
+                        .doc(docs[index].id)
+                        .delete(),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
 /// Reusable browse surface: search box, subcategory chips (when a category is
 /// given), sort + price/emirate filters, and the results list.
 class ListingsBrowser extends StatefulWidget {
   final String? category;
   final String initialQuery;
+  final String? initialSubcategory;
+  final String? initialCity;
+  final double? initialMinPrice;
+  final double? initialMaxPrice;
 
-  const ListingsBrowser({super.key, this.category, this.initialQuery = ''});
+  const ListingsBrowser({
+    super.key,
+    this.category,
+    this.initialQuery = '',
+    this.initialSubcategory,
+    this.initialCity,
+    this.initialMinPrice,
+    this.initialMaxPrice,
+  });
 
   @override
   State<ListingsBrowser> createState() => _ListingsBrowserState();
@@ -1866,9 +1980,9 @@ class ListingsBrowser extends StatefulWidget {
 class _ListingsBrowserState extends State<ListingsBrowser> {
   late String searchText;
   late final TextEditingController searchController;
-  String selectedSubcategory = 'All';
+  late String selectedSubcategory;
   String sortBy = 'Newest';
-  String cityFilter = 'All';
+  late String cityFilter;
   double? minPrice;
   double? maxPrice;
 
@@ -1883,6 +1997,52 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     super.initState();
     searchText = widget.initialQuery;
     searchController = TextEditingController(text: widget.initialQuery);
+    selectedSubcategory = widget.initialSubcategory ?? 'All';
+    cityFilter = widget.initialCity ?? 'All';
+    minPrice = widget.initialMinPrice;
+    maxPrice = widget.initialMaxPrice;
+  }
+
+  /// Saves the current search criteria so the user can be alerted when a new
+  /// matching ad is posted.
+  Future<void> saveCurrentSearch() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final parts = <String>[];
+    if (searchText.trim().isNotEmpty) parts.add('"${searchText.trim()}"');
+    if (hasCategory) parts.add(widget.category!);
+    if (selectedSubcategory != 'All') parts.add(selectedSubcategory);
+    if (cityFilter != 'All') parts.add('in $cityFilter');
+    if (minPrice != null || maxPrice != null) {
+      parts.add(
+        'Rs ${minPrice?.toStringAsFixed(0) ?? '0'}-'
+        '${maxPrice?.toStringAsFixed(0) ?? 'any'}',
+      );
+    }
+    final label = parts.isEmpty ? 'All ads' : parts.join(' · ');
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('savedSearches')
+        .add({
+          'label': label,
+          'query': searchText.trim(),
+          'category': widget.category ?? 'All',
+          'subcategory': selectedSubcategory,
+          'city': cityFilter,
+          'minPrice': minPrice,
+          'maxPrice': maxPrice,
+          'createdAt': Timestamp.now(),
+        });
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Saved "$label" — we\'ll alert you on new matches'),
+      ),
+    );
   }
 
   @override
@@ -2143,6 +2303,18 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                       activeFilterCount == 0
                           ? 'Filters'
                           : 'Filters ($activeFilterCount)',
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: IconButton(
+                      tooltip: 'Save this search & get alerts',
+                      icon: const Icon(Icons.notification_add, color: kPakGreen),
+                      onPressed: saveCurrentSearch,
                     ),
                   ),
                 ],
@@ -4253,7 +4425,16 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SavedSearchesScreen()),
+              ),
+              icon: const Icon(Icons.bookmark),
+              label: const Text('Saved Searches'),
+            ),
+            const SizedBox(height: 12),
             ElevatedButton.icon(
               onPressed: () async {
                 favoriteListings.clear();
