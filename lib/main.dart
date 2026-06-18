@@ -2156,6 +2156,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int selectedIndex = 0;
   String searchQuery = '';
   String homeCity = 'All Pakistan';
+  String homeSort = 'Newest';
   final searchController = TextEditingController();
 
   @override
@@ -2252,10 +2253,18 @@ class _HomeScreenState extends State<HomeScreen> {
               .map((d) => Listing.fromDoc(d))
               .toList()
             ..sort((a, b) {
+              // Featured first, then by the chosen sort.
               if (a.isFeatured != b.isFeatured) return a.isFeatured ? -1 : 1;
-              final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
-              final bt = b.createdAt?.millisecondsSinceEpoch ?? 0;
-              return bt.compareTo(at);
+              switch (homeSort) {
+                case 'Price: Low to High':
+                  return parsePrice(a.price).compareTo(parsePrice(b.price));
+                case 'Price: High to Low':
+                  return parsePrice(b.price).compareTo(parsePrice(a.price));
+                default:
+                  final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
+                  final bt = b.createdAt?.millisecondsSinceEpoch ?? 0;
+                  return bt.compareTo(at);
+              }
             });
 
           if (homeCity != 'All Pakistan') {
@@ -2390,16 +2399,56 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-              const SliverToBoxAdapter(
+              SliverToBoxAdapter(
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(12, 10, 12, 8),
-                  child: Text(
-                    'Fresh recommendations',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
+                  padding: const EdgeInsets.fromLTRB(12, 10, 6, 8),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Fresh recommendations',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                      PopupMenuButton<String>(
+                        initialValue: homeSort,
+                        onSelected: (v) => setState(() => homeSort = v),
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(value: 'Newest', child: Text('Newest')),
+                          PopupMenuItem(
+                            value: 'Price: Low to High',
+                            child: Text('Price: Low to High'),
+                          ),
+                          PopupMenuItem(
+                            value: 'Price: High to Low',
+                            child: Text('Price: High to Low'),
+                          ),
+                        ],
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.sort, size: 18, color: Colors.grey[700]),
+                            const SizedBox(width: 4),
+                            Text(
+                              homeSort == 'Newest'
+                                  ? 'Newest'
+                                  : (homeSort == 'Price: Low to High'
+                                        ? 'Price ↑'
+                                        : 'Price ↓'),
+                              style: TextStyle(
+                                color: Colors.grey[800],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const Icon(Icons.arrow_drop_down),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
