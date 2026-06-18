@@ -268,6 +268,20 @@ class Listing {
     this.description = '',
     this.userId = '',
   });
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'price': price,
+      'location': location,
+      'imageUrl': imageUrl,
+      'category': category,
+      'subcategory': subcategory,
+      'phone': phone,
+      'description': description,
+      'userId': userId,
+    };
+  }
 
   factory Listing.fromDoc(QueryDocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -697,7 +711,7 @@ class _ListingCardState extends State<ListingCard> {
     return favoriteListings.any((item) => item.id == widget.listing.id);
   }
 
-  void toggleFavorite() {
+  void toggleFavorite() async {
     setState(() {
       if (isFavorite) {
         favoriteListings.removeWhere((item) => item.id == widget.listing.id);
@@ -705,6 +719,18 @@ class _ListingCardState extends State<ListingCard> {
         favoriteListings.add(widget.listing);
       }
     });
+
+    if (isFavorite) {
+      await FirebaseFirestore.instance
+          .collection('favorites')
+          .doc(widget.listing.id)
+          .set(widget.listing.toMap());
+    } else {
+      await FirebaseFirestore.instance
+          .collection('favorites')
+          .doc(widget.listing.id)
+          .delete();
+    }
   }
 
   @override
