@@ -63,7 +63,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '541505846653',
     projectId: 'markethub-80276',
     storageBucket: 'markethub-80276.firebasestorage.app',
-    iosClientId: '541505846653-lbaa69m2udcuril9tlp8n2si30488ehi.apps.googleusercontent.com',
+    iosClientId:
+        '541505846653-lbaa69m2udcuril9tlp8n2si30488ehi.apps.googleusercontent.com',
     iosBundleId: 'com.example.markethub',
   );
 
@@ -73,7 +74,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '541505846653',
     projectId: 'markethub-80276',
     storageBucket: 'markethub-80276.firebasestorage.app',
-    iosClientId: '541505846653-lbaa69m2udcuril9tlp8n2si30488ehi.apps.googleusercontent.com',
+    iosClientId:
+        '541505846653-lbaa69m2udcuril9tlp8n2si30488ehi.apps.googleusercontent.com',
     iosBundleId: 'com.example.markethub',
   );
 
