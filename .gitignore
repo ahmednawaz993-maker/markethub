@@ -36,6 +36,11 @@ migrate_working_dir/
 # Firebase
 .firebase/
 
+# Android signing — keep secret, back up separately (never commit)
+android/key.properties
+**/*.jks
+**/*.keystore
+
 # Symbolication related
 app.*.symbols
 
