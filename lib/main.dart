@@ -2007,6 +2007,44 @@ class _PromoCarouselState extends State<PromoCarousel> {
   }
 }
 
+/// Grey placeholder shown in the feed grid while ads load.
+class _SkeletonCard extends StatelessWidget {
+  const _SkeletonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: Container(color: Colors.grey.shade300)),
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(height: 16, width: 90, color: Colors.grey.shade300),
+                const SizedBox(height: 8),
+                Container(
+                  height: 12,
+                  width: double.infinity,
+                  color: Colors.grey.shade200,
+                ),
+                const SizedBox(height: 6),
+                Container(height: 10, width: 70, color: Colors.grey.shade200),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Dubizzle-style 2-column feed card: image with heart + featured badge, then
 /// bold price, title, and location/time. Fills its grid cell.
 class FeedAdCard extends StatefulWidget {
@@ -2502,10 +2540,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               if (!snapshot.hasData)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(40),
-                    child: Center(child: CircularProgressIndicator()),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  sliver: SliverGrid(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: cols,
+                      childAspectRatio: 0.62,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) => const _SkeletonCard(),
+                      childCount: cols * 3,
+                    ),
                   ),
                 )
               else if (listings.isEmpty)
