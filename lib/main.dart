@@ -4412,6 +4412,154 @@ class _AddListingScreenState extends State<AddListingScreen> {
 // My ads + edit
 // ---------------------------------------------------------------------------
 
+/// Seller dashboard: totals across the user's ads + top performers.
+class SellerAnalyticsScreen extends StatelessWidget {
+  const SellerAnalyticsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    return Scaffold(
+      appBar: AppBar(title: const Text('Analytics')),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('listings')
+            .where('userId', isEqualTo: uid)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final ads = snapshot.data!.docs
+              .map((d) => Listing.fromDoc(d))
+              .toList();
+          if (ads.isEmpty) {
+            return const EmptyState(
+              icon: Icons.bar_chart,
+              title: 'No data yet',
+              subtitle: 'Post ads to start seeing views and leads.',
+            );
+          }
+          int views = 0, calls = 0, chats = 0, waps = 0, sold = 0;
+          for (final a in ads) {
+            views += a.views;
+            calls += a.calls;
+            chats += a.chats;
+            waps += a.whatsapps;
+            if (a.isSold) sold++;
+          }
+          final leads = calls + chats + waps;
+          final top = [...ads]
+            ..sort(
+              (a, b) => (b.calls + b.chats + b.whatsapps + b.views).compareTo(
+                a.calls + a.chats + a.whatsapps + a.views,
+              ),
+            );
+          final maxViews = ads
+              .map((a) => a.views)
+              .fold<int>(1, (m, v) => v > m ? v : m);
+
+          return ListView(
+            padding: const EdgeInsets.all(12),
+            children: [
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _statCard(Icons.remove_red_eye, '$views', 'Views'),
+                  _statCard(Icons.call, '$calls', 'Calls'),
+                  _statCard(Icons.chat, '$chats', 'Chats'),
+                  _statCard(Icons.whatshot, '$waps', 'WhatsApp'),
+                  _statCard(Icons.trending_up, '$leads', 'Total leads'),
+                  _statCard(Icons.inventory_2, '${ads.length}', 'Active ads'),
+                  _statCard(Icons.sell, '$sold', 'Sold'),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Top performing ads',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...top.take(10).map((a) {
+                final l = a.calls + a.chats + a.whatsapps;
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          a.title.isEmpty ? '(untitled)' : a.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: (a.views / maxViews).clamp(0.0, 1.0),
+                            minHeight: 8,
+                            backgroundColor: Colors.grey.shade200,
+                            valueColor: const AlwaysStoppedAnimation(kPakGreen),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${a.views} views · $l leads '
+                          '(📞 ${a.calls}  💬 ${a.chats}  🟢 ${a.whatsapps})',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _statCard(IconData icon, String value, String label) {
+    return SizedBox(
+      width: 108,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Column(
+            children: [
+              Icon(icon, color: kPakGreen, size: 26),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                label,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class MyAdsScreen extends StatefulWidget {
   const MyAdsScreen({super.key});
 
@@ -4425,7 +4573,19 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
     final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My Ads')),
+      appBar: AppBar(
+        title: const Text('My Ads'),
+        actions: [
+          IconButton(
+            tooltip: 'Analytics',
+            icon: const Icon(Icons.bar_chart),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SellerAnalyticsScreen()),
+            ),
+          ),
+        ],
+      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('listings')
