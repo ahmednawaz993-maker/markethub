@@ -17,7 +17,7 @@ Future<void> main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  runApp(const PakBazaarApp());
+  runApp(const PakBazarApp());
 }
 
 // ---------------------------------------------------------------------------
@@ -986,13 +986,13 @@ Future<void> recordRecentlyViewed(Listing listing) async {
 // App root + auth
 // ---------------------------------------------------------------------------
 
-class PakBazaarApp extends StatelessWidget {
-  const PakBazaarApp({super.key});
+class PakBazarApp extends StatelessWidget {
+  const PakBazarApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PakBazaar',
+      title: 'PakBazar',
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: rootMessengerKey,
       theme: buildAppTheme(),
@@ -1119,7 +1119,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     const Icon(Icons.storefront, size: 80, color: kPakGreen),
                     const SizedBox(height: 12),
                     const Text(
-                      'PakBazaar',
+                      'PakBazar',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 28,

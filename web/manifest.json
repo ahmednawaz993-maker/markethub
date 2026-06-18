@@ -1,11 +1,11 @@
 {
-    "name": "PakBazaar - Buy & Sell in Pakistan",
-    "short_name": "PakBazaar",
+    "name": "PakBazar - Buy & Sell in Pakistan",
+    "short_name": "PakBazar",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#013318",
+    "background_color": "#015127",
     "theme_color": "#015127",
-    "description": "PakBazaar - Pakistan's marketplace to buy and sell cars, property, phones, electronics and more.",
+    "description": "PakBazar - Pakistan's marketplace to buy and sell cars, property, phones, electronics and more.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
