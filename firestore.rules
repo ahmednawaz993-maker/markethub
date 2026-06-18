@@ -61,6 +61,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
                       request.auth.uid == userId
                       || onlyRatingChange()
+                      || isAdmin()
                     );
       allow delete: if false;
 

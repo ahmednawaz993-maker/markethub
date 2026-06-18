@@ -2445,6 +2445,120 @@ class _FeedAdCardState extends State<FeedAdCard> {
 // Home
 // ---------------------------------------------------------------------------
 
+/// Home rail of paid Featured Businesses (admin-approved). Hidden when empty.
+class FeaturedBusinessesRail extends StatelessWidget {
+  const FeaturedBusinessesRail({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .where('featuredBusiness', isEqualTo: true)
+          .limit(10)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 14),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 0, 12, 0),
+              child: Row(
+                children: [
+                  Icon(Icons.storefront, color: kPakGreen, size: 22),
+                  SizedBox(width: 6),
+                  Text(
+                    'Featured Businesses',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 150,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                itemCount: docs.length,
+                itemBuilder: (context, i) {
+                  final d = docs[i].data() as Map<String, dynamic>;
+                  final name = d['businessName']?.toString() ?? 'Business';
+                  final tagline = d['tagline']?.toString() ?? '';
+                  return GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SellerProfileScreen(
+                          sellerId: docs[i].id,
+                          sellerName: name,
+                        ),
+                      ),
+                    ),
+                    child: Container(
+                      width: 160,
+                      margin: const EdgeInsets.all(6),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: kGold, width: 1.5),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircleAvatar(
+                            radius: 28,
+                            backgroundColor: kPakGreen.withValues(alpha: 0.12),
+                            child: const Icon(
+                              Icons.storefront,
+                              color: kPakGreen,
+                              size: 30,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          if (tagline.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              tagline,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -2659,6 +2773,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: PromoCarousel(),
                 ),
               ),
+              const SliverToBoxAdapter(child: FeaturedBusinessesRail()),
               if (featured.isNotEmpty)
                 SliverToBoxAdapter(
                   child: Column(
@@ -5946,6 +6061,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
   bool loaded = false;
   bool saving = false;
   final nameController = TextEditingController();
+  final taglineController = TextEditingController();
 
   @override
   void initState() {
@@ -5965,6 +6081,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
     setState(() {
       isBusiness = d?['isBusiness'] == true;
       nameController.text = d?['businessName']?.toString() ?? '';
+      taglineController.text = d?['tagline']?.toString() ?? '';
       loaded = true;
     });
   }
@@ -5976,6 +6093,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
     await FirebaseFirestore.instance.collection('users').doc(uid).set({
       'isBusiness': isBusiness,
       'businessName': nameController.text.trim(),
+      'tagline': taglineController.text.trim(),
     }, SetOptions(merge: true));
     if (!mounted) return;
     setState(() => saving = false);
@@ -5987,6 +6105,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
   @override
   void dispose() {
     nameController.dispose();
+    taglineController.dispose();
     super.dispose();
   }
 
@@ -6004,7 +6123,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
               activeThumbColor: kPakGreen,
               onChanged: loaded ? (v) => setState(() => isBusiness = v) : null,
             ),
-            if (isBusiness)
+            if (isBusiness) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: TextField(
@@ -6012,6 +6131,16 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                   decoration: const InputDecoration(labelText: 'Business name'),
                 ),
               ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: TextField(
+                  controller: taglineController,
+                  decoration: const InputDecoration(
+                    labelText: 'Tagline (e.g. "Best deals on phones")',
+                  ),
+                ),
+              ),
+            ],
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
@@ -6019,6 +6148,16 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                 child: Text(saving ? 'Saving…' : 'Save'),
               ),
             ),
+            if (isBusiness)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () =>
+                      showBusinessAdSheet(context, nameController.text.trim()),
+                  icon: const Icon(Icons.campaign, color: kGold),
+                  label: const Text('Advertise my business'),
+                ),
+              ),
           ],
         ),
       ),
@@ -6182,6 +6321,106 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Business advertising
+// ---------------------------------------------------------------------------
+
+const List<PromoPackage> businessAdPackages = [
+  PromoPackage('Featured Business · 30 days', 30, 3000),
+  PromoPackage('Featured Business · 90 days', 90, 8000),
+];
+
+/// Creates a pending "featured business" advertising order. Admin approval
+/// sets the user's featuredBusiness flag, surfacing them on the home rail.
+Future<void> createBusinessPromotion(
+  PromoPackage pkg,
+  String businessName,
+) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+  await FirebaseFirestore.instance.collection('promotions').add({
+    'type': 'business',
+    'userId': user.uid,
+    'sellerId': user.uid,
+    'businessName': businessName,
+    'sellerName': user.email ?? '',
+    'listingTitle': businessName.isEmpty ? 'Business' : businessName,
+    'package': pkg.name,
+    'days': pkg.days,
+    'price': pkg.price,
+    'status': 'pending',
+    'createdAt': Timestamp.now(),
+  });
+}
+
+Future<void> showBusinessAdSheet(
+  BuildContext context,
+  String businessName,
+) async {
+  await showModalBottomSheet(
+    context: context,
+    builder: (context) {
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Text(
+                'Advertise your business',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Get a Featured Business spot on the home screen to reach more '
+                'buyers across Pakistan.',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final p in businessAdPackages)
+              ListTile(
+                leading: const Icon(Icons.storefront, color: kGold),
+                title: Text(p.name),
+                trailing: Text(
+                  formatPrice(p.price.toString()),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                onTap: () async {
+                  await createBusinessPromotion(p, businessName);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Request sent — your business will be Featured once '
+                          'payment is approved.',
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Approved by admin after payment. Automated checkout coming soon.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -6663,7 +6902,18 @@ class _AdminPromotionsTab extends StatelessWidget {
                               final until = Timestamp.fromDate(
                                 DateTime.now().add(Duration(days: days)),
                               );
-                              if (listingId.isNotEmpty) {
+                              if (d['type'] == 'business') {
+                                final bizUid = d['userId']?.toString() ?? '';
+                                if (bizUid.isNotEmpty) {
+                                  await FirebaseFirestore.instance
+                                      .collection('users')
+                                      .doc(bizUid)
+                                      .set({
+                                        'featuredBusiness': true,
+                                        'featuredBusinessUntil': until,
+                                      }, SetOptions(merge: true));
+                                }
+                              } else if (listingId.isNotEmpty) {
                                 await FirebaseFirestore.instance
                                     .collection('listings')
                                     .doc(listingId)
