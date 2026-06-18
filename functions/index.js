@@ -171,3 +171,36 @@ async function pruneInvalidTokens(db, uid, tokens, response) {
   });
   await Promise.all(removals);
 }
+
+// Notify a seller when a buyer places an order on their listing.
+exports.notifyOnNewOrder = onDocumentCreated(
+  "orders/{orderId}",
+  async (event) => {
+    const order = event.data && event.data.data();
+    if (!order || !order.sellerId) return;
+
+    const db = getFirestore();
+    const tokensSnap = await db
+      .collection("users")
+      .doc(order.sellerId)
+      .collection("fcmTokens")
+      .get();
+    const tokens = tokensSnap.docs.map((d) => d.id);
+    if (tokens.length === 0) return;
+
+    const response = await getMessaging().sendEachForMulticast({
+      tokens,
+      notification: {
+        title: "New order received",
+        body: `${order.buyerName || "A buyer"} ordered "${order.listingTitle}" for Rs ${order.amount}`,
+      },
+      data: { type: "order", orderId: event.params.orderId },
+      webpush: {
+        notification: { icon: "/icons/Icon-192.png" },
+        fcmOptions: { link: "/" },
+      },
+    });
+
+    await pruneInvalidTokens(db, order.sellerId, tokens, response);
+  }
+);

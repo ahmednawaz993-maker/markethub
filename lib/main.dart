@@ -6384,6 +6384,20 @@ class _OrdersList extends StatelessWidget {
                         ],
                       ),
                     ],
+                    if (status == 'completed' && !asSeller) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: OutlinedButton.icon(
+                          onPressed: () => showReviewDialog(
+                            context,
+                            d['sellerId']?.toString() ?? '',
+                          ),
+                          icon: const Icon(Icons.star, size: 18),
+                          label: const Text('Rate seller'),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
