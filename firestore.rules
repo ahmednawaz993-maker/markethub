@@ -43,16 +43,44 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
-    // Users + their favorites
+    // Users: profile, favorites, recently-viewed, and reviews
     // ---------------------------------------------------------------------
     match /users/{userId} {
-      // Profiles are readable so seller pages can show "Member since".
+      // Profiles are readable so seller pages can show rating / "Member since".
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      // Owner may edit their profile; anyone signed in may only adjust the
+      // aggregate rating fields (when leaving a review).
+      allow update: if isSignedIn() && (
+                      request.auth.uid == userId
+                      || onlyRatingChange()
+                    );
       allow delete: if false;
+
+      function onlyRatingChange() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['ratingSum', 'ratingCount']);
+      }
 
       match /favorites/{favoriteId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      match /recentlyViewed/{listingId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      // Reviews of this seller. Readable by all; each reviewer owns one doc
+      // (doc id == their uid) and can only write a 1-5 star rating as themselves.
+      match /reviews/{reviewerId} {
+        allow read: if isSignedIn();
+        allow create, update: if isSignedIn()
+          && request.auth.uid == reviewerId
+          && request.resource.data.reviewerId == request.auth.uid
+          && request.resource.data.rating is int
+          && request.resource.data.rating >= 1
+          && request.resource.data.rating <= 5;
+        allow delete: if isSignedIn() && request.auth.uid == reviewerId;
       }
     }
 

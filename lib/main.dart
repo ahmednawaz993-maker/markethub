@@ -709,6 +709,7 @@ class Listing {
   double? latitude;
   double? longitude;
   int views;
+  bool isFeatured;
   Timestamp? createdAt;
 
   Listing({
@@ -729,6 +730,7 @@ class Listing {
     this.latitude,
     this.longitude,
     this.views = 0,
+    this.isFeatured = false,
     this.createdAt,
   });
 
@@ -759,6 +761,7 @@ class Listing {
       'latitude': latitude,
       'longitude': longitude,
       'views': views,
+      'isFeatured': isFeatured,
       if (createdAt != null) 'createdAt': createdAt,
     };
   }
@@ -790,6 +793,7 @@ class Listing {
       latitude: (data['latitude'] as num?)?.toDouble(),
       longitude: (data['longitude'] as num?)?.toDouble(),
       views: (data['views'] as num?)?.toInt() ?? 0,
+      isFeatured: data['isFeatured'] == true,
       createdAt: data['createdAt'] is Timestamp
           ? data['createdAt'] as Timestamp
           : null,
@@ -798,6 +802,116 @@ class Listing {
 }
 
 final List<Listing> favoriteListings = [];
+
+// ---------------------------------------------------------------------------
+// Trust & reviews + discovery helpers
+// ---------------------------------------------------------------------------
+
+/// Read-only star display. Pass [count] to also show "4.5 (12)".
+class StarRating extends StatelessWidget {
+  final double rating;
+  final double size;
+  final int? count;
+  final Color color;
+
+  const StarRating({
+    super.key,
+    required this.rating,
+    this.size = 16,
+    this.count,
+    this.color = kGold,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (int i = 1; i <= 5; i++)
+          Icon(
+            rating >= i
+                ? Icons.star
+                : (rating >= i - 0.5 ? Icons.star_half : Icons.star_border),
+            size: size,
+            color: color,
+          ),
+        if (count != null) ...[
+          const SizedBox(width: 4),
+          Text(
+            count == 0
+                ? 'No reviews'
+                : '${rating.toStringAsFixed(1)} ($count)',
+            style: TextStyle(fontSize: size * 0.8, color: Colors.grey[700]),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Adds or updates the current user's review of a seller and keeps the seller's
+/// aggregate rating (ratingSum/ratingCount on their user doc) consistent.
+Future<void> submitSellerReview({
+  required String sellerId,
+  required int rating,
+  required String text,
+}) async {
+  final me = FirebaseAuth.instance.currentUser;
+  if (me == null) return;
+
+  final fs = FirebaseFirestore.instance;
+  final reviewRef =
+      fs.collection('users').doc(sellerId).collection('reviews').doc(me.uid);
+  final userRef = fs.collection('users').doc(sellerId);
+
+  await fs.runTransaction((tx) async {
+    final reviewSnap = await tx.get(reviewRef);
+    final userSnap = await tx.get(userRef);
+
+    final existed = reviewSnap.exists;
+    final oldRating =
+        existed ? (reviewSnap.data()?['rating'] as num?)?.toInt() ?? 0 : 0;
+
+    final userData = userSnap.data() ?? {};
+    num sum = (userData['ratingSum'] as num?) ?? 0;
+    int count = (userData['ratingCount'] as num?)?.toInt() ?? 0;
+
+    sum = sum - oldRating + rating;
+    if (!existed) count += 1;
+
+    tx.set(reviewRef, {
+      'reviewerId': me.uid,
+      'reviewerName': me.email ?? 'User',
+      'rating': rating,
+      'text': text.trim(),
+      'createdAt': Timestamp.now(),
+    });
+    tx.set(userRef, {
+      'ratingSum': sum,
+      'ratingCount': count,
+    }, SetOptions(merge: true));
+  });
+}
+
+/// Records that the current user viewed a listing (for the "Recently viewed"
+/// rail on Home). Best-effort; failures are ignored.
+Future<void> recordRecentlyViewed(Listing listing) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null || listing.id.isEmpty) return;
+  try {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('recentlyViewed')
+        .doc(listing.id)
+        .set({
+          ...listing.toMap(),
+          'viewedAt': Timestamp.now(),
+        });
+  } catch (_) {
+    // Non-critical.
+  }
+}
 
 // ---------------------------------------------------------------------------
 // App root + auth
@@ -1202,6 +1316,175 @@ class CitySelector extends StatelessWidget {
   }
 }
 
+/// A compact ad card used in the horizontal Home rails.
+class HorizontalAdCard extends StatelessWidget {
+  final Listing listing;
+
+  const HorizontalAdCard({super.key, required this.listing});
+
+  @override
+  Widget build(BuildContext context) {
+    final img = listing.galleryImages;
+
+    return FocusableTap(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => AdDetailsScreen(listing: listing)),
+      ),
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        clipBehavior: Clip.antiAlias,
+        margin: const EdgeInsets.all(6),
+        child: SizedBox(
+          width: 220,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: img.isNotEmpty
+                          ? Image.network(
+                              img.first,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stack) => Container(
+                                color: Colors.grey.shade300,
+                                child: const Center(
+                                  child: Icon(Icons.broken_image, size: 40),
+                                ),
+                              ),
+                            )
+                          : Container(
+                              color: Colors.grey.shade300,
+                              child: const Center(
+                                child: Icon(Icons.image, size: 40),
+                              ),
+                            ),
+                    ),
+                    if (listing.isFeatured)
+                      Positioned(
+                        top: 6,
+                        left: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: kGold,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'FEATURED',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      listing.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      '$currencySymbol ${listing.price}',
+                      style: const TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      listing.city.isEmpty ? listing.location : listing.city,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A titled horizontal rail of ads fed by a Firestore [stream]. Hides itself
+/// entirely when the stream has no results (so empty sections never show).
+class AdsRail extends StatelessWidget {
+  final String title;
+  final IconData? icon;
+  final Stream<QuerySnapshot> stream;
+
+  const AdsRail({
+    super.key,
+    required this.title,
+    required this.stream,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        final listings =
+            snapshot.data!.docs.map((d) => Listing.fromDoc(d)).toList();
+        if (listings.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, color: Colors.white, size: 22),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 250,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: listings.length,
+                itemBuilder: (context, index) =>
+                    HorizontalAdCard(listing: listings[index]),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Home
 // ---------------------------------------------------------------------------
@@ -1244,8 +1527,12 @@ class _HomeScreenState extends State<HomeScreen> {
       await ref.set({
         'email': user.email ?? '',
         'isAnonymous': user.isAnonymous,
+        'verified': user.emailVerified,
         'createdAt': Timestamp.now(),
       });
+    } else if (snap.data()?['verified'] != user.emailVerified) {
+      // Keep the public "Verified" badge in sync with email verification.
+      await ref.set({'verified': user.emailVerified}, SetOptions(merge: true));
     }
   }
 
@@ -1372,146 +1659,45 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                   ),
-                  const SizedBox(height: 20),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Latest Ads',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
+                  AdsRail(
+                    title: 'Featured',
+                    icon: Icons.star,
+                    stream: FirebaseFirestore.instance
+                        .collection('listings')
+                        .where('isFeatured', isEqualTo: true)
+                        .limit(10)
+                        .snapshots(),
                   ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 260,
-                    child: StreamBuilder<QuerySnapshot>(
+                  AdsRail(
+                    title: 'Latest Ads',
+                    stream: FirebaseFirestore.instance
+                        .collection('listings')
+                        .orderBy('createdAt', descending: true)
+                        .limit(10)
+                        .snapshots(),
+                  ),
+                  AdsRail(
+                    title: 'Trending',
+                    icon: Icons.trending_up,
+                    stream: FirebaseFirestore.instance
+                        .collection('listings')
+                        .orderBy('views', descending: true)
+                        .limit(10)
+                        .snapshots(),
+                  ),
+                  if (FirebaseAuth.instance.currentUser != null)
+                    AdsRail(
+                      title: 'Recently Viewed',
+                      icon: Icons.history,
                       stream: FirebaseFirestore.instance
-                          .collection('listings')
-                          .orderBy('createdAt', descending: true)
+                          .collection('users')
+                          .doc(FirebaseAuth.instance.currentUser!.uid)
+                          .collection('recentlyViewed')
+                          .orderBy('viewedAt', descending: true)
                           .limit(10)
                           .snapshots(),
-                      builder: (context, snapshot) {
-                        if (!snapshot.hasData) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-
-                        final docs = snapshot.data!.docs;
-
-                        if (docs.isEmpty) {
-                          return const Center(
-                            child: Text(
-                              'No ads yet',
-                              style: TextStyle(color: Colors.white70),
-                            ),
-                          );
-                        }
-
-                        return ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: docs.length,
-                          itemBuilder: (context, index) {
-                            final listing = Listing.fromDoc(docs[index]);
-
-                            return FocusableTap(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        AdDetailsScreen(listing: listing),
-                                  ),
-                                );
-                              },
-                              child: Card(
-                                elevation: 4,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                clipBehavior: Clip.antiAlias,
-                                margin: const EdgeInsets.all(8),
-                                child: SizedBox(
-                                  width: 280,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: listing.galleryImages.isNotEmpty
-                                            ? Image.network(
-                                                listing.galleryImages.first,
-                                                width: double.infinity,
-                                                fit: BoxFit.cover,
-                                                errorBuilder:
-                                                    (context, error, stack) =>
-                                                        Container(
-                                                          color: Colors
-                                                              .grey
-                                                              .shade300,
-                                                          child: const Center(
-                                                            child: Icon(
-                                                              Icons.broken_image,
-                                                              size: 50,
-                                                            ),
-                                                          ),
-                                                        ),
-                                              )
-                                            : Container(
-                                                color: Colors.grey.shade300,
-                                                child: const Center(
-                                                  child: Icon(
-                                                    Icons.image,
-                                                    size: 50,
-                                                  ),
-                                                ),
-                                              ),
-                                      ),
-                                      Padding(
-                                        padding: const EdgeInsets.all(8),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              listing.title,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            Text(
-                                              '$currencySymbol ${listing.price}',
-                                              style: const TextStyle(
-                                                color: Colors.green,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            Text(
-                                              listing.city.isEmpty
-                                                  ? listing.location
-                                                  : listing.city,
-                                              style: TextStyle(
-                                                color: Colors.grey[600],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
                     ),
-                  ),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
@@ -1794,6 +1980,10 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     }).toList();
 
     result.sort((a, b) {
+      // Featured ads always rank first.
+      if (a.isFeatured != b.isFeatured) {
+        return a.isFeatured ? -1 : 1;
+      }
       switch (sortBy) {
         case 'Price: Low to High':
           return parsePrice(a.price).compareTo(parsePrice(b.price));
@@ -2046,6 +2236,37 @@ class _ListingCardState extends State<ListingCard> {
                           height: 170,
                           child: Center(child: Icon(Icons.image, size: 60)),
                         ),
+                  if (listing.isFeatured)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: kGold,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.star, size: 14, color: Colors.white),
+                            SizedBox(width: 3),
+                            Text(
+                              'FEATURED',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   if (images.length > 1)
                     Positioned(
                       bottom: 8,
@@ -2598,7 +2819,15 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                             return const Icon(Icons.image, size: 40);
                           },
                         ),
-                  title: Text(listing.title),
+                  title: Row(
+                    children: [
+                      Flexible(child: Text(listing.title)),
+                      if (listing.isFeatured) ...[
+                        const SizedBox(width: 6),
+                        const Icon(Icons.star, size: 16, color: kGold),
+                      ],
+                    ],
+                  ),
                   subtitle: Text(
                     '${[listing.city, listing.location].where((e) => e.isNotEmpty).join(', ')}'
                     '${listing.subcategory.isEmpty ? '' : ' • ${listing.subcategory}'}'
@@ -2613,14 +2842,47 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                       ),
                     );
                   },
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () async {
-                      await FirebaseFirestore.instance
-                          .collection('listings')
-                          .doc(listing.id)
-                          .delete();
-                    },
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: listing.isFeatured
+                            ? 'Remove from Featured'
+                            : 'Boost to Featured',
+                        icon: Icon(
+                          listing.isFeatured
+                              ? Icons.star
+                              : Icons.star_border,
+                          color: kGold,
+                        ),
+                        onPressed: () async {
+                          await FirebaseFirestore.instance
+                              .collection('listings')
+                              .doc(listing.id)
+                              .update({'isFeatured': !listing.isFeatured});
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  listing.isFeatured
+                                      ? 'Removed from Featured'
+                                      : 'Boosted! Your ad is now Featured',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () async {
+                          await FirebaseFirestore.instance
+                              .collection('listings')
+                              .doc(listing.id)
+                              .delete();
+                        },
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -2890,6 +3152,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
   void initState() {
     super.initState();
     _incrementViews();
+    recordRecentlyViewed(widget.listing);
   }
 
   Future<void> _incrementViews() async {
@@ -3198,29 +3461,64 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
             // Seller row
             InkWell(
               onTap: openSellerProfile,
-              child: Row(
-                children: [
-                  const CircleAvatar(child: Icon(Icons.person)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          listing.sellerName.isEmpty
-                              ? 'Seller'
-                              : listing.sellerName,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+              child: StreamBuilder<DocumentSnapshot>(
+                stream: listing.userId.isEmpty
+                    ? null
+                    : FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(listing.userId)
+                          .snapshots(),
+                builder: (context, snap) {
+                  final data =
+                      snap.data?.data() as Map<String, dynamic>? ?? {};
+                  final count =
+                      (data['ratingCount'] as num?)?.toInt() ?? 0;
+                  final sum = (data['ratingSum'] as num?)?.toDouble() ?? 0;
+                  final avg = count > 0 ? sum / count : 0.0;
+                  final verified = data['verified'] == true;
+
+                  return Row(
+                    children: [
+                      const CircleAvatar(
+                        backgroundColor: kPakGreen,
+                        child: Icon(Icons.person, color: Colors.white),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    listing.sellerName.isEmpty
+                                        ? 'Seller'
+                                        : listing.sellerName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                if (verified) ...[
+                                  const SizedBox(width: 4),
+                                  const Icon(
+                                    Icons.verified,
+                                    size: 16,
+                                    color: kPakGreen,
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            StarRating(rating: avg, count: count, size: 14),
+                          ],
                         ),
-                        const Text(
-                          'View profile & other ads',
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right),
-                ],
+                      ),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  );
+                },
               ),
             ),
             const Divider(height: 32),
@@ -3339,8 +3637,201 @@ class _SafetyTips extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Seller profile
+// Seller profile + reviews
 // ---------------------------------------------------------------------------
+
+/// Star-picker + text dialog for rating a seller. No-op if not signed in or
+/// reviewing yourself.
+Future<void> showReviewDialog(BuildContext context, String sellerId) async {
+  final me = FirebaseAuth.instance.currentUser;
+  if (me == null || me.uid == sellerId) return;
+
+  int rating = 5;
+  final textController = TextEditingController();
+
+  final submitted = await showDialog<bool>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Rate this seller'),
+        content: StatefulBuilder(
+          builder: (context, setS) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    for (int i = 1; i <= 5; i++)
+                      IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        icon: Icon(
+                          i <= rating ? Icons.star : Icons.star_border,
+                          color: kGold,
+                          size: 36,
+                        ),
+                        onPressed: () => setS(() => rating = i),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: textController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Your review (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Submit'),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (submitted == true) {
+    try {
+      await submitSellerReview(
+        sellerId: sellerId,
+        rating: rating,
+        text: textController.text,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Thanks for your review!')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not submit review: $e')));
+      }
+    }
+  }
+}
+
+class ReviewsScreen extends StatelessWidget {
+  final String sellerId;
+  final String sellerName;
+
+  const ReviewsScreen({
+    super.key,
+    required this.sellerId,
+    required this.sellerName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final me = FirebaseAuth.instance.currentUser;
+    final canReview = me != null && me.uid != sellerId;
+
+    return Scaffold(
+      appBar: AppBar(title: Text('Reviews · $sellerName')),
+      floatingActionButton: canReview
+          ? FloatingActionButton.extended(
+              onPressed: () => showReviewDialog(context, sellerId),
+              icon: const Icon(Icons.rate_review),
+              label: const Text('Write'),
+            )
+          : null,
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('users')
+            .doc(sellerId)
+            .collection('reviews')
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final reviews = snapshot.data!.docs.toList()
+            ..sort((a, b) {
+              final at =
+                  ((a.data() as Map)['createdAt'] as Timestamp?)
+                      ?.millisecondsSinceEpoch ??
+                  0;
+              final bt =
+                  ((b.data() as Map)['createdAt'] as Timestamp?)
+                      ?.millisecondsSinceEpoch ??
+                  0;
+              return bt.compareTo(at);
+            });
+
+          if (reviews.isEmpty) {
+            return const Center(
+              child: Text(
+                'No reviews yet',
+                style: TextStyle(color: Colors.white70),
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: reviews.length,
+            itemBuilder: (context, index) {
+              final r = reviews[index].data() as Map<String, dynamic>;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              r['reviewerName']?.toString() ?? 'User',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            timeAgo(r['createdAt'] as Timestamp?),
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      StarRating(
+                        rating: (r['rating'] as num?)?.toDouble() ?? 0,
+                        size: 16,
+                      ),
+                      if ((r['text']?.toString() ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(r['text'].toString()),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
 
 class SellerProfileScreen extends StatelessWidget {
   final String sellerId;
@@ -3358,53 +3849,115 @@ class SellerProfileScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Seller Profile')),
       body: Column(
         children: [
-          FutureBuilder<DocumentSnapshot>(
-            future: FirebaseFirestore.instance
+          StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance
                 .collection('users')
                 .doc(sellerId)
-                .get(),
+                .snapshots(),
             builder: (context, snapshot) {
+              final data = snapshot.data?.data() as Map<String, dynamic>? ?? {};
               String memberSince = '';
-              if (snapshot.hasData && snapshot.data!.exists) {
-                final data = snapshot.data!.data() as Map<String, dynamic>;
-                final created = data['createdAt'];
-                if (created is Timestamp) {
-                  final d = created.toDate();
-                  memberSince = 'Member since ${d.month}/${d.year}';
-                }
+              final created = data['createdAt'];
+              if (created is Timestamp) {
+                final d = created.toDate();
+                memberSince = 'Member since ${d.month}/${d.year}';
               }
+              final count = (data['ratingCount'] as num?)?.toInt() ?? 0;
+              final sum = (data['ratingSum'] as num?)?.toDouble() ?? 0;
+              final avg = count > 0 ? sum / count : 0.0;
+              final verified = data['verified'] == true;
+              final me = FirebaseAuth.instance.currentUser;
+              final isSelf = me != null && me.uid == sellerId;
 
               return Card(
                 margin: const EdgeInsets.all(12),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Row(
+                  child: Column(
                     children: [
-                      const CircleAvatar(
-                        radius: 32,
-                        backgroundColor: kPakGreen,
-                        child: Icon(Icons.person, size: 36, color: Colors.white),
+                      Row(
+                        children: [
+                          const CircleAvatar(
+                            radius: 32,
+                            backgroundColor: kPakGreen,
+                            child: Icon(
+                              Icons.person,
+                              size: 36,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        sellerName.isEmpty
+                                            ? 'Seller'
+                                            : sellerName,
+                                        style: const TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    if (verified) ...[
+                                      const SizedBox(width: 6),
+                                      const Icon(
+                                        Icons.verified,
+                                        size: 18,
+                                        color: kPakGreen,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                if (memberSince.isNotEmpty)
+                                  Text(
+                                    memberSince,
+                                    style: const TextStyle(color: Colors.grey),
+                                  ),
+                                const SizedBox(height: 6),
+                                StarRating(rating: avg, count: count, size: 16),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      if (!isSelf) ...[
+                        const SizedBox(height: 12),
+                        Row(
                           children: [
-                            Text(
-                              sellerName.isEmpty ? 'Seller' : sellerName,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () =>
+                                    showReviewDialog(context, sellerId),
+                                icon: const Icon(Icons.rate_review),
+                                label: const Text('Write a review'),
                               ),
                             ),
-                            if (memberSince.isNotEmpty)
-                              Text(
-                                memberSince,
-                                style: const TextStyle(color: Colors.grey),
+                            if (count > 0) ...[
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextButton(
+                                  onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ReviewsScreen(
+                                        sellerId: sellerId,
+                                        sellerName: sellerName,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Text('See $count reviews'),
+                                ),
                               ),
+                            ],
                           ],
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -3586,6 +4139,44 @@ class ProfileScreen extends StatelessWidget {
                       style: const TextStyle(color: Colors.grey, fontSize: 12),
                       textAlign: TextAlign.center,
                     ),
+                    if (!(user?.isAnonymous ?? true)) ...[
+                      const SizedBox(height: 10),
+                      if (user?.emailVerified ?? false)
+                        const Chip(
+                          avatar: Icon(
+                            Icons.verified,
+                            color: kPakGreen,
+                            size: 18,
+                          ),
+                          label: Text('Verified'),
+                        )
+                      else
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            try {
+                              await user!.sendEmailVerification();
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Verification email sent. Verify, then '
+                                      'log out and back in to get your badge.',
+                                    ),
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Could not send: $e')),
+                                );
+                              }
+                            }
+                          },
+                          icon: const Icon(Icons.mark_email_read),
+                          label: const Text('Verify email'),
+                        ),
+                    ],
                     if (user?.isAnonymous ?? false) ...[
                       const SizedBox(height: 12),
                       const Text(
