@@ -110,7 +110,7 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
     match /banners/{bannerId} {
       allow read: if isSignedIn();
-      allow write: if false;
+      allow write: if isAdmin();
     }
 
     // ---------------------------------------------------------------------

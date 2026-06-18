@@ -1977,6 +1977,8 @@ class PromoBannerData {
   final List<Color> colors; // gradient fallback if the image fails to load
   /// Category to open on tap; empty/null opens Post Ad.
   final String? category;
+  /// If set, tapping opens this seller's storefront (business banner ads).
+  final String? sellerId;
 
   const PromoBannerData({
     required this.title,
@@ -1984,6 +1986,7 @@ class PromoBannerData {
     required this.image,
     required this.colors,
     this.category,
+    this.sellerId,
   });
 }
 
@@ -2076,6 +2079,7 @@ class _PromoCarouselState extends State<PromoCarousel> {
               image: m['imageUrl']?.toString() ?? '',
               colors: const [kPakGreen, kPakGreenLight],
               category: m['category']?.toString(),
+              sellerId: m['sellerId']?.toString(),
             );
           }).toList();
         });
@@ -2121,11 +2125,19 @@ class _PromoCarouselState extends State<PromoCarousel> {
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
                     onTap: () {
+                      final sid = b.sellerId;
                       final cat = b.category;
-                      final dest =
-                          (cat != null && cat.isNotEmpty && cat != 'All')
-                          ? CategoryScreen(title: cat)
-                          : const AddListingScreen();
+                      final Widget dest;
+                      if (sid != null && sid.isNotEmpty) {
+                        dest = SellerProfileScreen(
+                          sellerId: sid,
+                          sellerName: b.title,
+                        );
+                      } else if (cat != null && cat.isNotEmpty && cat != 'All') {
+                        dest = CategoryScreen(title: cat);
+                      } else {
+                        dest = const AddListingScreen();
+                      }
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => dest),
@@ -6441,7 +6453,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                 child: Text(saving ? 'Saving…' : 'Save'),
               ),
             ),
-            if (isBusiness)
+            if (isBusiness) ...[
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -6451,6 +6463,18 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                   label: const Text('Advertise my business'),
                 ),
               ),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const BannerAdScreen()),
+                  ),
+                  icon: const Icon(Icons.view_carousel, color: kGold),
+                  label: const Text('Buy a home banner'),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -6719,6 +6743,205 @@ Future<void> showBusinessAdSheet(
 // ---------------------------------------------------------------------------
 // Orders (direct buy/sell)
 // ---------------------------------------------------------------------------
+
+/// Lets a business upload a home-screen banner ad and request a slot.
+class BannerAdScreen extends StatefulWidget {
+  const BannerAdScreen({super.key});
+
+  @override
+  State<BannerAdScreen> createState() => _BannerAdScreenState();
+}
+
+class _BannerAdScreenState extends State<BannerAdScreen> {
+  final picker = ImagePicker();
+  final titleController = TextEditingController();
+  final subtitleController = TextEditingController();
+  String? imageUrl;
+  bool uploading = false;
+  bool submitting = false;
+  PromoPackage? selected;
+
+  static const bannerPackages = [
+    PromoPackage('Home banner · 7 days', 7, 2000),
+    PromoPackage('Home banner · 30 days', 30, 6000),
+  ];
+
+  @override
+  void dispose() {
+    titleController.dispose();
+    subtitleController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickAndUpload() async {
+    final img = await picker.pickImage(source: ImageSource.gallery);
+    if (img == null) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    setState(() => uploading = true);
+    try {
+      final bytes = await img.readAsBytes();
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('banners')
+          .child('ad_${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      final url = await ref.getDownloadURL();
+      if (!mounted) return;
+      setState(() => imageUrl = url);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => uploading = false);
+    }
+  }
+
+  Future<void> _submit() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    if (imageUrl == null || selected == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add a banner image and pick a package')),
+      );
+      return;
+    }
+    setState(() => submitting = true);
+    await FirebaseFirestore.instance.collection('promotions').add({
+      'type': 'banner',
+      'sellerId': user.uid,
+      'userId': user.uid,
+      'imageUrl': imageUrl,
+      'bannerTitle': titleController.text.trim(),
+      'bannerSubtitle': subtitleController.text.trim(),
+      'listingTitle': 'Home banner: ${titleController.text.trim()}',
+      'sellerName': user.email ?? '',
+      'package': selected!.name,
+      'days': selected!.days,
+      'price': selected!.price,
+      'status': 'pending',
+      'createdAt': Timestamp.now(),
+    });
+    if (!mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Banner request sent — it goes live once approved.'),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Buy a Home Banner')),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(12),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Promote your business with a banner on the home screen.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 12),
+                AspectRatio(
+                  aspectRatio: 16 / 6,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(12),
+                      image: imageUrl != null
+                          ? DecorationImage(
+                              image: NetworkImage(imageUrl!),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
+                    ),
+                    child: imageUrl == null
+                        ? const Center(
+                            child: Text('Banner preview (≈ 1000×360)'),
+                          )
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: uploading ? null : _pickAndUpload,
+                  icon: uploading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.image),
+                  label: Text(
+                    uploading
+                        ? 'Uploading…'
+                        : (imageUrl == null
+                              ? 'Upload banner image'
+                              : 'Change image'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Headline (e.g. "Eid Sale at Ali Mobiles")',
+                  ),
+                ),
+                TextField(
+                  controller: subtitleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Subtitle (optional)',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Choose a package',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                RadioGroup<PromoPackage>(
+                  groupValue: selected,
+                  onChanged: (v) => setState(() => selected = v),
+                  child: Column(
+                    children: [
+                      for (final p in bannerPackages)
+                        RadioListTile<PromoPackage>(
+                          value: p,
+                          title: Text(p.name),
+                          secondary: Text(
+                            formatPrice(p.price.toString()),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: submitting ? null : _submit,
+                  child: Text(submitting ? 'Sending…' : 'Submit request'),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Approved by admin after payment. Automated checkout coming soon.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class OrdersScreen extends StatelessWidget {
   const OrdersScreen({super.key});
@@ -7206,6 +7429,20 @@ class _AdminPromotionsTab extends StatelessWidget {
                                         'featuredBusinessUntil': until,
                                       }, SetOptions(merge: true));
                                 }
+                              } else if (d['type'] == 'banner') {
+                                await FirebaseFirestore.instance
+                                    .collection('banners')
+                                    .add({
+                                      'imageUrl': d['imageUrl'] ?? '',
+                                      'title': d['bannerTitle'] ?? '',
+                                      'subtitle': d['bannerSubtitle'] ?? '',
+                                      'sellerId': d['sellerId'] ?? '',
+                                      'category': '',
+                                      'order': 99,
+                                      'active': true,
+                                      'createdAt': Timestamp.now(),
+                                      'expiresAt': until,
+                                    });
                               } else if (listingId.isNotEmpty) {
                                 await FirebaseFirestore.instance
                                     .collection('listings')
