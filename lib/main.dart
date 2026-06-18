@@ -4582,6 +4582,49 @@ class _EditListingScreenState extends State<EditListingScreen> {
 // Ad details
 // ---------------------------------------------------------------------------
 
+/// Fullscreen, swipeable, pinch-to-zoom image viewer.
+class FullScreenGallery extends StatelessWidget {
+  final List<String> images;
+  final int initialIndex;
+
+  const FullScreenGallery({
+    super.key,
+    required this.images,
+    this.initialIndex = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: PageView.builder(
+        controller: PageController(initialPage: initialIndex),
+        itemCount: images.length,
+        itemBuilder: (context, i) => InteractiveViewer(
+          minScale: 1,
+          maxScale: 4,
+          child: Center(
+            child: Image.network(
+              images[i],
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) => const Icon(
+                Icons.broken_image,
+                color: Colors.white,
+                size: 80,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class AdDetailsScreen extends StatefulWidget {
   final Listing listing;
 
@@ -4832,17 +4875,28 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                   itemCount: images.length,
                   onPageChanged: (i) => setState(() => currentImage = i),
                   itemBuilder: (context, index) {
-                    return ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        images[index],
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Center(
-                            child: Icon(Icons.image, size: 80),
-                          );
-                        },
+                    return GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => FullScreenGallery(
+                            images: images,
+                            initialIndex: index,
+                          ),
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          images[index],
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Center(
+                              child: Icon(Icons.image, size: 80),
+                            );
+                          },
+                        ),
                       ),
                     );
                   },
