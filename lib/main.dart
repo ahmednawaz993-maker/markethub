@@ -5799,6 +5799,17 @@ class ProfileScreen extends StatelessWidget {
               label: const Text('Saved Searches'),
             ),
             const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final url = Uri.parse(
+                  'mailto:support@pakbazar.pk?subject=PakBazar Feedback',
+                );
+                await launchUrl(url, mode: LaunchMode.externalApplication);
+              },
+              icon: const Icon(Icons.help_outline),
+              label: const Text('Help & Feedback'),
+            ),
+            const SizedBox(height: 12),
             ElevatedButton.icon(
               onPressed: () async {
                 favoriteListings.clear();
