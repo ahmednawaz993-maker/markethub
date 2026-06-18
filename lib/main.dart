@@ -4154,6 +4154,10 @@ class _EditListingScreenState extends State<EditListingScreen> {
   double? longitude;
   bool isLocating = false;
 
+  final ImagePicker picker = ImagePicker();
+  List<XFile> newImages = [];
+  bool isSaving = false;
+
   @override
   void initState() {
     super.initState();
@@ -4203,26 +4207,60 @@ class _EditListingScreenState extends State<EditListingScreen> {
     }
   }
 
-  Future<void> updateListing() async {
-    await FirebaseFirestore.instance
-        .collection('listings')
-        .doc(widget.listing.id)
-        .update({
-          'title': titleController.text.trim(),
-          'price': priceController.text.trim(),
-          'location': locationController.text.trim(),
-          'city': selectedCity,
-          'latitude': latitude,
-          'longitude': longitude,
-          'phone': phoneController.text.trim(),
-          'description': descriptionController.text.trim(),
-          'category': selectedCategory,
-          'subcategory': selectedSubcategory,
-          'condition': selectedCondition,
-        });
+  Future<void> pickImages() async {
+    final imgs = await picker.pickMultiImage();
+    if (imgs.isNotEmpty) setState(() => newImages = imgs);
+  }
 
-    if (!mounted) return;
-    Navigator.pop(context);
+  Future<List<String>> uploadImages() async {
+    final urls = <String>[];
+    for (var i = 0; i < newImages.length; i++) {
+      final bytes = await newImages[i].readAsBytes();
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('listings')
+          .child('${DateTime.now().millisecondsSinceEpoch}_$i.jpg');
+      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      urls.add(await ref.getDownloadURL());
+    }
+    return urls;
+  }
+
+  Future<void> updateListing() async {
+    setState(() => isSaving = true);
+    try {
+      final data = <String, dynamic>{
+        'title': titleController.text.trim(),
+        'price': priceController.text.trim(),
+        'location': locationController.text.trim(),
+        'city': selectedCity,
+        'latitude': latitude,
+        'longitude': longitude,
+        'phone': phoneController.text.trim(),
+        'description': descriptionController.text.trim(),
+        'category': selectedCategory,
+        'subcategory': selectedSubcategory,
+        'condition': selectedCondition,
+      };
+      if (newImages.isNotEmpty) {
+        final urls = await uploadImages();
+        data['images'] = urls;
+        data['imageUrl'] = urls.isNotEmpty ? urls.first : '';
+      }
+      await FirebaseFirestore.instance
+          .collection('listings')
+          .doc(widget.listing.id)
+          .update(data);
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Update failed: $e')));
+    } finally {
+      if (mounted) setState(() => isSaving = false);
+    }
   }
 
   @override
@@ -4247,7 +4285,78 @@ class _EditListingScreenState extends State<EditListingScreen> {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Photos',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 90,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  if (newImages.isNotEmpty)
+                    for (final x in newImages)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: FutureBuilder<Uint8List>(
+                            future: x.readAsBytes(),
+                            builder: (context, snap) => snap.hasData
+                                ? Image.memory(
+                                    snap.data!,
+                                    width: 90,
+                                    height: 90,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Container(
+                                    width: 90,
+                                    height: 90,
+                                    color: Colors.grey.shade300,
+                                  ),
+                          ),
+                        ),
+                      )
+                  else
+                    for (final u in widget.listing.galleryImages)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            u,
+                            width: 90,
+                            height: 90,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => Container(
+                              width: 90,
+                              height: 90,
+                              color: Colors.grey.shade300,
+                              child: const Icon(Icons.image),
+                            ),
+                          ),
+                        ),
+                      ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: isSaving ? null : pickImages,
+              icon: const Icon(Icons.add_a_photo),
+              label: Text(
+                newImages.isEmpty
+                    ? 'Change photos'
+                    : '${newImages.length} new photo(s) selected',
+              ),
+            ),
+            const SizedBox(height: 12),
             TextField(
               controller: titleController,
               decoration: const InputDecoration(labelText: 'Title'),
@@ -4357,8 +4466,14 @@ class _EditListingScreenState extends State<EditListingScreen> {
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: updateListing,
-              child: const Text('Update'),
+              onPressed: isSaving ? null : updateListing,
+              child: isSaving
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Update'),
             ),
               ],
             ),
