@@ -960,6 +960,8 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'category': selectedCategory,
         'subcategory': selectedSubcategory,
         'userId': FirebaseAuth.instance.currentUser?.uid ?? '',
+        'sellerName':
+            FirebaseAuth.instance.currentUser?.email ?? 'Anonymous seller',
         'createdAt': Timestamp.now(),
         'isFeatured': false,
       });
