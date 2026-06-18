@@ -23,29 +23,371 @@ Future<void> main() async {
 // Currency shown across the app (Pakistani Rupee).
 const String currencySymbol = 'Rs';
 
+// ---------------------------------------------------------------------------
+// Premium Pakistan-flag theme palette
+// ---------------------------------------------------------------------------
+
+const Color kPakGreenDeep = Color(0xFF013318); // darkest flag green
+const Color kPakGreen = Color(0xFF015127); // primary flag green
+const Color kPakGreenLight = Color(0xFF0A7D3B); // lighter accent green
+const Color kGold = Color(0xFFC9A227); // premium gold accent
+
+ThemeData buildAppTheme() {
+  final base = ThemeData(
+    primaryColor: kPakGreen,
+    useMaterial3: false,
+    scaffoldBackgroundColor: Colors.transparent,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: kPakGreen,
+      primary: kPakGreen,
+      secondary: kGold,
+    ),
+    fontFamily: 'Roboto',
+  );
+
+  return base.copyWith(
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Colors.transparent,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      centerTitle: false,
+      titleTextStyle: TextStyle(
+        color: Colors.white,
+        fontSize: 20,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 0.3,
+      ),
+    ),
+    cardTheme: CardThemeData(
+      color: Colors.white,
+      elevation: 8,
+      shadowColor: Colors.black.withValues(alpha: 0.35),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      clipBehavior: Clip.antiAlias,
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: kPakGreen,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: kPakGreen,
+        side: const BorderSide(color: kPakGreen, width: 1.5),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        textStyle: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(foregroundColor: kPakGreen),
+    ),
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: kPakGreen,
+      foregroundColor: Colors.white,
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: kPakGreen, width: 2),
+      ),
+    ),
+    chipTheme: base.chipTheme.copyWith(
+      selectedColor: kPakGreen,
+      secondarySelectedColor: kPakGreen,
+      labelStyle: const TextStyle(fontWeight: FontWeight.w500),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    ),
+    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      backgroundColor: Colors.white,
+      selectedItemColor: kPakGreen,
+      unselectedItemColor: Colors.grey,
+      type: BottomNavigationBarType.fixed,
+      elevation: 16,
+    ),
+    dividerColor: Colors.grey.shade300,
+  );
+}
+
+/// Full-screen flag-green gradient with a faint crescent-and-star motif.
+/// Rendered once behind every route via [MaterialApp.builder]; scaffolds are
+/// transparent so this shows through on every page.
+class AppBackground extends StatelessWidget {
+  final Widget child;
+
+  const AppBackground({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [kPakGreenDeep, kPakGreen, kPakGreenDeep],
+          stops: [0.0, 0.45, 1.0],
+        ),
+      ),
+      child: Stack(
+        children: [
+          // Crescent + star watermark (subtle, premium feel).
+          Positioned(
+            top: 60,
+            right: -30,
+            child: Opacity(
+              opacity: 0.06,
+              child: Transform.rotate(
+                angle: 0.35,
+                child: const Icon(
+                  Icons.nightlight_round,
+                  size: 280,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          const Positioned(
+            top: 90,
+            right: 150,
+            child: Opacity(
+              opacity: 0.06,
+              child: Icon(Icons.star, size: 110, color: Colors.white),
+            ),
+          ),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+// Comprehensive list of Pakistani cities and towns (big and small), across all
+// provinces, ICT, AJK and Gilgit-Baltistan. Kept alphabetical for the picker.
 const List<String> pakistanCities = [
-  'Karachi',
-  'Lahore',
-  'Islamabad',
-  'Rawalpindi',
-  'Faisalabad',
-  'Multan',
-  'Peshawar',
-  'Quetta',
-  'Hyderabad',
-  'Gujranwala',
-  'Sialkot',
-  'Bahawalpur',
-  'Sargodha',
-  'Sukkur',
-  'Larkana',
-  'Sheikhupura',
-  'Mardan',
-  'Gujrat',
   'Abbottabad',
-  'Mirpur (AJK)',
+  'Ahmadpur East',
+  'Aliabad (Hunza)',
+  'Alipur',
+  'Arifwala',
+  'Astore',
+  'Athmuqam',
+  'Attock',
+  'Awaran',
+  'Badin',
+  'Bagh',
+  'Bahawalnagar',
+  'Bahawalpur',
+  'Balakot',
+  'Bannu',
+  'Barkhan',
+  'Batkhela',
+  'Battagram',
+  'Bela',
+  'Bhakkar',
+  'Bhalwal',
+  'Bhimber',
+  'Burewala',
+  'Chakwal',
+  'Chaman',
+  'Charsadda',
+  'Chichawatni',
+  'Chilas',
+  'Chiniot',
+  'Chishtian',
+  'Chitral',
+  'Chunian',
+  'Dadu',
+  'Daharki',
+  'Dadyal',
+  'Daggar',
+  'Dalbandin',
+  'Daska',
+  'Dera Allah Yar',
+  'Dera Bugti',
+  'Dera Ghazi Khan',
+  'Dera Ismail Khan',
+  'Dera Murad Jamali',
+  'Digri',
+  'Dir',
+  'Dunyapur',
+  'Faisalabad',
+  'Fort Abbas',
+  'Gahkuch',
+  'Gambat',
+  'Ghotki',
   'Gilgit',
+  'Gojra',
+  'Gujar Khan',
+  'Gujranwala',
+  'Gujrat',
+  'Gwadar',
+  'Hafizabad',
+  'Hala',
+  'Hangu',
+  'Haripur',
+  'Haroonabad',
+  'Hasilpur',
+  'Hattian Bala',
+  'Hub',
+  'Hyderabad',
+  'Islamabad',
+  'Jacobabad',
+  'Jalalpur Jattan',
+  'Jampur',
+  'Jamshoro',
+  'Jaranwala',
+  'Jatoi',
+  'Jhang',
+  'Jhelum',
+  'Jiwani',
+  'Kabirwala',
+  'Kahror Pakka',
+  'Kalat',
+  'Kamalia',
+  'Kamoke',
+  'Kandhkot',
+  'Karachi',
+  'Karak',
+  'Kashmore',
+  'Kasur',
+  'Khairpur',
+  'Khanewal',
+  'Khanpur',
+  'Khaplu',
+  'Kharan',
+  'Kharian',
+  'Khushab',
+  'Khuzdar',
+  'Kohat',
+  'Kohlu',
+  'Kot Addu',
+  'Kot Diji',
+  'Kotli',
+  'Kotri',
+  'Kulachi',
+  'Lahore',
+  'Lakki Marwat',
+  'Larkana',
+  'Lasbela',
+  'Layyah',
+  'Liaquatpur',
+  'Lodhran',
+  'Loralai',
+  'Mach',
+  'Mailsi',
+  'Malakand',
+  'Mandi Bahauddin',
+  'Mansehra',
+  'Mardan',
+  'Mastung',
+  'Matiari',
+  'Mehar',
+  'Mian Channu',
+  'Mianwali',
+  'Minchinabad',
+  'Mingora (Swat)',
+  'Mirpur (AJK)',
+  'Mirpur Khas',
+  'Mirpur Mathelo',
+  'Moro',
+  'Multan',
+  'Muridke',
+  'Murree',
   'Muzaffarabad',
+  'Muzaffargarh',
+  'Nankana Sahib',
+  'Narowal',
+  'Naushahro Feroze',
+  'Nawabshah',
+  'Nowshera',
+  'Nowshera Virkan',
+  'Nushki',
+  'Oghi',
+  'Okara',
+  'Ormara',
+  'Pakpattan',
+  'Pallandri',
+  'Panjgur',
+  'Pano Akil',
+  'Parachinar',
+  'Pasni',
+  'Pasrur',
+  'Pattoki',
+  'Peshawar',
+  'Pind Dadan Khan',
+  'Pishin',
+  'Qila Abdullah',
+  'Qila Saifullah',
+  'Quetta',
+  'Rabwah',
+  'Rahim Yar Khan',
+  'Rajanpur',
+  'Ratodero',
+  'Rawalakot',
+  'Rawalpindi',
+  'Renala Khurd',
+  'Risalpur',
+  'Rohri',
+  'Sadiqabad',
+  'Sahiwal',
+  'Sakrand',
+  'Sambrial',
+  'Sangla Hill',
+  'Sanghar',
+  'Sargodha',
+  'Sehwan',
+  'Shabqadar',
+  'Shahdadkot',
+  'Shakargarh',
+  'Sheikhupura',
+  'Shikarpur',
+  'Shorkot',
+  'Sialkot',
+  'Sibi',
+  'Skardu',
+  'Sukkur',
+  'Surab',
+  'Swabi',
+  'Talagang',
+  'Tando Adam',
+  'Tando Allahyar',
+  'Tando Muhammad Khan',
+  'Tangi',
+  'Tank',
+  'Taunsa',
+  'Taxila',
+  'Thatta',
+  'Timergara',
+  'Toba Tek Singh',
+  'Turbat',
+  'Umerkot',
+  'Usta Mohammad',
+  'Vehari',
+  'Wah Cantonment',
+  'Wazirabad',
+  'Yazman',
+  'Zhob',
+  'Ziarat',
 ];
 
 const List<String> itemConditions = ['New', 'Used'];
@@ -469,7 +811,8 @@ class MarketHubApp extends StatelessWidget {
     return MaterialApp(
       title: 'MarketHub',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: false),
+      theme: buildAppTheme(),
+      builder: (context, child) => AppBackground(child: child ?? const SizedBox()),
       home: const AuthGate(),
     );
   }
@@ -582,17 +925,24 @@ class _AuthScreenState extends State<AuthScreen> {
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Icon(Icons.storefront, size: 80, color: Colors.blue),
-                const SizedBox(height: 12),
-                const Text(
-                  'MarketHub',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                ),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Icon(Icons.storefront, size: 80, color: kPakGreen),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'MarketHub',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: kPakGreen,
+                      ),
+                    ),
                 const SizedBox(height: 8),
                 Text(
                   isLogin ? 'Log in to your account' : 'Create a new account',
@@ -656,12 +1006,14 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ),
                 const Divider(height: 32),
-                OutlinedButton.icon(
-                  onPressed: isLoading ? null : continueAsGuest,
-                  icon: const Icon(Icons.person_outline),
-                  label: const Text('Continue as Guest'),
+                    OutlinedButton.icon(
+                      onPressed: isLoading ? null : continueAsGuest,
+                      icon: const Icon(Icons.person_outline),
+                      label: const Text('Continue as Guest'),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -718,7 +1070,7 @@ class _FocusableTapState extends State<FocusableTap> {
         decoration: BoxDecoration(
           borderRadius: widget.borderRadius,
           border: Border.all(
-            color: _focused ? Colors.blue : Colors.transparent,
+            color: _focused ? kGold : Colors.transparent,
             width: 3,
           ),
         ),
@@ -727,6 +1079,123 @@ class _FocusableTapState extends State<FocusableTap> {
           borderRadius: widget.borderRadius,
           onTap: widget.onTap,
           child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
+/// Opens a searchable, full-height city picker. Returns the chosen city, or
+/// null if dismissed. Much friendlier on mobile than a 190-item dropdown.
+Future<String?> showCityPicker(
+  BuildContext context, {
+  bool includeAll = false,
+}) {
+  final options = [if (includeAll) 'All', ...pakistanCities];
+
+  return showModalBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) {
+      String query = '';
+      return StatefulBuilder(
+        builder: (context, setSheetState) {
+          final filtered = options
+              .where((c) => c.toLowerCase().contains(query.toLowerCase()))
+              .toList();
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: SizedBox(
+              height: MediaQuery.of(context).size.height * 0.75,
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Select City',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: TextField(
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        hintText: 'Search city...',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) =>
+                          setSheetState(() => query = value),
+                    ),
+                  ),
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? const Center(child: Text('No city found'))
+                        : ListView.builder(
+                            itemCount: filtered.length,
+                            itemBuilder: (context, index) {
+                              final city = filtered[index];
+                              return ListTile(
+                                title: Text(city),
+                                onTap: () => Navigator.pop(context, city),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+/// A tap-to-open city field that mirrors a form dropdown but uses the
+/// searchable [showCityPicker].
+class CitySelector extends StatelessWidget {
+  final String value;
+  final String label;
+  final bool includeAll;
+  final ValueChanged<String> onChanged;
+  final bool enabled;
+
+  const CitySelector({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.label = 'City',
+    this.includeAll = false,
+    this.enabled = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: enabled
+          ? () async {
+              final selected = await showCityPicker(
+                context,
+                includeAll: includeAll,
+              );
+              if (selected != null) onChanged(selected);
+            }
+          : null,
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.location_city, size: 20, color: Colors.grey),
+            const SizedBox(width: 8),
+            Expanded(child: Text(value)),
+            const Icon(Icons.arrow_drop_down),
+          ],
         ),
       ),
     );
@@ -845,9 +1314,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: MediaQuery.of(context).size.width > 900
-                          ? 4
-                          : 2,
+                      crossAxisCount: () {
+                        final w = MediaQuery.of(context).size.width;
+                        if (w > 1100) return 4;
+                        if (w > 700) return 3;
+                        return 2;
+                      }(),
                       childAspectRatio: 1.4,
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
@@ -875,7 +1347,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(category.icon, size: 42, color: Colors.blue),
+                              Icon(category.icon, size: 42, color: kPakGreen),
                               const SizedBox(height: 12),
                               Text(
                                 category.title,
@@ -908,6 +1380,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -930,7 +1403,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         final docs = snapshot.data!.docs;
 
                         if (docs.isEmpty) {
-                          return const Center(child: Text('No ads yet'));
+                          return const Center(
+                            child: Text(
+                              'No ads yet',
+                              style: TextStyle(color: Colors.white70),
+                            ),
+                          );
                         }
 
                         return ListView.builder(
@@ -1200,24 +1678,11 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    initialValue: tempCity,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'City',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: ['All', ...pakistanCities]
-                        .map(
-                          (e) =>
-                              DropdownMenuItem(value: e, child: Text(e)),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setSheetState(() => tempCity = value);
-                      }
-                    },
+                  CitySelector(
+                    value: tempCity,
+                    includeAll: true,
+                    onChanged: (value) =>
+                        setSheetState(() => tempCity = value),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -1460,13 +1925,21 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   '${filtered.length} result${filtered.length == 1 ? '' : 's'}',
-                  style: const TextStyle(color: Colors.grey),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
             Expanded(
               child: filtered.isEmpty
-                  ? const Center(child: Text('No listings found'))
+                  ? const Center(
+                      child: Text(
+                        'No listings found',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    )
                   : ListView(
                       padding: const EdgeInsets.all(16),
                       children: filtered
@@ -1873,10 +2346,13 @@ class _AddListingScreenState extends State<AddListingScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Post Ad')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+        padding: const EdgeInsets.all(12),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
             OutlinedButton.icon(
               onPressed: isSubmitting ? null : pickImages,
               icon: const Icon(Icons.add_a_photo),
@@ -1934,20 +2410,10 @@ class _AddListingScreenState extends State<AddListingScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: selectedCity,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'City'),
-              items: pakistanCities
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                  .toList(),
-              onChanged: isSubmitting
-                  ? null
-                  : (value) {
-                      if (value != null) {
-                        setState(() => selectedCity = value);
-                      }
-                    },
+            CitySelector(
+              value: selectedCity,
+              enabled: !isSubmitting,
+              onChanged: (value) => setState(() => selectedCity = value),
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
@@ -2059,7 +2525,9 @@ class _AddListingScreenState extends State<AddListingScreen> {
                     )
                   : const Text('Submit'),
             ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -2101,7 +2569,12 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
           final docs = snapshot.data!.docs;
 
           if (docs.isEmpty) {
-            return const Center(child: Text('No ads posted yet'));
+            return const Center(
+              child: Text(
+                'No ads posted yet',
+                style: TextStyle(color: Colors.white70),
+              ),
+            );
           }
 
           return ListView.builder(
@@ -2270,9 +2743,12 @@ class _EditListingScreenState extends State<EditListingScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Edit Ad')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
+        padding: const EdgeInsets.all(12),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
             TextField(
               controller: titleController,
               decoration: const InputDecoration(labelText: 'Title'),
@@ -2287,16 +2763,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
               decoration: const InputDecoration(labelText: 'Area / Block'),
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: selectedCity,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'City'),
-              items: pakistanCities
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) setState(() => selectedCity = value);
-              },
+            CitySelector(
+              value: selectedCity,
+              onChanged: (value) => setState(() => selectedCity = value),
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
@@ -2392,7 +2861,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
               onPressed: updateListing,
               child: const Text('Update'),
             ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -2614,10 +3085,13 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        padding: const EdgeInsets.all(12),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
             if (images.isNotEmpty) ...[
               SizedBox(
                 height: 280,
@@ -2654,7 +3128,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: i == currentImage
-                            ? Colors.blue
+                            ? kPakGreen
                             : Colors.grey.shade400,
                       ),
                     );
@@ -2805,7 +3279,9 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                 ),
               ),
             const SizedBox(height: 24),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -2898,49 +3374,52 @@ class SellerProfileScreen extends StatelessWidget {
                 }
               }
 
-              return Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    const CircleAvatar(
-                      radius: 32,
-                      child: Icon(Icons.person, size: 36),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            sellerName.isEmpty ? 'Seller' : sellerName,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          if (memberSince.isNotEmpty)
-                            Text(
-                              memberSince,
-                              style: const TextStyle(color: Colors.grey),
-                            ),
-                        ],
+              return Card(
+                margin: const EdgeInsets.all(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      const CircleAvatar(
+                        radius: 32,
+                        backgroundColor: kPakGreen,
+                        child: Icon(Icons.person, size: 36, color: Colors.white),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              sellerName.isEmpty ? 'Seller' : sellerName,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if (memberSince.isNotEmpty)
+                              Text(
+                                memberSince,
+                                style: const TextStyle(color: Colors.grey),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
           ),
-          const Divider(height: 1),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 'Ads by this seller',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: Colors.grey[800],
+                  color: Colors.white.withValues(alpha: 0.9),
                 ),
               ),
             ),
@@ -2966,7 +3445,12 @@ class SellerProfileScreen extends StatelessWidget {
                   });
 
                 if (listings.isEmpty) {
-                  return const Center(child: Text('No ads from this seller'));
+                  return const Center(
+                    child: Text(
+                      'No ads from this seller',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  );
                 }
 
                 return ListView(
@@ -3003,7 +3487,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     if (uid == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Favorites')),
-        body: const Center(child: Text('Please log in to see favorites')),
+        body: const Center(
+          child: Text(
+            'Please log in to see favorites',
+            style: TextStyle(color: Colors.white70),
+          ),
+        ),
       );
     }
 
@@ -3029,7 +3518,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           final docs = snapshot.data!.docs;
 
           if (docs.isEmpty) {
-            return const Center(child: Text('No favorites yet'));
+            return const Center(
+              child: Text(
+                'No favorites yet',
+                style: TextStyle(color: Colors.white70),
+              ),
+            );
           }
 
           return ListView.builder(
@@ -3061,25 +3555,51 @@ class ProfileScreen extends StatelessWidget {
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.account_circle, size: 90),
-            const SizedBox(height: 20),
-            Text(
-              user?.email ?? 'Anonymous user',
-              style: const TextStyle(fontSize: 20),
-            ),
-            const SizedBox(height: 12),
-            Text('User ID: ${user?.uid ?? 'Unknown'}'),
-            if (user?.isAnonymous ?? false) ...[
-              const SizedBox(height: 12),
-              const Text(
-                'You are browsing as a guest. Log in to keep your ads, '
-                'favorites and chats across devices.',
-                style: TextStyle(color: Colors.orange),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const CircleAvatar(
+                      radius: 44,
+                      backgroundColor: kPakGreen,
+                      child: Icon(
+                        Icons.person,
+                        size: 50,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      user?.email ?? 'Anonymous user',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'User ID: ${user?.uid ?? 'Unknown'}',
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+                    if (user?.isAnonymous ?? false) ...[
+                      const SizedBox(height: 12),
+                      const Text(
+                        'You are browsing as a guest. Log in to keep your ads, '
+                        'favorites and chats across devices.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.orange),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-            ],
-            const SizedBox(height: 30),
+            ),
+            const SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: () async {
                 favoriteListings.clear();
@@ -3110,7 +3630,12 @@ class ChatsScreen extends StatelessWidget {
     if (uid == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Chats')),
-        body: const Center(child: Text('Please log in to see your chats')),
+        body: const Center(
+          child: Text(
+            'Please log in to see your chats',
+            style: TextStyle(color: Colors.white70),
+          ),
+        ),
       );
     }
 
@@ -3147,13 +3672,16 @@ class ChatsScreen extends StatelessWidget {
 
           if (chats.isEmpty) {
             return const Center(
-              child: Text('No chats yet. Message a seller to start one.'),
+              child: Text(
+                'No chats yet. Message a seller to start one.',
+                style: TextStyle(color: Colors.white70),
+              ),
             );
           }
 
-          return ListView.separated(
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
             itemCount: chats.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final data = chats[index].data() as Map<String, dynamic>;
               final isBuyer = data['buyerId'] == uid;
@@ -3162,7 +3690,9 @@ class ChatsScreen extends StatelessWidget {
                   : (data['buyerName']?.toString() ?? 'Buyer');
               final listingImage = data['listingImage']?.toString() ?? '';
 
-              return ListTile(
+              return Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: ListTile(
                 leading: listingImage.isEmpty
                     ? const CircleAvatar(child: Icon(Icons.image))
                     : CircleAvatar(
@@ -3201,6 +3731,7 @@ class ChatsScreen extends StatelessWidget {
                     ),
                   );
                 },
+              ),
               );
             },
           );
@@ -3313,7 +3844,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
                 if (messages.isEmpty) {
                   return const Center(
-                    child: Text('Say hello 👋'),
+                    child: Text(
+                      'Say hello 👋',
+                      style: TextStyle(color: Colors.white70),
+                    ),
                   );
                 }
 
@@ -3340,7 +3874,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           maxWidth: MediaQuery.of(context).size.width * 0.72,
                         ),
                         decoration: BoxDecoration(
-                          color: isMine ? Colors.blue : Colors.grey.shade300,
+                          color: isMine ? kPakGreen : Colors.grey.shade300,
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Text(
@@ -3378,7 +3912,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   const SizedBox(width: 8),
                   CircleAvatar(
-                    backgroundColor: Colors.blue,
+                    backgroundColor: kPakGreen,
                     child: IconButton(
                       icon: const Icon(Icons.send, color: Colors.white),
                       onPressed: sendMessage,
