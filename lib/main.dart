@@ -439,6 +439,22 @@ class _HomeScreenState extends State<HomeScreen> {
                         }
 
                         final docs = snapshot.data!.docs;
+                        final filteredDocs = docs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+
+                          final title =
+                              data['title']?.toString().toLowerCase() ?? '';
+                          final location =
+                              data['location']?.toString().toLowerCase() ?? '';
+                          final price =
+                              data['price']?.toString().toLowerCase() ?? '';
+
+                          final query = searchQuery.toLowerCase();
+
+                          return title.contains(query) ||
+                              location.contains(query) ||
+                              price.contains(query);
+                        }).toList();
 
                         if (docs.isEmpty) {
                           return const Center(child: Text('No ads yet'));
@@ -446,10 +462,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
                         return ListView.builder(
                           scrollDirection: Axis.horizontal,
-                          itemCount: docs.length,
+                          itemCount: filteredDocs.length,
                           itemBuilder: (context, index) {
                             final data =
-                                docs[index].data() as Map<String, dynamic>;
+                                filteredDocs[index].data()
+                                    as Map<String, dynamic>;
 
                             return InkWell(
                               onTap: () {
@@ -625,10 +642,19 @@ class _CategoryScreenState extends State<CategoryScreen> {
 
           final filteredDocs = docs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
+
             final title = data['title']?.toString().toLowerCase() ?? '';
+            final location = data['location']?.toString().toLowerCase() ?? '';
+            final price = data['price']?.toString().toLowerCase() ?? '';
             final subcategory = data['subcategory']?.toString() ?? '';
 
-            final matchesSearch = title.contains(searchText.toLowerCase());
+            final query = searchText.toLowerCase();
+
+            final matchesSearch =
+                title.contains(query) ||
+                location.contains(query) ||
+                price.contains(query);
+
             final matchesSubcategory =
                 selectedSubcategory == 'All' ||
                 subcategory == selectedSubcategory;
@@ -642,7 +668,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
                 child: TextField(
                   decoration: const InputDecoration(
-                    hintText: 'Search ads...',
+                    hintText: 'Search by title, location or price...',
                     prefixIcon: Icon(Icons.search),
                     border: OutlineInputBorder(),
                   ),
