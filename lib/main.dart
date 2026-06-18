@@ -1564,14 +1564,15 @@ class PromoBannerData {
   final String subtitle;
   final String image;
   final List<Color> colors; // gradient fallback if the image fails to load
-  final Widget Function() destination;
+  /// Category to open on tap; empty/null opens Post Ad.
+  final String? category;
 
   const PromoBannerData({
     required this.title,
     required this.subtitle,
     required this.image,
     required this.colors,
-    required this.destination,
+    this.category,
   });
 }
 
@@ -1588,14 +1589,16 @@ class _PromoCarouselState extends State<PromoCarousel> {
   Timer? _timer;
   int _index = 0;
 
-  static const _banners = <PromoBannerData>[
+  // Default banners, used until/unless custom ones are configured in the
+  // `banners` Firestore collection (each pointing to a Storage image).
+  static const _defaultBanners = <PromoBannerData>[
     PromoBannerData(
       title: 'Cars & more',
       subtitle: 'Explore the best Motors deals',
       image:
           'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=900&q=70',
       colors: [Color(0xFFB71C1C), Color(0xFFEF5350)],
-      destination: _toMotors,
+      category: 'Motors',
     ),
     PromoBannerData(
       title: 'Find your home',
@@ -1603,7 +1606,7 @@ class _PromoCarouselState extends State<PromoCarousel> {
       image:
           'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=900&q=70',
       colors: [Color(0xFF6A1B9A), Color(0xFFAB47BC)],
-      destination: _toProperties,
+      category: 'Properties',
     ),
     PromoBannerData(
       title: 'Latest mobiles',
@@ -1611,7 +1614,7 @@ class _PromoCarouselState extends State<PromoCarousel> {
       image:
           'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=70',
       colors: [Color(0xFF1565C0), Color(0xFF42A5F5)],
-      destination: _toMobiles,
+      category: 'Mobiles & Tablets',
     ),
     PromoBannerData(
       title: 'Sell faster',
@@ -1619,19 +1622,16 @@ class _PromoCarouselState extends State<PromoCarousel> {
       image:
           'https://images.unsplash.com/photo-1556742502-ec7c0e9f34b1?auto=format&fit=crop&w=900&q=70',
       colors: [kPakGreen, kPakGreenLight],
-      destination: _toPostAd,
+      category: null,
     ),
   ];
 
-  static Widget _toPostAd() => const AddListingScreen();
-  static Widget _toMotors() => const CategoryScreen(title: 'Motors');
-  static Widget _toProperties() => const CategoryScreen(title: 'Properties');
-  static Widget _toMobiles() =>
-      const CategoryScreen(title: 'Mobiles & Tablets');
+  List<PromoBannerData> _banners = _defaultBanners;
 
   @override
   void initState() {
     super.initState();
+    _loadBanners();
     _timer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (!mounted || !_controller.hasClients) return;
       _controller.animateToPage(
@@ -1640,6 +1640,38 @@ class _PromoCarouselState extends State<PromoCarousel> {
         curve: Curves.easeInOut,
       );
     });
+  }
+
+  /// Loads custom banners from Firestore (`banners` where active == true),
+  /// falling back to the defaults if none are configured.
+  Future<void> _loadBanners() async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('banners')
+          .where('active', isEqualTo: true)
+          .get();
+      final docs = snap.docs.toList()
+        ..sort(
+          (a, b) => ((a.data()['order'] as num?) ?? 0)
+              .compareTo((b.data()['order'] as num?) ?? 0),
+        );
+      if (docs.isNotEmpty && mounted) {
+        setState(() {
+          _banners = docs.map((d) {
+            final m = d.data();
+            return PromoBannerData(
+              title: m['title']?.toString() ?? '',
+              subtitle: m['subtitle']?.toString() ?? '',
+              image: m['imageUrl']?.toString() ?? '',
+              colors: const [kPakGreen, kPakGreenLight],
+              category: m['category']?.toString(),
+            );
+          }).toList();
+        });
+      }
+    } catch (_) {
+      // Keep defaults on any error.
+    }
   }
 
   @override
@@ -1677,10 +1709,17 @@ class _PromoCarouselState extends State<PromoCarousel> {
                   borderRadius: BorderRadius.circular(14),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => b.destination()),
-                    ),
+                    onTap: () {
+                      final cat = b.category;
+                      final dest =
+                          (cat != null && cat.isNotEmpty && cat != 'All')
+                          ? CategoryScreen(title: cat)
+                          : const AddListingScreen();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => dest),
+                      );
+                    },
                     child: Stack(
                       fit: StackFit.expand,
                       children: [

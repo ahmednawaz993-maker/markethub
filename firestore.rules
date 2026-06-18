@@ -96,6 +96,15 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // Promo banners — readable by the app; managed only from the console /
+    // a privileged backend (no client writes).
+    // ---------------------------------------------------------------------
+    match /banners/{bannerId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ---------------------------------------------------------------------
     // Reports — users may file them, but not read/edit/delete (admin only,
     // via the Firebase console or a privileged backend).
     // ---------------------------------------------------------------------
