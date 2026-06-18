@@ -1557,6 +1557,188 @@ class AdsRail extends StatelessWidget {
   }
 }
 
+/// Dubizzle-style 2-column feed card: image with heart + featured badge, then
+/// bold price, title, and location/time. Fills its grid cell.
+class FeedAdCard extends StatefulWidget {
+  final Listing listing;
+
+  const FeedAdCard({super.key, required this.listing});
+
+  @override
+  State<FeedAdCard> createState() => _FeedAdCardState();
+}
+
+class _FeedAdCardState extends State<FeedAdCard> {
+  bool get isFav =>
+      favoriteListings.any((i) => i.id == widget.listing.id);
+
+  void toggleFav() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final was = isFav;
+    setState(() {
+      if (was) {
+        favoriteListings.removeWhere((i) => i.id == widget.listing.id);
+      } else {
+        favoriteListings.add(widget.listing);
+      }
+    });
+    if (uid == null) return;
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('favorites')
+        .doc(widget.listing.id);
+    if (was) {
+      await ref.delete();
+    } else {
+      await ref.set(widget.listing.toMap());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = widget.listing;
+    final img = l.galleryImages;
+    final posted = timeAgo(l.createdAt);
+
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => AdDetailsScreen(listing: l)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  img.isNotEmpty
+                      ? Image.network(
+                          img.first,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, e, s) => Container(
+                            color: Colors.grey.shade200,
+                            child: const Center(
+                              child: Icon(Icons.broken_image, size: 36),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          color: Colors.grey.shade200,
+                          child: const Center(
+                            child: Icon(Icons.image, size: 36),
+                          ),
+                        ),
+                  if (l.isFeatured)
+                    Positioned(
+                      top: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: kGold,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'FEATURED',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: GestureDetector(
+                      onTap: toggleFav,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.white70,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isFav ? Icons.favorite : Icons.favorite_border,
+                          size: 18,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '$currencySymbol ${l.price}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    l.title.isEmpty ? 'Untitled ad' : l.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12.5, color: Colors.grey[800]),
+                  ),
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Icon(Icons.location_on, size: 11, color: Colors.grey[500]),
+                      const SizedBox(width: 1),
+                      Expanded(
+                        child: Text(
+                          l.city.isEmpty ? l.location : l.city,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                      if (posted.isNotEmpty)
+                        Text(
+                          posted,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Home
 // ---------------------------------------------------------------------------
@@ -1571,6 +1753,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int selectedIndex = 0;
   String searchQuery = '';
+  String homeCity = 'All Pakistan';
   final searchController = TextEditingController();
 
   @override
@@ -1637,7 +1820,216 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget homeContent() {
+  Widget homeContent() =>
+      isPhone(context) ? _mobileHome() : _desktopHome();
+
+  /// Dubizzle-style phone home: search pill, round category strip, and a
+  /// 2-column "Fresh recommendations" feed on a light background.
+  Widget _mobileHome() {
+    final w = MediaQuery.of(context).size.width;
+    final cols = w > 1100 ? 4 : (w > 700 ? 3 : 2);
+    final categories =
+        appCategories.where((c) => c.title != 'All').toList();
+
+    return Container(
+      color: const Color(0xFFEFF1F2),
+      child: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('listings')
+            .orderBy('createdAt', descending: true)
+            .limit(60)
+            .snapshots(),
+        builder: (context, snapshot) {
+          var listings = (snapshot.data?.docs ?? [])
+              .map((d) => Listing.fromDoc(d))
+              .toList()
+            ..sort((a, b) {
+              if (a.isFeatured != b.isFeatured) return a.isFeatured ? -1 : 1;
+              final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
+              final bt = b.createdAt?.millisecondsSinceEpoch ?? 0;
+              return bt.compareTo(at);
+            });
+
+          if (homeCity != 'All Pakistan') {
+            listings =
+                listings.where((l) => l.city == homeCity).toList();
+          }
+          final featured = listings.where((l) => l.isFeatured).toList();
+
+          return CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+                  child: Material(
+                    elevation: 1.5,
+                    borderRadius: BorderRadius.circular(30),
+                    child: TextField(
+                      controller: searchController,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (v) => openSearch(v.trim()),
+                      decoration: InputDecoration(
+                        hintText: 'Find cars, mobiles, property and more',
+                        prefixIcon: const Icon(Icons.search),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(30),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(30),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 102,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    itemCount: categories.length,
+                    itemBuilder: (context, i) {
+                      final cat = categories[i];
+                      return GestureDetector(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CategoryScreen(title: cat.title),
+                          ),
+                        ),
+                        child: SizedBox(
+                          width: 74,
+                          child: Column(
+                            children: [
+                              const SizedBox(height: 8),
+                              CircleAvatar(
+                                radius: 26,
+                                backgroundColor:
+                                    kPakGreen.withValues(alpha: 0.12),
+                                child: Icon(
+                                  cat.icon,
+                                  color: kPakGreen,
+                                  size: 26,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                cat.title,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  height: 1.1,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              if (featured.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(12, 10, 12, 6),
+                        child: Row(
+                          children: [
+                            Icon(Icons.star, color: kGold, size: 20),
+                            SizedBox(width: 6),
+                            Text(
+                              'Featured',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        height: 218,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          itemCount: featured.length,
+                          itemBuilder: (context, i) => Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: SizedBox(
+                              width: 165,
+                              child: FeedAdCard(listing: featured[i]),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(12, 10, 12, 8),
+                  child: Text(
+                    'Fresh recommendations',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+              ),
+              if (!snapshot.hasData)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                )
+              else if (listings.isEmpty)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Center(
+                      child: Text('No ads yet. Be the first to post!'),
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  sliver: SliverGrid(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: cols,
+                      childAspectRatio: 0.62,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) => FeedAdCard(listing: listings[i]),
+                      childCount: listings.length,
+                    ),
+                  ),
+                ),
+              const SliverToBoxAdapter(child: SizedBox(height: 90)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _desktopHome() {
     final filteredCategories = appCategories.where((category) {
       return category.title.toLowerCase().contains(searchQuery.toLowerCase());
     }).toList();
@@ -1781,52 +2173,137 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _postAd() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AddListingScreen()),
+    );
+    if (mounted) setState(() {});
+  }
+
+  /// dubizzle-style home top bar: location selector + favorites + alerts.
+  PreferredSizeWidget _homeAppBar() {
+    return AppBar(
+      titleSpacing: 12,
+      title: InkWell(
+        onTap: () async {
+          final c = await showCityPicker(context, includeAll: true);
+          if (c != null) {
+            setState(() => homeCity = c == 'All' ? 'All Pakistan' : c);
+          }
+        },
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.location_on, color: Colors.white, size: 20),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                homeCity,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const Icon(Icons.arrow_drop_down, color: Colors.white),
+          ],
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.favorite_border, color: Colors.white),
+          tooltip: 'Favorites',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const FavoritesScreen()),
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.notifications_none, color: Colors.white),
+          tooltip: 'Saved search alerts',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SavedSearchesScreen()),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _navItem(IconData icon, String label, int index) {
+    final selected = selectedIndex == index;
+    final color = selected ? kPakGreen : Colors.grey;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => selectedIndex = index),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 2),
+            Text(label, style: TextStyle(color: color, fontSize: 11)),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = [
       homeContent(),
       const ChatsScreen(),
-      const FavoritesScreen(),
       const MyAdsScreen(),
       const ProfileScreen(),
     ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('MarketHub')),
+      appBar: selectedIndex == 0 ? _homeAppBar() : null,
       body: pages[selectedIndex],
-      floatingActionButton: selectedIndex == 0
-          ? FloatingActionButton.extended(
-              icon: const Icon(Icons.add),
-              label: const Text('Post Ad'),
-              onPressed: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AddListingScreen()),
-                );
-                setState(() {});
-              },
-            )
-          : null,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: selectedIndex,
-        type: BottomNavigationBarType.fixed,
-        selectedFontSize: 11,
-        unselectedFontSize: 11,
-        onTap: (index) {
-          setState(() {
-            selectedIndex = index;
-          });
-        },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Chats'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.favorite),
-            label: 'Favorites',
+      floatingActionButton: SizedBox(
+        width: 58,
+        height: 58,
+        child: FloatingActionButton(
+          onPressed: _postAd,
+          backgroundColor: kPakGreen,
+          shape: const CircleBorder(),
+          child: const Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.add, size: 22, color: Colors.white),
+              Text(
+                'SELL',
+                style: TextStyle(
+                  fontSize: 8,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: 'My Ads'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: BottomAppBar(
+        height: 62,
+        color: Colors.white,
+        elevation: 16,
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 6,
+        padding: EdgeInsets.zero,
+        child: Row(
+          children: [
+            _navItem(Icons.home, 'Home', 0),
+            _navItem(Icons.chat, 'Chats', 1),
+            const SizedBox(width: 64),
+            _navItem(Icons.list_alt, 'My Ads', 2),
+            _navItem(Icons.person, 'Profile', 3),
+          ],
+        ),
       ),
     );
   }
