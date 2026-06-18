@@ -155,6 +155,109 @@ Future<void> showPromoteSheet(BuildContext context, Listing listing) async {
   );
 }
 
+/// Platform commission taken on each successful on-platform deal.
+const double commissionRate = 0.02; // 2%
+
+/// Creates a buy order for a listing. Commission (2%) is recorded so the
+/// platform can take its cut once gateway payments go live (Phase 2).
+Future<void> createOrder(Listing listing) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+  final amount = parsePrice(listing.price);
+  final commission = amount * commissionRate;
+  await FirebaseFirestore.instance.collection('orders').add({
+    'listingId': listing.id,
+    'listingTitle': listing.title,
+    'listingImage':
+        listing.galleryImages.isEmpty ? '' : listing.galleryImages.first,
+    'sellerId': listing.userId,
+    'sellerName': listing.sellerName,
+    'buyerId': user.uid,
+    'buyerName': user.email ?? 'Buyer',
+    'amount': amount,
+    'commission': commission,
+    'sellerPayout': amount - commission,
+    'status': 'pending_payment',
+    'createdAt': Timestamp.now(),
+  });
+}
+
+/// Confirmation sheet for "Buy now".
+Future<void> showBuyNowSheet(BuildContext context, Listing listing) async {
+  await showModalBottomSheet(
+    context: context,
+    builder: (context) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Confirm purchase',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: Text(listing.title)),
+                  Text(
+                    formatPrice(listing.price),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'You pay',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    formatPrice(listing.price),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: kPakGreen,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Online payment is coming soon. Placing an order notifies the '
+                'seller so you can arrange a safe handover. Track it in '
+                'Profile → My Orders.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () async {
+                  await createOrder(listing);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Order placed! See it in Profile → My Orders.',
+                        ),
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Place order'),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Premium Pakistan-flag theme palette
 // ---------------------------------------------------------------------------
@@ -5195,6 +5298,25 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
             const _SafetyTips(),
             const SizedBox(height: 24),
             if (!isOwnAd) ...[
+              if (!listing.isSold) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kPakGreen,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    onPressed: () => showBuyNowSheet(context, listing),
+                    icon: const Icon(Icons.shopping_cart_checkout),
+                    label: const Text(
+                      'Buy Now',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               Row(
                 children: [
                   Expanded(
@@ -6020,6 +6142,15 @@ class ProfileScreen extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: () => Navigator.push(
                 context,
+                MaterialPageRoute(builder: (_) => const OrdersScreen()),
+              ),
+              icon: const Icon(Icons.receipt_long),
+              label: const Text('My Orders'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
                 MaterialPageRoute(builder: (_) => const SavedSearchesScreen()),
               ),
               icon: const Icon(Icons.bookmark),
@@ -6054,6 +6185,217 @@ class ProfileScreen extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
+// Orders (direct buy/sell)
+// ---------------------------------------------------------------------------
+
+class OrdersScreen extends StatelessWidget {
+  const OrdersScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('My Orders'),
+          bottom: const TabBar(
+            labelColor: Colors.white,
+            indicatorColor: Colors.white,
+            tabs: [Tab(text: 'Buying'), Tab(text: 'Selling')],
+          ),
+        ),
+        body: const TabBarView(
+          children: [_OrdersList(asSeller: false), _OrdersList(asSeller: true)],
+        ),
+      ),
+    );
+  }
+}
+
+class _OrdersList extends StatelessWidget {
+  final bool asSeller;
+  const _OrdersList({required this.asSeller});
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return const EmptyState(icon: Icons.receipt_long, title: 'Please log in');
+    }
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('orders')
+          .where(asSeller ? 'sellerId' : 'buyerId', isEqualTo: uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final at =
+                ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            final bt =
+                ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            return bt.compareTo(at);
+          });
+        if (docs.isEmpty) {
+          return EmptyState(
+            icon: Icons.receipt_long,
+            title: 'No orders yet',
+            subtitle: asSeller
+                ? 'Orders placed on your ads will appear here.'
+                : 'Items you buy will appear here.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final status = d['status']?.toString() ?? 'pending_payment';
+            final img = d['listingImage']?.toString() ?? '';
+            final amount = (d['amount'] as num?)?.toDouble() ?? 0;
+            final payout = (d['sellerPayout'] as num?)?.toDouble() ?? 0;
+            final (label, color) = switch (status) {
+              'completed' => ('Completed', Colors.green),
+              'cancelled' => ('Cancelled', Colors.grey),
+              _ => ('Pending payment', Colors.orange),
+            };
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: img.isEmpty
+                              ? Container(
+                                  width: 56,
+                                  height: 56,
+                                  color: Colors.grey.shade300,
+                                  child: const Icon(Icons.image),
+                                )
+                              : Image.network(
+                                  img,
+                                  width: 56,
+                                  height: 56,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => Container(
+                                    width: 56,
+                                    height: 56,
+                                    color: Colors.grey.shade300,
+                                    child: const Icon(Icons.image),
+                                  ),
+                                ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                d['listingTitle']?.toString() ?? '',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                asSeller
+                                    ? '${d['buyerName'] ?? 'Buyer'}'
+                                    : '${d['sellerName'] ?? 'Seller'}',
+                                style: const TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              Text(
+                                asSeller
+                                    ? 'You receive ${formatPrice(payout.toStringAsFixed(0))} (after 2% fee)'
+                                    : formatPrice(amount.toStringAsFixed(0)),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: kPakGreen,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              color: color,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (status == 'pending_payment') ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (asSeller)
+                            ElevatedButton(
+                              onPressed: () async {
+                                await docs[i].reference.update({
+                                  'status': 'completed',
+                                  'completedAt': Timestamp.now(),
+                                });
+                                final lid = d['listingId']?.toString() ?? '';
+                                if (lid.isNotEmpty) {
+                                  await FirebaseFirestore.instance
+                                      .collection('listings')
+                                      .doc(lid)
+                                      .update({'isSold': true});
+                                }
+                              },
+                              child: const Text('Mark completed'),
+                            )
+                          else
+                            TextButton(
+                              onPressed: () => docs[i].reference.update({
+                                'status': 'cancelled',
+                              }),
+                              child: const Text('Cancel'),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Admin panel
 // ---------------------------------------------------------------------------
 
@@ -6063,7 +6405,7 @@ class AdminPanelScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Panel'),
@@ -6074,6 +6416,7 @@ class AdminPanelScreen extends StatelessWidget {
             tabs: [
               Tab(text: 'Reports'),
               Tab(text: 'Promotions'),
+              Tab(text: 'Orders'),
               Tab(text: 'All Listings'),
             ],
           ),
@@ -6082,6 +6425,7 @@ class AdminPanelScreen extends StatelessWidget {
           children: [
             _AdminReportsTab(),
             _AdminPromotionsTab(),
+            _AdminOrdersTab(),
             _AdminListingsTab(),
           ],
         ),
@@ -6331,6 +6675,112 @@ class _AdminPromotionsTab extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+class _AdminOrdersTab extends StatelessWidget {
+  const _AdminOrdersTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('orders').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final at =
+                ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            final bt =
+                ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            return bt.compareTo(at);
+          });
+        double revenue = 0;
+        int completed = 0;
+        for (final d in docs) {
+          final m = d.data() as Map;
+          if (m['status'] == 'completed') {
+            revenue += (m['commission'] as num?)?.toDouble() ?? 0;
+            completed++;
+          }
+        }
+        return Column(
+          children: [
+            Card(
+              margin: const EdgeInsets.all(12),
+              color: kPakGreen,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _stat('${docs.length}', 'Orders'),
+                    _stat('$completed', 'Completed'),
+                    _stat(
+                      formatPrice(revenue.toStringAsFixed(0)),
+                      'Commission',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: docs.isEmpty
+                  ? const EmptyState(
+                      icon: Icons.receipt_long,
+                      title: 'No orders yet',
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                      itemCount: docs.length,
+                      itemBuilder: (context, i) {
+                        final d = docs[i].data() as Map<String, dynamic>;
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            title: Text(
+                              d['listingTitle']?.toString() ?? '',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              '${d['buyerName']} → ${d['sellerName']}\n'
+                              '${formatPrice('${d['amount']}')} · '
+                              'fee ${formatPrice('${d['commission']}')} · '
+                              '${d['status']}',
+                            ),
+                            isThreeLine: true,
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _stat(String value, String label) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+      ],
     );
   }
 }

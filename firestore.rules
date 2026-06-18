@@ -134,6 +134,21 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // Orders — direct buy/sell. Buyer creates; buyer/seller/admin read &
+    // update (status transitions); admin may delete.
+    // ---------------------------------------------------------------------
+    match /orders/{orderId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.buyerId == request.auth.uid;
+      allow read, update: if isSignedIn() && (
+                      resource.data.buyerId == request.auth.uid
+                      || resource.data.sellerId == request.auth.uid
+                      || isAdmin()
+                    );
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
     // Chats — only the two participants can see or write a thread.
     // ---------------------------------------------------------------------
     match /chats/{chatId} {
