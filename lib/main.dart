@@ -57,6 +57,104 @@ const List<String> adminEmails = ['ahmednawaz993@gmail.com'];
 bool isAdminUser() =>
     adminEmails.contains(FirebaseAuth.instance.currentUser?.email);
 
+/// Paid promotion packages (seller pays to Feature an ad).
+class PromoPackage {
+  final String name;
+  final int days;
+  final int price;
+  const PromoPackage(this.name, this.days, this.price);
+}
+
+const List<PromoPackage> promoPackages = [
+  PromoPackage('Featured · 7 days', 7, 500),
+  PromoPackage('Featured · 15 days', 15, 900),
+  PromoPackage('Featured · 30 days', 30, 1500),
+];
+
+/// Creates a pending promotion order. An admin approves it (after payment),
+/// which sets the ad Featured with an expiry.
+Future<void> createPromotionOrder(Listing listing, PromoPackage pkg) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+  await FirebaseFirestore.instance.collection('promotions').add({
+    'listingId': listing.id,
+    'listingTitle': listing.title,
+    'sellerId': user.uid,
+    'sellerName': user.email ?? '',
+    'package': pkg.name,
+    'days': pkg.days,
+    'price': pkg.price,
+    'status': 'pending',
+    'createdAt': Timestamp.now(),
+  });
+}
+
+/// Bottom sheet to choose a promotion package for a listing.
+Future<void> showPromoteSheet(BuildContext context, Listing listing) async {
+  await showModalBottomSheet(
+    context: context,
+    builder: (context) {
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Text(
+                'Promote your ad',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Get more views with a FEATURED badge and top placement.',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final p in promoPackages)
+              ListTile(
+                leading: const Icon(Icons.star, color: kGold),
+                title: Text(p.name),
+                trailing: Text(
+                  formatPrice(p.price.toString()),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                onTap: () async {
+                  await createPromotionOrder(listing, p);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Promotion requested — your ad will be Featured once '
+                          'payment is approved.',
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Payment via bank transfer / JazzCash, approved by admin. '
+                'Automated card/wallet checkout coming soon.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Premium Pakistan-flag theme palette
 // ---------------------------------------------------------------------------
@@ -934,6 +1032,7 @@ class Listing {
   int views;
   bool isFeatured;
   bool isSold;
+  Timestamp? featuredUntil;
   Timestamp? createdAt;
 
   Listing({
@@ -956,6 +1055,7 @@ class Listing {
     this.views = 0,
     this.isFeatured = false,
     this.isSold = false,
+    this.featuredUntil,
     this.createdAt,
   });
 
@@ -1021,6 +1121,9 @@ class Listing {
       views: (data['views'] as num?)?.toInt() ?? 0,
       isFeatured: data['isFeatured'] == true,
       isSold: data['isSold'] == true,
+      featuredUntil: data['featuredUntil'] is Timestamp
+          ? data['featuredUntil'] as Timestamp
+          : null,
       createdAt: data['createdAt'] is Timestamp
           ? data['createdAt'] as Timestamp
           : null,
@@ -4157,31 +4260,15 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                     children: [
                       IconButton(
                         tooltip: listing.isFeatured
-                            ? 'Remove from Featured'
-                            : 'Boost to Featured',
+                            ? 'Featured'
+                            : 'Promote (Feature)',
                         icon: Icon(
                           listing.isFeatured
                               ? Icons.star
-                              : Icons.star_border,
+                              : Icons.campaign_outlined,
                           color: kGold,
                         ),
-                        onPressed: () async {
-                          await FirebaseFirestore.instance
-                              .collection('listings')
-                              .doc(listing.id)
-                              .update({'isFeatured': !listing.isFeatured});
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  listing.isFeatured
-                                      ? 'Removed from Featured'
-                                      : 'Boosted! Your ad is now Featured',
-                                ),
-                              ),
-                            );
-                          }
-                        },
+                        onPressed: () => showPromoteSheet(context, listing),
                       ),
                       IconButton(
                         tooltip: listing.isSold
@@ -5976,18 +6063,27 @@ class AdminPanelScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Panel'),
           bottom: const TabBar(
             labelColor: Colors.white,
             indicatorColor: Colors.white,
-            tabs: [Tab(text: 'Reports'), Tab(text: 'All Listings')],
+            isScrollable: true,
+            tabs: [
+              Tab(text: 'Reports'),
+              Tab(text: 'Promotions'),
+              Tab(text: 'All Listings'),
+            ],
           ),
         ),
         body: const TabBarView(
-          children: [_AdminReportsTab(), _AdminListingsTab()],
+          children: [
+            _AdminReportsTab(),
+            _AdminPromotionsTab(),
+            _AdminListingsTab(),
+          ],
         ),
       ),
     );
@@ -6110,6 +6206,124 @@ class _AdminReportsTab extends StatelessWidget {
                         ),
                       ],
                     ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _AdminPromotionsTab extends StatelessWidget {
+  const _AdminPromotionsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('promotions').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final am = a.data() as Map;
+            final bm = b.data() as Map;
+            final ap = am['status'] == 'pending' ? 0 : 1;
+            final bp = bm['status'] == 'pending' ? 0 : 1;
+            if (ap != bp) return ap - bp;
+            final at =
+                (am['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+            final bt =
+                (bm['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+            return bt.compareTo(at);
+          });
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.campaign,
+            title: 'No promotion orders',
+            subtitle: 'Seller promotion requests appear here for approval.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final status = d['status']?.toString() ?? 'pending';
+            final pending = status == 'pending';
+            final listingId = d['listingId']?.toString() ?? '';
+            final days = (d['days'] as num?)?.toInt() ?? 7;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      d['listingTitle']?.toString() ?? '(untitled ad)',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text('${d['package']} · ${formatPrice('${d['price']}')}'),
+                    Text(
+                      'Seller: ${d['sellerName'] ?? ''}',
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                    Text(
+                      'Status: $status',
+                      style: TextStyle(
+                        color: pending
+                            ? Colors.orange
+                            : (status == 'active' ? Colors.green : Colors.red),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (pending) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          TextButton.icon(
+                            onPressed: () =>
+                                _openListingById(context, listingId),
+                            icon: const Icon(Icons.open_in_new, size: 18),
+                            label: const Text('Open'),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () =>
+                                docs[i].reference.update({'status': 'rejected'}),
+                            child: const Text('Reject'),
+                          ),
+                          const SizedBox(width: 4),
+                          ElevatedButton(
+                            onPressed: () async {
+                              final until = Timestamp.fromDate(
+                                DateTime.now().add(Duration(days: days)),
+                              );
+                              if (listingId.isNotEmpty) {
+                                await FirebaseFirestore.instance
+                                    .collection('listings')
+                                    .doc(listingId)
+                                    .update({
+                                      'isFeatured': true,
+                                      'featuredUntil': until,
+                                    });
+                              }
+                              await docs[i].reference.update({
+                                'status': 'active',
+                                'approvedAt': Timestamp.now(),
+                              });
+                            },
+                            child: const Text('Approve'),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),

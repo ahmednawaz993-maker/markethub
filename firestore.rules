@@ -123,6 +123,17 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // Promotions — sellers request a paid Feature; admins approve/manage.
+    // ---------------------------------------------------------------------
+    match /promotions/{promoId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.sellerId == request.auth.uid;
+      allow read: if isSignedIn()
+                  && (resource.data.sellerId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
     // Chats — only the two participants can see or write a thread.
     // ---------------------------------------------------------------------
     match /chats/{chatId} {
