@@ -877,6 +877,7 @@ class Listing {
   double? longitude;
   int views;
   bool isFeatured;
+  bool isSold;
   Timestamp? createdAt;
 
   Listing({
@@ -898,6 +899,7 @@ class Listing {
     this.longitude,
     this.views = 0,
     this.isFeatured = false,
+    this.isSold = false,
     this.createdAt,
   });
 
@@ -929,6 +931,7 @@ class Listing {
       'longitude': longitude,
       'views': views,
       'isFeatured': isFeatured,
+      'isSold': isSold,
       if (createdAt != null) 'createdAt': createdAt,
     };
   }
@@ -961,6 +964,7 @@ class Listing {
       longitude: (data['longitude'] as num?)?.toDouble(),
       views: (data['views'] as num?)?.toInt() ?? 0,
       isFeatured: data['isFeatured'] == true,
+      isSold: data['isSold'] == true,
       createdAt: data['createdAt'] is Timestamp
           ? data['createdAt'] as Timestamp
           : null,
@@ -1484,6 +1488,42 @@ class CitySelector extends StatelessWidget {
   }
 }
 
+/// A "SOLD" overlay for sold listings. Must be placed inside a Stack.
+class SoldTag extends StatelessWidget {
+  const SoldTag({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Container(
+        color: Colors.black.withValues(alpha: 0.4),
+        alignment: Alignment.center,
+        child: Transform.rotate(
+          angle: -0.14,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 7),
+            decoration: BoxDecoration(
+              color: Colors.red.shade700,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text(
+              'SOLD',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 22,
+                letterSpacing: 3,
+              ),
+            ),
+          ),
+        ),
+        ),
+      ),
+    );
+  }
+}
+
 /// A compact ad card used in the horizontal Home rails.
 class HorizontalAdCard extends StatelessWidget {
   final Listing listing;
@@ -1557,6 +1597,7 @@ class HorizontalAdCard extends StatelessWidget {
                           ),
                         ),
                       ),
+                    if (listing.isSold) const SoldTag(),
                   ],
                 ),
               ),
@@ -2037,6 +2078,7 @@ class _FeedAdCardState extends State<FeedAdCard> {
                       ),
                     ),
                   ),
+                  if (l.isSold) const SoldTag(),
                 ],
               ),
             ),
@@ -3416,6 +3458,7 @@ class _ListingCardState extends State<ListingCard> {
                       ),
                     ),
                   ),
+                  if (listing.isSold) const SoldTag(),
                 ],
               ),
             ),
@@ -3991,6 +4034,34 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                         },
                       ),
                       IconButton(
+                        tooltip: listing.isSold
+                            ? 'Mark as available'
+                            : 'Mark as sold',
+                        icon: Icon(
+                          listing.isSold
+                              ? Icons.check_circle
+                              : Icons.check_circle_outline,
+                          color: listing.isSold ? Colors.red : Colors.grey,
+                        ),
+                        onPressed: () async {
+                          await FirebaseFirestore.instance
+                              .collection('listings')
+                              .doc(listing.id)
+                              .update({'isSold': !listing.isSold});
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  listing.isSold
+                                      ? 'Marked as available'
+                                      : 'Marked as sold',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                      IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
                         onPressed: () async {
                           await FirebaseFirestore.instance
@@ -4517,6 +4588,26 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
               ],
             ],
             const SizedBox(height: 16),
+            if (listing.isSold)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.red.shade700,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'SOLD',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    letterSpacing: 3,
+                  ),
+                ),
+              ),
             Text(
               listing.title,
               style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
