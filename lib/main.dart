@@ -4784,12 +4784,69 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                   style: TextStyle(color: Colors.grey),
                 ),
               ),
+            _SimilarAds(listing: listing),
             const SizedBox(height: 24),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Horizontal rail of other ads in the same category (excludes this ad).
+class _SimilarAds extends StatelessWidget {
+  final Listing listing;
+
+  const _SimilarAds({required this.listing});
+
+  @override
+  Widget build(BuildContext context) {
+    if (listing.category.isEmpty) return const SizedBox.shrink();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('listings')
+          .where('category', isEqualTo: listing.category)
+          .limit(12)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+
+        final items = snapshot.data!.docs
+            .map((d) => Listing.fromDoc(d))
+            .where((l) => l.id != listing.id)
+            .toList()
+          ..sort((a, b) {
+            final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
+            final bt = b.createdAt?.millisecondsSinceEpoch ?? 0;
+            return bt.compareTo(at);
+          });
+        final shown = items.take(10).toList();
+        if (shown.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Divider(height: 32),
+            const Text(
+              'Similar ads',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 250,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: shown.length,
+                itemBuilder: (context, i) =>
+                    HorizontalAdCard(listing: shown[i]),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
