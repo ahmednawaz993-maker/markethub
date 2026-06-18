@@ -1,0 +1,61 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;}
+  html,body{width:1080px;height:1920px;background:#eff1f2;overflow:hidden;}
+  .status{height:44px;background:#013318;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font-size:24px;}
+  .bar{background:linear-gradient(135deg,#013318,#015127);color:#fff;padding:26px 30px;display:flex;align-items:center;gap:14px;}
+  .bar .loc{font-size:34px;font-weight:bold;flex:1;}
+  .bar .ico{font-size:38px;}
+  .search{margin:26px 30px;background:#fff;border-radius:60px;padding:28px 36px;color:#777;font-size:32px;box-shadow:0 4px 14px rgba(0,0,0,.08);}
+  .cats{display:flex;gap:26px;padding:0 30px 10px;overflow:hidden;}
+  .cat{text-align:center;width:150px;}
+  .cat .circle{width:120px;height:120px;border-radius:50%;background:#e2efe7;display:flex;align-items:center;justify-content:center;font-size:60px;margin:0 auto 12px;}
+  .cat span{font-size:26px;color:#333;}
+  .promo{margin:24px 30px;height:300px;border-radius:28px;background:linear-gradient(120deg,#013318,#0A7D3B);position:relative;overflow:hidden;color:#fff;padding:48px;}
+  .promo h2{font-size:56px;}.promo p{font-size:32px;margin-top:10px;color:#eafff1;}
+  .promo .pill{display:inline-block;margin-top:28px;background:#C9A227;padding:14px 30px;border-radius:40px;font-weight:bold;font-size:26px;}
+  .promo .moon{position:absolute;right:80px;top:90px;width:70px;height:70px;border-radius:50%;box-shadow:55px 0 0 0 rgba(255,255,255,.18);}
+  .sec{font-size:40px;font-weight:bold;color:#111;margin:30px 30px 18px;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;padding:0 30px;}
+  .card{background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.08);}
+  .card .img{height:230px;background-size:cover;background-position:center;position:relative;}
+  .card .feat{position:absolute;top:14px;left:14px;background:#C9A227;color:#fff;font-size:18px;font-weight:bold;padding:6px 14px;border-radius:8px;}
+  .card .heart{position:absolute;top:12px;right:12px;background:#fff9;border-radius:50%;width:54px;height:54px;display:flex;align-items:center;justify-content:center;font-size:30px;color:#e53935;}
+  .card .body{padding:16px 18px;}
+  .card .price{font-size:34px;font-weight:bold;color:#111;}
+  .card .ttl{font-size:26px;color:#444;margin:4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .card .loc{font-size:22px;color:#888;}
+  .nav{position:absolute;bottom:0;left:0;right:0;height:130px;background:#fff;box-shadow:0 -4px 18px rgba(0,0,0,.1);display:flex;align-items:center;justify-content:space-around;}
+  .nav div{text-align:center;font-size:22px;color:#999;}
+  .nav div.on{color:#015127;}
+  .nav .ic{font-size:40px;display:block;}
+  .sell{position:absolute;bottom:74px;left:50%;transform:translateX(-50%);width:120px;height:120px;border-radius:50%;background:#015127;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.25);}
+  .sell .plus{font-size:54px;line-height:1;}.sell .t{font-size:20px;font-weight:bold;}
+</style></head><body>
+  <div class="status"><span>9:41</span><span>&#9679;&#9679;&#9679;&#9679;&#9679; &#128246; &#128267;</span></div>
+  <div class="bar"><span class="ico">&#128205;</span><span class="loc">Karachi &#9662;</span><span class="ico">&#9825;</span><span class="ico">&#128276;</span></div>
+  <div class="search">&#128269;&nbsp;&nbsp;Find cars, mobiles, property and more</div>
+  <div class="cats">
+    <div class="cat"><div class="circle">&#128663;</div><span>Motors</span></div>
+    <div class="cat"><div class="circle">&#127968;</div><span>Property</span></div>
+    <div class="cat"><div class="circle">&#128241;</div><span>Mobiles</span></div>
+    <div class="cat"><div class="circle">&#128421;</div><span>Electronics</span></div>
+    <div class="cat"><div class="circle">&#128188;</div><span>Jobs</span></div>
+  </div>
+  <div class="promo"><div class="moon"></div><h2>Buy &amp; Sell Cars</h2><p>Explore best cars around you</p><span class="pill">Tap to explore</span></div>
+  <div class="sec">Fresh recommendations</div>
+  <div class="grid">
+    <div class="card"><div class="img" style="background-image:url('https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=600&q=70')"><span class="feat">FEATURED</span><span class="heart">&#9829;</span></div><div class="body"><div class="price">Rs 4,250,000</div><div class="ttl">Honda Civic 2021</div><div class="loc">&#128205; Karachi &middot; 2d ago</div></div></div>
+    <div class="card"><div class="img" style="background-image:url('https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=600&q=70')"><span class="heart">&#9825;</span></div><div class="body"><div class="price">Rs 185,000</div><div class="ttl">iPhone 13 Pro</div><div class="loc">&#128205; Lahore &middot; 5h ago</div></div></div>
+    <div class="card"><div class="img" style="background-image:url('https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=600&q=70')"><span class="heart">&#9825;</span></div><div class="body"><div class="price">Rs 32,000/mo</div><div class="ttl">2 Bed Apartment</div><div class="loc">&#128205; Islamabad &middot; 1d ago</div></div></div>
+    <div class="card"><div class="img" style="background-image:url('https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=70')"><span class="heart">&#9825;</span></div><div class="body"><div class="price">Rs 12,500</div><div class="ttl">Nike Air Max</div><div class="loc">&#128205; Faisalabad &middot; 3h ago</div></div></div>
+  </div>
+  <div class="nav">
+    <div class="on"><span class="ic">&#127968;</span>Home</div>
+    <div><span class="ic">&#128172;</span>Chats</div>
+    <div style="width:120px"></div>
+    <div><span class="ic">&#128203;</span>My Ads</div>
+    <div><span class="ic">&#128100;</span>Profile</div>
+  </div>
+  <div class="sell"><span class="plus">+</span><span class="t">SELL</span></div>
+</body></html>

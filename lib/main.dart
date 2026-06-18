@@ -27,6 +27,28 @@ Future<void> main() async {
 // Currency shown across the app (Pakistani Rupee).
 const String currencySymbol = 'Rs';
 
+/// Formats a price string with thousands separators, e.g. "4250000" ->
+/// "Rs 4,250,000". Non-numeric values (e.g. "Negotiable") are shown as-is.
+String formatPrice(String raw) {
+  final cleaned = raw.replaceAll(RegExp(r'[^0-9.]'), '');
+  final value = double.tryParse(cleaned);
+  if (value == null || cleaned.isEmpty) {
+    return raw.trim().isEmpty ? currencySymbol : '$currencySymbol ${raw.trim()}';
+  }
+  final intPart = value.truncate();
+  final digits = intPart.toString();
+  final buf = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) buf.write(',');
+    buf.write(digits[i]);
+  }
+  var out = buf.toString();
+  if (value != intPart.toDouble()) {
+    out += (value - intPart).toStringAsFixed(2).substring(1);
+  }
+  return '$currencySymbol $out';
+}
+
 // ---------------------------------------------------------------------------
 // Premium Pakistan-flag theme palette
 // ---------------------------------------------------------------------------
@@ -1550,7 +1572,7 @@ class HorizontalAdCard extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      '$currencySymbol ${listing.price}',
+                      formatPrice(listing.price),
                       style: const TextStyle(
                         color: Colors.green,
                         fontWeight: FontWeight.bold,
@@ -2025,7 +2047,7 @@ class _FeedAdCardState extends State<FeedAdCard> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '$currencySymbol ${l.price}',
+                    formatPrice(l.price),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -3411,7 +3433,7 @@ class _ListingCardState extends State<ListingCard> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '$currencySymbol ${listing.price}',
+                    formatPrice(listing.price),
                     style: const TextStyle(
                       color: Colors.green,
                       fontWeight: FontWeight.bold,
@@ -4501,7 +4523,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              '$currencySymbol ${listing.price}',
+              formatPrice(listing.price),
               style: const TextStyle(
                 fontSize: 24,
                 color: Colors.green,
