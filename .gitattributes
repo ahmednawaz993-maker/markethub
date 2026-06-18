@@ -1,0 +1,2 @@
+# Keep shell scripts LF so they run in Git Bash (CRLF breaks the shebang).
+*.sh text eol=lf
