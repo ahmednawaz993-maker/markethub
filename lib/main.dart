@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
@@ -621,6 +623,65 @@ MarketplaceCategory categoryByTitle(String title) {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/// Web Push (VAPID) public key from Firebase Console → Cloud Messaging →
+/// "Web configuration" → Web Push certificates. Leave empty to disable web
+/// push until configured (the app still works fully without it).
+const String fcmVapidKey =
+    'BAOvH3nPZu5Q8_NQivTrJuOM-i2YY1BvBx9gKf-df5RexGZhzejVShaMudQ1GBMejHjylLWMt75LY5xzuopJPPY';
+
+/// Shows snackbars from anywhere (e.g. foreground push notifications).
+final GlobalKey<ScaffoldMessengerState> rootMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
+
+/// Requests notification permission, registers this device's FCM token under
+/// users/{uid}/fcmTokens, and surfaces foreground messages. Fully guarded:
+/// if messaging isn't configured/available it silently no-ops.
+Future<void> setupPushNotifications() async {
+  try {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    // On web a VAPID key is required; skip cleanly until it's set.
+    if (kIsWeb && fcmVapidKey.isEmpty) return;
+
+    final messaging = FirebaseMessaging.instance;
+    final settings = await messaging.requestPermission();
+    if (settings.authorizationStatus == AuthorizationStatus.denied) return;
+
+    final token = kIsWeb
+        ? await messaging.getToken(vapidKey: fcmVapidKey)
+        : await messaging.getToken();
+
+    if (token != null) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('fcmTokens')
+          .doc(token)
+          .set({
+            'createdAt': Timestamp.now(),
+            'platform': kIsWeb ? 'web' : 'app',
+          });
+    }
+
+    FirebaseMessaging.onMessage.listen((message) {
+      final n = message.notification;
+      if (n != null) {
+        rootMessengerKey.currentState?.showSnackBar(
+          SnackBar(
+            content: Text(
+              [n.title, n.body].where((e) => (e ?? '').isNotEmpty).join(': '),
+            ),
+            action: SnackBarAction(label: 'OK', onPressed: () {}),
+          ),
+        );
+      }
+    });
+  } catch (_) {
+    // Messaging unavailable/unconfigured — ignore.
+  }
+}
+
 /// Default country dialing code for Pakistan (used to build WhatsApp links).
 const String defaultCountryCode = '92';
 
@@ -925,6 +986,7 @@ class MarketHubApp extends StatelessWidget {
     return MaterialApp(
       title: 'MarketHub',
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: rootMessengerKey,
       theme: buildAppTheme(),
       builder: (context, child) => AppBackground(child: child ?? const SizedBox()),
       home: const AuthGate(),
@@ -1506,6 +1568,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     ensureUserDoc();
     loadFavorites();
+    setupPushNotifications();
   }
 
   @override
