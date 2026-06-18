@@ -126,10 +126,16 @@ ThemeData buildAppTheme() {
       unselectedItemColor: Colors.grey,
       type: BottomNavigationBarType.fixed,
       elevation: 16,
+      // Smaller labels so all 5 items fit comfortably on narrow phones.
+      selectedLabelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+      unselectedLabelStyle: TextStyle(fontSize: 11),
     ),
     dividerColor: Colors.grey.shade300,
   );
 }
+
+/// True on phone-width screens (used to tune density/spacing for mobile).
+bool isPhone(BuildContext context) => MediaQuery.of(context).size.width < 600;
 
 /// Full-screen flag-green gradient with a faint crescent-and-star motif.
 /// Rendered once behind every route via [MaterialApp.builder]; scaffolds are
@@ -1387,6 +1393,9 @@ class HorizontalAdCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final img = listing.galleryImages;
+    final w = MediaQuery.of(context).size.width;
+    // Narrower cards on phones so ~2 peek into view and feel app-like.
+    final cardWidth = w < 600 ? (w * 0.44).clamp(150.0, 190.0) : 220.0;
 
     return FocusableTap(
       onTap: () => Navigator.push(
@@ -1399,7 +1408,7 @@ class HorizontalAdCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         margin: const EdgeInsets.all(6),
         child: SizedBox(
-          width: 220,
+          width: cardWidth,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1509,21 +1518,22 @@ class AdsRail extends StatelessWidget {
         final listings =
             snapshot.data!.docs.map((d) => Listing.fromDoc(d)).toList();
         if (listings.isEmpty) return const SizedBox.shrink();
+        final phone = isPhone(context);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Row(
               children: [
                 if (icon != null) ...[
-                  Icon(icon, color: Colors.white, size: 22),
+                  Icon(icon, color: Colors.white, size: phone ? 19 : 22),
                   const SizedBox(width: 6),
                 ],
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 22,
+                  style: TextStyle(
+                    fontSize: phone ? 18 : 22,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
@@ -1532,7 +1542,7 @@ class AdsRail extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             SizedBox(
-              height: 250,
+              height: phone ? 208 : 250,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: listings.length,
@@ -1631,9 +1641,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final filteredCategories = appCategories.where((category) {
       return category.title.toLowerCase().contains(searchQuery.toLowerCase());
     }).toList();
+    final phone = isPhone(context);
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(phone ? 10 : 16, 12, phone ? 10 : 16, 0),
       child: Column(
         children: [
           TextField(
@@ -1670,9 +1681,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         if (w > 700) return 3;
                         return 2;
                       }(),
-                      childAspectRatio: 1.4,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
+                      childAspectRatio: phone ? 1.05 : 1.4,
+                      crossAxisSpacing: phone ? 10 : 12,
+                      mainAxisSpacing: phone ? 10 : 12,
                     ),
                     itemCount: filteredCategories.length,
                     itemBuilder: (context, index) {
@@ -1799,6 +1810,8 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: selectedIndex,
         type: BottomNavigationBarType.fixed,
+        selectedFontSize: 11,
+        unselectedFontSize: 11,
         onTap: (index) {
           setState(() {
             selectedIndex = index;
@@ -3592,7 +3605,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
               children: [
             if (images.isNotEmpty) ...[
               SizedBox(
-                height: 280,
+                height: isPhone(context) ? 230 : 280,
                 width: double.infinity,
                 child: PageView.builder(
                   itemCount: images.length,
