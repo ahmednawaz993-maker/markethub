@@ -50,6 +50,13 @@ String formatPrice(String raw) {
   return '$currencySymbol $out';
 }
 
+/// Emails granted admin access (also enforced in Firestore rules via the
+/// auth token email). Add more to expand the admin team.
+const List<String> adminEmails = ['ahmednawaz993@gmail.com'];
+
+bool isAdminUser() =>
+    adminEmails.contains(FirebaseAuth.instance.currentUser?.email);
+
 // ---------------------------------------------------------------------------
 // Premium Pakistan-flag theme palette
 // ---------------------------------------------------------------------------
@@ -5789,6 +5796,20 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
             ),
+            if (isAdminUser()) ...[
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                ),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AdminPanelScreen()),
+                ),
+                icon: const Icon(Icons.admin_panel_settings),
+                label: const Text('Admin Panel'),
+              ),
+            ],
             const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: () => Navigator.push(
@@ -5822,6 +5843,246 @@ class ProfileScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Admin panel
+// ---------------------------------------------------------------------------
+
+class AdminPanelScreen extends StatelessWidget {
+  const AdminPanelScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Admin Panel'),
+          bottom: const TabBar(
+            labelColor: Colors.white,
+            indicatorColor: Colors.white,
+            tabs: [Tab(text: 'Reports'), Tab(text: 'All Listings')],
+          ),
+        ),
+        body: const TabBarView(
+          children: [_AdminReportsTab(), _AdminListingsTab()],
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _openListingById(BuildContext context, String id) async {
+  final doc = await FirebaseFirestore.instance
+      .collection('listings')
+      .doc(id)
+      .get();
+  if (!context.mounted) return;
+  if (!doc.exists) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('That ad no longer exists.')),
+    );
+    return;
+  }
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => AdDetailsScreen(listing: Listing.fromDoc(doc)),
+    ),
+  );
+}
+
+class _AdminReportsTab extends StatelessWidget {
+  const _AdminReportsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('reports').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              'Error: ${snapshot.error}',
+              style: const TextStyle(color: Colors.white70),
+            ),
+          );
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final at =
+                ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            final bt =
+                ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            return bt.compareTo(at);
+          });
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.verified_user,
+            title: 'No reports',
+            subtitle: 'Reported ads will appear here for review.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final listingId = d['listingId']?.toString() ?? '';
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      d['listingTitle']?.toString() ?? '(untitled ad)',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Reason: ${d['reason'] ?? '—'}',
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                    Text(
+                      timeAgo(d['createdAt'] as Timestamp?),
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => _openListingById(context, listingId),
+                          icon: const Icon(Icons.open_in_new, size: 18),
+                          label: const Text('Open'),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () =>
+                              docs[i].reference.delete(),
+                          child: const Text('Dismiss'),
+                        ),
+                        const SizedBox(width: 4),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                          ),
+                          onPressed: () async {
+                            if (listingId.isNotEmpty) {
+                              await FirebaseFirestore.instance
+                                  .collection('listings')
+                                  .doc(listingId)
+                                  .delete();
+                            }
+                            await docs[i].reference.delete();
+                          },
+                          child: const Text('Delete ad'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _AdminListingsTab extends StatelessWidget {
+  const _AdminListingsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('listings')
+          .orderBy('createdAt', descending: true)
+          .limit(100)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.inventory_2_outlined,
+            title: 'No listings',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final l = Listing.fromDoc(docs[i]);
+            final imgs = l.galleryImages;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                leading: imgs.isEmpty
+                    ? const Icon(Icons.image, size: 36)
+                    : Image.network(
+                        imgs.first,
+                        width: 52,
+                        height: 52,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const Icon(Icons.image),
+                      ),
+                title: Text(
+                  l.title.isEmpty ? '(untitled)' : l.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  '${formatPrice(l.price)} · ${l.sellerName}'
+                  '${l.isFeatured ? ' · ★' : ''}${l.isSold ? ' · SOLD' : ''}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AdDetailsScreen(listing: l),
+                  ),
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Toggle Featured',
+                      icon: Icon(
+                        l.isFeatured ? Icons.star : Icons.star_border,
+                        color: kGold,
+                      ),
+                      onPressed: () => docs[i].reference.update({
+                        'isFeatured': !l.isFeatured,
+                      }),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () => docs[i].reference.delete(),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

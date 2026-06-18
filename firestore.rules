@@ -15,6 +15,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Admin access by verified token email (keep in sync with adminEmails in app).
+    function isAdmin() {
+      return isSignedIn()
+             && request.auth.token.email in ['ahmednawaz993@gmail.com'];
+    }
+
     // ---------------------------------------------------------------------
     // Listings
     // ---------------------------------------------------------------------
@@ -31,9 +37,10 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
                       resource.data.userId == request.auth.uid
                       || onlyBumpsViews()
+                      || isAdmin()
                     );
       allow delete: if isSignedIn()
-                    && resource.data.userId == request.auth.uid;
+                    && (resource.data.userId == request.auth.uid || isAdmin());
 
       function onlyBumpsViews() {
         return request.resource.data.diff(resource.data)
@@ -111,7 +118,8 @@ service cloud.firestore {
     match /reports/{reportId} {
       allow create: if isSignedIn()
                     && request.resource.data.reporterId == request.auth.uid;
-      allow read, update, delete: if false;
+      allow read, delete: if isAdmin();
+      allow update: if false;
     }
 
     // ---------------------------------------------------------------------
