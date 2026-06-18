@@ -6008,6 +6008,13 @@ class SellerProfileScreen extends StatelessWidget {
               final sum = (data['ratingSum'] as num?)?.toDouble() ?? 0;
               final avg = count > 0 ? sum / count : 0.0;
               final verified = data['verified'] == true;
+              final isBusiness = data['isBusiness'] == true;
+              final businessName = data['businessName']?.toString() ?? '';
+              final tagline = data['tagline']?.toString() ?? '';
+              final logoUrl = data['logoUrl']?.toString() ?? '';
+              final displayName = (isBusiness && businessName.isNotEmpty)
+                  ? businessName
+                  : (sellerName.isEmpty ? 'Seller' : sellerName);
               final me = FirebaseAuth.instance.currentUser;
               final isSelf = me != null && me.uid == sellerId;
 
@@ -6019,14 +6026,21 @@ class SellerProfileScreen extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          const CircleAvatar(
+                          CircleAvatar(
                             radius: 32,
                             backgroundColor: kPakGreen,
-                            child: Icon(
-                              Icons.person,
-                              size: 36,
-                              color: Colors.white,
-                            ),
+                            backgroundImage: logoUrl.isNotEmpty
+                                ? NetworkImage(logoUrl)
+                                : null,
+                            child: logoUrl.isEmpty
+                                ? Icon(
+                                    isBusiness
+                                        ? Icons.storefront
+                                        : Icons.person,
+                                    size: 36,
+                                    color: Colors.white,
+                                  )
+                                : null,
                           ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -6037,9 +6051,7 @@ class SellerProfileScreen extends StatelessWidget {
                                   children: [
                                     Flexible(
                                       child: Text(
-                                        sellerName.isEmpty
-                                            ? 'Seller'
-                                            : sellerName,
+                                        displayName,
                                         style: const TextStyle(
                                           fontSize: 20,
                                           fontWeight: FontWeight.bold,
@@ -6054,8 +6066,37 @@ class SellerProfileScreen extends StatelessWidget {
                                         color: kPakGreen,
                                       ),
                                     ],
+                                    if (isBusiness) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 1,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: kPakGreen,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: const Text(
+                                          'BUSINESS',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
+                                if (isBusiness && tagline.isNotEmpty)
+                                  Text(
+                                    tagline,
+                                    style: const TextStyle(
+                                      color: Colors.black54,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
                                 if (memberSince.isNotEmpty)
                                   Text(
                                     memberSince,
