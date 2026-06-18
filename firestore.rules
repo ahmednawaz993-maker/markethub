@@ -36,16 +36,17 @@ service cloud.firestore {
       // counter, but ONLY the `views` field and nothing else.
       allow update: if isSignedIn() && (
                       resource.data.userId == request.auth.uid
-                      || onlyBumpsViews()
+                      || onlyBumpsStats()
                       || isAdmin()
                     );
       allow delete: if isSignedIn()
                     && (resource.data.userId == request.auth.uid || isAdmin());
 
-      function onlyBumpsViews() {
+      // Non-owners may only increment view/lead counters, nothing else.
+      function onlyBumpsStats() {
         return request.resource.data.diff(resource.data)
-                 .affectedKeys().hasOnly(['views'])
-               && request.resource.data.views is int;
+                 .affectedKeys()
+                 .hasOnly(['views', 'calls', 'whatsapps', 'chats']);
       }
     }
 

@@ -1133,6 +1133,9 @@ class Listing {
   double? latitude;
   double? longitude;
   int views;
+  int calls;
+  int whatsapps;
+  int chats;
   bool isFeatured;
   bool isSold;
   Timestamp? featuredUntil;
@@ -1156,6 +1159,9 @@ class Listing {
     this.latitude,
     this.longitude,
     this.views = 0,
+    this.calls = 0,
+    this.whatsapps = 0,
+    this.chats = 0,
     this.isFeatured = false,
     this.isSold = false,
     this.featuredUntil,
@@ -1222,6 +1228,9 @@ class Listing {
       latitude: (data['latitude'] as num?)?.toDouble(),
       longitude: (data['longitude'] as num?)?.toDouble(),
       views: (data['views'] as num?)?.toInt() ?? 0,
+      calls: (data['calls'] as num?)?.toInt() ?? 0,
+      whatsapps: (data['whatsapps'] as num?)?.toInt() ?? 0,
+      chats: (data['chats'] as num?)?.toInt() ?? 0,
       isFeatured: data['isFeatured'] == true,
       isSold: data['isSold'] == true,
       featuredUntil: data['featuredUntil'] is Timestamp
@@ -4462,7 +4471,8 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                   subtitle: Text(
                     '${[listing.city, listing.location].where((e) => e.isNotEmpty).join(', ')}'
                     '${listing.subcategory.isEmpty ? '' : ' • ${listing.subcategory}'}'
-                    '\n${listing.views} views',
+                    '\n👁 ${listing.views}  📞 ${listing.calls}  '
+                    '💬 ${listing.chats}  🟢 ${listing.whatsapps}',
                   ),
                   isThreeLine: true,
                   onTap: () {
@@ -4957,13 +4967,18 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
   }
 
   Future<void> _incrementViews() async {
+    await _bumpStat('views');
+  }
+
+  /// Increments a non-owner lead/stat counter on the listing (best-effort).
+  Future<void> _bumpStat(String field) async {
     final id = widget.listing.id;
     if (id.isEmpty) return;
     try {
       await FirebaseFirestore.instance
           .collection('listings')
           .doc(id)
-          .update({'views': FieldValue.increment(1)});
+          .update({field: FieldValue.increment(1)});
     } catch (_) {
       // Non-critical; ignore failures (e.g. favorites cache docs).
     }
@@ -4977,6 +4992,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
       return;
     }
 
+    _bumpStat('whatsapps');
     final cleanedPhone = normalizePhoneForWhatsApp(widget.listing.phone);
     final url = Uri.parse('https://wa.me/$cleanedPhone');
 
@@ -4996,6 +5012,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
       return;
     }
 
+    _bumpStat('calls');
     final url = Uri.parse('tel:${widget.listing.phone.trim()}');
     if (await canLaunchUrl(url)) {
       await launchUrl(url);
@@ -5005,6 +5022,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
   void openChat() {
     final me = FirebaseAuth.instance.currentUser;
     if (me == null) return;
+    _bumpStat('chats');
 
     final listing = widget.listing;
     final buyerId = me.uid;
