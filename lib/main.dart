@@ -6,18 +6,49 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  if (FirebaseAuth.instance.currentUser == null) {
-    await FirebaseAuth.instance.signInAnonymously();
-  }
-
   runApp(const MarketHubApp());
 }
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+// Currency shown across the app (Pakistani Rupee).
+const String currencySymbol = 'Rs';
+
+const List<String> pakistanCities = [
+  'Karachi',
+  'Lahore',
+  'Islamabad',
+  'Rawalpindi',
+  'Faisalabad',
+  'Multan',
+  'Peshawar',
+  'Quetta',
+  'Hyderabad',
+  'Gujranwala',
+  'Sialkot',
+  'Bahawalpur',
+  'Sargodha',
+  'Sukkur',
+  'Larkana',
+  'Sheikhupura',
+  'Mardan',
+  'Gujrat',
+  'Abbottabad',
+  'Mirpur (AJK)',
+  'Gilgit',
+  'Muzaffarabad',
+];
+
+const List<String> itemConditions = ['New', 'Used'];
 
 class MarketplaceCategory {
   final String title;
@@ -244,17 +275,99 @@ MarketplaceCategory categoryByTitle(String title) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// Default country dialing code for Pakistan (used to build WhatsApp links).
+const String defaultCountryCode = '92';
+
+/// Converts a Pakistani number into the international digits WhatsApp expects
+/// (e.g. "0300 1234567" -> "923001234567", "+92 300 1234567" -> "923001234567").
+String normalizePhoneForWhatsApp(String phone) {
+  var digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+  if (digits.isEmpty) return digits;
+
+  if (digits.startsWith('00')) {
+    // International prefix typed as 00 -> drop it.
+    digits = digits.substring(2);
+  } else if (digits.startsWith('0')) {
+    // Local format 03xx... -> 92 3xx...
+    digits = '$defaultCountryCode${digits.substring(1)}';
+  } else if (!digits.startsWith(defaultCountryCode)) {
+    // Bare subscriber number (e.g. 3001234567) -> prefix country code.
+    digits = '$defaultCountryCode$digits';
+  }
+  return digits;
+}
+
+/// Strips currency text and returns a numeric value for sorting/filtering.
+double parsePrice(String price) {
+  final cleaned = price.replaceAll(RegExp(r'[^0-9.]'), '');
+  return double.tryParse(cleaned) ?? 0;
+}
+
+/// Human friendly "x ago" from a Firestore [Timestamp].
+String timeAgo(Timestamp? timestamp) {
+  if (timestamp == null) return '';
+
+  final diff = DateTime.now().difference(timestamp.toDate());
+
+  if (diff.inDays >= 365) return '${(diff.inDays / 365).floor()}y ago';
+  if (diff.inDays >= 30) return '${(diff.inDays / 30).floor()}mo ago';
+  if (diff.inDays >= 1) return '${diff.inDays}d ago';
+  if (diff.inHours >= 1) return '${diff.inHours}h ago';
+  if (diff.inMinutes >= 1) return '${diff.inMinutes}m ago';
+  return 'Just now';
+}
+
+/// Resolves the device's current GPS position, handling service + permission
+/// state. Throws a human-readable message on failure (e.g. permission denied).
+Future<Position> determineCurrentPosition() async {
+  final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  if (!serviceEnabled) {
+    throw 'Location services are turned off. Please enable them and retry.';
+  }
+
+  var permission = await Geolocator.checkPermission();
+  if (permission == LocationPermission.denied) {
+    permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied) {
+      throw 'Location permission was denied.';
+    }
+  }
+
+  if (permission == LocationPermission.deniedForever) {
+    throw 'Location permission is permanently denied. Enable it in your '
+        'browser/device settings.';
+  }
+
+  return Geolocator.getCurrentPosition();
+}
+
+// ---------------------------------------------------------------------------
+// Model
+// ---------------------------------------------------------------------------
+
 class Listing {
   String id;
   String title;
   String price;
   String location;
   String imageUrl;
+  List<String> images;
   String category;
   String subcategory;
   String phone;
   String description;
   String userId;
+  String sellerName;
+  String condition;
+  String city;
+  double? latitude;
+  double? longitude;
+  int views;
+  Timestamp? createdAt;
 
   Listing({
     required this.id,
@@ -263,28 +376,58 @@ class Listing {
     required this.location,
     required this.imageUrl,
     required this.category,
+    this.images = const [],
     this.subcategory = '',
     this.phone = '',
     this.description = '',
     this.userId = '',
+    this.sellerName = '',
+    this.condition = '',
+    this.city = '',
+    this.latitude,
+    this.longitude,
+    this.views = 0,
+    this.createdAt,
   });
+
+  bool get hasCoordinates => latitude != null && longitude != null;
+
+  /// All gallery images, falling back to the single [imageUrl] for old ads.
+  List<String> get galleryImages {
+    if (images.isNotEmpty) return images;
+    if (imageUrl.trim().isNotEmpty) return [imageUrl];
+    return const [];
+  }
+
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
       'title': title,
       'price': price,
       'location': location,
       'imageUrl': imageUrl,
+      'images': images,
       'category': category,
       'subcategory': subcategory,
       'phone': phone,
       'description': description,
       'userId': userId,
+      'sellerName': sellerName,
+      'condition': condition,
+      'city': city,
+      'latitude': latitude,
+      'longitude': longitude,
+      'views': views,
+      if (createdAt != null) 'createdAt': createdAt,
     };
   }
 
-  factory Listing.fromDoc(QueryDocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory Listing.fromDoc(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>? ?? {};
+
+    final rawImages = data['images'];
+    final imagesList = rawImages is List
+        ? rawImages.map((e) => e.toString()).toList()
+        : <String>[];
 
     return Listing(
       id: doc.id,
@@ -292,16 +435,31 @@ class Listing {
       price: data['price']?.toString() ?? '',
       location: data['location']?.toString() ?? '',
       imageUrl: data['imageUrl']?.toString() ?? '',
+      images: imagesList,
       category: data['category']?.toString() ?? '',
       subcategory: data['subcategory']?.toString() ?? '',
       phone: data['phone']?.toString() ?? '',
       description: data['description']?.toString() ?? '',
       userId: data['userId']?.toString() ?? '',
+      sellerName: data['sellerName']?.toString() ?? '',
+      condition: data['condition']?.toString() ?? '',
+      // 'city' is the current field; fall back to legacy 'emirate' for old ads.
+      city: data['city']?.toString() ?? data['emirate']?.toString() ?? '',
+      latitude: (data['latitude'] as num?)?.toDouble(),
+      longitude: (data['longitude'] as num?)?.toDouble(),
+      views: (data['views'] as num?)?.toInt() ?? 0,
+      createdAt: data['createdAt'] is Timestamp
+          ? data['createdAt'] as Timestamp
+          : null,
     );
   }
 }
 
 final List<Listing> favoriteListings = [];
+
+// ---------------------------------------------------------------------------
+// App root + auth
+// ---------------------------------------------------------------------------
 
 class MarketHubApp extends StatelessWidget {
   const MarketHubApp({super.key});
@@ -312,10 +470,272 @@ class MarketHubApp extends StatelessWidget {
       title: 'MarketHub',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: false),
-      home: const HomeScreen(),
+      home: const AuthGate(),
     );
   }
 }
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasData) {
+          return const HomeScreen();
+        }
+
+        return const AuthScreen();
+      },
+    );
+  }
+}
+
+class AuthScreen extends StatefulWidget {
+  const AuthScreen({super.key});
+
+  @override
+  State<AuthScreen> createState() => _AuthScreenState();
+}
+
+class _AuthScreenState extends State<AuthScreen> {
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+
+  bool isLogin = true;
+  bool isLoading = false;
+  String? errorMessage;
+
+  Future<void> submit() async {
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => errorMessage = 'Please enter email and password');
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      if (isLogin) {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } else {
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      }
+      // AuthGate listens to authStateChanges and navigates automatically.
+    } on FirebaseAuthException catch (e) {
+      setState(() => errorMessage = e.message ?? 'Authentication failed');
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
+  }
+
+  Future<void> continueAsGuest() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      await FirebaseAuth.instance.signInAnonymously();
+    } on FirebaseAuthException catch (e) {
+      setState(() => errorMessage = e.message ?? 'Could not continue as guest');
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Icon(Icons.storefront, size: 80, color: Colors.blue),
+                const SizedBox(height: 12),
+                const Text(
+                  'MarketHub',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  isLogin ? 'Log in to your account' : 'Create a new account',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: emailController,
+                  enabled: !isLoading,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.email),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: passwordController,
+                  enabled: !isLoading,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Password',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock),
+                  ),
+                ),
+                if (errorMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    errorMessage!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: isLoading ? null : submit,
+                  child: isLoading
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(isLogin ? 'Log In' : 'Sign Up'),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: isLoading
+                      ? null
+                      : () {
+                          setState(() {
+                            isLogin = !isLogin;
+                            errorMessage = null;
+                          });
+                        },
+                  child: Text(
+                    isLogin
+                        ? "Don't have an account? Sign up"
+                        : 'Already have an account? Log in',
+                  ),
+                ),
+                const Divider(height: 32),
+                OutlinedButton.icon(
+                  onPressed: isLoading ? null : continueAsGuest,
+                  icon: const Icon(Icons.person_outline),
+                  label: const Text('Continue as Guest'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A tappable wrapper that is reachable with the keyboard.
+///
+/// Arrow keys move focus between [FocusableTap]s (directional focus, built into
+/// MaterialApp), Enter/Space activates the focused one, and a blue ring shows
+/// which item is currently selected. Off-screen items scroll into view when
+/// they receive focus.
+class FocusableTap extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onTap;
+  final bool autofocus;
+  final BorderRadius borderRadius;
+
+  const FocusableTap({
+    super.key,
+    required this.child,
+    required this.onTap,
+    this.autofocus = false,
+    this.borderRadius = const BorderRadius.all(Radius.circular(12)),
+  });
+
+  @override
+  State<FocusableTap> createState() => _FocusableTapState();
+}
+
+class _FocusableTapState extends State<FocusableTap> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return FocusableActionDetector(
+      autofocus: widget.autofocus,
+      mouseCursor: SystemMouseCursors.click,
+      onShowFocusHighlight: (value) {
+        setState(() => _focused = value);
+      },
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (intent) {
+            widget.onTap();
+            return null;
+          },
+        ),
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        decoration: BoxDecoration(
+          borderRadius: widget.borderRadius,
+          border: Border.all(
+            color: _focused ? Colors.blue : Colors.transparent,
+            width: 3,
+          ),
+        ),
+        child: InkWell(
+          canRequestFocus: false,
+          borderRadius: widget.borderRadius,
+          onTap: widget.onTap,
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Home
+// ---------------------------------------------------------------------------
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -327,6 +747,66 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int selectedIndex = 0;
   String searchQuery = '';
+  final searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    ensureUserDoc();
+    loadFavorites();
+  }
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
+  }
+
+  /// Creates a `users/{uid}` profile doc the first time we see this account,
+  /// so seller profiles can show a "Member since" date.
+  Future<void> ensureUserDoc() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final ref = FirebaseFirestore.instance.collection('users').doc(user.uid);
+    final snap = await ref.get();
+
+    if (!snap.exists) {
+      await ref.set({
+        'email': user.email ?? '',
+        'isAnonymous': user.isAnonymous,
+        'createdAt': Timestamp.now(),
+      });
+    }
+  }
+
+  Future<void> loadFavorites() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    favoriteListings.clear();
+    if (uid == null) return;
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('favorites')
+        .get();
+
+    if (!mounted) return;
+
+    setState(() {
+      for (final doc in snapshot.docs) {
+        favoriteListings.add(Listing.fromDoc(doc));
+      }
+    });
+  }
+
+  void openSearch(String query) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => SearchScreen(initialQuery: query)),
+    );
+  }
 
   Widget homeContent() {
     final filteredCategories = appCategories.where((category) {
@@ -338,16 +818,23 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         children: [
           TextField(
-            decoration: const InputDecoration(
-              hintText: 'Search categories...',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
+            controller: searchController,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: 'Search all ads...',
+              prefixIcon: const Icon(Icons.search),
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.arrow_forward),
+                onPressed: () => openSearch(searchController.text.trim()),
+              ),
             ),
             onChanged: (value) {
               setState(() {
                 searchQuery = value;
               });
             },
+            onSubmitted: (value) => openSearch(value.trim()),
           ),
           const SizedBox(height: 16),
           Expanded(
@@ -369,7 +856,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     itemBuilder: (context, index) {
                       final category = filteredCategories[index];
 
-                      return InkWell(
+                      return FocusableTap(
+                        autofocus: index == 0,
                         onTap: () {
                           Navigator.push(
                             context,
@@ -425,10 +913,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 10),
                   SizedBox(
-                    height: 250,
+                    height: 260,
                     child: StreamBuilder<QuerySnapshot>(
                       stream: FirebaseFirestore.instance
                           .collection('listings')
+                          .orderBy('createdAt', descending: true)
                           .limit(10)
                           .snapshots(),
                       builder: (context, snapshot) {
@@ -439,22 +928,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         }
 
                         final docs = snapshot.data!.docs;
-                        final filteredDocs = docs.where((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-
-                          final title =
-                              data['title']?.toString().toLowerCase() ?? '';
-                          final location =
-                              data['location']?.toString().toLowerCase() ?? '';
-                          final price =
-                              data['price']?.toString().toLowerCase() ?? '';
-
-                          final query = searchQuery.toLowerCase();
-
-                          return title.contains(query) ||
-                              location.contains(query) ||
-                              price.contains(query);
-                        }).toList();
 
                         if (docs.isEmpty) {
                           return const Center(child: Text('No ads yet'));
@@ -462,19 +935,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
                         return ListView.builder(
                           scrollDirection: Axis.horizontal,
-                          itemCount: filteredDocs.length,
+                          itemCount: docs.length,
                           itemBuilder: (context, index) {
-                            final data =
-                                filteredDocs[index].data()
-                                    as Map<String, dynamic>;
+                            final listing = Listing.fromDoc(docs[index]);
 
-                            return InkWell(
+                            return FocusableTap(
                               onTap: () {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) =>
-                                        ListingDetailsScreen(data: data),
+                                        AdDetailsScreen(listing: listing),
                                   ),
                                 );
                               },
@@ -492,15 +963,24 @@ class _HomeScreenState extends State<HomeScreen> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Expanded(
-                                        child:
-                                            data['imageUrl'] != null &&
-                                                data['imageUrl']
-                                                    .toString()
-                                                    .isNotEmpty
+                                        child: listing.galleryImages.isNotEmpty
                                             ? Image.network(
-                                                data['imageUrl'],
+                                                listing.galleryImages.first,
                                                 width: double.infinity,
                                                 fit: BoxFit.cover,
+                                                errorBuilder:
+                                                    (context, error, stack) =>
+                                                        Container(
+                                                          color: Colors
+                                                              .grey
+                                                              .shade300,
+                                                          child: const Center(
+                                                            child: Icon(
+                                                              Icons.broken_image,
+                                                              size: 50,
+                                                            ),
+                                                          ),
+                                                        ),
                                               )
                                             : Container(
                                                 color: Colors.grey.shade300,
@@ -519,14 +999,24 @@ class _HomeScreenState extends State<HomeScreen> {
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              data['title'] ?? '',
+                                              listing.title,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                               style: const TextStyle(
                                                 fontWeight: FontWeight.bold,
                                               ),
                                             ),
-                                            Text('AED ${data['price'] ?? ''}'),
                                             Text(
-                                              data['location'] ?? '',
+                                              '$currencySymbol ${listing.price}',
+                                              style: const TextStyle(
+                                                color: Colors.green,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            Text(
+                                              listing.city.isEmpty
+                                                  ? listing.location
+                                                  : listing.city,
                                               style: TextStyle(
                                                 color: Colors.grey[600],
                                               ),
@@ -557,6 +1047,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final pages = [
       homeContent(),
+      const ChatsScreen(),
       const FavoritesScreen(),
       const MyAdsScreen(),
       const ProfileScreen(),
@@ -565,16 +1056,19 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('MarketHub')),
       body: pages[selectedIndex],
-      floatingActionButton: FloatingActionButton(
-        child: const Icon(Icons.add),
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const AddListingScreen()),
-          );
-          setState(() {});
-        },
-      ),
+      floatingActionButton: selectedIndex == 0
+          ? FloatingActionButton.extended(
+              icon: const Icon(Icons.add),
+              label: const Text('Post Ad'),
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AddListingScreen()),
+                );
+                setState(() {});
+              },
+            )
+          : null,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: selectedIndex,
         type: BottomNavigationBarType.fixed,
@@ -585,6 +1079,7 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Chats'),
           BottomNavigationBarItem(
             icon: Icon(Icons.favorite),
             label: 'Favorites',
@@ -597,18 +1092,257 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class CategoryScreen extends StatefulWidget {
+// ---------------------------------------------------------------------------
+// Browse + search + filters
+// ---------------------------------------------------------------------------
+
+class CategoryScreen extends StatelessWidget {
   final String title;
 
   const CategoryScreen({super.key, required this.title});
 
   @override
-  State<CategoryScreen> createState() => _CategoryScreenState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: ListingsBrowser(category: title),
+    );
+  }
 }
 
-class _CategoryScreenState extends State<CategoryScreen> {
-  String searchText = '';
+class SearchScreen extends StatelessWidget {
+  final String initialQuery;
+
+  const SearchScreen({super.key, this.initialQuery = ''});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Search')),
+      body: ListingsBrowser(initialQuery: initialQuery),
+    );
+  }
+}
+
+/// Reusable browse surface: search box, subcategory chips (when a category is
+/// given), sort + price/emirate filters, and the results list.
+class ListingsBrowser extends StatefulWidget {
+  final String? category;
+  final String initialQuery;
+
+  const ListingsBrowser({super.key, this.category, this.initialQuery = ''});
+
+  @override
+  State<ListingsBrowser> createState() => _ListingsBrowserState();
+}
+
+class _ListingsBrowserState extends State<ListingsBrowser> {
+  late String searchText;
+  late final TextEditingController searchController;
   String selectedSubcategory = 'All';
+  String sortBy = 'Newest';
+  String cityFilter = 'All';
+  double? minPrice;
+  double? maxPrice;
+
+  static const sortOptions = [
+    'Newest',
+    'Price: Low to High',
+    'Price: High to Low',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    searchText = widget.initialQuery;
+    searchController = TextEditingController(text: widget.initialQuery);
+  }
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
+  }
+
+  bool get hasCategory => widget.category != null && widget.category != 'All';
+
+  Future<void> openFilters() async {
+    final minController = TextEditingController(
+      text: minPrice == null ? '' : minPrice!.toStringAsFixed(0),
+    );
+    final maxController = TextEditingController(
+      text: maxPrice == null ? '' : maxPrice!.toStringAsFixed(0),
+    );
+    String tempCity = cityFilter;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Filters',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: tempCity,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'City',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: ['All', ...pakistanCities]
+                        .map(
+                          (e) =>
+                              DropdownMenuItem(value: e, child: Text(e)),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setSheetState(() => tempCity = value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: minController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Min price',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: maxController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Max price',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            setState(() {
+                              cityFilter = 'All';
+                              minPrice = null;
+                              maxPrice = null;
+                            });
+                            Navigator.pop(context);
+                          },
+                          child: const Text('Reset'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              cityFilter = tempCity;
+                              minPrice = double.tryParse(
+                                minController.text.trim(),
+                              );
+                              maxPrice = double.tryParse(
+                                maxController.text.trim(),
+                              );
+                            });
+                            Navigator.pop(context);
+                          },
+                          child: const Text('Apply'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  int get activeFilterCount {
+    var count = 0;
+    if (cityFilter != 'All') count++;
+    if (minPrice != null) count++;
+    if (maxPrice != null) count++;
+    return count;
+  }
+
+  List<Listing> applyFilters(List<Listing> listings) {
+    final query = searchText.toLowerCase();
+
+    final result = listings.where((listing) {
+      final matchesSearch =
+          query.isEmpty ||
+          listing.title.toLowerCase().contains(query) ||
+          listing.description.toLowerCase().contains(query) ||
+          listing.location.toLowerCase().contains(query) ||
+          listing.category.toLowerCase().contains(query) ||
+          listing.subcategory.toLowerCase().contains(query);
+
+      final matchesSub =
+          selectedSubcategory == 'All' ||
+          listing.subcategory == selectedSubcategory;
+
+      final matchesCity =
+          cityFilter == 'All' || listing.city == cityFilter;
+
+      final price = parsePrice(listing.price);
+      final matchesMin = minPrice == null || price >= minPrice!;
+      final matchesMax = maxPrice == null || price <= maxPrice!;
+
+      return matchesSearch &&
+          matchesSub &&
+          matchesCity &&
+          matchesMin &&
+          matchesMax;
+    }).toList();
+
+    result.sort((a, b) {
+      switch (sortBy) {
+        case 'Price: Low to High':
+          return parsePrice(a.price).compareTo(parsePrice(b.price));
+        case 'Price: High to Low':
+          return parsePrice(b.price).compareTo(parsePrice(a.price));
+        default:
+          final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
+          final bt = b.createdAt?.millisecondsSinceEpoch ?? 0;
+          return bt.compareTo(at);
+      }
+    });
+
+    return result;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -616,112 +1350,140 @@ class _CategoryScreenState extends State<CategoryScreen> {
       'listings',
     );
 
-    if (widget.title != 'All') {
-      query = query.where('category', isEqualTo: widget.title);
+    if (hasCategory) {
+      query = query.where('category', isEqualTo: widget.category);
     }
 
-    final currentCategory = categoryByTitle(widget.title);
+    final currentCategory = categoryByTitle(widget.category ?? 'All');
     final subcategories = ['All', ...currentCategory.subcategories];
 
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: query.snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Error loading listings: ${snapshot.error}'),
-            );
-          }
+    return StreamBuilder<QuerySnapshot>(
+      stream: query.snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Error loading listings: ${snapshot.error}'));
+        }
 
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-          final docs = snapshot.data?.docs ?? [];
+        final docs = snapshot.data?.docs ?? [];
+        final allListings = docs.map((d) => Listing.fromDoc(d)).toList();
+        final filtered = applyFilters(allListings);
 
-          final filteredDocs = docs.where((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-
-            final title = data['title']?.toString().toLowerCase() ?? '';
-            final location = data['location']?.toString().toLowerCase() ?? '';
-            final price = data['price']?.toString().toLowerCase() ?? '';
-            final subcategory = data['subcategory']?.toString() ?? '';
-
-            final query = searchText.toLowerCase();
-
-            final matchesSearch =
-                title.contains(query) ||
-                location.contains(query) ||
-                price.contains(query);
-
-            final matchesSubcategory =
-                selectedSubcategory == 'All' ||
-                subcategory == selectedSubcategory;
-
-            return matchesSearch && matchesSubcategory;
-          }).toList();
-
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-                child: TextField(
-                  decoration: const InputDecoration(
-                    hintText: 'Search by title, location or price...',
-                    prefixIcon: Icon(Icons.search),
-                    border: OutlineInputBorder(),
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+              child: TextField(
+                controller: searchController,
+                decoration: const InputDecoration(
+                  hintText: 'Search by title, location or price...',
+                  prefixIcon: Icon(Icons.search),
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    searchText = value;
+                  });
+                },
+              ),
+            ),
+            // Sort + filter bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: sortBy,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Sort',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                      ),
+                      items: sortOptions
+                          .map(
+                            (s) => DropdownMenuItem(value: s, child: Text(s)),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) setState(() => sortBy = value);
+                      },
+                    ),
                   ),
-                  onChanged: (value) {
-                    setState(() {
-                      searchText = value;
-                    });
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: openFilters,
+                    icon: const Icon(Icons.tune),
+                    label: Text(
+                      activeFilterCount == 0
+                          ? 'Filters'
+                          : 'Filters ($activeFilterCount)',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (hasCategory)
+              SizedBox(
+                height: 48,
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: subcategories.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final subcategory = subcategories[index];
+                    final isSelected = selectedSubcategory == subcategory;
+
+                    return ChoiceChip(
+                      label: Text(subcategory),
+                      selected: isSelected,
+                      onSelected: (_) {
+                        setState(() {
+                          selectedSubcategory = subcategory;
+                        });
+                      },
+                    );
                   },
                 ),
               ),
-              if (widget.title != 'All')
-                SizedBox(
-                  height: 48,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: subcategories.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) {
-                      final subcategory = subcategories[index];
-                      final isSelected = selectedSubcategory == subcategory;
-
-                      return ChoiceChip(
-                        label: Text(subcategory),
-                        selected: isSelected,
-                        onSelected: (_) {
-                          setState(() {
-                            selectedSubcategory = subcategory;
-                          });
-                        },
-                      );
-                    },
-                  ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${filtered.length} result${filtered.length == 1 ? '' : 's'}',
+                  style: const TextStyle(color: Colors.grey),
                 ),
-              Expanded(
-                child: filteredDocs.isEmpty
-                    ? const Center(child: Text('No listings found'))
-                    : ListView(
-                        padding: const EdgeInsets.all(16),
-                        children: filteredDocs.map((doc) {
-                          final listing = Listing.fromDoc(doc);
-
-                          return ListingCard(listing: listing);
-                        }).toList(),
-                      ),
               ),
-            ],
-          );
-        },
-      ),
+            ),
+            Expanded(
+              child: filtered.isEmpty
+                  ? const Center(child: Text('No listings found'))
+                  : ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: filtered
+                          .map((listing) => ListingCard(listing: listing))
+                          .toList(),
+                    ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Listing card
+// ---------------------------------------------------------------------------
 
 class ListingCard extends StatefulWidget {
   final Listing listing;
@@ -738,38 +1500,44 @@ class _ListingCardState extends State<ListingCard> {
   }
 
   void toggleFavorite() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final wasFavorite = isFavorite;
+
     setState(() {
-      if (isFavorite) {
+      if (wasFavorite) {
         favoriteListings.removeWhere((item) => item.id == widget.listing.id);
       } else {
         favoriteListings.add(widget.listing);
       }
     });
 
-    if (isFavorite) {
-      await FirebaseFirestore.instance
-          .collection('favorites')
-          .doc(widget.listing.id)
-          .set(widget.listing.toMap());
+    if (uid == null) return;
+
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('favorites')
+        .doc(widget.listing.id);
+
+    if (wasFavorite) {
+      await ref.delete();
     } else {
-      await FirebaseFirestore.instance
-          .collection('favorites')
-          .doc(widget.listing.id)
-          .delete();
+      await ref.set(widget.listing.toMap());
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = widget.listing.imageUrl.trim().isNotEmpty;
+    final listing = widget.listing;
+    final images = listing.galleryImages;
+    final hasImage = images.isNotEmpty;
+    final posted = timeAgo(listing.createdAt);
 
-    return InkWell(
+    return FocusableTap(
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => AdDetailsScreen(listing: widget.listing),
-          ),
+          MaterialPageRoute(builder: (_) => AdDetailsScreen(listing: listing)),
         );
       },
       child: Card(
@@ -788,7 +1556,7 @@ class _ListingCardState extends State<ListingCard> {
                 children: [
                   hasImage
                       ? Image.network(
-                          widget.listing.imageUrl,
+                          images.first,
                           height: 170,
                           width: double.infinity,
                           fit: BoxFit.cover,
@@ -805,6 +1573,39 @@ class _ListingCardState extends State<ListingCard> {
                           height: 170,
                           child: Center(child: Icon(Icons.image, size: 60)),
                         ),
+                  if (images.length > 1)
+                    Positioned(
+                      bottom: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.photo_library,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${images.length}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   Positioned(
                     top: 8,
                     right: 8,
@@ -824,54 +1625,87 @@ class _ListingCardState extends State<ListingCard> {
             ),
             Padding(
               padding: const EdgeInsets.all(12),
-              child: Row(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.listing.title.isEmpty
-                              ? 'Untitled ad'
-                              : widget.listing.title,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'AED ${widget.listing.price}',
-                          style: const TextStyle(
-                            color: Colors.green,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          widget.listing.location,
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                        if (widget.listing.subcategory.isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          Text(
-                            widget.listing.subcategory,
-                            style: const TextStyle(
-                              color: Colors.blueGrey,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ],
+                  Text(
+                    listing.title.isEmpty ? 'Untitled ad' : listing.title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(
-                      isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: isFavorite ? Colors.red : null,
+                  const SizedBox(height: 6),
+                  Text(
+                    '$currencySymbol ${listing.price}',
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
-                    onPressed: toggleFavorite,
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.location_on,
+                        size: 14,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(width: 2),
+                      Expanded(
+                        child: Text(
+                          [
+                            listing.city,
+                            listing.location,
+                          ].where((e) => e.isNotEmpty).join(', '),
+                          style: const TextStyle(color: Colors.grey),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      if (listing.condition.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: listing.condition == 'New'
+                                ? Colors.green.shade50
+                                : Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: listing.condition == 'New'
+                                  ? Colors.green
+                                  : Colors.orange,
+                            ),
+                          ),
+                          child: Text(
+                            listing.condition,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: listing.condition == 'New'
+                                  ? Colors.green.shade800
+                                  : Colors.orange.shade800,
+                            ),
+                          ),
+                        ),
+                      const Spacer(),
+                      if (posted.isNotEmpty)
+                        Text(
+                          posted,
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),
@@ -883,6 +1717,10 @@ class _ListingCardState extends State<ListingCard> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Post ad
+// ---------------------------------------------------------------------------
+
 class AddListingScreen extends StatefulWidget {
   const AddListingScreen({super.key});
 
@@ -891,7 +1729,7 @@ class AddListingScreen extends StatefulWidget {
 }
 
 class _AddListingScreenState extends State<AddListingScreen> {
-  XFile? selectedImage;
+  List<XFile> selectedImages = [];
   final ImagePicker picker = ImagePicker();
 
   final titleController = TextEditingController();
@@ -902,35 +1740,65 @@ class _AddListingScreenState extends State<AddListingScreen> {
 
   String selectedCategory = 'Motors';
   String selectedSubcategory = 'Cars';
+  String selectedCondition = 'Used';
+  String selectedCity = 'Karachi';
+  double? latitude;
+  double? longitude;
+  bool isLocating = false;
   bool isSubmitting = false;
 
   List<String> get currentSubcategories {
     return categoryByTitle(selectedCategory).subcategories;
   }
 
-  Future<void> pickImage() async {
-    final image = await picker.pickImage(source: ImageSource.gallery);
-
-    if (image != null) {
+  Future<void> useCurrentLocation() async {
+    setState(() => isLocating = true);
+    try {
+      final position = await determineCurrentPosition();
+      if (!mounted) return;
       setState(() {
-        selectedImage = image;
+        latitude = position.latitude;
+        longitude = position.longitude;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Current location added to your ad')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => isLocating = false);
+    }
+  }
+
+  Future<void> pickImages() async {
+    final images = await picker.pickMultiImage();
+
+    if (images.isNotEmpty) {
+      setState(() {
+        selectedImages = images;
       });
     }
   }
 
-  Future<String> uploadImage() async {
-    if (selectedImage == null) return '';
+  Future<List<String>> uploadImages() async {
+    final urls = <String>[];
 
-    final bytes = await selectedImage!.readAsBytes();
+    for (var i = 0; i < selectedImages.length; i++) {
+      final bytes = await selectedImages[i].readAsBytes();
 
-    final ref = FirebaseStorage.instance
-        .ref()
-        .child('listings')
-        .child('${DateTime.now().millisecondsSinceEpoch}.jpg');
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('listings')
+          .child('${DateTime.now().millisecondsSinceEpoch}_$i.jpg');
 
-    await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      urls.add(await ref.getDownloadURL());
+    }
 
-    return ref.getDownloadURL();
+    return urls;
   }
 
   Future<void> submitListing() async {
@@ -948,21 +1816,27 @@ class _AddListingScreenState extends State<AddListingScreen> {
     });
 
     try {
-      final imageUrl = await uploadImage();
+      final imageUrls = await uploadImages();
 
       await FirebaseFirestore.instance.collection('listings').add({
         'title': titleController.text.trim(),
         'price': priceController.text.trim(),
         'location': locationController.text.trim(),
+        'city': selectedCity,
+        'latitude': latitude,
+        'longitude': longitude,
         'phone': phoneController.text.trim(),
         'description': descriptionController.text.trim(),
-        'imageUrl': imageUrl,
+        'imageUrl': imageUrls.isNotEmpty ? imageUrls.first : '',
+        'images': imageUrls,
         'category': selectedCategory,
         'subcategory': selectedSubcategory,
+        'condition': selectedCondition,
         'userId': FirebaseAuth.instance.currentUser?.uid ?? '',
         'sellerName':
             FirebaseAuth.instance.currentUser?.email ?? 'Anonymous seller',
         'createdAt': Timestamp.now(),
+        'views': 0,
         'isFeatured': false,
       });
 
@@ -1001,33 +1875,121 @@ class _AddListingScreenState extends State<AddListingScreen> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ElevatedButton(
-              onPressed: isSubmitting ? null : pickImage,
-              child: const Text('Select Image'),
+            OutlinedButton.icon(
+              onPressed: isSubmitting ? null : pickImages,
+              icon: const Icon(Icons.add_a_photo),
+              label: Text(
+                selectedImages.isEmpty
+                    ? 'Add Photos'
+                    : '${selectedImages.length} photo(s) selected',
+              ),
             ),
-            if (selectedImage != null) ...[
+            if (selectedImages.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text(selectedImage!.name),
+              SizedBox(
+                height: 90,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: selectedImages.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        selectedImages[index].path,
+                        width: 90,
+                        height: 90,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Container(
+                          width: 90,
+                          height: 90,
+                          color: Colors.grey.shade300,
+                          child: const Icon(Icons.image),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
             ],
+            const SizedBox(height: 8),
             TextField(
               controller: titleController,
               decoration: const InputDecoration(labelText: 'Title'),
             ),
             TextField(
               controller: priceController,
-              decoration: const InputDecoration(labelText: 'Price'),
+              decoration: const InputDecoration(
+                labelText: 'Price (PKR)',
+              ),
               keyboardType: TextInputType.number,
             ),
             TextField(
               controller: locationController,
-              decoration: const InputDecoration(labelText: 'Location'),
+              decoration: const InputDecoration(
+                labelText: 'Area / Block',
+                hintText: 'Example: Gulshan-e-Iqbal, Block 5',
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: selectedCity,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'City'),
+              items: pakistanCities
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .toList(),
+              onChanged: isSubmitting
+                  ? null
+                  : (value) {
+                      if (value != null) {
+                        setState(() => selectedCity = value);
+                      }
+                    },
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: (isSubmitting || isLocating) ? null : useCurrentLocation,
+              icon: isLocating
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      latitude != null
+                          ? Icons.location_on
+                          : Icons.my_location,
+                      color: latitude != null ? Colors.green : null,
+                    ),
+              label: Text(
+                latitude != null
+                    ? 'Current location added ✓'
+                    : 'Use my current location',
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: selectedCondition,
+              decoration: const InputDecoration(labelText: 'Condition'),
+              items: itemConditions
+                  .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                  .toList(),
+              onChanged: isSubmitting
+                  ? null
+                  : (value) {
+                      if (value != null) {
+                        setState(() => selectedCondition = value);
+                      }
+                    },
             ),
             TextField(
               controller: phoneController,
               decoration: const InputDecoration(
-                labelText: 'WhatsApp Number',
-                hintText: 'Example: 971543436947',
+                labelText: 'WhatsApp / Phone Number',
+                hintText: 'Example: 03001234567 or +92 300 1234567',
               ),
               keyboardType: TextInputType.phone,
             ),
@@ -1104,6 +2066,10 @@ class _AddListingScreenState extends State<AddListingScreen> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// My ads + edit
+// ---------------------------------------------------------------------------
+
 class MyAdsScreen extends StatefulWidget {
   const MyAdsScreen({super.key});
 
@@ -1143,14 +2109,15 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
             itemCount: docs.length,
             itemBuilder: (context, index) {
               final listing = Listing.fromDoc(docs[index]);
+              final images = listing.galleryImages;
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 child: ListTile(
-                  leading: listing.imageUrl.isEmpty
+                  leading: images.isEmpty
                       ? const Icon(Icons.image, size: 40)
                       : Image.network(
-                          listing.imageUrl,
+                          images.first,
                           width: 60,
                           height: 60,
                           fit: BoxFit.cover,
@@ -1160,10 +2127,11 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                         ),
                   title: Text(listing.title),
                   subtitle: Text(
-                    listing.subcategory.isEmpty
-                        ? listing.location
-                        : '${listing.location} • ${listing.subcategory}',
+                    '${[listing.city, listing.location].where((e) => e.isNotEmpty).join(', ')}'
+                    '${listing.subcategory.isEmpty ? '' : ' • ${listing.subcategory}'}'
+                    '\n${listing.views} views',
                   ),
+                  isThreeLine: true,
                   onTap: () {
                     Navigator.push(
                       context,
@@ -1208,10 +2176,17 @@ class _EditListingScreenState extends State<EditListingScreen> {
   late TextEditingController descriptionController;
   late String selectedCategory;
   late String selectedSubcategory;
+  late String selectedCondition;
+  late String selectedCity;
+  double? latitude;
+  double? longitude;
+  bool isLocating = false;
 
   @override
   void initState() {
     super.initState();
+    latitude = widget.listing.latitude;
+    longitude = widget.listing.longitude;
 
     titleController = TextEditingController(text: widget.listing.title);
     priceController = TextEditingController(text: widget.listing.price);
@@ -1226,6 +2201,34 @@ class _EditListingScreenState extends State<EditListingScreen> {
     selectedSubcategory = widget.listing.subcategory.isEmpty
         ? categoryByTitle(selectedCategory).subcategories.first
         : widget.listing.subcategory;
+    selectedCondition = itemConditions.contains(widget.listing.condition)
+        ? widget.listing.condition
+        : 'Used';
+    selectedCity = pakistanCities.contains(widget.listing.city)
+        ? widget.listing.city
+        : 'Karachi';
+  }
+
+  Future<void> useCurrentLocation() async {
+    setState(() => isLocating = true);
+    try {
+      final position = await determineCurrentPosition();
+      if (!mounted) return;
+      setState(() {
+        latitude = position.latitude;
+        longitude = position.longitude;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Current location updated')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => isLocating = false);
+    }
   }
 
   Future<void> updateListing() async {
@@ -1236,10 +2239,14 @@ class _EditListingScreenState extends State<EditListingScreen> {
           'title': titleController.text.trim(),
           'price': priceController.text.trim(),
           'location': locationController.text.trim(),
+          'city': selectedCity,
+          'latitude': latitude,
+          'longitude': longitude,
           'phone': phoneController.text.trim(),
           'description': descriptionController.text.trim(),
           'category': selectedCategory,
           'subcategory': selectedSubcategory,
+          'condition': selectedCondition,
         });
 
     if (!mounted) return;
@@ -1272,16 +2279,61 @@ class _EditListingScreenState extends State<EditListingScreen> {
             ),
             TextField(
               controller: priceController,
-              decoration: const InputDecoration(labelText: 'Price'),
+              decoration: const InputDecoration(labelText: 'Price (PKR)'),
               keyboardType: TextInputType.number,
             ),
             TextField(
               controller: locationController,
-              decoration: const InputDecoration(labelText: 'Location'),
+              decoration: const InputDecoration(labelText: 'Area / Block'),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: selectedCity,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'City'),
+              items: pakistanCities
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) setState(() => selectedCity = value);
+              },
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: isLocating ? null : useCurrentLocation,
+              icon: isLocating
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      latitude != null ? Icons.location_on : Icons.my_location,
+                      color: latitude != null ? Colors.green : null,
+                    ),
+              label: Text(
+                latitude != null
+                    ? 'Current location set ✓'
+                    : 'Use my current location',
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: selectedCondition,
+              decoration: const InputDecoration(labelText: 'Condition'),
+              items: itemConditions
+                  .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) setState(() => selectedCondition = value);
+              },
             ),
             TextField(
               controller: phoneController,
-              decoration: const InputDecoration(labelText: 'WhatsApp Number'),
+              decoration: const InputDecoration(
+                labelText: 'WhatsApp / Phone Number',
+                hintText: 'Example: 03001234567 or +92 300 1234567',
+              ),
               keyboardType: TextInputType.phone,
             ),
             TextField(
@@ -1347,51 +2399,232 @@ class _EditListingScreenState extends State<EditListingScreen> {
   }
 }
 
-class AdDetailsScreen extends StatelessWidget {
+// ---------------------------------------------------------------------------
+// Ad details
+// ---------------------------------------------------------------------------
+
+class AdDetailsScreen extends StatefulWidget {
   final Listing listing;
 
   const AdDetailsScreen({super.key, required this.listing});
 
-  Future<void> openWhatsApp(BuildContext context) async {
-    if (listing.phone.trim().isEmpty) {
+  @override
+  State<AdDetailsScreen> createState() => _AdDetailsScreenState();
+}
+
+class _AdDetailsScreenState extends State<AdDetailsScreen> {
+  int currentImage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _incrementViews();
+  }
+
+  Future<void> _incrementViews() async {
+    final id = widget.listing.id;
+    if (id.isEmpty) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('listings')
+          .doc(id)
+          .update({'views': FieldValue.increment(1)});
+    } catch (_) {
+      // Non-critical; ignore failures (e.g. favorites cache docs).
+    }
+  }
+
+  Future<void> openWhatsApp() async {
+    if (widget.listing.phone.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Seller phone number is missing')),
       );
       return;
     }
 
-    final cleanedPhone = listing.phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final cleanedPhone = normalizePhoneForWhatsApp(widget.listing.phone);
     final url = Uri.parse('https://wa.me/$cleanedPhone');
 
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-      if (!context.mounted) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Could not open WhatsApp')));
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final images = <String>[];
-
-    if (listing.imageUrl.trim().isNotEmpty) {
-      images.add(listing.imageUrl);
+  Future<void> callSeller() async {
+    if (widget.listing.phone.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Seller phone number is missing')),
+      );
+      return;
     }
 
+    final url = Uri.parse('tel:${widget.listing.phone.trim()}');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
+    }
+  }
+
+  void openChat() {
+    final me = FirebaseAuth.instance.currentUser;
+    if (me == null) return;
+
+    final listing = widget.listing;
+    final buyerId = me.uid;
+    final sellerId = listing.userId;
+    final chatId = '${listing.id}_$buyerId';
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          chatId: chatId,
+          listingId: listing.id,
+          listingTitle: listing.title,
+          listingImage: listing.galleryImages.isEmpty
+              ? ''
+              : listing.galleryImages.first,
+          buyerId: buyerId,
+          sellerId: sellerId,
+          buyerName: me.email ?? 'Buyer',
+          sellerName: listing.sellerName.isEmpty
+              ? 'Seller'
+              : listing.sellerName,
+        ),
+      ),
+    );
+  }
+
+  Future<void> reportAd() async {
+    final reasons = [
+      'Spam or scam',
+      'Prohibited item',
+      'Wrong category',
+      'Fraudulent / fake',
+      'Other',
+    ];
+    String selected = reasons.first;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Report this ad'),
+          content: StatefulBuilder(
+            builder: (context, setDialogState) {
+              return RadioGroup<String>(
+                groupValue: selected,
+                onChanged: (value) {
+                  if (value != null) {
+                    setDialogState(() => selected = value);
+                  }
+                },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: reasons
+                      .map(
+                        (r) => RadioListTile<String>(
+                          title: Text(r),
+                          value: r,
+                        ),
+                      )
+                      .toList(),
+                ),
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Submit'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    await FirebaseFirestore.instance.collection('reports').add({
+      'listingId': widget.listing.id,
+      'listingTitle': widget.listing.title,
+      'reason': selected,
+      'reporterId': FirebaseAuth.instance.currentUser?.uid ?? '',
+      'createdAt': Timestamp.now(),
+    });
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Thanks, your report was submitted')),
+    );
+  }
+
+  Future<void> openMap() async {
+    final listing = widget.listing;
+    if (!listing.hasCoordinates) return;
+
+    final url = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query='
+      '${listing.latitude},${listing.longitude}',
+    );
+
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not open the map')));
+    }
+  }
+
+  void openSellerProfile() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SellerProfileScreen(
+          sellerId: widget.listing.userId,
+          sellerName: widget.listing.sellerName,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final listing = widget.listing;
+    final images = listing.galleryImages;
+    final me = FirebaseAuth.instance.currentUser;
+    final isOwnAd = me != null && me.uid == listing.userId;
+    final posted = timeAgo(listing.createdAt);
+
     return Scaffold(
-      appBar: AppBar(title: Text(listing.title)),
+      appBar: AppBar(
+        title: Text(listing.title),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.flag_outlined),
+            tooltip: 'Report ad',
+            onPressed: reportAd,
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (images.isNotEmpty)
+            if (images.isNotEmpty) ...[
               SizedBox(
-                height: 260,
+                height: 280,
                 width: double.infinity,
                 child: PageView.builder(
                   itemCount: images.length,
+                  onPageChanged: (i) => setState(() => currentImage = i),
                   itemBuilder: (context, index) {
                     return ClipRRect(
                       borderRadius: BorderRadius.circular(12),
@@ -1409,45 +2642,116 @@ class AdDetailsScreen extends StatelessWidget {
                   },
                 ),
               ),
-            const SizedBox(height: 20),
+              if (images.length > 1) ...[
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(images.length, (i) {
+                    return Container(
+                      width: 8,
+                      height: 8,
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: i == currentImage
+                            ? Colors.blue
+                            : Colors.grey.shade400,
+                      ),
+                    );
+                  }),
+                ),
+              ],
+            ],
+            const SizedBox(height: 16),
             Text(
               listing.title,
               style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text(
-              'Price: AED ${listing.price}',
-              style: const TextStyle(fontSize: 20),
+              '$currencySymbol ${listing.price}',
+              style: const TextStyle(
+                fontSize: 24,
+                color: Colors.green,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 12),
-            Text(
-              'Location: ${listing.location}',
-              style: const TextStyle(fontSize: 20),
+            Wrap(
+              spacing: 16,
+              runSpacing: 4,
+              children: [
+                if (posted.isNotEmpty)
+                  _IconText(icon: Icons.access_time, text: posted),
+                _IconText(
+                  icon: Icons.remove_red_eye,
+                  text: '${listing.views} views',
+                ),
+                if (listing.condition.isNotEmpty)
+                  _IconText(icon: Icons.verified, text: listing.condition),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _IconText(
+                    icon: Icons.location_on,
+                    text: [
+                      listing.city,
+                      listing.location,
+                    ].where((e) => e.isNotEmpty).join(', '),
+                  ),
+                ),
+                if (listing.hasCoordinates)
+                  TextButton.icon(
+                    onPressed: openMap,
+                    icon: const Icon(Icons.map, size: 18),
+                    label: const Text('View on map'),
+                  ),
+              ],
             ),
             if (listing.category.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Category: ${listing.category}',
-                style: const TextStyle(fontSize: 18),
-              ),
-            ],
-            if (listing.subcategory.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text(
-                'Subcategory: ${listing.subcategory}',
-                style: const TextStyle(fontSize: 18),
+              _IconText(
+                icon: Icons.category,
+                text: listing.subcategory.isEmpty
+                    ? listing.category
+                    : '${listing.category} • ${listing.subcategory}',
               ),
             ],
-            if (listing.phone.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Contact: ${listing.phone}',
-                style: const TextStyle(fontSize: 18),
+            const Divider(height: 32),
+            // Seller row
+            InkWell(
+              onTap: openSellerProfile,
+              child: Row(
+                children: [
+                  const CircleAvatar(child: Icon(Icons.person)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          listing.sellerName.isEmpty
+                              ? 'Seller'
+                              : listing.sellerName,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const Text(
+                          'View profile & other ads',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right),
+                ],
               ),
-            ],
-            const SizedBox(height: 20),
+            ),
+            const Divider(height: 32),
             const Text(
-              'Description:',
+              'Description',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
@@ -1455,19 +2759,234 @@ class AdDetailsScreen extends StatelessWidget {
               listing.description.isNotEmpty
                   ? listing.description
                   : 'No description provided.',
+              style: const TextStyle(fontSize: 15),
             ),
+            const SizedBox(height: 16),
+            const _SafetyTips(),
             const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () => openWhatsApp(context),
-              icon: const Icon(Icons.chat),
-              label: const Text('WhatsApp Seller'),
-            ),
+            if (!isOwnAd) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: callSeller,
+                      icon: const Icon(Icons.phone),
+                      label: const Text('Call'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: openWhatsApp,
+                      icon: const Icon(Icons.chat),
+                      label: const Text('WhatsApp'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: openChat,
+                  icon: const Icon(Icons.message),
+                  label: const Text('Chat with Seller'),
+                ),
+              ),
+            ] else
+              const Center(
+                child: Text(
+                  'This is your ad',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+            const SizedBox(height: 24),
           ],
         ),
       ),
     );
   }
 }
+
+class _IconText extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _IconText({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: Colors.grey[700]),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(text, style: TextStyle(color: Colors.grey[800])),
+        ),
+      ],
+    );
+  }
+}
+
+class _SafetyTips extends StatelessWidget {
+  const _SafetyTips();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Colors.amber.shade50,
+      child: const ExpansionTile(
+        leading: Icon(Icons.shield_outlined, color: Colors.amber),
+        title: Text('Safety tips'),
+        childrenPadding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '• Meet in a public place during the day.\n'
+              '• Inspect the item before you pay.\n'
+              '• Never send money or a deposit in advance.\n'
+              '• Avoid sharing personal/banking details.\n'
+              '• Report suspicious ads using the flag icon.',
+              style: TextStyle(height: 1.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Seller profile
+// ---------------------------------------------------------------------------
+
+class SellerProfileScreen extends StatelessWidget {
+  final String sellerId;
+  final String sellerName;
+
+  const SellerProfileScreen({
+    super.key,
+    required this.sellerId,
+    required this.sellerName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Seller Profile')),
+      body: Column(
+        children: [
+          FutureBuilder<DocumentSnapshot>(
+            future: FirebaseFirestore.instance
+                .collection('users')
+                .doc(sellerId)
+                .get(),
+            builder: (context, snapshot) {
+              String memberSince = '';
+              if (snapshot.hasData && snapshot.data!.exists) {
+                final data = snapshot.data!.data() as Map<String, dynamic>;
+                final created = data['createdAt'];
+                if (created is Timestamp) {
+                  final d = created.toDate();
+                  memberSince = 'Member since ${d.month}/${d.year}';
+                }
+              }
+
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      radius: 32,
+                      child: Icon(Icons.person, size: 36),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            sellerName.isEmpty ? 'Seller' : sellerName,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (memberSince.isNotEmpty)
+                            Text(
+                              memberSince,
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Ads by this seller',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('listings')
+                  .where('userId', isEqualTo: sellerId)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final listings = snapshot.data!.docs
+                    .map((d) => Listing.fromDoc(d))
+                    .toList()
+                  ..sort((a, b) {
+                    final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
+                    final bt = b.createdAt?.millisecondsSinceEpoch ?? 0;
+                    return bt.compareTo(at);
+                  });
+
+                if (listings.isEmpty) {
+                  return const Center(child: Text('No ads from this seller'));
+                }
+
+                return ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: listings
+                      .map((listing) => ListingCard(listing: listing))
+                      .toList(),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Favorites
+// ---------------------------------------------------------------------------
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -1479,20 +2998,56 @@ class FavoritesScreen extends StatefulWidget {
 class _FavoritesScreenState extends State<FavoritesScreen> {
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (uid == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Favorites')),
+        body: const Center(child: Text('Please log in to see favorites')),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('Favorites')),
-      body: favoriteListings.isEmpty
-          ? const Center(child: Text('No favorites yet'))
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: favoriteListings.length,
-              itemBuilder: (context, index) {
-                return ListingCard(listing: favoriteListings[index]);
-              },
-            ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('favorites')
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('Error loading favorites: ${snapshot.error}'),
+            );
+          }
+
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final docs = snapshot.data!.docs;
+
+          if (docs.isEmpty) {
+            return const Center(child: Text('No favorites yet'));
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              return ListingCard(listing: Listing.fromDoc(docs[index]));
+            },
+          );
+        },
+      ),
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Profile
+// ---------------------------------------------------------------------------
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -1516,17 +3071,20 @@ class ProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text('User ID: ${user?.uid ?? 'Unknown'}'),
+            if (user?.isAnonymous ?? false) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'You are browsing as a guest. Log in to keep your ads, '
+                'favorites and chats across devices.',
+                style: TextStyle(color: Colors.orange),
+              ),
+            ],
             const SizedBox(height: 30),
             ElevatedButton.icon(
               onPressed: () async {
+                favoriteListings.clear();
                 await FirebaseAuth.instance.signOut();
-                await FirebaseAuth.instance.signInAnonymously();
-
-                if (!context.mounted) return;
-
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Signed out')));
+                // AuthGate listens to authStateChanges and shows the login screen.
               },
               icon: const Icon(Icons.logout),
               label: const Text('Logout'),
@@ -1538,99 +3096,299 @@ class ProfileScreen extends StatelessWidget {
   }
 }
 
-class ListingDetailsScreen extends StatelessWidget {
-  final Map<String, dynamic> data;
+// ---------------------------------------------------------------------------
+// Chat
+// ---------------------------------------------------------------------------
 
-  const ListingDetailsScreen({super.key, required this.data});
+class ChatsScreen extends StatelessWidget {
+  const ChatsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (uid == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Chats')),
+        body: const Center(child: Text('Please log in to see your chats')),
+      );
+    }
+
     return Scaffold(
-      appBar: AppBar(title: Text(data['title'] ?? '')),
-      body: SingleChildScrollView(
-        child: Column(
+      appBar: AppBar(title: const Text('Chats')),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('chats')
+            .where('participants', arrayContains: uid)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Error loading chats: ${snapshot.error}'));
+          }
+
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final chats = snapshot.data!.docs.toList()
+            ..sort((a, b) {
+              final at =
+                  ((a.data() as Map<String, dynamic>)['lastTime']
+                          as Timestamp?)
+                      ?.millisecondsSinceEpoch ??
+                  0;
+              final bt =
+                  ((b.data() as Map<String, dynamic>)['lastTime']
+                          as Timestamp?)
+                      ?.millisecondsSinceEpoch ??
+                  0;
+              return bt.compareTo(at);
+            });
+
+          if (chats.isEmpty) {
+            return const Center(
+              child: Text('No chats yet. Message a seller to start one.'),
+            );
+          }
+
+          return ListView.separated(
+            itemCount: chats.length,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final data = chats[index].data() as Map<String, dynamic>;
+              final isBuyer = data['buyerId'] == uid;
+              final otherName = isBuyer
+                  ? (data['sellerName']?.toString() ?? 'Seller')
+                  : (data['buyerName']?.toString() ?? 'Buyer');
+              final listingImage = data['listingImage']?.toString() ?? '';
+
+              return ListTile(
+                leading: listingImage.isEmpty
+                    ? const CircleAvatar(child: Icon(Icons.image))
+                    : CircleAvatar(
+                        backgroundImage: NetworkImage(listingImage),
+                      ),
+                title: Text(otherName),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      data['listingTitle']?.toString() ?? '',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    Text(
+                      data['lastMessage']?.toString() ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+                isThreeLine: true,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChatScreen(
+                        chatId: data['chatId']?.toString() ?? chats[index].id,
+                        listingId: data['listingId']?.toString() ?? '',
+                        listingTitle: data['listingTitle']?.toString() ?? '',
+                        listingImage: listingImage,
+                        buyerId: data['buyerId']?.toString() ?? '',
+                        sellerId: data['sellerId']?.toString() ?? '',
+                        buyerName: data['buyerName']?.toString() ?? 'Buyer',
+                        sellerName: data['sellerName']?.toString() ?? 'Seller',
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class ChatScreen extends StatefulWidget {
+  final String chatId;
+  final String listingId;
+  final String listingTitle;
+  final String listingImage;
+  final String buyerId;
+  final String sellerId;
+  final String buyerName;
+  final String sellerName;
+
+  const ChatScreen({
+    super.key,
+    required this.chatId,
+    required this.listingId,
+    required this.listingTitle,
+    required this.listingImage,
+    required this.buyerId,
+    required this.sellerId,
+    required this.buyerName,
+    required this.sellerName,
+  });
+
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  final messageController = TextEditingController();
+
+  DocumentReference get chatRef =>
+      FirebaseFirestore.instance.collection('chats').doc(widget.chatId);
+
+  Future<void> sendMessage() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final text = messageController.text.trim();
+    if (uid == null || text.isEmpty) return;
+
+    messageController.clear();
+
+    await chatRef.set({
+      'chatId': widget.chatId,
+      'listingId': widget.listingId,
+      'listingTitle': widget.listingTitle,
+      'listingImage': widget.listingImage,
+      'buyerId': widget.buyerId,
+      'sellerId': widget.sellerId,
+      'buyerName': widget.buyerName,
+      'sellerName': widget.sellerName,
+      'participants': [widget.buyerId, widget.sellerId],
+      'lastMessage': text,
+      'lastTime': Timestamp.now(),
+    }, SetOptions(merge: true));
+
+    await chatRef.collection('messages').add({
+      'senderId': uid,
+      'text': text,
+      'createdAt': Timestamp.now(),
+    });
+  }
+
+  @override
+  void dispose() {
+    messageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final otherName = widget.buyerId == uid
+        ? widget.sellerName
+        : widget.buyerName;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Image.network(
-              data['imageUrl'] ?? '',
-              width: double.infinity,
-              height: 300,
-              fit: BoxFit.cover,
+            Text(otherName),
+            Text(
+              widget.listingTitle,
+              style: const TextStyle(fontSize: 12, color: Colors.white70),
             ),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: chatRef
+                  .collection('messages')
+                  .orderBy('createdAt', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                final messages = snapshot.data!.docs;
+
+                if (messages.isEmpty) {
+                  return const Center(
+                    child: Text('Say hello 👋'),
+                  );
+                }
+
+                return ListView.builder(
+                  reverse: true,
+                  padding: const EdgeInsets.all(12),
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final data =
+                        messages[index].data() as Map<String, dynamic>;
+                    final isMine = data['senderId'] == uid;
+
+                    return Align(
+                      alignment: isMine
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.72,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isMine ? Colors.blue : Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          data['text']?.toString() ?? '',
+                          style: TextStyle(
+                            color: isMine ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Row(
                 children: [
-                  Text(
-                    data['title'] ?? '',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: TextField(
+                      controller: messageController,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => sendMessage(),
+                      decoration: const InputDecoration(
+                        hintText: 'Type a message...',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                      ),
                     ),
                   ),
-
-                  const SizedBox(height: 10),
-
-                  Text(
-                    'AED ${data['price']}',
-                    style: const TextStyle(fontSize: 22, color: Colors.blue),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  Text('Location: ${data['location'] ?? ''}'),
-
-                  const SizedBox(height: 20),
-
-                  Text(data['description'] ?? 'No description'),
-                  const SizedBox(height: 25),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.phone),
-                      label: const Text('Call Seller'),
-                      onPressed: () async {
-                        final phone = data['phone'] ?? '';
-
-                        final url = Uri.parse('tel:$phone');
-
-                        if (await canLaunchUrl(url)) {
-                          await launchUrl(url);
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.chat),
-                      label: const Text('Contact on WhatsApp'),
-                      onPressed: () async {
-                        final whatsapp = data['whatsapp'] ?? '';
-
-                        final url = Uri.parse('https://wa.me/$whatsapp');
-
-                        if (await canLaunchUrl(url)) {
-                          await launchUrl(
-                            url,
-                            mode: LaunchMode.externalApplication,
-                          );
-                        }
-                      },
+                  const SizedBox(width: 8),
+                  CircleAvatar(
+                    backgroundColor: Colors.blue,
+                    child: IconButton(
+                      icon: const Icon(Icons.send, color: Colors.white),
+                      onPressed: sendMessage,
                     ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
