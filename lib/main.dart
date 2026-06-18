@@ -5058,6 +5058,27 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                                     color: kPakGreen,
                                   ),
                                 ],
+                                if (data['isBusiness'] == true) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 1,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: kPakGreen,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      'BUSINESS',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                             const SizedBox(height: 2),
@@ -5702,6 +5723,100 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 // Profile
 // ---------------------------------------------------------------------------
 
+/// Lets a signed-in user mark their account as a business (shows a BUSINESS
+/// badge on their ads) and set a business name.
+class _BusinessAccountTile extends StatefulWidget {
+  const _BusinessAccountTile();
+
+  @override
+  State<_BusinessAccountTile> createState() => _BusinessAccountTileState();
+}
+
+class _BusinessAccountTileState extends State<_BusinessAccountTile> {
+  bool isBusiness = false;
+  bool loaded = false;
+  bool saving = false;
+  final nameController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    final d = doc.data();
+    if (!mounted) return;
+    setState(() {
+      isBusiness = d?['isBusiness'] == true;
+      nameController.text = d?['businessName']?.toString() ?? '';
+      loaded = true;
+    });
+  }
+
+  Future<void> _save() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    setState(() => saving = true);
+    await FirebaseFirestore.instance.collection('users').doc(uid).set({
+      'isBusiness': isBusiness,
+      'businessName': nameController.text.trim(),
+    }, SetOptions(merge: true));
+    if (!mounted) return;
+    setState(() => saving = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Business profile saved')),
+    );
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Column(
+          children: [
+            SwitchListTile(
+              title: const Text('Sell as a business'),
+              subtitle: const Text('Shows a BUSINESS badge on your ads'),
+              value: isBusiness,
+              activeThumbColor: kPakGreen,
+              onChanged: loaded ? (v) => setState(() => isBusiness = v) : null,
+            ),
+            if (isBusiness)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Business name'),
+                ),
+              ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: (loaded && !saving) ? _save : null,
+                child: Text(saving ? 'Saving…' : 'Save'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -5796,6 +5911,10 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
             ),
+            if (!(user?.isAnonymous ?? true)) ...[
+              const SizedBox(height: 16),
+              const _BusinessAccountTile(),
+            ],
             if (isAdminUser()) ...[
               const SizedBox(height: 16),
               ElevatedButton.icon(
