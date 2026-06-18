@@ -732,25 +732,43 @@ class _ListingCardState extends State<ListingCard> {
                 topLeft: Radius.circular(12),
                 topRight: Radius.circular(12),
               ),
-              child: hasImage
-                  ? Image.network(
-                      widget.listing.imageUrl,
-                      height: 170,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return const SizedBox(
+              child: Stack(
+                children: [
+                  hasImage
+                      ? Image.network(
+                          widget.listing.imageUrl,
                           height: 170,
-                          child: Center(
-                            child: Icon(Icons.broken_image, size: 60),
-                          ),
-                        );
-                      },
-                    )
-                  : const SizedBox(
-                      height: 170,
-                      child: Center(child: Icon(Icons.image, size: 60)),
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const SizedBox(
+                              height: 170,
+                              child: Center(
+                                child: Icon(Icons.broken_image, size: 60),
+                              ),
+                            );
+                          },
+                        )
+                      : const SizedBox(
+                          height: 170,
+                          child: Center(child: Icon(Icons.image, size: 60)),
+                        ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: CircleAvatar(
+                      backgroundColor: Colors.white,
+                      child: IconButton(
+                        icon: Icon(
+                          isFavorite ? Icons.favorite : Icons.favorite_border,
+                          color: Colors.red,
+                        ),
+                        onPressed: toggleFavorite,
+                      ),
                     ),
+                  ),
+                ],
+              ),
             ),
             Padding(
               padding: const EdgeInsets.all(12),
