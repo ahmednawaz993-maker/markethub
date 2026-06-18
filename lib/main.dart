@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -16,7 +17,7 @@ Future<void> main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  runApp(const MarketHubApp());
+  runApp(const PakBazaarApp());
 }
 
 // ---------------------------------------------------------------------------
@@ -985,13 +986,13 @@ Future<void> recordRecentlyViewed(Listing listing) async {
 // App root + auth
 // ---------------------------------------------------------------------------
 
-class MarketHubApp extends StatelessWidget {
-  const MarketHubApp({super.key});
+class PakBazaarApp extends StatelessWidget {
+  const PakBazaarApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'MarketHub',
+      title: 'PakBazaar',
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: rootMessengerKey,
       theme: buildAppTheme(),
@@ -1118,7 +1119,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     const Icon(Icons.storefront, size: 80, color: kPakGreen),
                     const SizedBox(height: 12),
                     const Text(
-                      'MarketHub',
+                      'PakBazaar',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 28,
@@ -3586,17 +3587,32 @@ class _AddListingScreenState extends State<AddListingScreen> {
                   itemBuilder: (context, index) {
                     return ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        selectedImages[index].path,
-                        width: 90,
-                        height: 90,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
-                          width: 90,
-                          height: 90,
-                          color: Colors.grey.shade300,
-                          child: const Icon(Icons.image),
-                        ),
+                      child: FutureBuilder<Uint8List>(
+                        future: selectedImages[index].readAsBytes(),
+                        builder: (context, snap) {
+                          if (!snap.hasData) {
+                            return Container(
+                              width: 90,
+                              height: 90,
+                              color: Colors.grey.shade300,
+                              child: const Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                          return Image.memory(
+                            snap.data!,
+                            width: 90,
+                            height: 90,
+                            fit: BoxFit.cover,
+                          );
+                        },
                       ),
                     );
                   },

@@ -1,4 +1,4 @@
-// Background FCM handler for MarketHub web. Shows a notification when a push
+// Background FCM handler for PakBazaar web. Shows a notification when a push
 // arrives while the site is closed or in the background.
 importScripts(
   "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"
@@ -20,7 +20,7 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
   const n = payload.notification || {};
-  self.registration.showNotification(n.title || "MarketHub", {
+  self.registration.showNotification(n.title || "PakBazaar", {
     body: n.body || "",
     icon: "/icons/Icon-192.png",
   });

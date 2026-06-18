@@ -1,11 +1,11 @@
 {
-    "name": "MarketHub - Buy & Sell in Pakistan",
-    "short_name": "MarketHub",
+    "name": "PakBazaar - Buy & Sell in Pakistan",
+    "short_name": "PakBazaar",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#013318",
     "theme_color": "#015127",
-    "description": "MarketHub - Pakistan's marketplace to buy and sell cars, property, phones, electronics and more.",
+    "description": "PakBazaar - Pakistan's marketplace to buy and sell cars, property, phones, electronics and more.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
