@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -1557,6 +1558,199 @@ class AdsRail extends StatelessWidget {
   }
 }
 
+/// A single promo banner definition for the home carousel.
+class PromoBannerData {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final List<Color> colors;
+  final Widget Function() destination;
+
+  const PromoBannerData({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.colors,
+    required this.destination,
+  });
+}
+
+/// Auto-advancing promotional banner carousel with dot indicators.
+class PromoCarousel extends StatefulWidget {
+  const PromoCarousel({super.key});
+
+  @override
+  State<PromoCarousel> createState() => _PromoCarouselState();
+}
+
+class _PromoCarouselState extends State<PromoCarousel> {
+  final _controller = PageController(viewportFraction: 0.92);
+  Timer? _timer;
+  int _index = 0;
+
+  static const _banners = <PromoBannerData>[
+    PromoBannerData(
+      title: 'Sell faster',
+      subtitle: 'Boost your ad to Featured',
+      icon: Icons.rocket_launch,
+      colors: [kPakGreen, kPakGreenLight],
+      destination: _toPostAd,
+    ),
+    PromoBannerData(
+      title: 'Post in 2 minutes',
+      subtitle: 'List your item for free',
+      icon: Icons.add_circle_outline,
+      colors: [Color(0xFF1565C0), Color(0xFF42A5F5)],
+      destination: _toPostAd,
+    ),
+    PromoBannerData(
+      title: 'Cars & more',
+      subtitle: 'Explore the best Motors deals',
+      icon: Icons.directions_car,
+      colors: [Color(0xFFB71C1C), Color(0xFFEF5350)],
+      destination: _toMotors,
+    ),
+    PromoBannerData(
+      title: 'Find your home',
+      subtitle: 'Browse Properties across Pakistan',
+      icon: Icons.home_work,
+      colors: [Color(0xFF6A1B9A), Color(0xFFAB47BC)],
+      destination: _toProperties,
+    ),
+  ];
+
+  static Widget _toPostAd() => const AddListingScreen();
+  static Widget _toMotors() => const CategoryScreen(title: 'Motors');
+  static Widget _toProperties() => const CategoryScreen(title: 'Properties');
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted || !_controller.hasClients) return;
+      _controller.animateToPage(
+        (_index + 1) % _banners.length,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(
+          height: 128,
+          child: PageView.builder(
+            controller: _controller,
+            onPageChanged: (i) => setState(() => _index = i),
+            itemCount: _banners.length,
+            itemBuilder: (context, i) {
+              final b = _banners[i];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: Material(
+                  borderRadius: BorderRadius.circular(14),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => b.destination()),
+                    ),
+                    child: Ink(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: b.colors,
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      padding: const EdgeInsets.fromLTRB(18, 14, 8, 14),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  b.title,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  b.subtitle,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    'Tap to explore',
+                                    style: TextStyle(
+                                      color: b.colors.first,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(b.icon, color: Colors.white24, size: 70),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(
+            _banners.length,
+            (i) => AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: i == _index ? 18 : 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: i == _index ? kPakGreen : Colors.grey.shade400,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Dubizzle-style 2-column feed card: image with heart + featured badge, then
 /// bold price, title, and location/time. Fills its grid cell.
 class FeedAdCard extends StatefulWidget {
@@ -1934,6 +2128,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                   ),
+                ),
+              ),
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.only(top: 4, bottom: 4),
+                  child: PromoCarousel(),
                 ),
               ),
               if (featured.isNotEmpty)
