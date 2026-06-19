@@ -1360,6 +1360,8 @@ class Listing {
   bool isSold;
   Timestamp? featuredUntil;
   Timestamp? createdAt;
+  String previousPrice; // the price before the most recent reduction (optional)
+  Timestamp? priceDropAt; // when the price was last reduced (optional)
 
   Listing({
     required this.id,
@@ -1391,9 +1393,20 @@ class Listing {
     this.isSold = false,
     this.featuredUntil,
     this.createdAt,
+    this.previousPrice = '',
+    this.priceDropAt,
   });
 
   bool get hasCoordinates => latitude != null && longitude != null;
+
+  /// True if the price was reduced within the last 30 days — drives the
+  /// "Price dropped" badge and the struck-through old price on cards.
+  bool get hasRecentPriceDrop {
+    if (priceDropAt == null || previousPrice.trim().isEmpty) return false;
+    if (isSold) return false;
+    final dropped = priceDropAt!.toDate();
+    return DateTime.now().difference(dropped).inDays < 30;
+  }
 
   /// True only while a paid Featured window is still active. Acts as a client
   /// safety net in case the daily expireFeatured job hasn't run yet.
@@ -1480,6 +1493,10 @@ class Listing {
           : null,
       createdAt: data['createdAt'] is Timestamp
           ? data['createdAt'] as Timestamp
+          : null,
+      previousPrice: data['previousPrice']?.toString() ?? '',
+      priceDropAt: data['priceDropAt'] is Timestamp
+          ? data['priceDropAt'] as Timestamp
           : null,
     );
   }
@@ -2735,6 +2752,43 @@ class _FeedAdCardState extends State<FeedAdCard> {
                         ),
                       ),
                     ),
+                  if (!l.isCurrentlyFeatured &&
+                      !l.isSold &&
+                      !isNew &&
+                      l.hasRecentPriceDrop)
+                    Positioned(
+                      top: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade600,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.south,
+                              color: Colors.white,
+                              size: 9,
+                            ),
+                            SizedBox(width: 1),
+                            Text(
+                              'PRICE DROP',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   if (l.isSold) const SoldTag(),
                 ],
               ),
@@ -2745,15 +2799,36 @@ class _FeedAdCardState extends State<FeedAdCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    priceLabel(l),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          priceLabel(l),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                      if (l.hasRecentPriceDrop) ...[
+                        const SizedBox(width: 5),
+                        Text(
+                          formatPrice(l.previousPrice),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -6294,6 +6369,17 @@ class _EditListingScreenState extends State<EditListingScreen> {
         data['images'] = urls;
         data['imageUrl'] = urls.isNotEmpty ? urls.first : '';
       }
+      // Track price reductions so cards can show a "Price dropped" badge.
+      final oldP = parsePrice(widget.listing.price);
+      final newP = parsePrice(priceController.text.trim());
+      if (newP > 0 && oldP > 0 && newP < oldP) {
+        data['previousPrice'] = widget.listing.price;
+        data['priceDropAt'] = Timestamp.now();
+      } else if (newP != oldP) {
+        // Price unchanged-numeric or raised — clear any stale drop marker.
+        data['previousPrice'] = '';
+        data['priceDropAt'] = FieldValue.delete();
+      }
       await FirebaseFirestore.instance
           .collection('listings')
           .doc(widget.listing.id)
@@ -7000,7 +7086,10 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
               style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text(
                   priceLabel(listing),
@@ -7010,8 +7099,42 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                if (listing.negotiable) ...[
-                  const SizedBox(width: 8),
+                if (listing.hasRecentPriceDrop) ...[
+                  Text(
+                    formatPrice(listing.previousPrice),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: Colors.grey,
+                      decoration: TextDecoration.lineThrough,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.south, size: 12, color: Colors.red.shade700),
+                        const SizedBox(width: 2),
+                        Text(
+                          'Price dropped',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.red.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (listing.negotiable)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -7030,7 +7153,6 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                       ),
                     ),
                   ),
-                ],
               ],
             ),
             const SizedBox(height: 12),
