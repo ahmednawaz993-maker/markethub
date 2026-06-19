@@ -90,6 +90,12 @@ service cloud.firestore {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
       }
 
+      // Notification history (Cloud Functions write these via the Admin SDK;
+      // the owner reads and marks them read).
+      match /notifications/{noticeId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
       // Reviews of this seller. Readable by all; each reviewer owns one doc
       // (doc id == their uid) and can only write a 1-5 star rating as themselves.
       match /reviews/{reviewerId} {

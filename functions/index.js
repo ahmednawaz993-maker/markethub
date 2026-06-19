@@ -10,7 +10,7 @@ const {
   onDocumentUpdated,
 } = require("firebase-functions/v2/firestore");
 const { initializeApp } = require("firebase-admin/app");
-const { getFirestore } = require("firebase-admin/firestore");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 
 initializeApp();
@@ -35,6 +35,15 @@ exports.notifyOnNewMessage = onDocumentCreated(
     // Friendly sender name based on which side of the chat sent it.
     const senderName =
       msg.senderId === chat.buyerId ? chat.buyerName : chat.sellerName;
+
+    await recordNotification(
+      db,
+      recipientId,
+      senderName ? `New message from ${senderName}` : "New message",
+      String(msg.text || "").slice(0, 140),
+      "chat",
+      chatId
+    );
 
     // Collect the recipient's device tokens.
     const tokensSnap = await db
@@ -90,6 +99,15 @@ exports.notifyOnNewListing = onDocumentCreated(
     });
 
     for (const [uid, label] of toNotify) {
+      await recordNotification(
+        db,
+        uid,
+        `New ad matches "${label}"`,
+        `${listing.title} — Rs ${listing.price}`,
+        "savedSearch",
+        event.params.listingId
+      );
+
       const tokensSnap = await db
         .collection("users")
         .doc(uid)
@@ -183,6 +201,15 @@ exports.notifyOnNewOrder = onDocumentCreated(
     if (!order || !order.sellerId) return;
 
     const db = getFirestore();
+    await recordNotification(
+      db,
+      order.sellerId,
+      "New order received",
+      `${order.buyerName || "A buyer"} ordered "${order.listingTitle}" for Rs ${order.amount}`,
+      "order",
+      event.params.orderId
+    );
+
     const tokensSnap = await db
       .collection("users")
       .doc(order.sellerId)
@@ -210,6 +237,14 @@ exports.notifyOnNewOrder = onDocumentCreated(
 
 // Shared helper: push a notification to all of a user's registered devices.
 async function pushToUser(db, uid, notification, data) {
+  await recordNotification(
+    db,
+    uid,
+    notification.title,
+    notification.body,
+    (data && data.type) || "",
+    (data && data.offerId) || ""
+  );
   const tokensSnap = await db
     .collection("users")
     .doc(uid)
@@ -291,3 +326,23 @@ exports.notifyOnOfferUpdate = onDocumentUpdated(
     });
   }
 );
+
+// Persists a notification into the user's history (for the in-app bell).
+async function recordNotification(db, uid, title, body, type, refId) {
+  try {
+    await db
+      .collection("users")
+      .doc(uid)
+      .collection("notifications")
+      .add({
+        title: title || "",
+        body: body || "",
+        type: type || "",
+        refId: refId || "",
+        read: false,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+  } catch (e) {
+    // Non-critical; the push still goes out.
+  }
+}
