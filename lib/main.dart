@@ -6540,12 +6540,12 @@ class _SafetyTips extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       color: Colors.amber.shade50,
-      child: const ExpansionTile(
-        leading: Icon(Icons.shield_outlined, color: Colors.amber),
-        title: Text('Safety tips'),
-        childrenPadding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: ExpansionTile(
+        leading: const Icon(Icons.shield_outlined, color: Colors.amber),
+        title: const Text('Safety tips'),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         children: [
-          Align(
+          const Align(
             alignment: Alignment.centerLeft,
             child: Text(
               '• Meet in a public place during the day.\n'
@@ -6554,6 +6554,16 @@ class _SafetyTips extends StatelessWidget {
               '• Avoid sharing personal/banking details.\n'
               '• Report suspicious ads using the flag icon.',
               style: TextStyle(height: 1.5),
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TrustSafetyScreen()),
+              ),
+              child: const Text('Read full Trust & Safety guidelines →'),
             ),
           ),
         ],
@@ -7340,6 +7350,95 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
   }
 }
 
+/// Safe-trading rules that protect both buyers and sellers.
+class TrustSafetyScreen extends StatelessWidget {
+  const TrustSafetyScreen({super.key});
+
+  Widget _card(IconData icon, String title, Color color, List<String> points) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: color),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...points.map(
+              (p) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('•  '),
+                    Expanded(child: Text(p)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Trust & Safety')),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(4, 4, 4, 12),
+            child: Text(
+              'PakBazar is a safer marketplace when everyone follows a few simple '
+              'rules. These protect both buyers and sellers.',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ),
+          _card(Icons.verified_user, 'For everyone', kPakGreen, const [
+            'Meet in public, busy places for in-person handovers.',
+            'Keep your chat and deal on PakBazar so there is a record.',
+            'Never share OTPs, passwords, or card PINs with anyone.',
+            'Check the other person\'s ratings and reviews first.',
+          ]),
+          _card(Icons.shopping_cart, 'For buyers', Colors.blue, const [
+            'Inspect the item and confirm it matches the ad before you pay.',
+            'Be cautious of prices that look too good to be true.',
+            'Avoid paying the full amount in advance to unknown sellers — '
+                'prefer cash on inspection or delivery.',
+            'Use "Make an Offer" to negotiate openly and on the record.',
+          ]),
+          _card(Icons.sell, 'For sellers', Colors.deepOrange, const [
+            'Describe items honestly and use your own real photos.',
+            'Confirm payment is fully received before handing over the item.',
+            'Do not ship or release goods before payment clears.',
+            'Reply quickly and complete deals smoothly to grow your rating.',
+          ]),
+          _card(Icons.report_gmailerrorred, 'Spotted something wrong?', Colors.red, const [
+            'Use the Report button on any suspicious ad or user.',
+            'Our team reviews reports and removes bad actors.',
+            'Block and stop dealing with anyone who pressures or threatens you.',
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
 
@@ -7405,6 +7504,18 @@ class AboutScreen extends StatelessWidget {
                   onTap: () => launchUrl(
                     Uri.parse('https://pakbazar24.com/terms.html'),
                     mode: LaunchMode.externalApplication,
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.verified_user_outlined),
+                  title: const Text('Trust & Safety'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const TrustSafetyScreen(),
+                    ),
                   ),
                 ),
                 const Divider(height: 1),
@@ -8485,6 +8596,20 @@ class _OrdersList extends StatelessWidget {
                           ),
                           icon: const Icon(Icons.star, size: 18),
                           label: const Text('Rate seller'),
+                        ),
+                      ),
+                    ],
+                    if (status == 'completed' && asSeller) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: OutlinedButton.icon(
+                          onPressed: () => showReviewDialog(
+                            context,
+                            d['buyerId']?.toString() ?? '',
+                          ),
+                          icon: const Icon(Icons.star, size: 18),
+                          label: const Text('Rate buyer'),
                         ),
                       ),
                     ],
