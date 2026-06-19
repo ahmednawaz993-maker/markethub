@@ -2601,6 +2601,67 @@ class _FeedAdCardState extends State<FeedAdCard> {
 // Home
 // ---------------------------------------------------------------------------
 
+/// Light-themed "Recently viewed" rail for the mobile home. Hidden when empty.
+class RecentlyViewedRail extends StatelessWidget {
+  const RecentlyViewedRail({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const SizedBox.shrink();
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('recentlyViewed')
+          .orderBy('viewedAt', descending: true)
+          .limit(10)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        final items = snapshot.data!.docs
+            .map((d) => Listing.fromDoc(d))
+            .toList();
+        if (items.length < 2) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 12, 12, 6),
+              child: Row(
+                children: [
+                  Icon(Icons.history, color: Colors.black54, size: 20),
+                  SizedBox(width: 6),
+                  Text(
+                    'Recently viewed',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 218,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                itemCount: items.length,
+                itemBuilder: (context, i) => Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: SizedBox(width: 165, child: FeedAdCard(listing: items[i])),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 /// Full grid of every category.
 class AllCategoriesScreen extends StatelessWidget {
   const AllCategoriesScreen({super.key});
@@ -3252,6 +3313,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
+              const SliverToBoxAdapter(child: RecentlyViewedRail()),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 10, 6, 8),
