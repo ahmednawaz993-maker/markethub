@@ -10,7 +10,11 @@ const {
   onDocumentUpdated,
 } = require("firebase-functions/v2/firestore");
 const { initializeApp } = require("firebase-admin/app");
-const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const {
+  getFirestore,
+  FieldValue,
+  Timestamp,
+} = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 
 initializeApp();
@@ -346,3 +350,88 @@ async function recordNotification(db, uid, title, body, type, refId) {
     // Non-critical; the push still goes out.
   }
 }
+
+// Processes a wallet purchase: atomically checks the balance, deducts it, and
+// applies the effect (feature a listing / featured business / home banner).
+exports.processPurchase = onDocumentCreated("purchases/{id}", async (event) => {
+  const p = event.data && event.data.data();
+  if (!p || !p.userId) return;
+
+  const db = getFirestore();
+  const purchaseRef = event.data.ref;
+  const userRef = db.collection("users").doc(p.userId);
+  const amount = Number(p.amount) || 0;
+  const days = Number(p.days) || 7;
+  const until = Timestamp.fromMillis(Date.now() + days * 86400000);
+
+  try {
+    await db.runTransaction(async (tx) => {
+      const userSnap = await tx.get(userRef);
+      const balance = Number(userSnap.get("walletBalance")) || 0;
+      if (amount <= 0 || balance < amount) {
+        tx.update(purchaseRef, { status: "insufficient" });
+        return;
+      }
+
+      const userUpdate = { walletBalance: balance - amount };
+      if (p.type === "feature" && p.refId) {
+        tx.update(db.collection("listings").doc(p.refId), {
+          isFeatured: true,
+          featuredUntil: until,
+        });
+      } else if (p.type === "featuredBusiness") {
+        userUpdate.featuredBusiness = true;
+        userUpdate.featuredBusinessUntil = until;
+      } else if (p.type === "banner") {
+        tx.set(db.collection("banners").doc(), {
+          imageUrl: p.imageUrl || "",
+          title: p.bannerTitle || "",
+          subtitle: p.bannerSubtitle || "",
+          sellerId: p.userId,
+          category: "",
+          order: 99,
+          active: true,
+          createdAt: FieldValue.serverTimestamp(),
+          expiresAt: until,
+        });
+      }
+
+      tx.update(userRef, userUpdate);
+      tx.set(userRef.collection("walletTransactions").doc(), {
+        type: "debit",
+        amount,
+        purpose: p.type || "purchase",
+        refId: p.refId || "",
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      tx.update(purchaseRef, {
+        status: "completed",
+        completedAt: FieldValue.serverTimestamp(),
+      });
+    });
+  } catch (e) {
+    await purchaseRef.update({ status: "error" });
+  }
+
+  const fresh = await purchaseRef.get();
+  const status = fresh.get("status");
+  if (status === "completed") {
+    await recordNotification(
+      db,
+      p.userId,
+      "Purchase successful",
+      `Your ${p.type} is now active.`,
+      "purchase",
+      purchaseRef.id
+    );
+  } else if (status === "insufficient") {
+    await recordNotification(
+      db,
+      p.userId,
+      "Insufficient wallet balance",
+      "Top up your PakBazar Wallet to complete this purchase.",
+      "purchase",
+      purchaseRef.id
+    );
+  }
+});

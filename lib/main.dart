@@ -97,7 +97,7 @@ Future<void> createPromotionOrder(Listing listing, PromoPackage pkg) async {
 Future<void> showPromoteSheet(BuildContext context, Listing listing) async {
   await showModalBottomSheet(
     context: context,
-    builder: (context) {
+    builder: (sheetCtx) {
       return SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -130,25 +130,21 @@ Future<void> showPromoteSheet(BuildContext context, Listing listing) async {
                   ),
                 ),
                 onTap: () async {
-                  await createPromotionOrder(listing, p);
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Promotion requested — your ad will be Featured once '
-                          'payment is approved.',
-                        ),
-                      ),
-                    );
-                  }
+                  Navigator.pop(sheetCtx);
+                  await payFromWallet(
+                    context,
+                    type: 'feature',
+                    refId: listing.id,
+                    amount: p.price,
+                    days: p.days,
+                  );
                 },
               ),
             const Padding(
               padding: EdgeInsets.all(16),
               child: Text(
-                'Payment via bank transfer / JazzCash, approved by admin. '
-                'Automated card/wallet checkout coming soon.',
+                'Paid instantly from your PakBazar Wallet. Top up in '
+                'Profile → Wallet.',
                 style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ),
@@ -7490,6 +7486,15 @@ class ProfileScreen extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: () => Navigator.push(
                 context,
+                MaterialPageRoute(builder: (_) => const WalletScreen()),
+              ),
+              icon: const Icon(Icons.account_balance_wallet),
+              label: const Text('PakBazar Wallet'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
                 MaterialPageRoute(builder: (_) => const SavedSearchesScreen()),
               ),
               icon: const Icon(Icons.bookmark),
@@ -7655,7 +7660,7 @@ Future<void> showBusinessAdSheet(
 ) async {
   await showModalBottomSheet(
     context: context,
-    builder: (context) {
+    builder: (sheetCtx) {
       return SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -7689,24 +7694,19 @@ Future<void> showBusinessAdSheet(
                   ),
                 ),
                 onTap: () async {
-                  await createBusinessPromotion(p, businessName);
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Request sent — your business will be Featured once '
-                          'payment is approved.',
-                        ),
-                      ),
-                    );
-                  }
+                  Navigator.pop(sheetCtx);
+                  await payFromWallet(
+                    context,
+                    type: 'featuredBusiness',
+                    amount: p.price,
+                    days: p.days,
+                  );
                 },
               ),
             const Padding(
               padding: EdgeInsets.all(16),
               child: Text(
-                'Approved by admin after payment. Automated checkout coming soon.',
+                'Paid instantly from your PakBazar Wallet (Profile → Wallet).',
                 style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ),
@@ -7720,6 +7720,281 @@ Future<void> showBusinessAdSheet(
 // ---------------------------------------------------------------------------
 // Orders (direct buy/sell)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Wallet / in-app purchases
+// ---------------------------------------------------------------------------
+
+const List<int> topupAmounts = [500, 1000, 2000, 5000, 10000];
+
+/// Spends wallet balance on a feature. Pre-checks the balance for UX; the
+/// processPurchase Cloud Function re-validates and applies the effect.
+Future<bool> payFromWallet(
+  BuildContext context, {
+  required String type, // 'feature' | 'featuredBusiness' | 'banner'
+  String? refId,
+  required int amount,
+  int days = 7,
+  Map<String, dynamic> extra = const {},
+}) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return false;
+  final userSnap = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .get();
+  final balance = (userSnap.data()?['walletBalance'] as num?)?.toInt() ?? 0;
+  if (balance < amount) {
+    if (!context.mounted) return false;
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Insufficient balance'),
+        content: Text(
+          'This costs ${formatPrice('$amount')} but your wallet has '
+          '${formatPrice('$balance')}. Top up to continue.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Top up'),
+          ),
+        ],
+      ),
+    );
+    if (go == true && context.mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const WalletScreen()),
+      );
+    }
+    return false;
+  }
+  await FirebaseFirestore.instance.collection('purchases').add({
+    'userId': user.uid,
+    'type': type,
+    'refId': refId ?? '',
+    'amount': amount,
+    'days': days,
+    'status': 'pending',
+    'createdAt': Timestamp.now(),
+    ...extra,
+  });
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Payment successful! Activating your purchase…'),
+      ),
+    );
+  }
+  return true;
+}
+
+Future<void> showTopupSheet(BuildContext context) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return;
+  await showModalBottomSheet(
+    context: context,
+    builder: (context) {
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Text(
+                'Top up your wallet',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Choose an amount. Pay via bank transfer / JazzCash and an admin '
+                'credits your wallet. Instant card/wallet top-up coming soon.',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final a in topupAmounts)
+              ListTile(
+                leading: const Icon(
+                  Icons.account_balance_wallet,
+                  color: kPakGreen,
+                ),
+                title: Text(formatPrice('$a')),
+                trailing: const Icon(Icons.add_circle, color: kPakGreen),
+                onTap: () async {
+                  await FirebaseFirestore.instance
+                      .collection('walletTopups')
+                      .add({
+                        'userId': uid,
+                        'userEmail':
+                            FirebaseAuth.instance.currentUser?.email ?? '',
+                        'amount': a,
+                        'status': 'pending',
+                        'createdAt': Timestamp.now(),
+                      });
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Top-up requested — your wallet is credited once '
+                          'payment is approved.',
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+class WalletScreen extends StatelessWidget {
+  const WalletScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('PakBazar Wallet')),
+        body: const EmptyState(
+          icon: Icons.account_balance_wallet,
+          title: 'Please log in',
+        ),
+      );
+    }
+    final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+    return Scaffold(
+      appBar: AppBar(title: const Text('PakBazar Wallet')),
+      body: Column(
+        children: [
+          StreamBuilder<DocumentSnapshot>(
+            stream: userRef.snapshots(),
+            builder: (context, snapshot) {
+              final balance =
+                  ((snapshot.data?.data()
+                              as Map<String, dynamic>?)?['walletBalance']
+                          as num?)
+                      ?.toInt() ??
+                  0;
+              return Container(
+                width: double.infinity,
+                margin: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [kPakGreen, Color(0xFF0B6E3D)],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'Wallet balance',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      formatPrice('$balance'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 34,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: kPakGreen,
+                      ),
+                      onPressed: () => showTopupSheet(context),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Top up'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Transactions',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: userRef
+                  .collection('walletTransactions')
+                  .orderBy('createdAt', descending: true)
+                  .limit(50)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final docs = snapshot.data!.docs;
+                if (docs.isEmpty) {
+                  return const EmptyState(
+                    icon: Icons.receipt_long,
+                    title: 'No transactions yet',
+                    subtitle: 'Top-ups and purchases appear here.',
+                  );
+                }
+                return ListView.separated(
+                  itemCount: docs.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, i) {
+                    final d = docs[i].data() as Map<String, dynamic>;
+                    final credit = d['type'] == 'credit';
+                    final amount = (d['amount'] as num?)?.toInt() ?? 0;
+                    return ListTile(
+                      leading: Icon(
+                        credit ? Icons.south_west : Icons.north_east,
+                        color: credit ? Colors.green : Colors.red,
+                      ),
+                      title: Text(
+                        credit ? 'Top-up' : 'Purchase: ${d['purpose'] ?? ''}',
+                      ),
+                      subtitle: Text(timeAgo(d['createdAt'] as Timestamp?)),
+                      trailing: Text(
+                        '${credit ? '+' : '-'} ${formatPrice('$amount')}',
+                        style: TextStyle(
+                          color: credit ? Colors.green : Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 /// Lets a business upload a home-screen banner ad and request a slot.
 class BannerAdScreen extends StatefulWidget {
@@ -7787,28 +8062,20 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
       return;
     }
     setState(() => submitting = true);
-    await FirebaseFirestore.instance.collection('promotions').add({
-      'type': 'banner',
-      'sellerId': user.uid,
-      'userId': user.uid,
-      'imageUrl': imageUrl,
-      'bannerTitle': titleController.text.trim(),
-      'bannerSubtitle': subtitleController.text.trim(),
-      'listingTitle': 'Home banner: ${titleController.text.trim()}',
-      'sellerName': user.email ?? '',
-      'package': selected!.name,
-      'days': selected!.days,
-      'price': selected!.price,
-      'status': 'pending',
-      'createdAt': Timestamp.now(),
-    });
-    if (!mounted) return;
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Banner request sent — it goes live once approved.'),
-      ),
+    final ok = await payFromWallet(
+      context,
+      type: 'banner',
+      amount: selected!.price,
+      days: selected!.days,
+      extra: {
+        'imageUrl': imageUrl,
+        'bannerTitle': titleController.text.trim(),
+        'bannerSubtitle': subtitleController.text.trim(),
+      },
     );
+    if (!mounted) return;
+    setState(() => submitting = false);
+    if (ok) Navigator.pop(context);
   }
 
   @override
@@ -7908,7 +8175,7 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Approved by admin after payment. Automated checkout coming soon.',
+                  'Paid instantly from your PakBazar Wallet (Profile → Wallet).',
                   style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
@@ -8414,7 +8681,7 @@ class AdminPanelScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Panel'),
@@ -8424,6 +8691,7 @@ class AdminPanelScreen extends StatelessWidget {
             isScrollable: true,
             tabs: [
               Tab(text: 'Reports'),
+              Tab(text: 'Top-ups'),
               Tab(text: 'Promotions'),
               Tab(text: 'Orders'),
               Tab(text: 'All Listings'),
@@ -8433,6 +8701,7 @@ class AdminPanelScreen extends StatelessWidget {
         body: const TabBarView(
           children: [
             _AdminReportsTab(),
+            _AdminTopupsTab(),
             _AdminPromotionsTab(),
             _AdminOrdersTab(),
             _AdminListingsTab(),
@@ -8698,6 +8967,122 @@ class _AdminPromotionsTab extends StatelessWidget {
                               });
                             },
                             child: const Text('Approve'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _AdminTopupsTab extends StatelessWidget {
+  const _AdminTopupsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('walletTopups').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final am = a.data() as Map;
+            final bm = b.data() as Map;
+            final ap = am['status'] == 'pending' ? 0 : 1;
+            final bp = bm['status'] == 'pending' ? 0 : 1;
+            if (ap != bp) return ap - bp;
+            final at =
+                (am['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+            final bt =
+                (bm['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+            return bt.compareTo(at);
+          });
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.account_balance_wallet,
+            title: 'No top-up requests',
+            subtitle: 'Wallet top-up requests appear here for approval.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final status = d['status']?.toString() ?? 'pending';
+            final pending = status == 'pending';
+            final amount = (d['amount'] as num?)?.toInt() ?? 0;
+            final userId = d['userId']?.toString() ?? '';
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      formatPrice('$amount'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      '${d['userEmail'] ?? userId}',
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                    Text(
+                      'Status: $status',
+                      style: TextStyle(
+                        color: pending
+                            ? Colors.orange
+                            : (status == 'approved'
+                                  ? Colors.green
+                                  : Colors.red),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (pending) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () =>
+                                docs[i].reference.update({'status': 'rejected'}),
+                            child: const Text('Reject'),
+                          ),
+                          const SizedBox(width: 4),
+                          ElevatedButton(
+                            onPressed: () async {
+                              if (userId.isEmpty || amount <= 0) return;
+                              final userRef = FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(userId);
+                              await userRef.set({
+                                'walletBalance': FieldValue.increment(amount),
+                              }, SetOptions(merge: true));
+                              await userRef.collection('walletTransactions').add({
+                                'type': 'credit',
+                                'amount': amount,
+                                'purpose': 'topup',
+                                'createdAt': Timestamp.now(),
+                              });
+                              await docs[i].reference.update({
+                                'status': 'approved',
+                                'approvedAt': Timestamp.now(),
+                              });
+                            },
+                            child: const Text('Approve & credit'),
                           ),
                         ],
                       ),

@@ -60,11 +60,18 @@ service cloud.firestore {
       // Owner may edit their profile; anyone signed in may only adjust the
       // aggregate rating fields (when leaving a review).
       allow update: if isSignedIn() && (
-                      request.auth.uid == userId
+                      (request.auth.uid == userId && walletUnchanged())
                       || onlyRatingChange()
                       || isAdmin()
                     );
       allow delete: if false;
+
+      // The wallet balance is money — only admins / Cloud Functions may change
+      // it. The owner may edit every other profile field freely.
+      function walletUnchanged() {
+        return request.resource.data.get('walletBalance', 0)
+               == resource.data.get('walletBalance', 0);
+      }
 
       function onlyRatingChange() {
         return request.resource.data.diff(resource.data).affectedKeys()
@@ -94,6 +101,12 @@ service cloud.firestore {
       // the owner reads and marks them read).
       match /notifications/{noticeId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      // Wallet ledger — owner reads; only admins / Cloud Functions write.
+      match /walletTransactions/{txId} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow write: if isAdmin();
       }
 
       // Reviews of this seller. Readable by all; each reviewer owns one doc
@@ -154,6 +167,30 @@ service cloud.firestore {
                       || isAdmin()
                     );
       allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // Wallet top-ups — user requests credit; admin approves (and credits the
+    // balance). Cloud Functions / admin process them.
+    // ---------------------------------------------------------------------
+    match /walletTopups/{topupId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn()
+                  && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // Purchases — user spends wallet balance on a feature. A Cloud Function
+    // (processPurchase) validates the balance and applies the effect.
+    // ---------------------------------------------------------------------
+    match /purchases/{purchaseId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn()
+                  && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
     }
 
     // ---------------------------------------------------------------------
