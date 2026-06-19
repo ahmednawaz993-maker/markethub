@@ -2934,8 +2934,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       bottom: Radius.circular(20),
                     ),
                   ),
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
-                  child: Material(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  child: Column(
+                    children: [
+                      Material(
                     elevation: 3,
                     borderRadius: BorderRadius.circular(30),
                     child: TextField(
@@ -2973,6 +2975,34 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     ),
+                  ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        height: 34,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: [
+                            for (final q in const [
+                              'Cars',
+                              'Mobiles',
+                              'Property',
+                              'Food & Grocery',
+                              'Jobs',
+                              'Laptops',
+                            ])
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ActionChip(
+                                  backgroundColor: Colors.white,
+                                  visualDensity: VisualDensity.compact,
+                                  label: Text(q),
+                                  onPressed: () => openSearch(q),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
