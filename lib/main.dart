@@ -3798,6 +3798,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
   late String cityFilter;
   double? minPrice;
   double? maxPrice;
+  bool deliveryOnly = false;
 
   static const sortOptions = [
     'Newest',
@@ -3874,6 +3875,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
       text: maxPrice == null ? '' : maxPrice!.toStringAsFixed(0),
     );
     String tempCity = cityFilter;
+    bool tempDelivery = deliveryOnly;
 
     await showModalBottomSheet(
       context: context,
@@ -3932,7 +3934,15 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Delivery available only'),
+                    value: tempDelivery,
+                    activeThumbColor: kPakGreen,
+                    onChanged: (v) => setSheetState(() => tempDelivery = v),
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
@@ -3942,6 +3952,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                               cityFilter = 'All';
                               minPrice = null;
                               maxPrice = null;
+                              deliveryOnly = false;
                             });
                             Navigator.pop(context);
                           },
@@ -3960,6 +3971,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                               maxPrice = double.tryParse(
                                 maxController.text.trim(),
                               );
+                              deliveryOnly = tempDelivery;
                             });
                             Navigator.pop(context);
                           },
@@ -3982,6 +3994,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     if (cityFilter != 'All') count++;
     if (minPrice != null) count++;
     if (maxPrice != null) count++;
+    if (deliveryOnly) count++;
     return count;
   }
 
@@ -4008,12 +4021,14 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
       final price = parsePrice(listing.price);
       final matchesMin = minPrice == null || price >= minPrice!;
       final matchesMax = maxPrice == null || price <= maxPrice!;
+      final matchesDelivery = !deliveryOnly || listing.deliveryAvailable;
 
       return matchesSearch &&
           matchesSub &&
           matchesCity &&
           matchesMin &&
-          matchesMax;
+          matchesMax &&
+          matchesDelivery;
     }).toList();
 
     result.sort((a, b) {
