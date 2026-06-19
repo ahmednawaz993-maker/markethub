@@ -7340,6 +7340,111 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
   }
 }
 
+class AboutScreen extends StatelessWidget {
+  const AboutScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('About')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const SizedBox(height: 8),
+          Center(
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 40,
+                  backgroundColor: kPakGreen.withValues(alpha: 0.12),
+                  child: const Icon(
+                    Icons.storefront,
+                    color: kPakGreen,
+                    size: 44,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'PakBazar',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: kPakGreen,
+                  ),
+                ),
+                const Text(
+                  'Pakistan ka apna online bazaar',
+                  style: TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Version 1.0.0',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.privacy_tip_outlined),
+                  title: const Text('Privacy Policy'),
+                  trailing: const Icon(Icons.open_in_new, size: 18),
+                  onTap: () => launchUrl(
+                    Uri.parse('https://pakbazar24.com/privacy.html'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.email_outlined),
+                  title: const Text('Contact support'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => launchUrl(
+                    Uri.parse('mailto:support@pakbazar.pk?subject=PakBazar'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.share_outlined),
+                  title: const Text('Share PakBazar'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    await Clipboard.setData(
+                      const ClipboardData(
+                        text:
+                            'Buy & sell anything on PakBazar: '
+                            'https://pakbazar24.com',
+                      ),
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Link copied — share it anywhere!'),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Center(
+            child: Text(
+              '© 2026 PakBazar',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -7500,6 +7605,15 @@ class ProfileScreen extends StatelessWidget {
               },
               icon: const Icon(Icons.help_outline),
               label: const Text('Help & Feedback'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AboutScreen()),
+              ),
+              icon: const Icon(Icons.info_outline),
+              label: const Text('About PakBazar'),
             ),
             const SizedBox(height: 12),
             ElevatedButton.icon(
