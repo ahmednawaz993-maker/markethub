@@ -5372,7 +5372,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
       l.title,
       '${formatPrice(l.price)}${loc.isEmpty ? '' : ' · $loc'}',
       if (l.phone.isNotEmpty) 'Contact: ${l.phone}',
-      'See more on PakBazar: https://pakbazar.web.app',
+      'See more on PakBazar: https://pakbazar24.com',
     ].join('\n');
     await Clipboard.setData(ClipboardData(text: text));
     if (!mounted) return;

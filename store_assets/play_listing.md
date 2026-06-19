@@ -35,7 +35,7 @@ Whether you're upgrading your phone, selling your car, renting an apartment, or 
 
 Download PakBazar and start buying and selling today — Pakistan ka apna bazaar, ab aapke phone par!
 
-Privacy policy: https://pakbazar.web.app/privacy.html
+Privacy policy: https://pakbazar24.com/privacy.html
 
 ---
 
