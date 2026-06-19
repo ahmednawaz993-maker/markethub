@@ -6740,13 +6740,14 @@ class SellerProfileScreen extends StatelessWidget {
               final businessName = data['businessName']?.toString() ?? '';
               final tagline = data['tagline']?.toString() ?? '';
               final logoUrl = data['logoUrl']?.toString() ?? '';
+              final coverUrl = data['coverUrl']?.toString() ?? '';
               final displayName = (isBusiness && businessName.isNotEmpty)
                   ? businessName
                   : (sellerName.isEmpty ? 'Seller' : sellerName);
               final me = FirebaseAuth.instance.currentUser;
               final isSelf = me != null && me.uid == sellerId;
 
-              return Card(
+              final card = Card(
                 margin: const EdgeInsets.all(12),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -6872,6 +6873,26 @@ class SellerProfileScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+              );
+
+              if (coverUrl.isEmpty) return card;
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        coverUrl,
+                        height: 130,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+                  card,
+                ],
               );
             },
           ),
@@ -7024,11 +7045,40 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
   final ImagePicker picker = ImagePicker();
   String? logoUrl;
   bool uploadingLogo = false;
+  String? coverUrl;
+  bool uploadingCover = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  Future<void> _pickCover() async {
+    final img = await picker.pickImage(source: ImageSource.gallery);
+    if (img == null) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    setState(() => uploadingCover = true);
+    try {
+      final bytes = await img.readAsBytes();
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('business_logos')
+          .child('cover_$uid.jpg');
+      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      final url = await ref.getDownloadURL();
+      if (!mounted) return;
+      setState(() => coverUrl = url);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Cover upload failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => uploadingCover = false);
+    }
   }
 
   Future<void> _pickLogo() async {
@@ -7072,6 +7122,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       nameController.text = d?['businessName']?.toString() ?? '';
       taglineController.text = d?['tagline']?.toString() ?? '';
       logoUrl = d?['logoUrl']?.toString();
+      coverUrl = d?['coverUrl']?.toString();
       loaded = true;
     });
   }
@@ -7085,6 +7136,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       'businessName': nameController.text.trim(),
       'tagline': taglineController.text.trim(),
       'logoUrl': logoUrl ?? '',
+      'coverUrl': coverUrl ?? '',
     }, SetOptions(merge: true));
     if (!mounted) return;
     setState(() => saving = false);
@@ -7141,6 +7193,40 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                             )
                           : const Icon(Icons.upload),
                       label: Text(uploadingLogo ? 'Uploading…' : 'Upload logo'),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Row(
+                  children: [
+                    if (coverUrl != null && coverUrl!.isNotEmpty) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.network(
+                          coverUrl!,
+                          width: 64,
+                          height: 40,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) =>
+                              const SizedBox(width: 64, height: 40),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    OutlinedButton.icon(
+                      onPressed: uploadingCover ? null : _pickCover,
+                      icon: uploadingCover
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.panorama),
+                      label: Text(
+                        uploadingCover ? 'Uploading…' : 'Cover photo',
+                      ),
                     ),
                   ],
                 ),
