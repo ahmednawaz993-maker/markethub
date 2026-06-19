@@ -828,6 +828,14 @@ List<String> attributeFieldsFor(String category) {
     case 'Mobiles & Tablets':
     case 'Electronics':
       return const ['Brand', 'Model'];
+    case 'Commute & Rides':
+      return const [
+        'Route (From → To)',
+        'Timing',
+        'Seats available',
+        'Monthly fare',
+        'Per-trip fare',
+      ];
     default:
       return const [];
   }
@@ -2700,7 +2708,9 @@ class _FeedAdCardState extends State<FeedAdCard> {
                       ),
                     ),
                   ],
-                  if (l.category == 'Motors' && l.attributes.isNotEmpty) ...[
+                  if ((l.category == 'Motors' ||
+                          l.category == 'Commute & Rides') &&
+                      l.attributes.isNotEmpty) ...[
                     const SizedBox(height: 3),
                     Text(
                       l.attributes.values.take(2).join(' · '),
