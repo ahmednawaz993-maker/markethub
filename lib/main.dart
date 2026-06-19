@@ -1166,6 +1166,7 @@ class Listing {
   String sellerName;
   String condition;
   String unit; // pricing unit e.g. 'kg', 'dozen', 'plate' (optional)
+  bool deliveryAvailable;
   String city;
   double? latitude;
   double? longitude;
@@ -1193,6 +1194,7 @@ class Listing {
     this.sellerName = '',
     this.condition = '',
     this.unit = '',
+    this.deliveryAvailable = false,
     this.city = '',
     this.latitude,
     this.longitude,
@@ -1230,6 +1232,7 @@ class Listing {
       'sellerName': sellerName,
       'condition': condition,
       'unit': unit,
+      'deliveryAvailable': deliveryAvailable,
       'city': city,
       'latitude': latitude,
       'longitude': longitude,
@@ -1263,6 +1266,7 @@ class Listing {
       sellerName: data['sellerName']?.toString() ?? '',
       condition: data['condition']?.toString() ?? '',
       unit: data['unit']?.toString() ?? '',
+      deliveryAvailable: data['deliveryAvailable'] == true,
       // 'city' is the current field; fall back to legacy 'emirate' for old ads.
       city: data['city']?.toString() ?? data['emirate']?.toString() ?? '',
       latitude: (data['latitude'] as num?)?.toDouble(),
@@ -2489,6 +2493,27 @@ class _FeedAdCardState extends State<FeedAdCard> {
                               : Colors.blue.shade800,
                         ),
                       ),
+                    ),
+                  ],
+                  if (l.deliveryAvailable) ...[
+                    const SizedBox(height: 3),
+                    Row(
+                      children: const [
+                        Icon(
+                          Icons.delivery_dining,
+                          size: 13,
+                          color: kPakGreen,
+                        ),
+                        SizedBox(width: 2),
+                        Text(
+                          'Delivery',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: kPakGreen,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                   const SizedBox(height: 5),
@@ -4250,6 +4275,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
   String selectedSubcategory = 'Cars';
   String selectedCondition = 'Used';
   String selectedUnit = 'None';
+  bool deliveryAvailable = false;
   String selectedCity = 'Karachi';
   double? latitude;
   double? longitude;
@@ -4342,6 +4368,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'subcategory': selectedSubcategory,
         'condition': selectedCondition,
         'unit': selectedUnit == 'None' ? '' : selectedUnit,
+        'deliveryAvailable': deliveryAvailable,
         'userId': FirebaseAuth.instance.currentUser?.uid ?? '',
         'sellerName':
             FirebaseAuth.instance.currentUser?.email ?? 'Anonymous seller',
@@ -4522,6 +4549,16 @@ class _AddListingScreenState extends State<AddListingScreen> {
                   : (value) {
                       if (value != null) setState(() => selectedUnit = value);
                     },
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Delivery available'),
+              subtitle: const Text('Show a delivery badge on your ad'),
+              value: deliveryAvailable,
+              activeThumbColor: kPakGreen,
+              onChanged: isSubmitting
+                  ? null
+                  : (v) => setState(() => deliveryAvailable = v),
             ),
             TextField(
               controller: phoneController,
@@ -4936,6 +4973,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
   late String selectedSubcategory;
   late String selectedCondition;
   late String selectedUnit;
+  late bool deliveryAvailable;
   late String selectedCity;
   double? latitude;
   double? longitude;
@@ -4970,6 +5008,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
     selectedUnit = pricingUnits.contains(widget.listing.unit)
         ? widget.listing.unit
         : 'None';
+    deliveryAvailable = widget.listing.deliveryAvailable;
     selectedCity = pakistanCities.contains(widget.listing.city)
         ? widget.listing.city
         : 'Karachi';
@@ -5032,6 +5071,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
         'subcategory': selectedSubcategory,
         'condition': selectedCondition,
         'unit': selectedUnit == 'None' ? '' : selectedUnit,
+        'deliveryAvailable': deliveryAvailable,
       };
       if (newImages.isNotEmpty) {
         final urls = await uploadImages();
@@ -5213,6 +5253,14 @@ class _EditListingScreenState extends State<EditListingScreen> {
               onChanged: (value) {
                 if (value != null) setState(() => selectedUnit = value);
               },
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Delivery available'),
+              subtitle: const Text('Show a delivery badge on your ad'),
+              value: deliveryAvailable,
+              activeThumbColor: kPakGreen,
+              onChanged: (v) => setState(() => deliveryAvailable = v),
             ),
             TextField(
               controller: phoneController,
@@ -5692,6 +5740,11 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                 ),
                 if (listing.condition.isNotEmpty)
                   _IconText(icon: Icons.verified, text: listing.condition),
+                if (listing.deliveryAvailable)
+                  const _IconText(
+                    icon: Icons.delivery_dining,
+                    text: 'Delivery available',
+                  ),
               ],
             ),
             const SizedBox(height: 12),
