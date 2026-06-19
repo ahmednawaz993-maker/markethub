@@ -2385,6 +2385,9 @@ class _FeedAdCardState extends State<FeedAdCard> {
     final l = widget.listing;
     final img = l.galleryImages;
     final posted = timeAgo(l.createdAt);
+    final isNew =
+        l.createdAt != null &&
+        DateTime.now().difference(l.createdAt!.toDate()).inHours < 24;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -2462,6 +2465,29 @@ class _FeedAdCardState extends State<FeedAdCard> {
                       ),
                     ),
                   ),
+                  if (!l.isFeatured && !l.isSold && isNew)
+                    Positioned(
+                      top: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: kPakGreen,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'NEW',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
                   if (l.isSold) const SoldTag(),
                 ],
               ),
