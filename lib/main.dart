@@ -1373,6 +1373,34 @@ class Listing {
 
 final List<Listing> favoriteListings = [];
 
+/// Users the current user has blocked — their ads/chats are hidden. Loaded at
+/// startup (loadBlocked) and kept in sync by blockUser/unblockUser.
+final Set<String> blockedUserIds = <String>{};
+
+Future<void> blockUser(String otherUid) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null || otherUid.isEmpty || otherUid == uid) return;
+  blockedUserIds.add(otherUid);
+  await FirebaseFirestore.instance
+      .collection('users')
+      .doc(uid)
+      .collection('blocked')
+      .doc(otherUid)
+      .set({'blockedAt': Timestamp.now()});
+}
+
+Future<void> unblockUser(String otherUid) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return;
+  blockedUserIds.remove(otherUid);
+  await FirebaseFirestore.instance
+      .collection('users')
+      .doc(uid)
+      .collection('blocked')
+      .doc(otherUid)
+      .delete();
+}
+
 // ---------------------------------------------------------------------------
 // Trust & reviews + discovery helpers
 // ---------------------------------------------------------------------------
@@ -3120,6 +3148,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     ensureUserDoc();
     loadFavorites();
+    loadBlocked();
     setupPushNotifications();
   }
 
@@ -3170,6 +3199,19 @@ class _HomeScreenState extends State<HomeScreen> {
         favoriteListings.add(Listing.fromDoc(doc));
       }
     });
+  }
+
+  Future<void> loadBlocked() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    blockedUserIds.clear();
+    if (uid == null) return;
+    final snap = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('blocked')
+        .get();
+    blockedUserIds.addAll(snap.docs.map((d) => d.id));
+    if (mounted) setState(() {});
   }
 
   void openSearch(String query) {
@@ -3228,6 +3270,11 @@ class _HomeScreenState extends State<HomeScreen> {
           if (homeCity != 'All Pakistan') {
             listings =
                 listings.where((l) => l.city == homeCity).toList();
+          }
+          if (blockedUserIds.isNotEmpty) {
+            listings = listings
+                .where((l) => !blockedUserIds.contains(l.userId))
+                .toList();
           }
           final featured = listings.where((l) => l.isCurrentlyFeatured).toList();
           final topDeals =
@@ -4398,13 +4445,15 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
       final matchesMin = minPrice == null || price >= minPrice!;
       final matchesMax = maxPrice == null || price <= maxPrice!;
       final matchesDelivery = !deliveryOnly || listing.deliveryAvailable;
+      final notBlocked = !blockedUserIds.contains(listing.userId);
 
       return matchesSearch &&
           matchesSub &&
           matchesCity &&
           matchesMin &&
           matchesMax &&
-          matchesDelivery;
+          matchesDelivery &&
+          notBlocked;
     }).toList();
 
     result.sort((a, b) {
@@ -6363,6 +6412,39 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
             tooltip: 'Report ad',
             onPressed: reportAd,
           ),
+          if (!isOwnAd)
+            PopupMenuButton<String>(
+              onSelected: (v) async {
+                if (v == 'block') {
+                  await blockUser(listing.userId);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Seller blocked — you won't see their ads."),
+                    ),
+                  );
+                  Navigator.pop(context);
+                } else if (v == 'unblock') {
+                  await unblockUser(listing.userId);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Seller unblocked.')),
+                  );
+                  setState(() {});
+                }
+              },
+              itemBuilder: (context) => [
+                blockedUserIds.contains(listing.userId)
+                    ? const PopupMenuItem(
+                        value: 'unblock',
+                        child: Text('Unblock seller'),
+                      )
+                    : const PopupMenuItem(
+                        value: 'block',
+                        child: Text('Block seller'),
+                      ),
+              ],
+            ),
         ],
       ),
       body: SingleChildScrollView(

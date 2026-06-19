@@ -125,6 +125,11 @@ service cloud.firestore {
         allow write: if isAdmin();
       }
 
+      // Users this person has blocked (their own private list).
+      match /blocked/{blockedId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
       // Reviews of this seller. Readable by all; each reviewer owns one doc
       // (doc id == their uid) and can only write a 1-5 star rating as themselves.
       match /reviews/{reviewerId} {
