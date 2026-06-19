@@ -2833,8 +2833,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 ..sort((a, b) => b.views.compareTo(a.views));
           final topDealsList = topDeals.take(10).toList();
 
-          return CustomScrollView(
-            slivers: [
+          return RefreshIndicator(
+            color: kPakGreen,
+            onRefresh: () async {
+              await Future<void>.delayed(const Duration(milliseconds: 600));
+              if (mounted) setState(() {});
+            },
+            child: CustomScrollView(
+              slivers: [
               SliverToBoxAdapter(
                 child: Container(
                   decoration: const BoxDecoration(
@@ -3157,7 +3163,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               const SliverToBoxAdapter(child: SizedBox(height: 90)),
-            ],
+              ],
+            ),
           );
         },
       ),
