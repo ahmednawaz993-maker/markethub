@@ -9520,12 +9520,23 @@ class _AdminVerificationsTab extends StatelessWidget {
                         children: [
                           TextButton(
                             onPressed: () async {
-                              await FirebaseFirestore.instance
-                                  .collection('users')
+                              final users = FirebaseFirestore.instance
+                                  .collection('users');
+                              await users.doc(uid).set({
+                                'idVerified': false,
+                              }, SetOptions(merge: true));
+                              await users
                                   .doc(uid)
-                                  .set({
-                                    'idVerified': false,
-                                  }, SetOptions(merge: true));
+                                  .collection('notifications')
+                                  .add({
+                                    'title': 'Verification needs another try',
+                                    'body':
+                                        'Please re-upload a clear selfie and '
+                                        'CNIC photo, then resubmit.',
+                                    'type': 'verification',
+                                    'read': false,
+                                    'createdAt': Timestamp.now(),
+                                  });
                               await docs[i].reference.update({
                                 'status': 'rejected',
                                 'reviewedAt': Timestamp.now(),
@@ -9536,12 +9547,23 @@ class _AdminVerificationsTab extends StatelessWidget {
                           const SizedBox(width: 4),
                           ElevatedButton(
                             onPressed: () async {
-                              await FirebaseFirestore.instance
-                                  .collection('users')
+                              final users = FirebaseFirestore.instance
+                                  .collection('users');
+                              await users.doc(uid).set({
+                                'idVerified': true,
+                              }, SetOptions(merge: true));
+                              await users
                                   .doc(uid)
-                                  .set({
-                                    'idVerified': true,
-                                  }, SetOptions(merge: true));
+                                  .collection('notifications')
+                                  .add({
+                                    'title': 'Identity verified ✓',
+                                    'body':
+                                        'You can now post ads, buy, make offers '
+                                        'and chat on PakBazar.',
+                                    'type': 'verification',
+                                    'read': false,
+                                    'createdAt': Timestamp.now(),
+                                  });
                               await docs[i].reference.update({
                                 'status': 'approved',
                                 'reviewedAt': Timestamp.now(),

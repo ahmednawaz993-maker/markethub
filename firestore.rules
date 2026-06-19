@@ -110,10 +110,13 @@ service cloud.firestore {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
       }
 
-      // Notification history (Cloud Functions write these via the Admin SDK;
-      // the owner reads and marks them read).
+      // Notification history (Cloud Functions write via the Admin SDK; admins
+      // may also post a notice, e.g. a verification decision). The owner reads
+      // and marks them read.
       match /notifications/{noticeId} {
-        allow read, write: if isSignedIn() && request.auth.uid == userId;
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow write: if isSignedIn()
+                     && (request.auth.uid == userId || isAdmin());
       }
 
       // Wallet ledger — owner reads; only admins / Cloud Functions write.
