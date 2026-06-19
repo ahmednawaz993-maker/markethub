@@ -4584,6 +4584,8 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
   double? maxPrice;
   bool deliveryOnly = false;
   bool hideSold = false;
+  String conditionFilter = 'Any'; // 'Any' | 'New' | 'Used'
+  bool negotiableOnly = false;
 
   static const sortOptions = [
     'Newest',
@@ -4662,6 +4664,8 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     String tempCity = cityFilter;
     bool tempDelivery = deliveryOnly;
     bool tempHideSold = hideSold;
+    String tempCondition = conditionFilter;
+    bool tempNegotiable = negotiableOnly;
 
     await showModalBottomSheet(
       context: context,
@@ -4720,7 +4724,36 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 16),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Condition',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
                   const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: ['Any', ...itemConditions].map((c) {
+                      final selected = tempCondition == c;
+                      return ChoiceChip(
+                        label: Text(c),
+                        selected: selected,
+                        selectedColor: kPakGreen.withValues(alpha: 0.18),
+                        onSelected: (_) =>
+                            setSheetState(() => tempCondition = c),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Negotiable price only'),
+                    value: tempNegotiable,
+                    activeThumbColor: kPakGreen,
+                    onChanged: (v) => setSheetState(() => tempNegotiable = v),
+                  ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Delivery available only'),
@@ -4747,6 +4780,8 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                               maxPrice = null;
                               deliveryOnly = false;
                               hideSold = false;
+                              conditionFilter = 'Any';
+                              negotiableOnly = false;
                             });
                             Navigator.pop(context);
                           },
@@ -4767,6 +4802,8 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                               );
                               deliveryOnly = tempDelivery;
                               hideSold = tempHideSold;
+                              conditionFilter = tempCondition;
+                              negotiableOnly = tempNegotiable;
                             });
                             Navigator.pop(context);
                           },
@@ -4791,6 +4828,8 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     if (maxPrice != null) count++;
     if (deliveryOnly) count++;
     if (hideSold) count++;
+    if (conditionFilter != 'Any') count++;
+    if (negotiableOnly) count++;
     return count;
   }
 
@@ -4822,6 +4861,9 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
       final matchesMax = maxPrice == null || price <= maxPrice!;
       final matchesDelivery = !deliveryOnly || listing.deliveryAvailable;
       final matchesSold = !hideSold || !listing.isSold;
+      final matchesCondition =
+          conditionFilter == 'Any' || listing.condition == conditionFilter;
+      final matchesNegotiable = !negotiableOnly || listing.negotiable;
       final notBlocked = !blockedUserIds.contains(listing.userId);
 
       return matchesSearch &&
@@ -4831,6 +4873,8 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
           matchesMax &&
           matchesDelivery &&
           matchesSold &&
+          matchesCondition &&
+          matchesNegotiable &&
           notBlocked;
     }).toList();
 
