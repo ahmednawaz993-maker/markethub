@@ -796,6 +796,82 @@ const List<String> pakistanCities = [
   'Yazman',
   'Zhob',
   'Ziarat',
+  // Additional towns (de-duplicated; sorted at display time).
+  'Havelian',
+  'Dina',
+  'Sarai Alamgir',
+  'Jauharabad',
+  'Quaidabad',
+  'Kundian',
+  'Khewra',
+  'Sohawa',
+  'Kunjah',
+  'Chawinda',
+  'Zafarwal',
+  'Eminabad',
+  'Ferozewala',
+  'Shahkot',
+  'Safdarabad',
+  'Tulamba',
+  'Abdul Hakim',
+  'Hassan Abdal',
+  'Hazro',
+  'Fateh Jang',
+  'Pindi Gheb',
+  'Daultala',
+  'Mandra',
+  'Jhawarian',
+  'Kot Radha Kishan',
+  'Phool Nagar',
+  'Sammundri',
+  'Tibba Sultanpur',
+  'Qadirpur Ran',
+  'Ahmadpur Sial',
+  '18-Hazari',
+  'Takht Bhai',
+  'Landi Kotal',
+  'Jamrud',
+  'Drosh',
+  'Chakdara',
+  'Dargai',
+  'Topi',
+  'Besham',
+  'Khar',
+  'Alpuri',
+  'Wana',
+  'Miran Shah',
+  'Sadda',
+  'Thall',
+  'Pezu',
+  'Uthal',
+  'Bhit Shah',
+  'Tando Jam',
+  'Matli',
+  'Golarchi',
+  'Nagarparkar',
+  'Diplo',
+  'Chachro',
+  'Qambar',
+  'Warah',
+  'Naudero',
+  'Bakrani',
+  'Kot Ghulam Muhammad',
+  'Jhuddo',
+  'Tando Jan Muhammad',
+  'Sui',
+  'Dhadar',
+  'Duki',
+  'Harnai',
+  'Sanjawi',
+  'Uch Sharif',
+  'Naran',
+  'Kaghan',
+  'Kalam',
+  'Bahrain',
+  'Madyan',
+  'Nathia Gali',
+  'Shogran',
+  'Saidu Sharif',
 ];
 
 const List<String> itemConditions = ['New', 'Used'];
@@ -1271,6 +1347,7 @@ class Listing {
   String unit; // pricing unit e.g. 'kg', 'dozen', 'plate' (optional)
   bool deliveryAvailable;
   bool sellerVerified;
+  bool negotiable;
   Map<String, String> attributes; // e.g. {'Year': '2018', 'KM driven': '50000'}
   String city;
   double? latitude;
@@ -1301,6 +1378,7 @@ class Listing {
     this.unit = '',
     this.deliveryAvailable = false,
     this.sellerVerified = false,
+    this.negotiable = false,
     this.attributes = const {},
     this.city = '',
     this.latitude,
@@ -1381,6 +1459,7 @@ class Listing {
       unit: data['unit']?.toString() ?? '',
       deliveryAvailable: data['deliveryAvailable'] == true,
       sellerVerified: data['sellerVerified'] == true,
+      negotiable: data['negotiable'] == true,
       attributes:
           (data['attributes'] as Map?)?.map(
             (k, v) => MapEntry(k.toString(), v.toString()),
@@ -1858,7 +1937,7 @@ Future<String?> showCityPicker(
   BuildContext context, {
   bool includeAll = false,
 }) {
-  final options = [if (includeAll) 'All', ...pakistanCities];
+  final options = [if (includeAll) 'All', ...(pakistanCities.toList()..sort())];
 
   return showModalBottomSheet<String>(
     context: context,
@@ -5025,6 +5104,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
   String selectedCondition = 'Used';
   String selectedUnit = 'None';
   bool deliveryAvailable = false;
+  bool negotiable = false;
   final Map<String, TextEditingController> attrControllers = {};
 
   TextEditingController _attrCtrl(String label) =>
@@ -5157,6 +5237,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'condition': selectedCondition,
         'unit': selectedUnit == 'None' ? '' : selectedUnit,
         'deliveryAvailable': deliveryAvailable,
+        'negotiable': negotiable,
         'sellerVerified': true,
         'attributes': attributes,
         'userId': FirebaseAuth.instance.currentUser?.uid ?? '',
@@ -5372,6 +5453,16 @@ class _AddListingScreenState extends State<AddListingScreen> {
               onChanged: isSubmitting
                   ? null
                   : (v) => setState(() => deliveryAvailable = v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Price negotiable'),
+              subtitle: const Text('Buyers can make an offer'),
+              value: negotiable,
+              activeThumbColor: kPakGreen,
+              onChanged: isSubmitting
+                  ? null
+                  : (v) => setState(() => negotiable = v),
             ),
             for (final label in attributeFieldsFor(selectedCategory))
               Padding(
@@ -5796,6 +5887,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
   late String selectedCondition;
   late String selectedUnit;
   late bool deliveryAvailable;
+  late bool negotiable;
   final Map<String, TextEditingController> attrControllers = {};
   late String selectedCity;
 
@@ -5837,6 +5929,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
         ? widget.listing.unit
         : 'None';
     deliveryAvailable = widget.listing.deliveryAvailable;
+    negotiable = widget.listing.negotiable;
     selectedCity = pakistanCities.contains(widget.listing.city)
         ? widget.listing.city
         : 'Karachi';
@@ -5900,6 +5993,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
         'condition': selectedCondition,
         'unit': selectedUnit == 'None' ? '' : selectedUnit,
         'deliveryAvailable': deliveryAvailable,
+        'negotiable': negotiable,
       };
       final attributes = <String, String>{};
       for (final label in attributeFieldsFor(selectedCategory)) {
@@ -6098,6 +6192,14 @@ class _EditListingScreenState extends State<EditListingScreen> {
               value: deliveryAvailable,
               activeThumbColor: kPakGreen,
               onChanged: (v) => setState(() => deliveryAvailable = v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Price negotiable'),
+              subtitle: const Text('Buyers can make an offer'),
+              value: negotiable,
+              activeThumbColor: kPakGreen,
+              onChanged: (v) => setState(() => negotiable = v),
             ),
             for (final label in attributeFieldsFor(selectedCategory))
               Padding(
@@ -6610,13 +6712,38 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
               style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            Text(
-              priceLabel(listing),
-              style: const TextStyle(
-                fontSize: 24,
-                color: Colors.green,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              children: [
+                Text(
+                  priceLabel(listing),
+                  style: const TextStyle(
+                    fontSize: 24,
+                    color: Colors.green,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (listing.negotiable) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Negotiable',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange.shade800,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
             const SizedBox(height: 12),
             Wrap(
