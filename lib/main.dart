@@ -1188,6 +1188,12 @@ class Listing {
 
   bool get hasCoordinates => latitude != null && longitude != null;
 
+  /// True only while a paid Featured window is still active. Acts as a client
+  /// safety net in case the daily expireFeatured job hasn't run yet.
+  bool get isCurrentlyFeatured =>
+      isFeatured &&
+      (featuredUntil == null || featuredUntil!.toDate().isAfter(DateTime.now()));
+
   /// All gallery images, falling back to the single [imageUrl] for old ads.
   List<String> get galleryImages {
     if (images.isNotEmpty) return images;
@@ -1886,7 +1892,7 @@ class HorizontalAdCard extends StatelessWidget {
                               ),
                             ),
                     ),
-                    if (listing.isFeatured)
+                    if (listing.isCurrentlyFeatured)
                       Positioned(
                         top: 6,
                         left: 6,
@@ -2401,7 +2407,7 @@ class _FeedAdCardState extends State<FeedAdCard> {
                             child: Icon(Icons.image, size: 36),
                           ),
                         ),
-                  if (l.isFeatured)
+                  if (l.isCurrentlyFeatured)
                     Positioned(
                       top: 6,
                       left: 6,
@@ -2443,7 +2449,7 @@ class _FeedAdCardState extends State<FeedAdCard> {
                       ),
                     ),
                   ),
-                  if (!l.isFeatured && !l.isSold && isNew)
+                  if (!l.isCurrentlyFeatured && !l.isSold && isNew)
                     Positioned(
                       top: 6,
                       left: 6,
@@ -3027,7 +3033,9 @@ class _HomeScreenState extends State<HomeScreen> {
               .toList()
             ..sort((a, b) {
               // Featured first, then by the chosen sort.
-              if (a.isFeatured != b.isFeatured) return a.isFeatured ? -1 : 1;
+              if (a.isCurrentlyFeatured != b.isCurrentlyFeatured) {
+                return a.isCurrentlyFeatured ? -1 : 1;
+              }
               switch (homeSort) {
                 case 'Price: Low to High':
                   return parsePrice(a.price).compareTo(parsePrice(b.price));
@@ -3044,7 +3052,7 @@ class _HomeScreenState extends State<HomeScreen> {
             listings =
                 listings.where((l) => l.city == homeCity).toList();
           }
-          final featured = listings.where((l) => l.isFeatured).toList();
+          final featured = listings.where((l) => l.isCurrentlyFeatured).toList();
           final topDeals =
               listings.where((l) => !l.isSold && l.views > 0).toList()
                 ..sort((a, b) => b.views.compareTo(a.views));
@@ -4218,8 +4226,8 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
 
     result.sort((a, b) {
       // Featured ads always rank first.
-      if (a.isFeatured != b.isFeatured) {
-        return a.isFeatured ? -1 : 1;
+      if (a.isCurrentlyFeatured != b.isCurrentlyFeatured) {
+        return a.isCurrentlyFeatured ? -1 : 1;
       }
       switch (sortBy) {
         case 'Price: Low to High':
@@ -4484,7 +4492,7 @@ class _ListingCardState extends State<ListingCard> {
                           height: 170,
                           child: Center(child: Icon(Icons.image, size: 60)),
                         ),
-                  if (listing.isFeatured)
+                  if (listing.isCurrentlyFeatured)
                     Positioned(
                       top: 8,
                       left: 8,
@@ -5362,7 +5370,7 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                   title: Row(
                     children: [
                       Flexible(child: Text(listing.title)),
-                      if (listing.isFeatured) ...[
+                      if (listing.isCurrentlyFeatured) ...[
                         const SizedBox(width: 6),
                         const Icon(Icons.star, size: 16, color: kGold),
                       ],
