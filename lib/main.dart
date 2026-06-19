@@ -6793,34 +6793,33 @@ class ProfileScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [kPakGreen, Color(0xFF0B6E3D)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const CircleAvatar(
                       radius: 44,
-                      backgroundColor: kPakGreen,
-                      child: Icon(
-                        Icons.person,
-                        size: 50,
-                        color: Colors.white,
-                      ),
+                      backgroundColor: Colors.white,
+                      child: Icon(Icons.person, size: 50, color: kPakGreen),
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      user?.email ?? 'Anonymous user',
+                      user?.email ?? 'Guest user',
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'User ID: ${user?.uid ?? 'Unknown'}',
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
-                      textAlign: TextAlign.center,
                     ),
                     if (!(user?.isAnonymous ?? true)) ...[
                       const SizedBox(height: 10),
@@ -6856,6 +6855,10 @@ class ProfileScreen extends StatelessWidget {
                               }
                             }
                           },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white70),
+                          ),
                           icon: const Icon(Icons.mark_email_read),
                           label: const Text('Verify email'),
                         ),
@@ -6866,13 +6869,12 @@ class ProfileScreen extends StatelessWidget {
                         'You are browsing as a guest. Log in to keep your ads, '
                         'favorites and chats across devices.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.orange),
+                        style: TextStyle(color: Colors.amberAccent),
                       ),
                     ],
                   ],
                 ),
               ),
-            ),
             if (!(user?.isAnonymous ?? true)) ...[
               const SizedBox(height: 16),
               const _BusinessAccountTile(),
