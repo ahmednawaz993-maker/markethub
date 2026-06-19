@@ -2575,6 +2575,65 @@ class _FeedAdCardState extends State<FeedAdCard> {
 // Home
 // ---------------------------------------------------------------------------
 
+/// Full grid of every category.
+class AllCategoriesScreen extends StatelessWidget {
+  const AllCategoriesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final cats = appCategories.where((c) => c.title != 'All').toList();
+    return Scaffold(
+      appBar: AppBar(title: const Text('All Categories')),
+      body: GridView.builder(
+        padding: const EdgeInsets.all(12),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          childAspectRatio: 0.95,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+        ),
+        itemCount: cats.length,
+        itemBuilder: (context, i) {
+          final c = cats[i];
+          return InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => CategoryScreen(title: c.title)),
+            ),
+            child: Card(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircleAvatar(
+                    radius: 26,
+                    backgroundColor: kPakGreen.withValues(alpha: 0.12),
+                    child: Icon(c.icon, color: kPakGreen, size: 28),
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Text(
+                      c.title,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 /// Home rail of paid Featured Businesses (admin-approved). Hidden when empty.
 class FeaturedBusinessesRail extends StatelessWidget {
   const FeaturedBusinessesRail({super.key});
@@ -2909,15 +2968,29 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(14, 2, 14, 2),
-                        child: Text(
-                          'Browse categories',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 2, 6, 2),
+                        child: Row(
+                          children: [
+                            const Text(
+                              'Browse categories',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const Spacer(),
+                            TextButton(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const AllCategoriesScreen(),
+                                ),
+                              ),
+                              child: const Text('See all'),
+                            ),
+                          ],
                         ),
                       ),
                       SizedBox(
