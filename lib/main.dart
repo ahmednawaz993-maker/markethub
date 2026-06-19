@@ -3045,6 +3045,61 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
+              SliverToBoxAdapter(
+                child: GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const CategoryScreen(title: 'Food & Grocery'),
+                    ),
+                  ),
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(8, 8, 8, 2),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFF7043), Color(0xFFE53935)],
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: const [
+                        Icon(Icons.restaurant, color: Colors.white, size: 34),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Order Food & Groceries',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Restaurants, fresh produce, meat & more',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.only(top: 4, bottom: 4),
