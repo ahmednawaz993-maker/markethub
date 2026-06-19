@@ -2685,6 +2685,18 @@ class _FeedAdCardState extends State<FeedAdCard> {
                       ),
                     ),
                   ],
+                  if (l.category == 'Motors' && l.attributes.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      l.attributes.values.take(2).join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ],
                   if (l.deliveryAvailable) ...[
                     const SizedBox(height: 3),
                     Row(
@@ -3660,7 +3672,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SliverToBoxAdapter(child: RecentlyViewedRail()),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 6, 8),
+                  padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
                   child: Row(
                     children: [
                       const Expanded(
