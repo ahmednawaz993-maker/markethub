@@ -3321,7 +3321,8 @@ class _HomeScreenState extends State<HomeScreen> {
               .map((d) => Listing.fromDoc(d))
               .toList()
             ..sort((a, b) {
-              // Featured first, then by the chosen sort.
+              // Available items first, then featured, then the chosen sort.
+              if (a.isSold != b.isSold) return a.isSold ? 1 : -1;
               if (a.isCurrentlyFeatured != b.isCurrentlyFeatured) {
                 return a.isCurrentlyFeatured ? -1 : 1;
               }
@@ -4219,6 +4220,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
   double? minPrice;
   double? maxPrice;
   bool deliveryOnly = false;
+  bool hideSold = false;
 
   static const sortOptions = [
     'Newest',
@@ -4296,6 +4298,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     );
     String tempCity = cityFilter;
     bool tempDelivery = deliveryOnly;
+    bool tempHideSold = hideSold;
 
     await showModalBottomSheet(
       context: context,
@@ -4362,6 +4365,13 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                     activeThumbColor: kPakGreen,
                     onChanged: (v) => setSheetState(() => tempDelivery = v),
                   ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Hide sold items'),
+                    value: tempHideSold,
+                    activeThumbColor: kPakGreen,
+                    onChanged: (v) => setSheetState(() => tempHideSold = v),
+                  ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -4373,6 +4383,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                               minPrice = null;
                               maxPrice = null;
                               deliveryOnly = false;
+                              hideSold = false;
                             });
                             Navigator.pop(context);
                           },
@@ -4392,6 +4403,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                                 maxController.text.trim(),
                               );
                               deliveryOnly = tempDelivery;
+                              hideSold = tempHideSold;
                             });
                             Navigator.pop(context);
                           },
@@ -4415,6 +4427,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     if (minPrice != null) count++;
     if (maxPrice != null) count++;
     if (deliveryOnly) count++;
+    if (hideSold) count++;
     return count;
   }
 
@@ -4445,6 +4458,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
       final matchesMin = minPrice == null || price >= minPrice!;
       final matchesMax = maxPrice == null || price <= maxPrice!;
       final matchesDelivery = !deliveryOnly || listing.deliveryAvailable;
+      final matchesSold = !hideSold || !listing.isSold;
       final notBlocked = !blockedUserIds.contains(listing.userId);
 
       return matchesSearch &&
@@ -4453,11 +4467,13 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
           matchesMin &&
           matchesMax &&
           matchesDelivery &&
+          matchesSold &&
           notBlocked;
     }).toList();
 
     result.sort((a, b) {
-      // Featured ads always rank first.
+      // Available items first, then featured.
+      if (a.isSold != b.isSold) return a.isSold ? 1 : -1;
       if (a.isCurrentlyFeatured != b.isCurrentlyFeatured) {
         return a.isCurrentlyFeatured ? -1 : 1;
       }
