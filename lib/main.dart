@@ -4833,6 +4833,12 @@ class _AddListingScreenState extends State<AddListingScreen> {
       );
       return;
     }
+    if (parsePrice(priceController.text.trim()) <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid price')),
+      );
+      return;
+    }
 
     setState(() {
       isSubmitting = true;
