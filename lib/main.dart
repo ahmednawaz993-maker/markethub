@@ -2744,6 +2744,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 listings.where((l) => l.city == homeCity).toList();
           }
           final featured = listings.where((l) => l.isFeatured).toList();
+          final topDeals =
+              listings.where((l) => !l.isSold && l.views > 0).toList()
+                ..sort((a, b) => b.views.compareTo(a.views));
+          final topDealsList = topDeals.take(10).toList();
 
           return CustomScrollView(
             slivers: [
@@ -2885,6 +2889,55 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SliverToBoxAdapter(child: FeaturedBusinessesRail()),
+              if (topDealsList.length >= 3)
+                SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(12, 12, 12, 6),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.local_fire_department,
+                              color: Colors.deepOrange,
+                              size: 22,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Top Deals',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Most viewed',
+                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        height: 218,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          itemCount: topDealsList.length,
+                          itemBuilder: (context, i) => Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: SizedBox(
+                              width: 165,
+                              child: FeedAdCard(listing: topDealsList[i]),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               if (featured.isNotEmpty)
                 SliverToBoxAdapter(
                   child: Column(
