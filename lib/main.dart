@@ -2826,19 +2826,27 @@ class FeaturedBusinessesRail extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 14),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(12, 0, 12, 0),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 6, 0),
               child: Row(
                 children: [
-                  Icon(Icons.storefront, color: kPakGreen, size: 22),
-                  SizedBox(width: 6),
-                  Text(
+                  const Icon(Icons.storefront, color: kPakGreen, size: 22),
+                  const SizedBox(width: 6),
+                  const Text(
                     'Featured Businesses',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: Colors.black87,
                     ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const StoresScreen()),
+                    ),
+                    child: const Text('See all'),
                   ),
                 ],
               ),
