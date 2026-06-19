@@ -6328,6 +6328,17 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                                     color: kPakGreen,
                                   ),
                                 ],
+                                if (data['idVerified'] == true) ...[
+                                  const SizedBox(width: 4),
+                                  const Tooltip(
+                                    message: 'ID Verified',
+                                    child: Icon(
+                                      Icons.verified_user,
+                                      size: 16,
+                                      color: Colors.blue,
+                                    ),
+                                  ),
+                                ],
                                 if (data['isBusiness'] == true) ...[
                                   const SizedBox(width: 6),
                                   Container(
@@ -6861,6 +6872,17 @@ class SellerProfileScreen extends StatelessWidget {
                                         color: kPakGreen,
                                       ),
                                     ],
+                                    if (data['idVerified'] == true) ...[
+                                      const SizedBox(width: 6),
+                                      const Tooltip(
+                                        message: 'ID Verified',
+                                        child: Icon(
+                                          Icons.verified_user,
+                                          size: 18,
+                                          color: Colors.blue,
+                                        ),
+                                      ),
+                                    ],
                                     if (isBusiness) ...[
                                       const SizedBox(width: 6),
                                       Container(
@@ -7350,6 +7372,240 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
   }
 }
 
+/// Identity verification: user uploads a selfie + CNIC for admin face-match
+/// review. On approval the admin sets `idVerified` on the user doc.
+class VerificationScreen extends StatefulWidget {
+  const VerificationScreen({super.key});
+
+  @override
+  State<VerificationScreen> createState() => _VerificationScreenState();
+}
+
+class _VerificationScreenState extends State<VerificationScreen> {
+  final picker = ImagePicker();
+  String? selfieUrl;
+  String? cnicUrl;
+  bool uploadingSelfie = false;
+  bool uploadingCnic = false;
+  bool submitting = false;
+  bool loaded = false;
+  String status = '';
+  bool idVerified = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final fs = FirebaseFirestore.instance;
+    final vDoc = await fs.collection('verifications').doc(uid).get();
+    final uDoc = await fs.collection('users').doc(uid).get();
+    if (!mounted) return;
+    setState(() {
+      final v = vDoc.data();
+      status = v?['status']?.toString() ?? '';
+      selfieUrl = v?['selfieUrl']?.toString();
+      cnicUrl = v?['cnicUrl']?.toString();
+      idVerified = uDoc.data()?['idVerified'] == true;
+      loaded = true;
+    });
+  }
+
+  Future<void> _upload(bool selfie) async {
+    final img = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+    );
+    if (img == null) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    setState(() {
+      if (selfie) {
+        uploadingSelfie = true;
+      } else {
+        uploadingCnic = true;
+      }
+    });
+    try {
+      final bytes = await img.readAsBytes();
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('verifications')
+          .child(uid)
+          .child(selfie ? 'selfie.jpg' : 'cnic.jpg');
+      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      final url = await ref.getDownloadURL();
+      if (!mounted) return;
+      setState(() {
+        if (selfie) {
+          selfieUrl = url;
+        } else {
+          cnicUrl = url;
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          uploadingSelfie = false;
+          uploadingCnic = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _submit() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    if (selfieUrl == null || cnicUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Upload both a selfie and your CNIC')),
+      );
+      return;
+    }
+    setState(() => submitting = true);
+    await FirebaseFirestore.instance
+        .collection('verifications')
+        .doc(user.uid)
+        .set({
+          'userId': user.uid,
+          'email': user.email ?? '',
+          'selfieUrl': selfieUrl,
+          'cnicUrl': cnicUrl,
+          'status': 'pending',
+          'submittedAt': Timestamp.now(),
+        }, SetOptions(merge: true));
+    if (!mounted) return;
+    setState(() {
+      submitting = false;
+      status = 'pending';
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Submitted — we\'ll review it shortly.')),
+    );
+  }
+
+  Widget _uploadTile(String label, String? url, bool busy, VoidCallback onTap) {
+    return Card(
+      child: ListTile(
+        leading: SizedBox(
+          width: 52,
+          height: 52,
+          child: url == null
+              ? const Icon(Icons.add_a_photo, color: kPakGreen)
+              : ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Image.network(url, fit: BoxFit.cover),
+                ),
+        ),
+        title: Text(label),
+        subtitle: Text(url == null ? 'Not uploaded' : 'Uploaded ✓'),
+        trailing: busy
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : TextButton(
+                onPressed: onTap,
+                child: Text(url == null ? 'Upload' : 'Change'),
+              ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Identity Verification')),
+      body: !loaded
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(12),
+              children: [
+                if (idVerified)
+                  Card(
+                    color: kPakGreen.withValues(alpha: 0.1),
+                    child: const ListTile(
+                      leading: Icon(Icons.verified_user, color: kPakGreen),
+                      title: Text('Your identity is verified'),
+                      subtitle: Text('You have the ID-Verified badge.'),
+                    ),
+                  )
+                else if (status == 'pending')
+                  const Card(
+                    color: Color(0xFFFFF8E1),
+                    child: ListTile(
+                      leading: Icon(Icons.hourglass_top, color: Colors.orange),
+                      title: Text('Under review'),
+                      subtitle: Text('We\'re checking your documents.'),
+                    ),
+                  )
+                else if (status == 'rejected')
+                  const Card(
+                    color: Color(0xFFFFEBEE),
+                    child: ListTile(
+                      leading: Icon(Icons.cancel, color: Colors.red),
+                      title: Text('Verification rejected'),
+                      subtitle: Text('Please re-upload clear photos and resubmit.'),
+                    ),
+                  ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(4, 8, 4, 8),
+                  child: Text(
+                    'Verify your identity to earn an ID-Verified badge that buyers '
+                    'and sellers trust. Upload a clear selfie and a photo of your '
+                    'CNIC. Our team checks that the face matches the ID.',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                _uploadTile(
+                  'Your selfie',
+                  selfieUrl,
+                  uploadingSelfie,
+                  () => _upload(true),
+                ),
+                _uploadTile(
+                  'CNIC (front)',
+                  cnicUrl,
+                  uploadingCnic,
+                  () => _upload(false),
+                ),
+                const SizedBox(height: 12),
+                if (!idVerified)
+                  ElevatedButton(
+                    onPressed: submitting ? null : _submit,
+                    child: Text(
+                      submitting
+                          ? 'Submitting…'
+                          : (status == 'pending'
+                                ? 'Resubmit for review'
+                                : 'Submit for verification'),
+                    ),
+                  ),
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Text(
+                    'Your documents are private — visible only to you and our '
+                    'review team, never shown publicly. See the Privacy Policy.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
 /// Safe-trading rules that protect both buyers and sellers.
 class TrustSafetyScreen extends StatelessWidget {
   const TrustSafetyScreen({super.key});
@@ -7706,6 +7962,15 @@ class ProfileScreen extends StatelessWidget {
               ),
               icon: const Icon(Icons.account_balance_wallet),
               label: const Text('PakBazar Wallet'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const VerificationScreen()),
+              ),
+              icon: const Icon(Icons.verified_user),
+              label: const Text('Verify Identity'),
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
@@ -8926,7 +9191,7 @@ class AdminPanelScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 9,
+      length: 10,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Panel'),
@@ -8936,6 +9201,7 @@ class AdminPanelScreen extends StatelessWidget {
             isScrollable: true,
             tabs: [
               Tab(text: 'Overview'),
+              Tab(text: 'Verify ID'),
               Tab(text: 'Users'),
               Tab(text: 'Reports'),
               Tab(text: 'Top-ups'),
@@ -8950,6 +9216,7 @@ class AdminPanelScreen extends StatelessWidget {
         body: const TabBarView(
           children: [
             _AdminOverviewTab(),
+            _AdminVerificationsTab(),
             _AdminUsersTab(),
             _AdminReportsTab(),
             _AdminTopupsTab(),
@@ -8989,6 +9256,154 @@ class _Metric {
   final String value;
   final String label;
   const _Metric(this.value, this.label);
+}
+
+/// Admin face-match review: compare the selfie to the CNIC and approve/reject.
+class _AdminVerificationsTab extends StatelessWidget {
+  const _AdminVerificationsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('verifications').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final am = a.data() as Map;
+            final bm = b.data() as Map;
+            final ap = am['status'] == 'pending' ? 0 : 1;
+            final bp = bm['status'] == 'pending' ? 0 : 1;
+            if (ap != bp) return ap - bp;
+            final at =
+                (am['submittedAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+            final bt =
+                (bm['submittedAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+            return bt.compareTo(at);
+          });
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.verified_user,
+            title: 'No verification requests',
+            subtitle: 'Selfie + CNIC submissions appear here for review.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final status = d['status']?.toString() ?? 'pending';
+            final pending = status == 'pending';
+            final uid = d['userId']?.toString() ?? docs[i].id;
+            final selfie = d['selfieUrl']?.toString() ?? '';
+            final cnic = d['cnicUrl']?.toString() ?? '';
+            Widget img(String url) => Expanded(
+              child: GestureDetector(
+                onTap: url.isEmpty
+                    ? null
+                    : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              FullScreenGallery(images: [selfie, cnic]),
+                        ),
+                      ),
+                child: Container(
+                  height: 110,
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(8),
+                    image: url.isEmpty
+                        ? null
+                        : DecorationImage(
+                            image: NetworkImage(url),
+                            fit: BoxFit.cover,
+                          ),
+                  ),
+                ),
+              ),
+            );
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      d['email']?.toString() ?? uid,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      'Status: $status',
+                      style: TextStyle(
+                        color: pending
+                            ? Colors.orange
+                            : (status == 'approved'
+                                  ? Colors.green
+                                  : Colors.red),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(children: [img(selfie), img(cnic)]),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 4),
+                      child: Text(
+                        'Selfie  ·  CNIC  (tap to enlarge)',
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                    ),
+                    if (pending)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () async {
+                              await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(uid)
+                                  .set({
+                                    'idVerified': false,
+                                  }, SetOptions(merge: true));
+                              await docs[i].reference.update({
+                                'status': 'rejected',
+                                'reviewedAt': Timestamp.now(),
+                              });
+                            },
+                            child: const Text('Reject'),
+                          ),
+                          const SizedBox(width: 4),
+                          ElevatedButton(
+                            onPressed: () async {
+                              await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(uid)
+                                  .set({
+                                    'idVerified': true,
+                                  }, SetOptions(merge: true));
+                              await docs[i].reference.update({
+                                'status': 'approved',
+                                'reviewedAt': Timestamp.now(),
+                              });
+                            },
+                            child: const Text('Approve'),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 /// Platform-wide inspection dashboard: live counts and money across the app.

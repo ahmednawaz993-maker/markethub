@@ -66,12 +66,13 @@ service cloud.firestore {
                     );
       allow delete: if false;
 
-      // The wallet balance is money — only admins / Cloud Functions may change
-      // it. The owner may edit every other profile field freely (an update is
-      // allowed as long as it does not touch walletBalance at all).
+      // walletBalance is money and idVerified is an identity decision — only
+      // admins / Cloud Functions may change these. The owner may edit every
+      // other profile field freely (an update is allowed as long as it does
+      // not touch either protected field).
       function walletUnchanged() {
         return !request.resource.data.diff(resource.data)
-                 .affectedKeys().hasAny(['walletBalance']);
+                 .affectedKeys().hasAny(['walletBalance', 'idVerified']);
       }
 
       function onlyRatingChange() {
@@ -180,6 +181,20 @@ service cloud.firestore {
       allow read: if isSignedIn()
                   && (resource.data.userId == request.auth.uid || isAdmin());
       allow update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // Identity verifications — the user submits a selfie + CNIC; the admin
+    // reviews and approves. The user can read/write their own record but the
+    // authoritative `idVerified` flag lives on the user doc (admin-only).
+    // ---------------------------------------------------------------------
+    match /verifications/{userId} {
+      allow read: if isSignedIn()
+                  && (request.auth.uid == userId || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn()
+                    && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
     }
 
     // ---------------------------------------------------------------------
