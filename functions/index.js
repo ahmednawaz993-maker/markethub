@@ -5,7 +5,10 @@
 // notifyOnNewMessage: when a chat message is created, push an FCM notification
 // to the OTHER participant's registered devices (users/{uid}/fcmTokens).
 
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const {
+  onDocumentCreated,
+  onDocumentUpdated,
+} = require("firebase-functions/v2/firestore");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
@@ -202,5 +205,89 @@ exports.notifyOnNewOrder = onDocumentCreated(
     });
 
     await pruneInvalidTokens(db, order.sellerId, tokens, response);
+  }
+);
+
+// Shared helper: push a notification to all of a user's registered devices.
+async function pushToUser(db, uid, notification, data) {
+  const tokensSnap = await db
+    .collection("users")
+    .doc(uid)
+    .collection("fcmTokens")
+    .get();
+  const tokens = tokensSnap.docs.map((d) => d.id);
+  if (tokens.length === 0) return;
+  const response = await getMessaging().sendEachForMulticast({
+    tokens,
+    notification,
+    data: data || {},
+    webpush: {
+      notification: { icon: "/icons/Icon-192.png" },
+      fcmOptions: { link: "/" },
+    },
+  });
+  await pruneInvalidTokens(db, uid, tokens, response);
+}
+
+// Notify a seller when a buyer makes an offer on their listing.
+exports.notifyOnNewOffer = onDocumentCreated(
+  "offers/{offerId}",
+  async (event) => {
+    const offer = event.data && event.data.data();
+    if (!offer || !offer.sellerId) return;
+    await pushToUser(
+      getFirestore(),
+      offer.sellerId,
+      {
+        title: "New offer received",
+        body: `${offer.buyerName || "A buyer"} offered Rs ${offer.offerAmount} for "${offer.listingTitle}"`,
+      },
+      { type: "offer", offerId: event.params.offerId }
+    );
+  }
+);
+
+// Notify the relevant party when an offer's status changes.
+exports.notifyOnOfferUpdate = onDocumentUpdated(
+  "offers/{offerId}",
+  async (event) => {
+    const before = event.data && event.data.before.data();
+    const after = event.data && event.data.after.data();
+    if (!before || !after) return;
+    if (before.status === after.status) return;
+
+    let recipientId;
+    let title;
+    let body;
+    const title2 = `"${after.listingTitle}"`;
+    switch (after.status) {
+      case "accepted":
+        recipientId = after.buyerId;
+        title = "Offer accepted";
+        body = `Your offer on ${title2} was accepted — tap to buy.`;
+        break;
+      case "countered":
+        recipientId = after.buyerId;
+        title = "Seller countered";
+        body = `Seller countered Rs ${after.counterAmount} on ${title2}.`;
+        break;
+      case "declined":
+        recipientId = after.buyerId;
+        title = "Offer declined";
+        body = `Your offer on ${title2} was declined.`;
+        break;
+      case "ordered":
+        recipientId = after.sellerId;
+        title = "Deal agreed";
+        body = `${after.buyerName || "The buyer"} agreed to buy ${title2} for Rs ${after.agreedAmount}.`;
+        break;
+      default:
+        return;
+    }
+    if (!recipientId) return;
+    await pushToUser(getFirestore(), recipientId, { title, body }, {
+      type: "offer",
+      offerId: event.params.offerId,
+    });
   }
 );
