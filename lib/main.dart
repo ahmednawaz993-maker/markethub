@@ -2662,6 +2662,91 @@ class RecentlyViewedRail extends StatelessWidget {
   }
 }
 
+/// Directory of all business accounts (storefronts).
+class StoresScreen extends StatelessWidget {
+  const StoresScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Stores & Businesses')),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('users')
+            .where('isBusiness', isEqualTo: true)
+            .limit(60)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final docs = snapshot.data!.docs;
+          if (docs.isEmpty) {
+            return const EmptyState(
+              icon: Icons.storefront,
+              title: 'No stores yet',
+              subtitle: 'Business accounts will appear here.',
+            );
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(8),
+            itemCount: docs.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 4),
+            itemBuilder: (context, i) {
+              final d = docs[i].data() as Map<String, dynamic>;
+              final name = d['businessName']?.toString().isNotEmpty == true
+                  ? d['businessName'].toString()
+                  : (d['email']?.toString() ?? 'Business');
+              final tagline = d['tagline']?.toString() ?? '';
+              final logo = d['logoUrl']?.toString() ?? '';
+              final featured = d['featuredBusiness'] == true;
+              return Card(
+                child: ListTile(
+                  leading: CircleAvatar(
+                    radius: 26,
+                    backgroundColor: kPakGreen.withValues(alpha: 0.12),
+                    backgroundImage: logo.isNotEmpty ? NetworkImage(logo) : null,
+                    child: logo.isEmpty
+                        ? const Icon(Icons.storefront, color: kPakGreen)
+                        : null,
+                  ),
+                  title: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      if (featured) ...[
+                        const SizedBox(width: 6),
+                        const Icon(Icons.star, color: kGold, size: 16),
+                      ],
+                    ],
+                  ),
+                  subtitle: tagline.isEmpty ? null : Text(tagline),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SellerProfileScreen(
+                        sellerId: docs[i].id,
+                        sellerName: name,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
 /// Full grid of every category.
 class AllCategoriesScreen extends StatelessWidget {
   const AllCategoriesScreen({super.key});
@@ -3199,6 +3284,58 @@ class _HomeScreenState extends State<HomeScreen> {
                               SizedBox(height: 2),
                               Text(
                                 'Restaurants, fresh produce, meat & more',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const StoresScreen()),
+                  ),
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(8, 6, 8, 2),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF00897B), Color(0xFF00565B)],
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: const [
+                        Icon(Icons.storefront, color: Colors.white, size: 32),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Browse Stores & Businesses',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Shop directly from local businesses',
                                 style: TextStyle(
                                   color: Colors.white70,
                                   fontSize: 12,
