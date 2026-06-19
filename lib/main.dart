@@ -2250,7 +2250,7 @@ class _SkeletonCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       elevation: 1.5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2326,7 +2326,7 @@ class _FeedAdCardState extends State<FeedAdCard> {
     return Card(
       margin: EdgeInsets.zero,
       elevation: 1.5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => Navigator.push(
@@ -2426,6 +2426,31 @@ class _FeedAdCardState extends State<FeedAdCard> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 12.5, color: Colors.grey[800]),
                   ),
+                  if (l.condition.isNotEmpty && l.condition != 'N/A') ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: l.condition == 'New'
+                            ? Colors.green.shade50
+                            : Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        l.condition,
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: l.condition == 'New'
+                              ? Colors.green.shade800
+                              : Colors.blue.shade800,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 5),
                   Row(
                     children: [
@@ -2723,10 +2748,16 @@ class _HomeScreenState extends State<HomeScreen> {
           return CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: kPakGreen,
+                    borderRadius: BorderRadius.vertical(
+                      bottom: Radius.circular(20),
+                    ),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
                   child: Material(
-                    elevation: 1.5,
+                    elevation: 3,
                     borderRadius: BorderRadius.circular(30),
                     child: TextField(
                       controller: searchController,
@@ -2734,7 +2765,23 @@ class _HomeScreenState extends State<HomeScreen> {
                       onSubmitted: (v) => openSearch(v.trim()),
                       decoration: InputDecoration(
                         hintText: 'Find cars, mobiles, property and more',
-                        prefixIcon: const Icon(Icons.search),
+                        prefixIcon: const Icon(Icons.search, color: kPakGreen),
+                        suffixIcon: Container(
+                          margin: const EdgeInsets.all(5),
+                          decoration: const BoxDecoration(
+                            color: kPakGreen,
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.arrow_forward,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            onPressed: () =>
+                                openSearch(searchController.text.trim()),
+                          ),
+                        ),
                         filled: true,
                         fillColor: Colors.white,
                         border: OutlineInputBorder(
@@ -2751,12 +2798,40 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 102,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    itemCount: categories.length,
+                child: Container(
+                  margin: const EdgeInsets.fromLTRB(8, 10, 8, 2),
+                  padding: const EdgeInsets.only(top: 8, bottom: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 4,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(14, 2, 14, 2),
+                        child: Text(
+                          'Browse categories',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        height: 100,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          itemCount: categories.length,
                     itemBuilder: (context, i) {
                       final cat = categories[i];
                       return GestureDetector(
@@ -2797,6 +2872,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       );
                     },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -2854,7 +2932,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       const Expanded(
                         child: Text(
-                          'Fresh recommendations',
+                          'Recommended for you',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
