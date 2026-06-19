@@ -9111,6 +9111,16 @@ class ChatsScreen extends StatelessWidget {
   }
 }
 
+/// Short clock time for chat bubbles, e.g. "3:07 PM".
+String _msgTime(Timestamp? ts) {
+  if (ts == null) return '';
+  final d = ts.toDate();
+  final m = d.minute.toString().padLeft(2, '0');
+  final hour12 = d.hour % 12 == 0 ? 12 : d.hour % 12;
+  final ampm = d.hour < 12 ? 'AM' : 'PM';
+  return '$hour12:$m $ampm';
+}
+
 class ChatScreen extends StatefulWidget {
   final String chatId;
   final String listingId;
@@ -9245,13 +9255,33 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: isMine ? kPakGreen : Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Text(
-                          data['text']?.toString() ?? '',
-                          style: TextStyle(
-                            color: isMine ? Colors.white : Colors.black87,
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(14),
+                            topRight: const Radius.circular(14),
+                            bottomLeft: Radius.circular(isMine ? 14 : 2),
+                            bottomRight: Radius.circular(isMine ? 2 : 14),
                           ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: isMine
+                              ? CrossAxisAlignment.end
+                              : CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              data['text']?.toString() ?? '',
+                              style: TextStyle(
+                                color: isMine ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _msgTime(data['createdAt'] as Timestamp?),
+                              style: TextStyle(
+                                fontSize: 9,
+                                color: isMine ? Colors.white70 : Colors.black54,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     );
