@@ -2899,7 +2899,7 @@ class RecentlyViewedRail extends StatelessWidget {
               ),
             ),
             SizedBox(
-              height: 218,
+              height: 246,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -3613,7 +3613,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       SizedBox(
-                        height: 218,
+                        height: 246,
                         child: ListView.builder(
                           scrollDirection: Axis.horizontal,
                           padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -3653,7 +3653,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       SizedBox(
-                        height: 218,
+                        height: 246,
                         child: ListView.builder(
                           scrollDirection: Axis.horizontal,
                           padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -4501,6 +4501,8 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     if (hasCategory) {
       query = query.where('category', isEqualTo: widget.category);
     }
+    // Bound the read: newest 100 (uses the listings category+createdAt index).
+    query = query.orderBy('createdAt', descending: true).limit(100);
 
     final currentCategory = categoryByTitle(widget.category ?? 'All');
     final subcategories = ['All', ...currentCategory.subcategories];
