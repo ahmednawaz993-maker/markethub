@@ -3021,6 +3021,99 @@ class RecentlyViewedRail extends StatelessWidget {
   }
 }
 
+/// Home rail of the newest ads from sellers the user follows. Hidden when the
+/// user follows nobody (or those sellers have no ads).
+class FollowingRail extends StatelessWidget {
+  const FollowingRail({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const SizedBox.shrink();
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('following')
+          .orderBy('createdAt', descending: true)
+          .limit(30)
+          .snapshots(),
+      builder: (context, followSnap) {
+        if (!followSnap.hasData) return const SizedBox.shrink();
+        final ids = followSnap.data!.docs.map((d) => d.id).toList();
+        if (ids.isEmpty) return const SizedBox.shrink();
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('listings')
+              .where('userId', whereIn: ids)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) return const SizedBox.shrink();
+            final items =
+                snapshot.data!.docs.map((d) => Listing.fromDoc(d)).toList()
+                  ..sort((a, b) {
+                    final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
+                    final bt = b.createdAt?.millisecondsSinceEpoch ?? 0;
+                    return bt.compareTo(at);
+                  });
+            if (items.isEmpty) return const SizedBox.shrink();
+            final shown = items.take(12).toList();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                InkWell(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const FollowingScreen()),
+                  ),
+                  child: const Padding(
+                    padding: EdgeInsets.fromLTRB(12, 12, 12, 6),
+                    child: Row(
+                      children: [
+                        Icon(Icons.people_alt, color: Colors.black54, size: 20),
+                        SizedBox(width: 6),
+                        Text(
+                          'From sellers you follow',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        Spacer(),
+                        Text(
+                          'See all',
+                          style: TextStyle(color: kPakGreen, fontSize: 13),
+                        ),
+                        Icon(Icons.chevron_right, color: kPakGreen, size: 18),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  height: 246,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    itemCount: shown.length,
+                    itemBuilder: (context, i) => Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: SizedBox(
+                        width: 165,
+                        child: FeedAdCard(listing: shown[i]),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
 /// Directory of all business accounts (storefronts).
 class StoresScreen extends StatelessWidget {
   const StoresScreen({super.key});
@@ -3774,6 +3867,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
+              const SliverToBoxAdapter(child: FollowingRail()),
               const SliverToBoxAdapter(child: RecentlyViewedRail()),
               SliverToBoxAdapter(
                 child: Padding(
