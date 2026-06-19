@@ -139,6 +139,32 @@ exports.notifyOnNewListing = onDocumentCreated(
 
       await pruneInvalidTokens(db, uid, tokens, response);
     }
+
+    // Also notify everyone who follows the poster (skipping anyone already
+    // alerted via a saved-search match above, to avoid a double ping).
+    if (listing.userId) {
+      const sellerName = listing.sellerName || "A seller you follow";
+      const followersSnap = await db
+        .collection("users")
+        .doc(listing.userId)
+        .collection("followers")
+        .get();
+
+      for (const f of followersSnap.docs) {
+        const uid = f.id;
+        if (uid === listing.userId) continue; // shouldn't happen, be safe
+        if (toNotify.has(uid)) continue; // already pinged for this ad
+        await pushToUser(
+          db,
+          uid,
+          {
+            title: `New ad from ${sellerName}`,
+            body: `${listing.title} — Rs ${listing.price}`,
+          },
+          { type: "follow", listingId: event.params.listingId }
+        );
+      }
+    }
   }
 );
 

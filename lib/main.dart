@@ -11388,6 +11388,8 @@ IconData _notificationIcon(String type) {
       return Icons.local_offer;
     case 'savedSearch':
       return Icons.search;
+    case 'follow':
+      return Icons.person_add_alt;
     default:
       return Icons.notifications;
   }
