@@ -5082,8 +5082,82 @@ class _ListingCardState extends State<ListingCard> {
 // Post ad
 // ---------------------------------------------------------------------------
 
+/// Lists the user's saved ad drafts; tap to resume, swipe/delete to remove.
+class DraftsScreen extends StatelessWidget {
+  const DraftsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Drafts')),
+        body: const EmptyState(icon: Icons.edit_note, title: 'Please log in'),
+      );
+    }
+    final col = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('drafts');
+    return Scaffold(
+      appBar: AppBar(title: const Text('Drafts')),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: col.orderBy('savedAt', descending: true).snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final docs = snapshot.data!.docs;
+          if (docs.isEmpty) {
+            return const EmptyState(
+              icon: Icons.edit_note,
+              title: 'No drafts',
+              subtitle: 'Save an unfinished ad to resume it later.',
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(8),
+            itemCount: docs.length,
+            itemBuilder: (context, i) {
+              final d = docs[i].data() as Map<String, dynamic>;
+              final title = d['title']?.toString() ?? '';
+              return Card(
+                child: ListTile(
+                  leading: const Icon(Icons.edit_note, color: kPakGreen),
+                  title: Text(
+                    title.isEmpty ? '(untitled draft)' : title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    '${d['category'] ?? ''} · ${formatPrice(d['price']?.toString() ?? '')}',
+                  ),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          AddListingScreen(draft: d, draftId: docs[i].id),
+                    ),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () => docs[i].reference.delete(),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
 class AddListingScreen extends StatefulWidget {
-  const AddListingScreen({super.key});
+  /// Optional saved draft to resume (and its id, so it's deleted once posted).
+  final Map<String, dynamic>? draft;
+  final String? draftId;
+  const AddListingScreen({super.key, this.draft, this.draftId});
 
   @override
   State<AddListingScreen> createState() => _AddListingScreenState();
@@ -5114,6 +5188,77 @@ class _AddListingScreenState extends State<AddListingScreen> {
   double? longitude;
   bool isLocating = false;
   bool isSubmitting = false;
+  bool savingDraft = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final d = widget.draft;
+    if (d == null) return;
+    titleController.text = d['title']?.toString() ?? '';
+    priceController.text = d['price']?.toString() ?? '';
+    locationController.text = d['location']?.toString() ?? '';
+    phoneController.text = d['phone']?.toString() ?? '';
+    descriptionController.text = d['description']?.toString() ?? '';
+    final cat = d['category']?.toString() ?? '';
+    if (cat.isNotEmpty) selectedCategory = cat;
+    final subs = categoryByTitle(selectedCategory).subcategories;
+    selectedSubcategory = subs.contains(d['subcategory'])
+        ? d['subcategory'].toString()
+        : subs.first;
+    if (itemConditions.contains(d['condition'])) {
+      selectedCondition = d['condition'].toString();
+    }
+    final u = d['unit']?.toString() ?? '';
+    selectedUnit = pricingUnits.contains(u) ? u : 'None';
+    deliveryAvailable = d['deliveryAvailable'] == true;
+    negotiable = d['negotiable'] == true;
+    if (pakistanCities.contains(d['city'])) selectedCity = d['city'].toString();
+    final attrs = (d['attributes'] as Map?) ?? {};
+    attrs.forEach((k, v) => _attrCtrl(k.toString()).text = v.toString());
+  }
+
+  Future<void> saveDraft() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    setState(() => savingDraft = true);
+    final attributes = <String, String>{};
+    for (final label in attributeFieldsFor(selectedCategory)) {
+      final v = attrControllers[label]?.text.trim() ?? '';
+      if (v.isNotEmpty) attributes[label] = v;
+    }
+    final data = {
+      'title': titleController.text.trim(),
+      'price': priceController.text.trim(),
+      'location': locationController.text.trim(),
+      'phone': phoneController.text.trim(),
+      'description': descriptionController.text.trim(),
+      'category': selectedCategory,
+      'subcategory': selectedSubcategory,
+      'condition': selectedCondition,
+      'unit': selectedUnit,
+      'deliveryAvailable': deliveryAvailable,
+      'negotiable': negotiable,
+      'city': selectedCity,
+      'attributes': attributes,
+      'savedAt': Timestamp.now(),
+    };
+    final col = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('drafts');
+    if (widget.draftId != null) {
+      await col.doc(widget.draftId).set(data);
+    } else {
+      await col.add(data);
+    }
+    if (!mounted) return;
+    setState(() => savingDraft = false);
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Saved to Drafts (Profile → Drafts)')),
+    );
+  }
 
   List<String> get currentSubcategories {
     return categoryByTitle(selectedCategory).subcategories;
@@ -5246,6 +5391,19 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'views': 0,
         'isFeatured': false,
       });
+
+      // If this was resumed from a draft, remove the draft.
+      if (widget.draftId != null) {
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null) {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .collection('drafts')
+              .doc(widget.draftId)
+              .delete();
+        }
+      }
 
       if (!mounted) return;
       await showDialog<void>(
@@ -5546,6 +5704,12 @@ class _AddListingScreenState extends State<AddListingScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Text('Submit'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: (isSubmitting || savingDraft) ? null : saveDraft,
+              icon: const Icon(Icons.save_outlined),
+              label: Text(savingDraft ? 'Saving…' : 'Save Draft'),
             ),
               ],
             ),
@@ -8610,6 +8774,15 @@ class ProfileScreen extends StatelessWidget {
               ),
               icon: const Icon(Icons.verified_user),
               label: const Text('Verify Identity'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DraftsScreen()),
+              ),
+              icon: const Icon(Icons.edit_note),
+              label: const Text('Drafts'),
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(

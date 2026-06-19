@@ -130,6 +130,11 @@ service cloud.firestore {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
       }
 
+      // Saved ad drafts (private to the owner).
+      match /drafts/{draftId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
       // Reviews of this seller. Readable by all; each reviewer owns one doc
       // (doc id == their uid) and can only write a 1-5 star rating as themselves.
       match /reviews/{reviewerId} {
