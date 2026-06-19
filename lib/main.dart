@@ -4665,6 +4665,27 @@ class _AddListingScreenState extends State<AddListingScreen> {
       });
 
       if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          icon: const Icon(Icons.check_circle, color: kPakGreen, size: 52),
+          title: const Text('Your ad is live!'),
+          content: const Text(
+            'Your ad has been posted to PakBazar. Boost it to Featured from '
+            'My Ads to reach more buyers.',
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            Center(
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Done'),
+              ),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
