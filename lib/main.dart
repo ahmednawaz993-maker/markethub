@@ -8462,6 +8462,7 @@ class _OrdersList extends StatelessWidget {
             final img = d['listingImage']?.toString() ?? '';
             final amount = (d['amount'] as num?)?.toDouble() ?? 0;
             final payout = (d['sellerPayout'] as num?)?.toDouble() ?? 0;
+            final buyerConfirmed = d['buyerConfirmed'] == true;
             final (label, color) = switch (status) {
               'completed' => ('Completed', Colors.green),
               'cancelled' => ('Cancelled', Colors.grey),
@@ -8585,18 +8586,46 @@ class _OrdersList extends StatelessWidget {
                         ],
                       ),
                     ],
+                    if (status == 'completed' && buyerConfirmed) ...[
+                      const SizedBox(height: 6),
+                      const Row(
+                        children: [
+                          Icon(Icons.verified, size: 16, color: kPakGreen),
+                          SizedBox(width: 4),
+                          Text(
+                            'Receipt confirmed by buyer',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: kPakGreen,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     if (status == 'completed' && !asSeller) ...[
                       const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: OutlinedButton.icon(
-                          onPressed: () => showReviewDialog(
-                            context,
-                            d['sellerId']?.toString() ?? '',
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (!buyerConfirmed)
+                            TextButton.icon(
+                              onPressed: () => docs[i].reference.update({
+                                'buyerConfirmed': true,
+                                'buyerConfirmedAt': Timestamp.now(),
+                              }),
+                              icon: const Icon(Icons.check_circle, size: 18),
+                              label: const Text('Confirm received'),
+                            ),
+                          OutlinedButton.icon(
+                            onPressed: () => showReviewDialog(
+                              context,
+                              d['sellerId']?.toString() ?? '',
+                            ),
+                            icon: const Icon(Icons.star, size: 18),
+                            label: const Text('Rate seller'),
                           ),
-                          icon: const Icon(Icons.star, size: 18),
-                          label: const Text('Rate seller'),
-                        ),
+                        ],
                       ),
                     ],
                     if (status == 'completed' && asSeller) ...[
