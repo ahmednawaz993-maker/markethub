@@ -7399,6 +7399,16 @@ class AboutScreen extends StatelessWidget {
                 ),
                 const Divider(height: 1),
                 ListTile(
+                  leading: const Icon(Icons.description_outlined),
+                  title: const Text('Terms of Use'),
+                  trailing: const Icon(Icons.open_in_new, size: 18),
+                  onTap: () => launchUrl(
+                    Uri.parse('https://pakbazar24.com/terms.html'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
                   leading: const Icon(Icons.email_outlined),
                   title: const Text('Contact support'),
                   trailing: const Icon(Icons.chevron_right),
