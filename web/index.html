@@ -35,6 +35,35 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <style>
+    #pb-splash {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: linear-gradient(160deg, #015127, #0B6E3D);
+      font-family: -apple-system, Roboto, Arial, sans-serif;
+      transition: opacity .4s ease;
+    }
+    #pb-splash .pb-name { color: #fff; font-size: 34px; font-weight: 800; letter-spacing: .5px; }
+    #pb-splash .pb-tag { color: rgba(255,255,255,.8); font-size: 14px; margin-top: 4px; }
+    #pb-splash .pb-ring {
+      width: 46px; height: 46px; margin-top: 26px; border-radius: 50%;
+      border: 4px solid rgba(255,255,255,.25); border-top-color: #fff;
+      animation: pb-spin 1s linear infinite;
+    }
+    @keyframes pb-spin { to { transform: rotate(360deg); } }
+  </style>
+  <div id="pb-splash">
+    <div class="pb-name">PakBazar</div>
+    <div class="pb-tag">Pakistan ka apna online bazaar</div>
+    <div class="pb-ring"></div>
+  </div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var s = document.getElementById('pb-splash');
+      if (s) { s.style.opacity = '0'; setTimeout(function () { s.remove(); }, 400); }
+    });
+  </script>
+
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
