@@ -36,6 +36,11 @@ migrate_working_dir/
 # Firebase
 .firebase/
 
+# Firebase service-account / admin keys — NEVER commit (full project access)
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
+**/serviceAccountKey.json
+
 # Android signing — keep secret, back up separately (never commit)
 android/key.properties
 **/*.jks
