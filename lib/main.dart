@@ -1038,6 +1038,19 @@ const List<MarketplaceCategory> appCategories = [
   ),
 ];
 
+/// Categories that are advertise-only — no online Buy Now / order checkout.
+/// Buyers contact the seller (call/WhatsApp/chat) and deal in person instead.
+const Set<String> advertiseOnlyCategories = {
+  'Motors',
+  'Properties',
+  'Jobs',
+  'Services',
+  'Community',
+};
+
+bool isBuyableCategory(String category) =>
+    !advertiseOnlyCategories.contains(category);
+
 MarketplaceCategory categoryByTitle(String title) {
   return appCategories.firstWhere(
     (category) => category.title == title,
@@ -6444,7 +6457,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
             const _SafetyTips(),
             const SizedBox(height: 24),
             if (!isOwnAd) ...[
-              if (!listing.isSold) ...[
+              if (!listing.isSold && isBuyableCategory(listing.category)) ...[
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
