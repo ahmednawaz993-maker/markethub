@@ -61,6 +61,18 @@ bool isAdminUser() =>
 String priceLabel(Listing l) =>
     formatPrice(l.price) + (l.unit.isEmpty ? '' : ' / ${l.unit}');
 
+/// Privacy-friendly public name from a user's profile data:
+/// display name > business name > email local-part > "User". Never the full
+/// email address.
+String friendlyName(Map<String, dynamic>? d, {String? email}) {
+  final dn = (d?['displayName'] as String?)?.trim() ?? '';
+  final bn = (d?['businessName'] as String?)?.trim() ?? '';
+  if (dn.isNotEmpty) return dn;
+  if (d?['isBusiness'] == true && bn.isNotEmpty) return bn;
+  if (email != null && email.contains('@')) return email.split('@').first;
+  return 'User';
+}
+
 /// Gates verified-only actions (posting, buying, offering, chatting). Returns
 /// true if allowed; otherwise prompts the user to verify and returns false.
 /// Admins bypass.
@@ -6274,6 +6286,14 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
     final sellerId = listing.userId;
     final chatId = '${listing.id}_$buyerId';
 
+    // Use a privacy-friendly buyer name (never the raw email).
+    final myDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(buyerId)
+        .get();
+    if (!mounted) return;
+    final buyerName = friendlyName(myDoc.data(), email: me.email);
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -6286,7 +6306,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
               : listing.galleryImages.first,
           buyerId: buyerId,
           sellerId: sellerId,
-          buyerName: me.email ?? 'Buyer',
+          buyerName: buyerName,
           sellerName: listing.sellerName.isEmpty
               ? 'Seller'
               : listing.sellerName,
