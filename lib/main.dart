@@ -877,6 +877,20 @@ const List<MarketplaceCategory> appCategories = [
     ],
   ),
   MarketplaceCategory(
+    title: 'Commute & Rides',
+    icon: Icons.commute,
+    subcategories: [
+      'Carpool',
+      'Daily Pick & Drop',
+      'School / College Van',
+      'Office Transport',
+      'Bike Ride',
+      'Rent a Car with Driver',
+      'Driver Services',
+      'Intercity Shared Ride',
+    ],
+  ),
+  MarketplaceCategory(
     title: 'Properties',
     icon: Icons.home,
     subcategories: [
@@ -1073,6 +1087,7 @@ const Set<String> advertiseOnlyCategories = {
   'Jobs',
   'Services',
   'Community',
+  'Commute & Rides',
 };
 
 /// Big-ticket / non-shippable subcategories (e.g. within Motors) that are
