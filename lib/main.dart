@@ -2659,6 +2659,58 @@ class _FeedAdCardState extends State<FeedAdCard> {
 // Home
 // ---------------------------------------------------------------------------
 
+/// Home banner nudging unverified users to verify (mandatory to transact).
+/// Hidden for verified users, admins, and guests.
+class VerifyBanner extends StatelessWidget {
+  const VerifyBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || isAdminUser()) return const SizedBox.shrink();
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data() as Map<String, dynamic>?;
+        if (data == null || data['idVerified'] == true) {
+          return const SizedBox.shrink();
+        }
+        return Container(
+          margin: const EdgeInsets.fromLTRB(8, 10, 8, 0),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.blue.shade200),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.verified_user, color: Colors.blue),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Verify your identity to post, buy, make offers and chat.',
+                  style: TextStyle(fontSize: 13),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const VerificationScreen()),
+                ),
+                child: const Text('Verify'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// Light-themed "Recently viewed" rail for the mobile home. Hidden when empty.
 class RecentlyViewedRail extends StatelessWidget {
   const RecentlyViewedRail({super.key});
@@ -3220,6 +3272,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
+              const SliverToBoxAdapter(child: VerifyBanner()),
               SliverToBoxAdapter(
                 child: Container(
                   margin: const EdgeInsets.fromLTRB(8, 10, 8, 2),
