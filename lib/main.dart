@@ -5681,7 +5681,13 @@ class _EditListingScreenState extends State<EditListingScreen> {
   late String selectedCondition;
   late String selectedUnit;
   late bool deliveryAvailable;
+  final Map<String, TextEditingController> attrControllers = {};
   late String selectedCity;
+
+  TextEditingController _attrCtrl(String label) => attrControllers.putIfAbsent(
+    label,
+    () => TextEditingController(text: widget.listing.attributes[label] ?? ''),
+  );
   double? latitude;
   double? longitude;
   bool isLocating = false;
@@ -5780,6 +5786,12 @@ class _EditListingScreenState extends State<EditListingScreen> {
         'unit': selectedUnit == 'None' ? '' : selectedUnit,
         'deliveryAvailable': deliveryAvailable,
       };
+      final attributes = <String, String>{};
+      for (final label in attributeFieldsFor(selectedCategory)) {
+        final v = attrControllers[label]?.text.trim() ?? '';
+        if (v.isNotEmpty) attributes[label] = v;
+      }
+      data['attributes'] = attributes;
       if (newImages.isNotEmpty) {
         final urls = await uploadImages();
         data['images'] = urls;
@@ -5808,6 +5820,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
     locationController.dispose();
     phoneController.dispose();
     descriptionController.dispose();
+    for (final c in attrControllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -5969,6 +5984,14 @@ class _EditListingScreenState extends State<EditListingScreen> {
               activeThumbColor: kPakGreen,
               onChanged: (v) => setState(() => deliveryAvailable = v),
             ),
+            for (final label in attributeFieldsFor(selectedCategory))
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: TextField(
+                  controller: _attrCtrl(label),
+                  decoration: InputDecoration(labelText: '$label (optional)'),
+                ),
+              ),
             TextField(
               controller: phoneController,
               decoration: const InputDecoration(
