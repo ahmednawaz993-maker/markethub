@@ -1521,12 +1521,20 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Card(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [kPakGreen, Color(0xFF0B6E3D)],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Card(
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Column(
@@ -1542,6 +1550,16 @@ class _AuthScreenState extends State<AuthScreen> {
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
                         color: kPakGreen,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Pakistan ka apna online bazaar',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: kPakGreen,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                 const SizedBox(height: 8),
@@ -1616,6 +1634,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
               ),
             ),
+          ),
           ),
         ),
       ),
