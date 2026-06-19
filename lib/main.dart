@@ -772,6 +772,21 @@ class MarketplaceCategory {
 const List<MarketplaceCategory> appCategories = [
   MarketplaceCategory(title: 'All', icon: Icons.apps, subcategories: ['All']),
   MarketplaceCategory(
+    title: 'Food & Grocery',
+    icon: Icons.storefront,
+    subcategories: [
+      'Restaurants',
+      'Supermarkets',
+      'Grocery Stores',
+      'Meat Shops',
+      'Fruit & Vegetables',
+      'Bakery & Sweets',
+      'Dairy & Eggs',
+      'Catering',
+      'Home Kitchen',
+    ],
+  ),
+  MarketplaceCategory(
     title: 'Motors',
     icon: Icons.directions_car,
     subcategories: [
