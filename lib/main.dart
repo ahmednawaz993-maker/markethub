@@ -11127,12 +11127,12 @@ class _ChatScreenState extends State<ChatScreen> {
   DocumentReference get chatRef =>
       FirebaseFirestore.instance.collection('chats').doc(widget.chatId);
 
-  Future<void> sendMessage() async {
+  Future<void> sendMessage([String? preset]) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    final text = messageController.text.trim();
+    final text = (preset ?? messageController.text).trim();
     if (uid == null || text.isEmpty) return;
 
-    messageController.clear();
+    if (preset == null) messageController.clear();
 
     await chatRef.set({
       'chatId': widget.chatId,
@@ -11267,10 +11267,41 @@ class _ChatScreenState extends State<ChatScreen> {
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(8),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: TextField(
+                  SizedBox(
+                    height: 38,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        for (final q in const [
+                          'Is this still available?',
+                          'Is this the last price?',
+                          'Can I get a discount?',
+                          'Can you tell me more about it?',
+                          'Where can we meet?',
+                          'Thank you for contacting!',
+                        ])
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: ActionChip(
+                              visualDensity: VisualDensity.compact,
+                              label: Text(
+                                q,
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              onPressed: () => sendMessage(q),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
                       controller: messageController,
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => sendMessage(),
@@ -11291,6 +11322,8 @@ class _ChatScreenState extends State<ChatScreen> {
                       icon: const Icon(Icons.send, color: Colors.white),
                       onPressed: sendMessage,
                     ),
+                  ),
+                    ],
                   ),
                 ],
               ),
