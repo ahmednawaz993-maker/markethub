@@ -67,10 +67,11 @@ service cloud.firestore {
       allow delete: if false;
 
       // The wallet balance is money — only admins / Cloud Functions may change
-      // it. The owner may edit every other profile field freely.
+      // it. The owner may edit every other profile field freely (an update is
+      // allowed as long as it does not touch walletBalance at all).
       function walletUnchanged() {
-        return request.resource.data.get('walletBalance', 0)
-               == resource.data.get('walletBalance', 0);
+        return !request.resource.data.diff(resource.data)
+                 .affectedKeys().hasAny(['walletBalance']);
       }
 
       function onlyRatingChange() {

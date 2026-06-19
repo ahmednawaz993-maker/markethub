@@ -9024,21 +9024,40 @@ class _AdminTopupsTab extends StatelessWidget {
                           ElevatedButton(
                             onPressed: () async {
                               if (userId.isEmpty || amount <= 0) return;
-                              final userRef = FirebaseFirestore.instance
-                                  .collection('users')
-                                  .doc(userId);
-                              await userRef.set({
-                                'walletBalance': FieldValue.increment(amount),
-                              }, SetOptions(merge: true));
-                              await userRef.collection('walletTransactions').add({
-                                'type': 'credit',
-                                'amount': amount,
-                                'purpose': 'topup',
-                                'createdAt': Timestamp.now(),
-                              });
-                              await docs[i].reference.update({
-                                'status': 'approved',
-                                'approvedAt': Timestamp.now(),
+                              final fs = FirebaseFirestore.instance;
+                              final topupRef = docs[i].reference;
+                              final userRef = fs.collection('users').doc(userId);
+                              // Atomic + idempotent: only credit if still
+                              // pending, so a double-tap can't double-credit.
+                              await fs.runTransaction((tx) async {
+                                final topupSnap = await tx.get(topupRef);
+                                final tData =
+                                    topupSnap.data() as Map<String, dynamic>?;
+                                if (tData == null ||
+                                    tData['status'] != 'pending') {
+                                  return;
+                                }
+                                final userSnap = await tx.get(userRef);
+                                final current =
+                                    (userSnap.data()?['walletBalance'] as num?)
+                                        ?.toInt() ??
+                                    0;
+                                tx.set(userRef, {
+                                  'walletBalance': current + amount,
+                                }, SetOptions(merge: true));
+                                tx.set(
+                                  userRef.collection('walletTransactions').doc(),
+                                  {
+                                    'type': 'credit',
+                                    'amount': amount,
+                                    'purpose': 'topup',
+                                    'createdAt': Timestamp.now(),
+                                  },
+                                );
+                                tx.update(topupRef, {
+                                  'status': 'approved',
+                                  'approvedAt': Timestamp.now(),
+                                });
                               });
                             },
                             child: const Text('Approve & credit'),
