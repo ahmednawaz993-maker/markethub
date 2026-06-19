@@ -61,6 +61,53 @@ bool isAdminUser() =>
 String priceLabel(Listing l) =>
     formatPrice(l.price) + (l.unit.isEmpty ? '' : ' / ${l.unit}');
 
+/// Gates verified-only actions (posting, buying, offering, chatting). Returns
+/// true if allowed; otherwise prompts the user to verify and returns false.
+/// Admins bypass.
+Future<bool> ensureVerified(BuildContext context) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return false;
+  if (isAdminUser()) return true;
+  bool verified = false;
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+    verified = doc.data()?['idVerified'] == true;
+  } catch (_) {}
+  if (verified) return true;
+  if (!context.mounted) return false;
+  final go = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      icon: const Icon(Icons.verified_user, color: kPakGreen, size: 44),
+      title: const Text('Verify your identity'),
+      content: const Text(
+        'For everyone\'s safety, PakBazar requires identity verification before '
+        'you can post ads, buy, make offers, or chat. It only takes a minute.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Later'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Verify now'),
+        ),
+      ],
+    ),
+  );
+  if (go == true && context.mounted) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const VerificationScreen()),
+    );
+  }
+  return false;
+}
+
 /// Paid promotion packages (seller pays to Feature an ad).
 class PromoPackage {
   final String name;
@@ -166,6 +213,8 @@ Future<void> createOrder(Listing listing) async {
 
 /// Confirmation sheet for "Buy now".
 Future<void> showBuyNowSheet(BuildContext context, Listing listing) async {
+  if (!await ensureVerified(context)) return;
+  if (!context.mounted) return;
   await showModalBottomSheet(
     context: context,
     builder: (context) {
@@ -3693,6 +3742,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _postAd() async {
+    if (!await ensureVerified(context)) return;
+    if (!mounted) return;
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const AddListingScreen()),
@@ -4811,6 +4862,8 @@ class _AddListingScreenState extends State<AddListingScreen> {
   }
 
   Future<void> submitListing() async {
+    if (!await ensureVerified(context)) return;
+    if (!mounted) return;
     if (titleController.text.trim().isEmpty ||
         priceController.text.trim().isEmpty ||
         locationController.text.trim().isEmpty) {
@@ -5961,9 +6014,11 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
     }
   }
 
-  void openChat() {
+  Future<void> openChat() async {
     final me = FirebaseAuth.instance.currentUser;
     if (me == null) return;
+    if (!await ensureVerified(context)) return;
+    if (!mounted) return;
     _bumpStat('chats');
 
     final listing = widget.listing;
@@ -8042,6 +8097,8 @@ Future<void> createOffer(Listing listing, double amount) async {
 }
 
 Future<void> showOfferSheet(BuildContext context, Listing listing) async {
+  if (!await ensureVerified(context)) return;
+  if (!context.mounted) return;
   final controller = TextEditingController();
   await showModalBottomSheet(
     context: context,

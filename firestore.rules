@@ -21,6 +21,15 @@ service cloud.firestore {
              && request.auth.token.email in ['ahmednawaz993@gmail.com'];
     }
 
+    // True if the signed-in user has passed identity verification (admin bypass).
+    // Used to require ID verification before posting ads.
+    function isVerifiedUser() {
+      return isAdmin()
+             || (isSignedIn()
+                 && get(/databases/$(database)/documents/users/$(request.auth.uid))
+                      .data.get('idVerified', false) == true);
+    }
+
     // ---------------------------------------------------------------------
     // Listings
     // ---------------------------------------------------------------------
@@ -29,8 +38,10 @@ service cloud.firestore {
       // signed-in user. Relax to `if true;` if you later want public/SEO reads.
       allow read: if isSignedIn();
 
+      // Posting an ad requires identity verification (admins bypass).
       allow create: if isSignedIn()
-                    && request.resource.data.userId == request.auth.uid;
+                    && request.resource.data.userId == request.auth.uid
+                    && isVerifiedUser();
 
       // Owners can edit/delete their ad. Anyone signed in may bump the view
       // counter, but ONLY the `views` field and nothing else.
@@ -162,7 +173,8 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
     match /orders/{orderId} {
       allow create: if isSignedIn()
-                    && request.resource.data.buyerId == request.auth.uid;
+                    && request.resource.data.buyerId == request.auth.uid
+                    && isVerifiedUser();
       allow read, update: if isSignedIn() && (
                       resource.data.buyerId == request.auth.uid
                       || resource.data.sellerId == request.auth.uid
@@ -215,7 +227,8 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
     match /offers/{offerId} {
       allow create: if isSignedIn()
-                    && request.resource.data.buyerId == request.auth.uid;
+                    && request.resource.data.buyerId == request.auth.uid
+                    && isVerifiedUser();
       allow read, update: if isSignedIn() && (
                       resource.data.buyerId == request.auth.uid
                       || resource.data.sellerId == request.auth.uid
@@ -233,7 +246,8 @@ service cloud.firestore {
 
       allow create: if isSignedIn()
                     && request.auth.uid in request.resource.data.participants
-                    && request.resource.data.participants.size() == 2;
+                    && request.resource.data.participants.size() == 2
+                    && isVerifiedUser();
 
       // Updating lastMessage/lastTime — caller must already be a participant
       // and must not remove themselves from the thread.
