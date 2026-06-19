@@ -6246,6 +6246,8 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
   }
 
   Future<void> openWhatsApp() async {
+    if (!await ensureVerified(context)) return;
+    if (!mounted) return;
     if (widget.listing.phone.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Seller phone number is missing')),
@@ -6266,6 +6268,8 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
   }
 
   Future<void> callSeller() async {
+    if (!await ensureVerified(context)) return;
+    if (!mounted) return;
     if (widget.listing.phone.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Seller phone number is missing')),
@@ -6327,7 +6331,6 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
     final text = [
       l.title,
       '${formatPrice(l.price)}${loc.isEmpty ? '' : ' · $loc'}',
-      if (l.phone.isNotEmpty) 'Contact: ${l.phone}',
       'See more on PakBazar: https://pakbazar24.com',
     ].join('\n');
     await Clipboard.setData(ClipboardData(text: text));
