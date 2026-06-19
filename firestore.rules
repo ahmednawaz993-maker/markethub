@@ -95,6 +95,21 @@ service cloud.firestore {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
       }
 
+      // People who follow this user. The follower owns their own follow doc
+      // (doc id == follower uid) even though it lives under the seller, so they
+      // may create/remove it; anyone signed in may read (for the follower count
+      // and follow state).
+      match /followers/{followerId} {
+        allow read: if isSignedIn();
+        allow create, delete: if isSignedIn() && request.auth.uid == followerId;
+        allow update: if false;
+      }
+
+      // Sellers this user follows (their own private list, mirror of the above).
+      match /following/{sellerId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
       match /recentlyViewed/{listingId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
       }

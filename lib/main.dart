@@ -7669,6 +7669,11 @@ class SellerProfileScreen extends StatelessWidget {
                       ),
                       if (!isSelf) ...[
                         const SizedBox(height: 12),
+                        _FollowButton(
+                          sellerId: sellerId,
+                          sellerName: displayName,
+                        ),
+                        const SizedBox(height: 8),
                         Row(
                           children: [
                             Expanded(
@@ -7778,6 +7783,192 @@ class SellerProfileScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Follow / unfollow toggle for a seller, with a live follower count. Follows
+/// are denormalised both ways: `users/{sellerId}/followers/{myUid}` powers the
+/// count, and `users/{myUid}/following/{sellerId}` powers the Following feed.
+class _FollowButton extends StatefulWidget {
+  final String sellerId;
+  final String sellerName;
+
+  const _FollowButton({required this.sellerId, required this.sellerName});
+
+  @override
+  State<_FollowButton> createState() => _FollowButtonState();
+}
+
+class _FollowButtonState extends State<_FollowButton> {
+  bool _busy = false;
+
+  Future<void> _toggle(bool currentlyFollowing) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    setState(() => _busy = true);
+    final fs = FirebaseFirestore.instance;
+    final followerDoc = fs
+        .collection('users')
+        .doc(widget.sellerId)
+        .collection('followers')
+        .doc(uid);
+    final followingDoc = fs
+        .collection('users')
+        .doc(uid)
+        .collection('following')
+        .doc(widget.sellerId);
+    try {
+      final batch = fs.batch();
+      if (currentlyFollowing) {
+        batch.delete(followerDoc);
+        batch.delete(followingDoc);
+      } else {
+        batch.set(followerDoc, {
+          'followerUid': uid,
+          'createdAt': Timestamp.now(),
+        });
+        batch.set(followingDoc, {
+          'sellerName': widget.sellerName,
+          'createdAt': Timestamp.now(),
+        });
+      }
+      await batch.commit();
+      if (mounted && !currentlyFollowing) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("You'll find their latest ads under Following"),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not update: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const SizedBox.shrink();
+    final followerCol = FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.sellerId)
+        .collection('followers');
+    return StreamBuilder<QuerySnapshot>(
+      stream: followerCol.snapshots(),
+      builder: (context, snap) {
+        final docs = snap.data?.docs ?? const [];
+        final count = docs.length;
+        final following = docs.any((d) => d.id == uid);
+        return Column(
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: following
+                  ? OutlinedButton.icon(
+                      onPressed: _busy ? null : () => _toggle(true),
+                      icon: const Icon(Icons.how_to_reg),
+                      label: const Text('Following'),
+                    )
+                  : ElevatedButton.icon(
+                      onPressed: _busy ? null : () => _toggle(false),
+                      icon: const Icon(Icons.person_add_alt),
+                      label: const Text('Follow'),
+                    ),
+            ),
+            if (count > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '$count follower${count == 1 ? '' : 's'}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Shows the latest ads from sellers the current user follows.
+class FollowingScreen extends StatelessWidget {
+  const FollowingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Following')),
+      body: uid == null
+          ? const EmptyState(
+              icon: Icons.people_outline,
+              title: 'Please log in',
+            )
+          : StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(uid)
+                  .collection('following')
+                  .orderBy('createdAt', descending: true)
+                  .limit(30)
+                  .snapshots(),
+              builder: (context, snap) {
+                if (!snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final ids = snap.data!.docs.map((d) => d.id).toList();
+                if (ids.isEmpty) {
+                  return const EmptyState(
+                    icon: Icons.people_outline,
+                    title: "You're not following anyone yet",
+                    subtitle:
+                        "Open a seller's profile and tap Follow to see their "
+                        'latest ads here.',
+                  );
+                }
+                return StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('listings')
+                      .where('userId', whereIn: ids)
+                      .snapshots(),
+                  builder: (context, ls) {
+                    if (!ls.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final listings =
+                        ls.data!.docs.map((d) => Listing.fromDoc(d)).toList()
+                          ..sort((a, b) {
+                            final at =
+                                a.createdAt?.millisecondsSinceEpoch ?? 0;
+                            final bt =
+                                b.createdAt?.millisecondsSinceEpoch ?? 0;
+                            return bt.compareTo(at);
+                          });
+                    if (listings.isEmpty) {
+                      return const EmptyState(
+                        icon: Icons.inventory_2_outlined,
+                        title: 'No ads yet',
+                        subtitle:
+                            "Sellers you follow haven't posted anything yet.",
+                      );
+                    }
+                    return ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: listings.length,
+                      itemBuilder: (context, i) =>
+                          ListingCard(listing: listings[i]),
+                    );
+                  },
+                );
+              },
+            ),
     );
   }
 }
@@ -8822,6 +9013,15 @@ class ProfileScreen extends StatelessWidget {
               ),
               icon: const Icon(Icons.bookmark),
               label: const Text('Saved Searches'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const FollowingScreen()),
+              ),
+              icon: const Icon(Icons.people_alt),
+              label: const Text('Following'),
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
