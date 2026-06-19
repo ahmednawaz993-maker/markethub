@@ -4601,6 +4601,62 @@ class _ListingCardState extends State<ListingCard> {
                       fontSize: 16,
                     ),
                   ),
+                  if ((listing.condition.isNotEmpty &&
+                          listing.condition != 'N/A') ||
+                      listing.deliveryAvailable) ...[
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (listing.condition.isNotEmpty &&
+                            listing.condition != 'N/A')
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: listing.condition == 'New'
+                                  ? Colors.green.shade50
+                                  : Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              listing.condition,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: listing.condition == 'New'
+                                    ? Colors.green.shade800
+                                    : Colors.blue.shade800,
+                              ),
+                            ),
+                          ),
+                        if (listing.deliveryAvailable)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(
+                                Icons.delivery_dining,
+                                size: 15,
+                                color: kPakGreen,
+                              ),
+                              SizedBox(width: 3),
+                              Text(
+                                'Delivery',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: kPakGreen,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   Row(
                     children: [
