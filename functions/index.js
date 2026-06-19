@@ -168,6 +168,44 @@ exports.notifyOnNewListing = onDocumentCreated(
   }
 );
 
+// Notify everyone who saved (favorited) a listing when its price is reduced.
+exports.notifyOnPriceDrop = onDocumentUpdated(
+  "listings/{listingId}",
+  async (event) => {
+    const before = event.data && event.data.before.data();
+    const after = event.data && event.data.after.data();
+    if (!before || !after) return;
+
+    // Only act when a fresh price drop was just recorded by the app.
+    const beforeDrop = before.priceDropAt;
+    const afterDrop = after.priceDropAt;
+    if (!afterDrop) return;
+    const beforeMs = beforeDrop && beforeDrop.toMillis ? beforeDrop.toMillis() : 0;
+    const afterMs = afterDrop.toMillis ? afterDrop.toMillis() : 0;
+    if (afterMs <= beforeMs) return; // no new drop
+
+    const db = getFirestore();
+    const saves = await db
+      .collectionGroup("favorites")
+      .where("savedListingId", "==", event.params.listingId)
+      .get();
+
+    const title = "Price drop on a saved ad";
+    const body = `${after.title} is now Rs ${after.price} (was Rs ${before.price})`;
+
+    for (const doc of saves.docs) {
+      const userDoc = doc.ref.parent.parent;
+      if (!userDoc) continue;
+      const uid = userDoc.id;
+      if (uid === after.userId) continue; // don't notify the seller
+      await pushToUser(db, uid, { title, body }, {
+        type: "priceDrop",
+        listingId: event.params.listingId,
+      });
+    }
+  }
+);
+
 function matchesSavedSearch(listing, s) {
   const cat = s.category;
   if (cat && cat !== "All" && listing.category !== cat) return false;

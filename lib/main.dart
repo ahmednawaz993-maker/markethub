@@ -2623,7 +2623,11 @@ class _FeedAdCardState extends State<FeedAdCard> {
     if (was) {
       await ref.delete();
     } else {
-      await ref.set(widget.listing.toMap());
+      await ref.set({
+        ...widget.listing.toMap(),
+        'savedListingId': widget.listing.id,
+        'savedAt': Timestamp.now(),
+      });
     }
   }
 
@@ -5050,7 +5054,11 @@ class _ListingCardState extends State<ListingCard> {
     if (wasFavorite) {
       await ref.delete();
     } else {
-      await ref.set(widget.listing.toMap());
+      await ref.set({
+        ...widget.listing.toMap(),
+        'savedListingId': widget.listing.id,
+        'savedAt': Timestamp.now(),
+      });
     }
   }
 
@@ -11692,6 +11700,8 @@ IconData _notificationIcon(String type) {
       return Icons.search;
     case 'follow':
       return Icons.person_add_alt;
+    case 'priceDrop':
+      return Icons.local_fire_department;
     default:
       return Icons.notifications;
   }
