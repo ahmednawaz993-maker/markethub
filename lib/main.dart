@@ -11096,6 +11096,34 @@ class ChatsScreen extends StatelessWidget {
   }
 }
 
+/// Heuristic scam detector for chat — flags attempts to move the deal off
+/// PakBazar or take advance/online payment, in English, Roman Urdu and Urdu.
+bool looksScammy(String text) {
+  final t = text.toLowerCase();
+  const flags = [
+    // English — advance / online payment
+    'advance', 'deposit', 'booking fee', 'token money', 'token amount',
+    'pay first', 'pay in advance', 'send money', 'bank account',
+    'account number', 'account no', 'easypaisa', 'easy paisa', 'jazzcash',
+    'jazz cash', 'western union', 'gift card', ' otp', 'one time password',
+    'pin code', 'transfer the money', 'courier charge', 'delivery charges',
+    // English — off-platform
+    'deal outside', 'outside the app', 'off the app', 'whatsapp me',
+    'contact me on whatsapp', 'call me directly', 'meet outside the',
+    // Roman Urdu
+    'paise bhej', 'paise bhej', 'advance bhej', 'advance de', 'pehle paise',
+    'rakam bhej', 'booking ke paise', 'token ke paise', 'app se bahar',
+    'bahar deal', 'whatsapp pe', 'account me paise', 'paise transfer',
+    // Urdu script
+    'پیسے', 'ایڈوانس', 'اکاؤنٹ', 'بھیجو', 'بھیج دو', 'رقم', 'ٹوکن',
+    'جاز کیش', 'ایزی پیسہ',
+  ];
+  for (final f in flags) {
+    if (t.contains(f)) return true;
+  }
+  return false;
+}
+
 /// Short clock time for chat bubbles, e.g. "3:07 PM".
 String _msgTime(Timestamp? ts) {
   if (ts == null) return '';
@@ -11104,6 +11132,34 @@ String _msgTime(Timestamp? ts) {
   final hour12 = d.hour % 12 == 0 ? 12 : d.hour % 12;
   final ampm = d.hour < 12 ? 'AM' : 'PM';
   return '$hour12:$m $ampm';
+}
+
+/// Safety warning shown atop a chat when a message looks like an off-platform
+/// or advance-payment scam.
+class _ChatScamBanner extends StatelessWidget {
+  const _ChatScamBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFFFFF3CD),
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: const [
+          Icon(Icons.warning_amber_rounded, color: Colors.deepOrange, size: 20),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Stay safe: never pay in advance, share OTPs/bank details, or '
+              'deal outside PakBazar. Report anyone who asks.',
+              style: TextStyle(fontSize: 12, color: Colors.black87),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class ChatScreen extends StatefulWidget {
@@ -11265,7 +11321,16 @@ class _ChatScreenState extends State<ChatScreen> {
                   );
                 }
 
-                return ListView.builder(
+                final scamRisk = messages.any(
+                  (m) =>
+                      looksScammy((m.data() as Map)['text']?.toString() ?? ''),
+                );
+
+                return Column(
+                  children: [
+                    if (scamRisk) const _ChatScamBanner(),
+                    Expanded(
+                      child: ListView.builder(
                   reverse: true,
                   padding: const EdgeInsets.all(12),
                   itemCount: messages.length,
@@ -11344,6 +11409,9 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     );
                   },
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
