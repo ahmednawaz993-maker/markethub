@@ -22,6 +22,15 @@ service firebase.storage {
                    && request.resource.contentType.matches('image/.*');
     }
 
+    // Chat photos. Readable by signed-in users (URL is private to the chat);
+    // signed-in users may upload images up to 8 MB.
+    match /chat_images/{imageId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 8 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
     // Business logos (shown on Featured Businesses + seller profiles).
     match /business_logos/{imageId} {
       allow read: if true;

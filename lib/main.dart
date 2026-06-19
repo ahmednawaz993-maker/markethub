@@ -11125,9 +11125,58 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final messageController = TextEditingController();
+  final picker = ImagePicker();
+  bool sendingImage = false;
 
   DocumentReference get chatRef =>
       FirebaseFirestore.instance.collection('chats').doc(widget.chatId);
+
+  Future<void> sendImageMessage() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || sendingImage) return;
+    final img = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+    );
+    if (img == null) return;
+    setState(() => sendingImage = true);
+    try {
+      final bytes = await img.readAsBytes();
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('chat_images')
+          .child('${widget.chatId}_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      final url = await ref.getDownloadURL();
+      await chatRef.set({
+        'chatId': widget.chatId,
+        'listingId': widget.listingId,
+        'listingTitle': widget.listingTitle,
+        'listingImage': widget.listingImage,
+        'buyerId': widget.buyerId,
+        'sellerId': widget.sellerId,
+        'buyerName': widget.buyerName,
+        'sellerName': widget.sellerName,
+        'participants': [widget.buyerId, widget.sellerId],
+        'lastMessage': '📷 Photo',
+        'lastTime': Timestamp.now(),
+      }, SetOptions(merge: true));
+      await chatRef.collection('messages').add({
+        'senderId': uid,
+        'text': '📷 Photo',
+        'imageUrl': url,
+        'createdAt': Timestamp.now(),
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not send photo: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => sendingImage = false);
+    }
+  }
 
   Future<void> sendMessage([String? preset]) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -11243,12 +11292,36 @@ class _ChatScreenState extends State<ChatScreen> {
                               ? CrossAxisAlignment.end
                               : CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              data['text']?.toString() ?? '',
-                              style: TextStyle(
-                                color: isMine ? Colors.white : Colors.black87,
+                            if ((data['imageUrl']?.toString() ?? '').isNotEmpty)
+                              GestureDetector(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => FullScreenGallery(
+                                      images: [data['imageUrl'].toString()],
+                                    ),
+                                  ),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    data['imageUrl'].toString(),
+                                    width: 180,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => const Icon(
+                                      Icons.broken_image,
+                                      color: Colors.white70,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            else
+                              Text(
+                                data['text']?.toString() ?? '',
+                                style: TextStyle(
+                                  color: isMine ? Colors.white : Colors.black87,
+                                ),
                               ),
-                            ),
                             const SizedBox(height: 2),
                             Text(
                               _msgTime(data['createdAt'] as Timestamp?),
@@ -11302,6 +11375,22 @@ class _ChatScreenState extends State<ChatScreen> {
                   const SizedBox(height: 6),
                   Row(
                     children: [
+                      IconButton(
+                        tooltip: 'Send photo',
+                        onPressed: sendingImage ? null : sendImageMessage,
+                        icon: sendingImage
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.photo_camera_outlined,
+                                color: kPakGreen,
+                              ),
+                      ),
                       Expanded(
                         child: TextField(
                       controller: messageController,
