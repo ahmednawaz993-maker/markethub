@@ -2746,6 +2746,52 @@ class _FeedAdCardState extends State<FeedAdCard> {
 // Home
 // ---------------------------------------------------------------------------
 
+/// Compact gradient shortcut tile used in the home quick-access row.
+class _HomeQuickTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final List<Color> colors;
+  final VoidCallback onTap;
+  const _HomeQuickTile({
+    required this.icon,
+    required this.label,
+    required this.colors,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: colors),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.white, size: 24),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Home banner nudging unverified users to verify (mandatory to transact).
 /// Hidden for verified users, admins, and guests.
 class VerifyBanner extends StatelessWidget {
@@ -3479,109 +3525,39 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               SliverToBoxAdapter(
-                child: GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          const CategoryScreen(title: 'Food & Grocery'),
-                    ),
-                  ),
-                  child: Container(
-                    margin: const EdgeInsets.fromLTRB(8, 8, 8, 2),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFFF7043), Color(0xFFE53935)],
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: const [
-                        Icon(Icons.restaurant, color: Colors.white, size: 34),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Order Food & Groceries',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              SizedBox(height: 2),
-                              Text(
-                                'Restaurants, fresh produce, meat & more',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 2),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _HomeQuickTile(
+                          icon: Icons.restaurant,
+                          label: 'Food & Grocery',
+                          colors: const [Color(0xFFFF7043), Color(0xFFE53935)],
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  const CategoryScreen(title: 'Food & Grocery'),
+                            ),
                           ),
                         ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const StoresScreen()),
-                  ),
-                  child: Container(
-                    margin: const EdgeInsets.fromLTRB(8, 6, 8, 2),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF00897B), Color(0xFF00565B)],
                       ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: const [
-                        Icon(Icons.storefront, color: Colors.white, size: 32),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Browse Stores & Businesses',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              SizedBox(height: 2),
-                              Text(
-                                'Shop directly from local businesses',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _HomeQuickTile(
+                          icon: Icons.storefront,
+                          label: 'Browse Stores',
+                          colors: const [Color(0xFF00897B), Color(0xFF00565B)],
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const StoresScreen(),
+                            ),
                           ),
                         ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
