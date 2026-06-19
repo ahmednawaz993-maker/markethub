@@ -805,6 +805,22 @@ const List<String> pricingUnits = [
   'month',
 ];
 
+/// Optional spec fields shown when posting/editing in certain categories
+/// (e.g. car year & mileage, property bedrooms & area).
+List<String> attributeFieldsFor(String category) {
+  switch (category) {
+    case 'Motors':
+      return const ['Make / Brand', 'Year', 'KM driven'];
+    case 'Properties':
+      return const ['Bedrooms', 'Bathrooms', 'Area (sq ft / marla)'];
+    case 'Mobiles & Tablets':
+    case 'Electronics':
+      return const ['Brand', 'Model'];
+    default:
+      return const [];
+  }
+}
+
 class MarketplaceCategory {
   final String title;
   final IconData icon;
@@ -1220,6 +1236,7 @@ class Listing {
   String unit; // pricing unit e.g. 'kg', 'dozen', 'plate' (optional)
   bool deliveryAvailable;
   bool sellerVerified;
+  Map<String, String> attributes; // e.g. {'Year': '2018', 'KM driven': '50000'}
   String city;
   double? latitude;
   double? longitude;
@@ -1249,6 +1266,7 @@ class Listing {
     this.unit = '',
     this.deliveryAvailable = false,
     this.sellerVerified = false,
+    this.attributes = const {},
     this.city = '',
     this.latitude,
     this.longitude,
@@ -1328,6 +1346,11 @@ class Listing {
       unit: data['unit']?.toString() ?? '',
       deliveryAvailable: data['deliveryAvailable'] == true,
       sellerVerified: data['sellerVerified'] == true,
+      attributes:
+          (data['attributes'] as Map?)?.map(
+            (k, v) => MapEntry(k.toString(), v.toString()),
+          ) ??
+          const {},
       // 'city' is the current field; fall back to legacy 'emirate' for old ads.
       city: data['city']?.toString() ?? data['emirate']?.toString() ?? '',
       latitude: (data['latitude'] as num?)?.toDouble(),
@@ -4907,6 +4930,10 @@ class _AddListingScreenState extends State<AddListingScreen> {
   String selectedCondition = 'Used';
   String selectedUnit = 'None';
   bool deliveryAvailable = false;
+  final Map<String, TextEditingController> attrControllers = {};
+
+  TextEditingController _attrCtrl(String label) =>
+      attrControllers.putIfAbsent(label, () => TextEditingController());
   String selectedCity = 'Karachi';
   double? latitude;
   double? longitude;
@@ -4992,6 +5019,12 @@ class _AddListingScreenState extends State<AddListingScreen> {
     try {
       final imageUrls = await uploadImages();
 
+      final attributes = <String, String>{};
+      for (final label in attributeFieldsFor(selectedCategory)) {
+        final v = attrControllers[label]?.text.trim() ?? '';
+        if (v.isNotEmpty) attributes[label] = v;
+      }
+
       await FirebaseFirestore.instance.collection('listings').add({
         'title': titleController.text.trim(),
         'price': priceController.text.trim(),
@@ -5009,6 +5042,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'unit': selectedUnit == 'None' ? '' : selectedUnit,
         'deliveryAvailable': deliveryAvailable,
         'sellerVerified': true,
+        'attributes': attributes,
         'userId': FirebaseAuth.instance.currentUser?.uid ?? '',
         'sellerName':
             FirebaseAuth.instance.currentUser?.email ?? 'Anonymous seller',
@@ -5061,6 +5095,9 @@ class _AddListingScreenState extends State<AddListingScreen> {
     locationController.dispose();
     phoneController.dispose();
     descriptionController.dispose();
+    for (final c in attrControllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -5221,6 +5258,15 @@ class _AddListingScreenState extends State<AddListingScreen> {
                   ? null
                   : (v) => setState(() => deliveryAvailable = v),
             ),
+            for (final label in attributeFieldsFor(selectedCategory))
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: TextField(
+                  controller: _attrCtrl(label),
+                  enabled: !isSubmitting,
+                  decoration: InputDecoration(labelText: '$label (optional)'),
+                ),
+              ),
             TextField(
               controller: phoneController,
               decoration: const InputDecoration(
@@ -6535,6 +6581,36 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                 },
               ),
             ),
+            if (listing.attributes.isNotEmpty) ...[
+              const Divider(height: 32),
+              const Text(
+                'Details',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              ...listing.attributes.entries.map(
+                (e) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 150,
+                        child: Text(
+                          e.key,
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          e.value,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const Divider(height: 32),
             const Text(
               'Description',
