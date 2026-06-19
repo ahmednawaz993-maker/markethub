@@ -3189,6 +3189,76 @@ class FollowingRail extends StatelessWidget {
   }
 }
 
+/// Home rail of ads whose price was recently reduced — a "deals" shelf. Hidden
+/// when there are fewer than two live price-dropped ads.
+class DealsRail extends StatelessWidget {
+  const DealsRail({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final cutoff = Timestamp.fromDate(
+      DateTime.now().subtract(const Duration(days: 30)),
+    );
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('listings')
+          .where('priceDropAt', isGreaterThan: cutoff)
+          .orderBy('priceDropAt', descending: true)
+          .limit(15)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        final items = snapshot.data!.docs
+            .map((d) => Listing.fromDoc(d))
+            .where((l) => !l.isSold && !blockedUserIds.contains(l.userId))
+            .toList();
+        if (items.length < 2) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 12, 12, 6),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.local_fire_department,
+                    color: Colors.deepOrange,
+                    size: 20,
+                  ),
+                  SizedBox(width: 6),
+                  Text(
+                    'Deals & price drops',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 246,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                itemCount: items.length,
+                itemBuilder: (context, i) => Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: SizedBox(
+                    width: 165,
+                    child: FeedAdCard(listing: items[i]),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 /// Directory of all business accounts (storefronts).
 class StoresScreen extends StatelessWidget {
   const StoresScreen({super.key});
@@ -3942,6 +4012,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
+              const SliverToBoxAdapter(child: DealsRail()),
               const SliverToBoxAdapter(child: FollowingRail()),
               const SliverToBoxAdapter(child: RecentlyViewedRail()),
               SliverToBoxAdapter(
@@ -4149,6 +4220,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     stream: FirebaseFirestore.instance
                         .collection('listings')
                         .where('isFeatured', isEqualTo: true)
+                        .limit(10)
+                        .snapshots(),
+                  ),
+                  AdsRail(
+                    title: 'Deals & price drops',
+                    icon: Icons.local_fire_department,
+                    stream: FirebaseFirestore.instance
+                        .collection('listings')
+                        .where(
+                          'priceDropAt',
+                          isGreaterThan: Timestamp.fromDate(
+                            DateTime.now().subtract(const Duration(days: 30)),
+                          ),
+                        )
+                        .orderBy('priceDropAt', descending: true)
                         .limit(10)
                         .snapshots(),
                   ),
