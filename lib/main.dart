@@ -5971,6 +5971,36 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
+                        tooltip: 'Bump to top',
+                        icon: const Icon(
+                          Icons.arrow_upward,
+                          color: kPakGreen,
+                        ),
+                        onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final created = listing.createdAt?.toDate();
+                          if (created != null &&
+                              DateTime.now().difference(created).inHours < 24) {
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Still recent — you can bump 24h after '
+                                  'posting or your last bump.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                          await FirebaseFirestore.instance
+                              .collection('listings')
+                              .doc(listing.id)
+                              .update({'createdAt': Timestamp.now()});
+                          messenger.showSnackBar(
+                            const SnackBar(content: Text('Bumped to the top!')),
+                          );
+                        },
+                      ),
+                      IconButton(
                         tooltip: listing.isFeatured
                             ? 'Featured'
                             : 'Promote (Feature)',
