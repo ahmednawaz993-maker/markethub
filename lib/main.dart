@@ -57,6 +57,10 @@ const List<String> adminEmails = ['ahmednawaz993@gmail.com'];
 bool isAdminUser() =>
     adminEmails.contains(FirebaseAuth.instance.currentUser?.email);
 
+/// Price with an optional unit suffix, e.g. "Rs 250 / kg".
+String priceLabel(Listing l) =>
+    formatPrice(l.price) + (l.unit.isEmpty ? '' : ' / ${l.unit}');
+
 /// Paid promotion packages (seller pays to Feature an ad).
 class PromoPackage {
   final String name;
@@ -203,7 +207,7 @@ Future<void> showBuyNowSheet(BuildContext context, Listing listing) async {
                 children: [
                   Expanded(child: Text(listing.title)),
                   Text(
-                    formatPrice(listing.price),
+                    priceLabel(listing),
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ],
@@ -217,7 +221,7 @@ Future<void> showBuyNowSheet(BuildContext context, Listing listing) async {
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   Text(
-                    formatPrice(listing.price),
+                    priceLabel(listing),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: kPakGreen,
@@ -757,6 +761,23 @@ const List<String> pakistanCities = [
 
 const List<String> itemConditions = ['New', 'Used'];
 
+/// Optional pricing units (for food/grocery and bulk sellers). 'None' = blank.
+const List<String> pricingUnits = [
+  'None',
+  'kg',
+  'gram',
+  'dozen',
+  'piece',
+  'plate',
+  'litre',
+  'pack',
+  'box',
+  'person',
+  'hour',
+  'day',
+  'month',
+];
+
 class MarketplaceCategory {
   final String title;
   final IconData icon;
@@ -1144,6 +1165,7 @@ class Listing {
   String userId;
   String sellerName;
   String condition;
+  String unit; // pricing unit e.g. 'kg', 'dozen', 'plate' (optional)
   String city;
   double? latitude;
   double? longitude;
@@ -1170,6 +1192,7 @@ class Listing {
     this.userId = '',
     this.sellerName = '',
     this.condition = '',
+    this.unit = '',
     this.city = '',
     this.latitude,
     this.longitude,
@@ -1206,6 +1229,7 @@ class Listing {
       'userId': userId,
       'sellerName': sellerName,
       'condition': condition,
+      'unit': unit,
       'city': city,
       'latitude': latitude,
       'longitude': longitude,
@@ -1238,6 +1262,7 @@ class Listing {
       userId: data['userId']?.toString() ?? '',
       sellerName: data['sellerName']?.toString() ?? '',
       condition: data['condition']?.toString() ?? '',
+      unit: data['unit']?.toString() ?? '',
       // 'city' is the current field; fall back to legacy 'emirate' for old ads.
       city: data['city']?.toString() ?? data['emirate']?.toString() ?? '',
       latitude: (data['latitude'] as num?)?.toDouble(),
@@ -1899,7 +1924,7 @@ class HorizontalAdCard extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      formatPrice(listing.price),
+                      priceLabel(listing),
                       style: const TextStyle(
                         color: Colors.green,
                         fontWeight: FontWeight.bold,
@@ -2425,7 +2450,7 @@ class _FeedAdCardState extends State<FeedAdCard> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    formatPrice(l.price),
+                    priceLabel(l),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -4120,7 +4145,7 @@ class _ListingCardState extends State<ListingCard> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    formatPrice(listing.price),
+                    priceLabel(listing),
                     style: const TextStyle(
                       color: Colors.green,
                       fontWeight: FontWeight.bold,
@@ -4224,6 +4249,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
   String selectedCategory = 'Motors';
   String selectedSubcategory = 'Cars';
   String selectedCondition = 'Used';
+  String selectedUnit = 'None';
   String selectedCity = 'Karachi';
   double? latitude;
   double? longitude;
@@ -4315,6 +4341,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'category': selectedCategory,
         'subcategory': selectedSubcategory,
         'condition': selectedCondition,
+        'unit': selectedUnit == 'None' ? '' : selectedUnit,
         'userId': FirebaseAuth.instance.currentUser?.uid ?? '',
         'sellerName':
             FirebaseAuth.instance.currentUser?.email ?? 'Anonymous seller',
@@ -4474,6 +4501,26 @@ class _AddListingScreenState extends State<AddListingScreen> {
                       if (value != null) {
                         setState(() => selectedCondition = value);
                       }
+                    },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: selectedUnit,
+              decoration: const InputDecoration(
+                labelText: 'Price unit (optional, e.g. per kg/dozen/plate)',
+              ),
+              items: pricingUnits
+                  .map(
+                    (u) => DropdownMenuItem(
+                      value: u,
+                      child: Text(u == 'None' ? 'None' : 'per $u'),
+                    ),
+                  )
+                  .toList(),
+              onChanged: isSubmitting
+                  ? null
+                  : (value) {
+                      if (value != null) setState(() => selectedUnit = value);
                     },
             ),
             TextField(
@@ -4888,6 +4935,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
   late String selectedCategory;
   late String selectedSubcategory;
   late String selectedCondition;
+  late String selectedUnit;
   late String selectedCity;
   double? latitude;
   double? longitude;
@@ -4919,6 +4967,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
     selectedCondition = itemConditions.contains(widget.listing.condition)
         ? widget.listing.condition
         : 'Used';
+    selectedUnit = pricingUnits.contains(widget.listing.unit)
+        ? widget.listing.unit
+        : 'None';
     selectedCity = pakistanCities.contains(widget.listing.city)
         ? widget.listing.city
         : 'Karachi';
@@ -4980,6 +5031,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
         'category': selectedCategory,
         'subcategory': selectedSubcategory,
         'condition': selectedCondition,
+        'unit': selectedUnit == 'None' ? '' : selectedUnit,
       };
       if (newImages.isNotEmpty) {
         final urls = await uploadImages();
@@ -5142,6 +5194,24 @@ class _EditListingScreenState extends State<EditListingScreen> {
                   .toList(),
               onChanged: (value) {
                 if (value != null) setState(() => selectedCondition = value);
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: selectedUnit,
+              decoration: const InputDecoration(
+                labelText: 'Price unit (optional, e.g. per kg/dozen/plate)',
+              ),
+              items: pricingUnits
+                  .map(
+                    (u) => DropdownMenuItem(
+                      value: u,
+                      child: Text(u == 'None' ? 'None' : 'per $u'),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) setState(() => selectedUnit = value);
               },
             ),
             TextField(
@@ -5602,7 +5672,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              formatPrice(listing.price),
+              priceLabel(listing),
               style: const TextStyle(
                 fontSize: 24,
                 color: Colors.green,
