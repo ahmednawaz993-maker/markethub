@@ -2188,11 +2188,15 @@ class _PromoCarouselState extends State<PromoCarousel> {
           .collection('banners')
           .where('active', isEqualTo: true)
           .get();
-      final docs = snap.docs.toList()
-        ..sort(
-          (a, b) => ((a.data()['order'] as num?) ?? 0)
-              .compareTo((b.data()['order'] as num?) ?? 0),
-        );
+      final now = DateTime.now();
+      final docs =
+          snap.docs.where((d) {
+            final until = d.data()['expiresAt'];
+            return until is! Timestamp || until.toDate().isAfter(now);
+          }).toList()..sort(
+            (a, b) => ((a.data()['order'] as num?) ?? 0)
+                .compareTo((b.data()['order'] as num?) ?? 0),
+          );
       if (docs.isNotEmpty && mounted) {
         setState(() {
           _banners = docs.map((d) {
@@ -2950,7 +2954,11 @@ class FeaturedBusinessesRail extends StatelessWidget {
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
-        final docs = snapshot.data!.docs;
+        final now = DateTime.now();
+        final docs = snapshot.data!.docs.where((d) {
+          final until = (d.data() as Map)['featuredBusinessUntil'];
+          return until is! Timestamp || until.toDate().isAfter(now);
+        }).toList();
         if (docs.isEmpty) return const SizedBox.shrink();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
