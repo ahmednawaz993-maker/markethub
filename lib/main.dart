@@ -1038,18 +1038,30 @@ const List<MarketplaceCategory> appCategories = [
   ),
 ];
 
-/// Categories that are advertise-only — no online Buy Now / order checkout.
+/// Whole categories that are advertise-only — no online Buy Now / checkout.
 /// Buyers contact the seller (call/WhatsApp/chat) and deal in person instead.
 const Set<String> advertiseOnlyCategories = {
-  'Motors',
   'Properties',
   'Jobs',
   'Services',
   'Community',
 };
 
-bool isBuyableCategory(String category) =>
-    !advertiseOnlyCategories.contains(category);
+/// Big-ticket / non-shippable subcategories (e.g. within Motors) that are
+/// advertise-only even though the rest of their category can be bought online.
+/// Small, shippable items like Auto Parts / Car Accessories stay buyable.
+const Set<String> advertiseOnlySubcategories = {
+  'Cars',
+  'Motorcycles',
+  'Boats',
+  'Heavy Vehicles',
+  'Car Rental',
+};
+
+/// Whether a listing supports the online Buy Now / order checkout.
+bool isBuyable(Listing l) =>
+    !advertiseOnlyCategories.contains(l.category) &&
+    !advertiseOnlySubcategories.contains(l.subcategory);
 
 MarketplaceCategory categoryByTitle(String title) {
   return appCategories.firstWhere(
@@ -6457,7 +6469,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
             const _SafetyTips(),
             const SizedBox(height: 24),
             if (!isOwnAd) ...[
-              if (!listing.isSold && isBuyableCategory(listing.category)) ...[
+              if (!listing.isSold && isBuyable(listing)) ...[
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
