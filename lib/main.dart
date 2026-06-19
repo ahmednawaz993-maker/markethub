@@ -5077,6 +5077,27 @@ class _AddListingScreenState extends State<AddListingScreen> {
         if (v.isNotEmpty) attributes[label] = v;
       }
 
+      // Privacy-friendly seller name: display name > business name > email
+      // local-part > generic. Never expose the full email address.
+      final me = FirebaseAuth.instance.currentUser;
+      String sellerName = 'Seller';
+      if (me != null) {
+        final udoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(me.uid)
+            .get();
+        final d = udoc.data();
+        final dn = (d?['displayName'] as String?)?.trim() ?? '';
+        final bn = (d?['businessName'] as String?)?.trim() ?? '';
+        if (dn.isNotEmpty) {
+          sellerName = dn;
+        } else if (d?['isBusiness'] == true && bn.isNotEmpty) {
+          sellerName = bn;
+        } else if (me.email != null && me.email!.contains('@')) {
+          sellerName = me.email!.split('@').first;
+        }
+      }
+
       await FirebaseFirestore.instance.collection('listings').add({
         'title': titleController.text.trim(),
         'price': priceController.text.trim(),
@@ -5096,8 +5117,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'sellerVerified': true,
         'attributes': attributes,
         'userId': FirebaseAuth.instance.currentUser?.uid ?? '',
-        'sellerName':
-            FirebaseAuth.instance.currentUser?.email ?? 'Anonymous seller',
+        'sellerName': sellerName,
         'createdAt': Timestamp.now(),
         'views': 0,
         'isFeatured': false,
@@ -7461,6 +7481,90 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 // Profile
 // ---------------------------------------------------------------------------
 
+/// Lets a user set a public display name (shown on their ads instead of their
+/// email address, for privacy).
+class _DisplayNameTile extends StatefulWidget {
+  const _DisplayNameTile();
+
+  @override
+  State<_DisplayNameTile> createState() => _DisplayNameTileState();
+}
+
+class _DisplayNameTileState extends State<_DisplayNameTile> {
+  final controller = TextEditingController();
+  bool loaded = false;
+  bool saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    if (!mounted) return;
+    setState(() {
+      controller.text = doc.data()?['displayName']?.toString() ?? '';
+      loaded = true;
+    });
+  }
+
+  Future<void> _save() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    setState(() => saving = true);
+    await FirebaseFirestore.instance.collection('users').doc(uid).set({
+      'displayName': controller.text.trim(),
+    }, SetOptions(merge: true));
+    if (!mounted) return;
+    setState(() => saving = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Display name saved')),
+    );
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: controller,
+              enabled: loaded,
+              decoration: const InputDecoration(
+                labelText: 'Display name',
+                helperText: 'Shown on your ads instead of your email',
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: (loaded && !saving) ? _save : null,
+                child: Text(saving ? 'Saving…' : 'Save'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Lets a signed-in user mark their account as a business (shows a BUSINESS
 /// badge on their ads) and set a business name.
 class _BusinessAccountTile extends StatefulWidget {
@@ -8266,6 +8370,8 @@ class ProfileScreen extends StatelessWidget {
               ),
             if (!(user?.isAnonymous ?? true)) ...[
               const SizedBox(height: 16),
+              const _DisplayNameTile(),
+              const SizedBox(height: 12),
               const _BusinessAccountTile(),
             ],
             if (isAdminUser()) ...[
