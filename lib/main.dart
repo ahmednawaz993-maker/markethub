@@ -7892,8 +7892,13 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
 
   Future<void> _upload(bool selfie) async {
+    // Camera-only (no gallery upload) to prevent fake/stolen photos. Selfie
+    // uses the front camera; the CNIC uses the rear camera.
     final img = await picker.pickImage(
-      source: ImageSource.gallery,
+      source: ImageSource.camera,
+      preferredCameraDevice: selfie
+          ? CameraDevice.front
+          : CameraDevice.rear,
       imageQuality: 70,
     );
     if (img == null) return;
@@ -7977,14 +7982,14 @@ class _VerificationScreenState extends State<VerificationScreen> {
           width: 52,
           height: 52,
           child: url == null
-              ? const Icon(Icons.add_a_photo, color: kPakGreen)
+              ? const Icon(Icons.camera_alt, color: kPakGreen)
               : ClipRRect(
                   borderRadius: BorderRadius.circular(6),
                   child: Image.network(url, fit: BoxFit.cover),
                 ),
         ),
         title: Text(label),
-        subtitle: Text(url == null ? 'Not uploaded' : 'Uploaded ✓'),
+        subtitle: Text(url == null ? 'Not captured' : 'Captured ✓'),
         trailing: busy
             ? const SizedBox(
                 width: 18,
@@ -7993,7 +7998,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
               )
             : TextButton(
                 onPressed: onTap,
-                child: Text(url == null ? 'Upload' : 'Change'),
+                child: Text(url == null ? 'Capture' : 'Retake'),
               ),
       ),
     );
@@ -8039,8 +8044,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   padding: EdgeInsets.fromLTRB(4, 8, 4, 8),
                   child: Text(
                     'Verify your identity to earn an ID-Verified badge that buyers '
-                    'and sellers trust. Upload a clear selfie and a photo of your '
-                    'CNIC. Our team checks that the face matches the ID.',
+                    'and sellers trust. Use your camera to take a live selfie and a '
+                    'photo of your CNIC — uploads from the gallery are not allowed. '
+                    'Our team checks that the face matches the ID.',
                     style: TextStyle(color: Colors.grey),
                   ),
                 ),
