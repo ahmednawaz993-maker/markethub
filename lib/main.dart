@@ -8772,7 +8772,7 @@ class AdminPanelScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 5,
+      length: 9,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Panel'),
@@ -8781,20 +8781,28 @@ class AdminPanelScreen extends StatelessWidget {
             indicatorColor: Colors.white,
             isScrollable: true,
             tabs: [
+              Tab(text: 'Overview'),
+              Tab(text: 'Users'),
               Tab(text: 'Reports'),
               Tab(text: 'Top-ups'),
               Tab(text: 'Promotions'),
               Tab(text: 'Orders'),
-              Tab(text: 'All Listings'),
+              Tab(text: 'Offers'),
+              Tab(text: 'Purchases'),
+              Tab(text: 'Listings'),
             ],
           ),
         ),
         body: const TabBarView(
           children: [
+            _AdminOverviewTab(),
+            _AdminUsersTab(),
             _AdminReportsTab(),
             _AdminTopupsTab(),
             _AdminPromotionsTab(),
             _AdminOrdersTab(),
+            _AdminOffersTab(),
+            _AdminPurchasesTab(),
             _AdminListingsTab(),
           ],
         ),
@@ -8821,6 +8829,338 @@ Future<void> _openListingById(BuildContext context, String id) async {
       builder: (_) => AdDetailsScreen(listing: Listing.fromDoc(doc)),
     ),
   );
+}
+
+class _Metric {
+  final String value;
+  final String label;
+  const _Metric(this.value, this.label);
+}
+
+/// Platform-wide inspection dashboard: live counts and money across the app.
+class _AdminOverviewTab extends StatelessWidget {
+  const _AdminOverviewTab();
+
+  Widget _section(
+    String title,
+    Stream<QuerySnapshot> stream,
+    List<_Metric> Function(List<QueryDocumentSnapshot>) compute,
+  ) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final metrics = snapshot.hasData ? compute(snapshot.data!.docs) : null;
+        return Card(
+          margin: const EdgeInsets.only(bottom: 10),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (metrics == null)
+                  const Center(child: CircularProgressIndicator())
+                else
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 14,
+                    children: metrics
+                        .map(
+                          (m) => SizedBox(
+                            width: 100,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  m.value,
+                                  style: const TextStyle(
+                                    fontSize: 19,
+                                    fontWeight: FontWeight.bold,
+                                    color: kPakGreen,
+                                  ),
+                                ),
+                                Text(
+                                  m.label,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fs = FirebaseFirestore.instance;
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        _section('Users', fs.collection('users').snapshots(), (docs) {
+          int business = 0;
+          num float = 0;
+          for (final d in docs) {
+            final m = d.data() as Map;
+            if (m['isBusiness'] == true) business++;
+            float += (m['walletBalance'] as num?) ?? 0;
+          }
+          return [
+            _Metric('${docs.length}', 'Total users'),
+            _Metric('$business', 'Businesses'),
+            _Metric(formatPrice('${float.toInt()}'), 'Wallet float'),
+          ];
+        }),
+        _section('Listings', fs.collection('listings').snapshots(), (docs) {
+          int featured = 0, sold = 0;
+          for (final d in docs) {
+            final m = d.data() as Map;
+            if (m['isFeatured'] == true) featured++;
+            if (m['isSold'] == true) sold++;
+          }
+          return [
+            _Metric('${docs.length}', 'Total ads'),
+            _Metric('$featured', 'Featured'),
+            _Metric('$sold', 'Sold'),
+          ];
+        }),
+        _section('Orders & revenue', fs.collection('orders').snapshots(), (
+          docs,
+        ) {
+          int completed = 0;
+          num gmv = 0, commission = 0;
+          for (final d in docs) {
+            final m = d.data() as Map;
+            if (m['status'] == 'completed') {
+              completed++;
+              gmv += (m['amount'] as num?) ?? 0;
+              commission += (m['commission'] as num?) ?? 0;
+            }
+          }
+          return [
+            _Metric('${docs.length}', 'Orders'),
+            _Metric('$completed', 'Completed'),
+            _Metric(formatPrice('${gmv.toInt()}'), 'GMV'),
+            _Metric(formatPrice('${commission.toInt()}'), 'Commission'),
+          ];
+        }),
+        _section('Negotiation & purchases', fs.collection('offers').snapshots(), (
+          docs,
+        ) {
+          return [_Metric('${docs.length}', 'Total offers')];
+        }),
+      ],
+    );
+  }
+}
+
+class _AdminUsersTab extends StatelessWidget {
+  const _AdminUsersTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('users').limit(300).snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final at =
+                ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            final bt =
+                ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            return bt.compareTo(at);
+          });
+        return ListView.builder(
+          padding: const EdgeInsets.all(8),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final isBusiness = d['isBusiness'] == true;
+            final name = isBusiness && (d['businessName']?.toString() ?? '').isNotEmpty
+                ? d['businessName'].toString()
+                : (d['email']?.toString() ?? '(guest)');
+            final balance = (d['walletBalance'] as num?)?.toInt() ?? 0;
+            return Card(
+              child: ListTile(
+                dense: true,
+                leading: CircleAvatar(
+                  backgroundColor: kPakGreen.withValues(alpha: 0.12),
+                  child: Icon(
+                    isBusiness ? Icons.storefront : Icons.person,
+                    color: kPakGreen,
+                  ),
+                ),
+                title: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  'Wallet ${formatPrice('$balance')}'
+                  '${isBusiness ? ' · Business' : ''}'
+                  '${d['featuredBusiness'] == true ? ' · ★Featured' : ''}',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SellerProfileScreen(
+                      sellerId: docs[i].id,
+                      sellerName: name,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _AdminOffersTab extends StatelessWidget {
+  const _AdminOffersTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('offers').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final at =
+                ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            final bt =
+                ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            return bt.compareTo(at);
+          });
+        if (docs.isEmpty) {
+          return const EmptyState(icon: Icons.local_offer, title: 'No offers');
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(8),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final offer = (d['offerAmount'] as num?)?.toInt() ?? 0;
+            final asking = (d['askingPrice'] as num?)?.toInt() ?? 0;
+            return Card(
+              child: ListTile(
+                dense: true,
+                title: Text(
+                  d['listingTitle']?.toString() ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  'Offer ${formatPrice('$offer')} (asking ${formatPrice('$asking')})\n'
+                  '${d['buyerName'] ?? ''} → ${d['sellerName'] ?? ''} · ${d['status'] ?? ''}',
+                ),
+                isThreeLine: true,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _AdminPurchasesTab extends StatelessWidget {
+  const _AdminPurchasesTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('purchases').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final at =
+                ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            final bt =
+                ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            return bt.compareTo(at);
+          });
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.shopping_bag,
+            title: 'No purchases',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(8),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final amount = (d['amount'] as num?)?.toInt() ?? 0;
+            final status = d['status']?.toString() ?? '';
+            return Card(
+              child: ListTile(
+                dense: true,
+                leading: const Icon(Icons.shopping_bag_outlined),
+                title: Text('${d['type'] ?? 'purchase'} · ${formatPrice('$amount')}'),
+                subtitle: Text(
+                  '${d['userId'] ?? ''}\n${timeAgo(d['createdAt'] as Timestamp?)}',
+                ),
+                isThreeLine: true,
+                trailing: Text(
+                  status,
+                  style: TextStyle(
+                    color: status == 'completed'
+                        ? Colors.green
+                        : (status == 'insufficient' || status == 'error'
+                              ? Colors.red
+                              : Colors.orange),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 class _AdminReportsTab extends StatelessWidget {
