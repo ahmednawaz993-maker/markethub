@@ -4382,7 +4382,10 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
           listing.location.toLowerCase().contains(query) ||
           listing.city.toLowerCase().contains(query) ||
           listing.category.toLowerCase().contains(query) ||
-          listing.subcategory.toLowerCase().contains(query);
+          listing.subcategory.toLowerCase().contains(query) ||
+          listing.attributes.values.any(
+            (v) => v.toLowerCase().contains(query),
+          );
 
       final matchesSub =
           selectedSubcategory == 'All' ||
