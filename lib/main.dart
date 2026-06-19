@@ -75,24 +75,6 @@ const List<PromoPackage> promoPackages = [
   PromoPackage('Featured · 30 days', 30, 1500),
 ];
 
-/// Creates a pending promotion order. An admin approves it (after payment),
-/// which sets the ad Featured with an expiry.
-Future<void> createPromotionOrder(Listing listing, PromoPackage pkg) async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) return;
-  await FirebaseFirestore.instance.collection('promotions').add({
-    'listingId': listing.id,
-    'listingTitle': listing.title,
-    'sellerId': user.uid,
-    'sellerName': user.email ?? '',
-    'package': pkg.name,
-    'days': pkg.days,
-    'price': pkg.price,
-    'status': 'pending',
-    'createdAt': Timestamp.now(),
-  });
-}
-
 /// Bottom sheet to choose a promotion package for a listing.
 Future<void> showPromoteSheet(BuildContext context, Listing listing) async {
   await showModalBottomSheet(
@@ -7630,29 +7612,6 @@ const List<PromoPackage> businessAdPackages = [
   PromoPackage('Featured Business · 30 days', 30, 3000),
   PromoPackage('Featured Business · 90 days', 90, 8000),
 ];
-
-/// Creates a pending "featured business" advertising order. Admin approval
-/// sets the user's featuredBusiness flag, surfacing them on the home rail.
-Future<void> createBusinessPromotion(
-  PromoPackage pkg,
-  String businessName,
-) async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) return;
-  await FirebaseFirestore.instance.collection('promotions').add({
-    'type': 'business',
-    'userId': user.uid,
-    'sellerId': user.uid,
-    'businessName': businessName,
-    'sellerName': user.email ?? '',
-    'listingTitle': businessName.isEmpty ? 'Business' : businessName,
-    'package': pkg.name,
-    'days': pkg.days,
-    'price': pkg.price,
-    'status': 'pending',
-    'createdAt': Timestamp.now(),
-  });
-}
 
 Future<void> showBusinessAdSheet(
   BuildContext context,
