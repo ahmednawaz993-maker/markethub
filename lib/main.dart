@@ -1219,6 +1219,7 @@ class Listing {
   String condition;
   String unit; // pricing unit e.g. 'kg', 'dozen', 'plate' (optional)
   bool deliveryAvailable;
+  bool sellerVerified;
   String city;
   double? latitude;
   double? longitude;
@@ -1247,6 +1248,7 @@ class Listing {
     this.condition = '',
     this.unit = '',
     this.deliveryAvailable = false,
+    this.sellerVerified = false,
     this.city = '',
     this.latitude,
     this.longitude,
@@ -1325,6 +1327,7 @@ class Listing {
       condition: data['condition']?.toString() ?? '',
       unit: data['unit']?.toString() ?? '',
       deliveryAvailable: data['deliveryAvailable'] == true,
+      sellerVerified: data['sellerVerified'] == true,
       // 'city' is the current field; fall back to legacy 'emirate' for old ads.
       city: data['city']?.toString() ?? data['emirate']?.toString() ?? '',
       latitude: (data['latitude'] as num?)?.toDouble(),
@@ -2523,6 +2526,23 @@ class _FeedAdCardState extends State<FeedAdCard> {
                       ),
                     ),
                   ),
+                  if (l.sellerVerified)
+                    Positioned(
+                      bottom: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: const BoxDecoration(
+                          color: Colors.blue,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.verified_user,
+                          size: 12,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
                   if (!l.isCurrentlyFeatured && !l.isSold && isNew)
                     Positioned(
                       top: 6,
@@ -4980,6 +5000,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'condition': selectedCondition,
         'unit': selectedUnit == 'None' ? '' : selectedUnit,
         'deliveryAvailable': deliveryAvailable,
+        'sellerVerified': true,
         'userId': FirebaseAuth.instance.currentUser?.uid ?? '',
         'sellerName':
             FirebaseAuth.instance.currentUser?.email ?? 'Anonymous seller',
