@@ -9,6 +9,7 @@ const {
   onDocumentCreated,
   onDocumentUpdated,
 } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
 const {
   getFirestore,
@@ -434,4 +435,59 @@ exports.processPurchase = onDocumentCreated("purchases/{id}", async (event) => {
       purchaseRef.id
     );
   }
+});
+
+// Daily job: turn off Featured listings / businesses / banners whose paid
+// window (featuredUntil / featuredBusinessUntil / expiresAt) has passed.
+exports.expireFeatured = onSchedule("every 24 hours", async () => {
+  const db = getFirestore();
+  const now = Timestamp.now();
+
+  let batch = db.batch();
+  let pending = 0;
+  const flush = async (force) => {
+    if (pending >= 400 || (force && pending > 0)) {
+      await batch.commit();
+      batch = db.batch();
+      pending = 0;
+    }
+  };
+
+  const listings = await db
+    .collection("listings")
+    .where("featuredUntil", "<", now)
+    .get();
+  for (const doc of listings.docs) {
+    if (doc.get("isFeatured")) {
+      batch.update(doc.ref, { isFeatured: false });
+      pending++;
+      await flush(false);
+    }
+  }
+
+  const businesses = await db
+    .collection("users")
+    .where("featuredBusinessUntil", "<", now)
+    .get();
+  for (const doc of businesses.docs) {
+    if (doc.get("featuredBusiness")) {
+      batch.update(doc.ref, { featuredBusiness: false });
+      pending++;
+      await flush(false);
+    }
+  }
+
+  const banners = await db
+    .collection("banners")
+    .where("expiresAt", "<", now)
+    .get();
+  for (const doc of banners.docs) {
+    if (doc.get("active")) {
+      batch.update(doc.ref, { active: false });
+      pending++;
+      await flush(false);
+    }
+  }
+
+  await flush(true);
 });
