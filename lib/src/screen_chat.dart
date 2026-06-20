@@ -1,0 +1,530 @@
+part of '../main.dart';
+
+// Chats and conversation screen.
+
+class ChatsScreen extends StatelessWidget {
+  const ChatsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (uid == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Chats')),
+        body: const Center(
+          child: Text(
+            'Please log in to see your chats',
+            style: TextStyle(color: Colors.white70),
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Chats')),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('chats')
+            .where('participants', arrayContains: uid)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Error loading chats: ${snapshot.error}'));
+          }
+
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final chats = snapshot.data!.docs.toList()
+            ..sort((a, b) {
+              final at =
+                  ((a.data() as Map<String, dynamic>)['lastTime']
+                          as Timestamp?)
+                      ?.millisecondsSinceEpoch ??
+                  0;
+              final bt =
+                  ((b.data() as Map<String, dynamic>)['lastTime']
+                          as Timestamp?)
+                      ?.millisecondsSinceEpoch ??
+                  0;
+              return bt.compareTo(at);
+            });
+
+          if (chats.isEmpty) {
+            return const EmptyState(
+              icon: Icons.chat_bubble_outline,
+              title: 'No chats yet',
+              subtitle: 'Message a seller from any ad to start a conversation.',
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: chats.length,
+            itemBuilder: (context, index) {
+              final data = chats[index].data() as Map<String, dynamic>;
+              final isBuyer = data['buyerId'] == uid;
+              final otherName = isBuyer
+                  ? (data['sellerName']?.toString() ?? 'Seller')
+                  : (data['buyerName']?.toString() ?? 'Buyer');
+              final listingImage = data['listingImage']?.toString() ?? '';
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: ListTile(
+                leading: listingImage.isEmpty
+                    ? const CircleAvatar(child: Icon(Icons.image))
+                    : CircleAvatar(
+                        backgroundImage: NetworkImage(listingImage),
+                      ),
+                title: Text(otherName),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      data['listingTitle']?.toString() ?? '',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    Text(
+                      data['lastMessage']?.toString() ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+                isThreeLine: true,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChatScreen(
+                        chatId: data['chatId']?.toString() ?? chats[index].id,
+                        listingId: data['listingId']?.toString() ?? '',
+                        listingTitle: data['listingTitle']?.toString() ?? '',
+                        listingImage: listingImage,
+                        buyerId: data['buyerId']?.toString() ?? '',
+                        sellerId: data['sellerId']?.toString() ?? '',
+                        buyerName: data['buyerName']?.toString() ?? 'Buyer',
+                        sellerName: data['sellerName']?.toString() ?? 'Seller',
+                      ),
+                    ),
+                  );
+                },
+              ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Heuristic scam detector for chat — flags attempts to move the deal off
+/// PakBazar or take advance/online payment, in English, Roman Urdu and Urdu.
+bool looksScammy(String text) {
+  final t = text.toLowerCase();
+  const flags = [
+    // English — advance / online payment
+    'advance', 'deposit', 'booking fee', 'token money', 'token amount',
+    'pay first', 'pay in advance', 'send money', 'bank account',
+    'account number', 'account no', 'easypaisa', 'easy paisa', 'jazzcash',
+    'jazz cash', 'western union', 'gift card', ' otp', 'one time password',
+    'pin code', 'transfer the money', 'courier charge', 'delivery charges',
+    // English — off-platform
+    'deal outside', 'outside the app', 'off the app', 'whatsapp me',
+    'contact me on whatsapp', 'call me directly', 'meet outside the',
+    // Roman Urdu
+    'paise bhej', 'paise bhej', 'advance bhej', 'advance de', 'pehle paise',
+    'rakam bhej', 'booking ke paise', 'token ke paise', 'app se bahar',
+    'bahar deal', 'whatsapp pe', 'account me paise', 'paise transfer',
+    // Urdu script
+    'پیسے', 'ایڈوانس', 'اکاؤنٹ', 'بھیجو', 'بھیج دو', 'رقم', 'ٹوکن',
+    'جاز کیش', 'ایزی پیسہ',
+  ];
+  for (final f in flags) {
+    if (t.contains(f)) return true;
+  }
+  return false;
+}
+
+/// Short clock time for chat bubbles, e.g. "3:07 PM".
+String _msgTime(Timestamp? ts) {
+  if (ts == null) return '';
+  final d = ts.toDate();
+  final m = d.minute.toString().padLeft(2, '0');
+  final hour12 = d.hour % 12 == 0 ? 12 : d.hour % 12;
+  final ampm = d.hour < 12 ? 'AM' : 'PM';
+  return '$hour12:$m $ampm';
+}
+
+/// Safety warning shown atop a chat when a message looks like an off-platform
+/// or advance-payment scam.
+class _ChatScamBanner extends StatelessWidget {
+  const _ChatScamBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFFFFF3CD),
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: const [
+          Icon(Icons.warning_amber_rounded, color: Colors.deepOrange, size: 20),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Stay safe: never pay in advance, share OTPs/bank details, or '
+              'deal outside PakBazar. Report anyone who asks.',
+              style: TextStyle(fontSize: 12, color: Colors.black87),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ChatScreen extends StatefulWidget {
+  final String chatId;
+  final String listingId;
+  final String listingTitle;
+  final String listingImage;
+  final String buyerId;
+  final String sellerId;
+  final String buyerName;
+  final String sellerName;
+
+  const ChatScreen({
+    super.key,
+    required this.chatId,
+    required this.listingId,
+    required this.listingTitle,
+    required this.listingImage,
+    required this.buyerId,
+    required this.sellerId,
+    required this.buyerName,
+    required this.sellerName,
+  });
+
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  final messageController = TextEditingController();
+  final picker = ImagePicker();
+  bool sendingImage = false;
+
+  DocumentReference get chatRef =>
+      FirebaseFirestore.instance.collection('chats').doc(widget.chatId);
+
+  Future<void> sendImageMessage() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || sendingImage) return;
+    final img = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+    );
+    if (img == null) return;
+    setState(() => sendingImage = true);
+    try {
+      final bytes = await img.readAsBytes();
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('chat_images')
+          .child('${widget.chatId}_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      final url = await ref.getDownloadURL();
+      await chatRef.set({
+        'chatId': widget.chatId,
+        'listingId': widget.listingId,
+        'listingTitle': widget.listingTitle,
+        'listingImage': widget.listingImage,
+        'buyerId': widget.buyerId,
+        'sellerId': widget.sellerId,
+        'buyerName': widget.buyerName,
+        'sellerName': widget.sellerName,
+        'participants': [widget.buyerId, widget.sellerId],
+        'lastMessage': '📷 Photo',
+        'lastTime': Timestamp.now(),
+      }, SetOptions(merge: true));
+      await chatRef.collection('messages').add({
+        'senderId': uid,
+        'text': '📷 Photo',
+        'imageUrl': url,
+        'createdAt': Timestamp.now(),
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not send photo: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => sendingImage = false);
+    }
+  }
+
+  Future<void> sendMessage([String? preset]) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final text = (preset ?? messageController.text).trim();
+    if (uid == null || text.isEmpty) return;
+
+    if (preset == null) messageController.clear();
+
+    await chatRef.set({
+      'chatId': widget.chatId,
+      'listingId': widget.listingId,
+      'listingTitle': widget.listingTitle,
+      'listingImage': widget.listingImage,
+      'buyerId': widget.buyerId,
+      'sellerId': widget.sellerId,
+      'buyerName': widget.buyerName,
+      'sellerName': widget.sellerName,
+      'participants': [widget.buyerId, widget.sellerId],
+      'lastMessage': text,
+      'lastTime': Timestamp.now(),
+    }, SetOptions(merge: true));
+
+    await chatRef.collection('messages').add({
+      'senderId': uid,
+      'text': text,
+      'createdAt': Timestamp.now(),
+    });
+  }
+
+  @override
+  void dispose() {
+    messageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final otherName = widget.buyerId == uid
+        ? widget.sellerName
+        : widget.buyerName;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(otherName),
+            Text(
+              widget.listingTitle,
+              style: const TextStyle(fontSize: 12, color: Colors.white70),
+            ),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: chatRef
+                  .collection('messages')
+                  .orderBy('createdAt', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final messages = snapshot.data!.docs;
+
+                if (messages.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'Say hello 👋',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  );
+                }
+
+                final scamRisk = messages.any(
+                  (m) =>
+                      looksScammy((m.data() as Map)['text']?.toString() ?? ''),
+                );
+
+                return Column(
+                  children: [
+                    if (scamRisk) const _ChatScamBanner(),
+                    Expanded(
+                      child: ListView.builder(
+                  reverse: true,
+                  padding: const EdgeInsets.all(12),
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final data =
+                        messages[index].data() as Map<String, dynamic>;
+                    final isMine = data['senderId'] == uid;
+
+                    return Align(
+                      alignment: isMine
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.72,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isMine ? kPakGreen : Colors.grey.shade300,
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(14),
+                            topRight: const Radius.circular(14),
+                            bottomLeft: Radius.circular(isMine ? 14 : 2),
+                            bottomRight: Radius.circular(isMine ? 2 : 14),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: isMine
+                              ? CrossAxisAlignment.end
+                              : CrossAxisAlignment.start,
+                          children: [
+                            if ((data['imageUrl']?.toString() ?? '').isNotEmpty)
+                              GestureDetector(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => FullScreenGallery(
+                                      images: [data['imageUrl'].toString()],
+                                    ),
+                                  ),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    data['imageUrl'].toString(),
+                                    width: 180,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => const Icon(
+                                      Icons.broken_image,
+                                      color: Colors.white70,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            else
+                              Text(
+                                data['text']?.toString() ?? '',
+                                style: TextStyle(
+                                  color: isMine ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _msgTime(data['createdAt'] as Timestamp?),
+                              style: TextStyle(
+                                fontSize: 9,
+                                color: isMine ? Colors.white70 : Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    height: 38,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        for (final q in const [
+                          'Is this still available?',
+                          'Is this the last price?',
+                          'Can I get a discount?',
+                          'Can you tell me more about it?',
+                          'Where can we meet?',
+                          'Thank you for contacting!',
+                        ])
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: ActionChip(
+                              visualDensity: VisualDensity.compact,
+                              label: Text(
+                                q,
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              onPressed: () => sendMessage(q),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'Send photo',
+                        onPressed: sendingImage ? null : sendImageMessage,
+                        icon: sendingImage
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.photo_camera_outlined,
+                                color: kPakGreen,
+                              ),
+                      ),
+                      Expanded(
+                        child: TextField(
+                      controller: messageController,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => sendMessage(),
+                      decoration: const InputDecoration(
+                        hintText: 'Type a message...',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  CircleAvatar(
+                    backgroundColor: kPakGreen,
+                    child: IconButton(
+                      icon: const Icon(Icons.send, color: Colors.white),
+                      onPressed: sendMessage,
+                    ),
+                  ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

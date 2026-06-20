@@ -1,0 +1,1152 @@
+part of '../main.dart';
+
+// Admin panel and its tabs.
+
+class AdminPanelScreen extends StatelessWidget {
+  const AdminPanelScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 10,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Admin Panel'),
+          bottom: const TabBar(
+            labelColor: Colors.white,
+            indicatorColor: Colors.white,
+            isScrollable: true,
+            tabs: [
+              Tab(text: 'Overview'),
+              Tab(text: 'Verify ID'),
+              Tab(text: 'Users'),
+              Tab(text: 'Reports'),
+              Tab(text: 'Top-ups'),
+              Tab(text: 'Promotions'),
+              Tab(text: 'Orders'),
+              Tab(text: 'Offers'),
+              Tab(text: 'Purchases'),
+              Tab(text: 'Listings'),
+            ],
+          ),
+        ),
+        body: const TabBarView(
+          children: [
+            _AdminOverviewTab(),
+            _AdminVerificationsTab(),
+            _AdminUsersTab(),
+            _AdminReportsTab(),
+            _AdminTopupsTab(),
+            _AdminPromotionsTab(),
+            _AdminOrdersTab(),
+            _AdminOffersTab(),
+            _AdminPurchasesTab(),
+            _AdminListingsTab(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _openListingById(BuildContext context, String id) async {
+  final doc = await FirebaseFirestore.instance
+      .collection('listings')
+      .doc(id)
+      .get();
+  if (!context.mounted) return;
+  if (!doc.exists) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('That ad no longer exists.')),
+    );
+    return;
+  }
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => AdDetailsScreen(listing: Listing.fromDoc(doc)),
+    ),
+  );
+}
+
+class _Metric {
+  final String value;
+  final String label;
+  const _Metric(this.value, this.label);
+}
+
+/// Admin face-match review: compare the selfie to the CNIC and approve/reject.
+class _AdminVerificationsTab extends StatelessWidget {
+  const _AdminVerificationsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('verifications').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final am = a.data() as Map;
+            final bm = b.data() as Map;
+            final ap = am['status'] == 'pending' ? 0 : 1;
+            final bp = bm['status'] == 'pending' ? 0 : 1;
+            if (ap != bp) return ap - bp;
+            final at =
+                (am['submittedAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+            final bt =
+                (bm['submittedAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+            return bt.compareTo(at);
+          });
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.verified_user,
+            title: 'No verification requests',
+            subtitle: 'Selfie + CNIC submissions appear here for review.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final status = d['status']?.toString() ?? 'pending';
+            final pending = status == 'pending';
+            final uid = d['userId']?.toString() ?? docs[i].id;
+            final selfie = d['selfieUrl']?.toString() ?? '';
+            final cnic = d['cnicUrl']?.toString() ?? '';
+            Widget img(String url) => Expanded(
+              child: GestureDetector(
+                onTap: url.isEmpty
+                    ? null
+                    : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              FullScreenGallery(images: [selfie, cnic]),
+                        ),
+                      ),
+                child: Container(
+                  height: 110,
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(8),
+                    image: url.isEmpty
+                        ? null
+                        : DecorationImage(
+                            image: NetworkImage(url),
+                            fit: BoxFit.cover,
+                          ),
+                  ),
+                ),
+              ),
+            );
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      d['email']?.toString() ?? uid,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      'Status: $status',
+                      style: TextStyle(
+                        color: pending
+                            ? Colors.orange
+                            : (status == 'approved'
+                                  ? Colors.green
+                                  : Colors.red),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(children: [img(selfie), img(cnic)]),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 4),
+                      child: Text(
+                        'Selfie  ·  CNIC  (tap to enlarge)',
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                    ),
+                    if (pending)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () async {
+                              final users = FirebaseFirestore.instance
+                                  .collection('users');
+                              await users.doc(uid).set({
+                                'idVerified': false,
+                              }, SetOptions(merge: true));
+                              await users
+                                  .doc(uid)
+                                  .collection('notifications')
+                                  .add({
+                                    'title': 'Verification needs another try',
+                                    'body':
+                                        'Please re-upload a clear selfie and '
+                                        'CNIC photo, then resubmit.',
+                                    'type': 'verification',
+                                    'read': false,
+                                    'createdAt': Timestamp.now(),
+                                  });
+                              await docs[i].reference.update({
+                                'status': 'rejected',
+                                'reviewedAt': Timestamp.now(),
+                              });
+                            },
+                            child: const Text('Reject'),
+                          ),
+                          const SizedBox(width: 4),
+                          ElevatedButton(
+                            onPressed: () async {
+                              final users = FirebaseFirestore.instance
+                                  .collection('users');
+                              await users.doc(uid).set({
+                                'idVerified': true,
+                              }, SetOptions(merge: true));
+                              await users
+                                  .doc(uid)
+                                  .collection('notifications')
+                                  .add({
+                                    'title': 'Identity verified ✓',
+                                    'body':
+                                        'You can now post ads, buy, make offers '
+                                        'and chat on PakBazar.',
+                                    'type': 'verification',
+                                    'read': false,
+                                    'createdAt': Timestamp.now(),
+                                  });
+                              await docs[i].reference.update({
+                                'status': 'approved',
+                                'reviewedAt': Timestamp.now(),
+                              });
+                            },
+                            child: const Text('Approve'),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// Platform-wide inspection dashboard: live counts and money across the app.
+class _AdminOverviewTab extends StatelessWidget {
+  const _AdminOverviewTab();
+
+  Widget _section(
+    String title,
+    Stream<QuerySnapshot> stream,
+    List<_Metric> Function(List<QueryDocumentSnapshot>) compute,
+  ) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final metrics = snapshot.hasData ? compute(snapshot.data!.docs) : null;
+        return Card(
+          margin: const EdgeInsets.only(bottom: 10),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (metrics == null)
+                  const Center(child: CircularProgressIndicator())
+                else
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 14,
+                    children: metrics
+                        .map(
+                          (m) => SizedBox(
+                            width: 100,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  m.value,
+                                  style: const TextStyle(
+                                    fontSize: 19,
+                                    fontWeight: FontWeight.bold,
+                                    color: kPakGreen,
+                                  ),
+                                ),
+                                Text(
+                                  m.label,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fs = FirebaseFirestore.instance;
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        _section('Users', fs.collection('users').snapshots(), (docs) {
+          int business = 0;
+          num float = 0;
+          for (final d in docs) {
+            final m = d.data() as Map;
+            if (m['isBusiness'] == true) business++;
+            float += (m['walletBalance'] as num?) ?? 0;
+          }
+          return [
+            _Metric('${docs.length}', 'Total users'),
+            _Metric('$business', 'Businesses'),
+            _Metric(formatPrice('${float.toInt()}'), 'Wallet float'),
+          ];
+        }),
+        _section('Listings', fs.collection('listings').snapshots(), (docs) {
+          int featured = 0, sold = 0;
+          for (final d in docs) {
+            final m = d.data() as Map;
+            if (m['isFeatured'] == true) featured++;
+            if (m['isSold'] == true) sold++;
+          }
+          return [
+            _Metric('${docs.length}', 'Total ads'),
+            _Metric('$featured', 'Featured'),
+            _Metric('$sold', 'Sold'),
+          ];
+        }),
+        _section('Orders & revenue', fs.collection('orders').snapshots(), (
+          docs,
+        ) {
+          int completed = 0;
+          num gmv = 0, commission = 0;
+          for (final d in docs) {
+            final m = d.data() as Map;
+            if (m['status'] == 'completed') {
+              completed++;
+              gmv += (m['amount'] as num?) ?? 0;
+              commission += (m['commission'] as num?) ?? 0;
+            }
+          }
+          return [
+            _Metric('${docs.length}', 'Orders'),
+            _Metric('$completed', 'Completed'),
+            _Metric(formatPrice('${gmv.toInt()}'), 'GMV'),
+            _Metric(formatPrice('${commission.toInt()}'), 'Commission'),
+          ];
+        }),
+        _section('Negotiation & purchases', fs.collection('offers').snapshots(), (
+          docs,
+        ) {
+          return [_Metric('${docs.length}', 'Total offers')];
+        }),
+      ],
+    );
+  }
+}
+
+class _AdminUsersTab extends StatelessWidget {
+  const _AdminUsersTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('users').limit(300).snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final at =
+                ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            final bt =
+                ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            return bt.compareTo(at);
+          });
+        return ListView.builder(
+          padding: const EdgeInsets.all(8),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final isBusiness = d['isBusiness'] == true;
+            final name = isBusiness && (d['businessName']?.toString() ?? '').isNotEmpty
+                ? d['businessName'].toString()
+                : (d['email']?.toString() ?? '(guest)');
+            final balance = (d['walletBalance'] as num?)?.toInt() ?? 0;
+            return Card(
+              child: ListTile(
+                dense: true,
+                leading: CircleAvatar(
+                  backgroundColor: kPakGreen.withValues(alpha: 0.12),
+                  child: Icon(
+                    isBusiness ? Icons.storefront : Icons.person,
+                    color: kPakGreen,
+                  ),
+                ),
+                title: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  'Wallet ${formatPrice('$balance')}'
+                  '${isBusiness ? ' · Business' : ''}'
+                  '${d['featuredBusiness'] == true ? ' · ★Featured' : ''}',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SellerProfileScreen(
+                      sellerId: docs[i].id,
+                      sellerName: name,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _AdminOffersTab extends StatelessWidget {
+  const _AdminOffersTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('offers').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final at =
+                ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            final bt =
+                ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            return bt.compareTo(at);
+          });
+        if (docs.isEmpty) {
+          return const EmptyState(icon: Icons.local_offer, title: 'No offers');
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(8),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final offer = (d['offerAmount'] as num?)?.toInt() ?? 0;
+            final asking = (d['askingPrice'] as num?)?.toInt() ?? 0;
+            return Card(
+              child: ListTile(
+                dense: true,
+                title: Text(
+                  d['listingTitle']?.toString() ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  'Offer ${formatPrice('$offer')} (asking ${formatPrice('$asking')})\n'
+                  '${d['buyerName'] ?? ''} → ${d['sellerName'] ?? ''} · ${d['status'] ?? ''}',
+                ),
+                isThreeLine: true,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _AdminPurchasesTab extends StatelessWidget {
+  const _AdminPurchasesTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('purchases').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final at =
+                ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            final bt =
+                ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            return bt.compareTo(at);
+          });
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.shopping_bag,
+            title: 'No purchases',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(8),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final amount = (d['amount'] as num?)?.toInt() ?? 0;
+            final status = d['status']?.toString() ?? '';
+            return Card(
+              child: ListTile(
+                dense: true,
+                leading: const Icon(Icons.shopping_bag_outlined),
+                title: Text('${d['type'] ?? 'purchase'} · ${formatPrice('$amount')}'),
+                subtitle: Text(
+                  '${d['userId'] ?? ''}\n${timeAgo(d['createdAt'] as Timestamp?)}',
+                ),
+                isThreeLine: true,
+                trailing: Text(
+                  status,
+                  style: TextStyle(
+                    color: status == 'completed'
+                        ? Colors.green
+                        : (status == 'insufficient' || status == 'error'
+                              ? Colors.red
+                              : Colors.orange),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _AdminReportsTab extends StatelessWidget {
+  const _AdminReportsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('reports').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              'Error: ${snapshot.error}',
+              style: const TextStyle(color: Colors.white70),
+            ),
+          );
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final at =
+                ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            final bt =
+                ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            return bt.compareTo(at);
+          });
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.verified_user,
+            title: 'No reports',
+            subtitle: 'Reported ads will appear here for review.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final listingId = d['listingId']?.toString() ?? '';
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      d['listingTitle']?.toString() ?? '(untitled ad)',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Reason: ${d['reason'] ?? '—'}',
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                    Text(
+                      timeAgo(d['createdAt'] as Timestamp?),
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => _openListingById(context, listingId),
+                          icon: const Icon(Icons.open_in_new, size: 18),
+                          label: const Text('Open'),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () =>
+                              docs[i].reference.delete(),
+                          child: const Text('Dismiss'),
+                        ),
+                        const SizedBox(width: 4),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                          ),
+                          onPressed: () async {
+                            if (listingId.isNotEmpty) {
+                              await FirebaseFirestore.instance
+                                  .collection('listings')
+                                  .doc(listingId)
+                                  .delete();
+                            }
+                            await docs[i].reference.delete();
+                          },
+                          child: const Text('Delete ad'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _AdminPromotionsTab extends StatelessWidget {
+  const _AdminPromotionsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('promotions').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final am = a.data() as Map;
+            final bm = b.data() as Map;
+            final ap = am['status'] == 'pending' ? 0 : 1;
+            final bp = bm['status'] == 'pending' ? 0 : 1;
+            if (ap != bp) return ap - bp;
+            final at =
+                (am['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+            final bt =
+                (bm['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+            return bt.compareTo(at);
+          });
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.campaign,
+            title: 'No promotion orders',
+            subtitle: 'Seller promotion requests appear here for approval.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final status = d['status']?.toString() ?? 'pending';
+            final pending = status == 'pending';
+            final listingId = d['listingId']?.toString() ?? '';
+            final days = (d['days'] as num?)?.toInt() ?? 7;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      d['listingTitle']?.toString() ?? '(untitled ad)',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text('${d['package']} · ${formatPrice('${d['price']}')}'),
+                    Text(
+                      'Seller: ${d['sellerName'] ?? ''}',
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                    Text(
+                      'Status: $status',
+                      style: TextStyle(
+                        color: pending
+                            ? Colors.orange
+                            : (status == 'active' ? Colors.green : Colors.red),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (pending) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          TextButton.icon(
+                            onPressed: () =>
+                                _openListingById(context, listingId),
+                            icon: const Icon(Icons.open_in_new, size: 18),
+                            label: const Text('Open'),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () =>
+                                docs[i].reference.update({'status': 'rejected'}),
+                            child: const Text('Reject'),
+                          ),
+                          const SizedBox(width: 4),
+                          ElevatedButton(
+                            onPressed: () async {
+                              final until = Timestamp.fromDate(
+                                DateTime.now().add(Duration(days: days)),
+                              );
+                              if (d['type'] == 'business') {
+                                final bizUid = d['userId']?.toString() ?? '';
+                                if (bizUid.isNotEmpty) {
+                                  await FirebaseFirestore.instance
+                                      .collection('users')
+                                      .doc(bizUid)
+                                      .set({
+                                        'featuredBusiness': true,
+                                        'featuredBusinessUntil': until,
+                                      }, SetOptions(merge: true));
+                                }
+                              } else if (d['type'] == 'banner') {
+                                await FirebaseFirestore.instance
+                                    .collection('banners')
+                                    .add({
+                                      'imageUrl': d['imageUrl'] ?? '',
+                                      'title': d['bannerTitle'] ?? '',
+                                      'subtitle': d['bannerSubtitle'] ?? '',
+                                      'sellerId': d['sellerId'] ?? '',
+                                      'category': '',
+                                      'order': 99,
+                                      'active': true,
+                                      'createdAt': Timestamp.now(),
+                                      'expiresAt': until,
+                                    });
+                              } else if (listingId.isNotEmpty) {
+                                await FirebaseFirestore.instance
+                                    .collection('listings')
+                                    .doc(listingId)
+                                    .update({
+                                      'isFeatured': true,
+                                      'featuredUntil': until,
+                                    });
+                              }
+                              await docs[i].reference.update({
+                                'status': 'active',
+                                'approvedAt': Timestamp.now(),
+                              });
+                            },
+                            child: const Text('Approve'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _AdminTopupsTab extends StatelessWidget {
+  const _AdminTopupsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('walletTopups').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final am = a.data() as Map;
+            final bm = b.data() as Map;
+            final ap = am['status'] == 'pending' ? 0 : 1;
+            final bp = bm['status'] == 'pending' ? 0 : 1;
+            if (ap != bp) return ap - bp;
+            final at =
+                (am['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+            final bt =
+                (bm['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+            return bt.compareTo(at);
+          });
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.account_balance_wallet,
+            title: 'No top-up requests',
+            subtitle: 'Wallet top-up requests appear here for approval.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final status = d['status']?.toString() ?? 'pending';
+            final pending = status == 'pending';
+            final amount = (d['amount'] as num?)?.toInt() ?? 0;
+            final userId = d['userId']?.toString() ?? '';
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      formatPrice('$amount'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      '${d['userEmail'] ?? userId}',
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                    Text(
+                      'Status: $status',
+                      style: TextStyle(
+                        color: pending
+                            ? Colors.orange
+                            : (status == 'approved'
+                                  ? Colors.green
+                                  : Colors.red),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (pending) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () =>
+                                docs[i].reference.update({'status': 'rejected'}),
+                            child: const Text('Reject'),
+                          ),
+                          const SizedBox(width: 4),
+                          ElevatedButton(
+                            onPressed: () async {
+                              if (userId.isEmpty || amount <= 0) return;
+                              final fs = FirebaseFirestore.instance;
+                              final topupRef = docs[i].reference;
+                              final userRef = fs.collection('users').doc(userId);
+                              // Atomic + idempotent: only credit if still
+                              // pending, so a double-tap can't double-credit.
+                              await fs.runTransaction((tx) async {
+                                final topupSnap = await tx.get(topupRef);
+                                final tData =
+                                    topupSnap.data() as Map<String, dynamic>?;
+                                if (tData == null ||
+                                    tData['status'] != 'pending') {
+                                  return;
+                                }
+                                final userSnap = await tx.get(userRef);
+                                final current =
+                                    (userSnap.data()?['walletBalance'] as num?)
+                                        ?.toInt() ??
+                                    0;
+                                tx.set(userRef, {
+                                  'walletBalance': current + amount,
+                                }, SetOptions(merge: true));
+                                tx.set(
+                                  userRef.collection('walletTransactions').doc(),
+                                  {
+                                    'type': 'credit',
+                                    'amount': amount,
+                                    'purpose': 'topup',
+                                    'createdAt': Timestamp.now(),
+                                  },
+                                );
+                                tx.update(topupRef, {
+                                  'status': 'approved',
+                                  'approvedAt': Timestamp.now(),
+                                });
+                              });
+                            },
+                            child: const Text('Approve & credit'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _AdminOrdersTab extends StatelessWidget {
+  const _AdminOrdersTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('orders').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final at =
+                ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            final bt =
+                ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            return bt.compareTo(at);
+          });
+        double revenue = 0;
+        int completed = 0;
+        for (final d in docs) {
+          final m = d.data() as Map;
+          if (m['status'] == 'completed') {
+            revenue += (m['commission'] as num?)?.toDouble() ?? 0;
+            completed++;
+          }
+        }
+        return Column(
+          children: [
+            Card(
+              margin: const EdgeInsets.all(12),
+              color: kPakGreen,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _stat('${docs.length}', 'Orders'),
+                    _stat('$completed', 'Completed'),
+                    _stat(
+                      formatPrice(revenue.toStringAsFixed(0)),
+                      'Commission',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: docs.isEmpty
+                  ? const EmptyState(
+                      icon: Icons.receipt_long,
+                      title: 'No orders yet',
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                      itemCount: docs.length,
+                      itemBuilder: (context, i) {
+                        final d = docs[i].data() as Map<String, dynamic>;
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            title: Text(
+                              d['listingTitle']?.toString() ?? '',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              '${d['buyerName']} → ${d['sellerName']}\n'
+                              '${formatPrice('${d['amount']}')} · '
+                              'fee ${formatPrice('${d['commission']}')} · '
+                              '${d['status']}',
+                            ),
+                            isThreeLine: true,
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _stat(String value, String label) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+      ],
+    );
+  }
+}
+
+class _AdminListingsTab extends StatelessWidget {
+  const _AdminListingsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('listings')
+          .orderBy('createdAt', descending: true)
+          .limit(100)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.inventory_2_outlined,
+            title: 'No listings',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final l = Listing.fromDoc(docs[i]);
+            final imgs = l.galleryImages;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                leading: imgs.isEmpty
+                    ? const Icon(Icons.image, size: 36)
+                    : Image.network(
+                        imgs.first,
+                        width: 52,
+                        height: 52,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const Icon(Icons.image),
+                      ),
+                title: Text(
+                  l.title.isEmpty ? '(untitled)' : l.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  '${formatPrice(l.price)} · ${l.sellerName}'
+                  '${l.isFeatured ? ' · ★' : ''}${l.isSold ? ' · SOLD' : ''}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AdDetailsScreen(listing: l),
+                  ),
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Toggle Featured',
+                      icon: Icon(
+                        l.isFeatured ? Icons.star : Icons.star_border,
+                        color: kGold,
+                      ),
+                      onPressed: () => docs[i].reference.update({
+                        'isFeatured': !l.isFeatured,
+                      }),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () => docs[i].reference.delete(),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Notification center
+// ---------------------------------------------------------------------------
