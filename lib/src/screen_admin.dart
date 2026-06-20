@@ -1139,7 +1139,31 @@ class _AdminUsersTab extends StatelessWidget {
                   '${isBusiness ? ' · Business' : ''}'
                   '${d['featuredBusiness'] == true ? ' · ★Featured' : ''}',
                 ),
-                trailing: const Icon(Icons.chevron_right),
+                trailing: isBusiness
+                    ? IconButton(
+                        tooltip: d['featuredBusiness'] == true
+                            ? 'Unfeature business'
+                            : 'Feature business (3 months)',
+                        icon: Icon(
+                          d['featuredBusiness'] == true
+                              ? Icons.star
+                              : Icons.star_border,
+                          color: kGold,
+                        ),
+                        onPressed: () => docs[i].reference.update(
+                          d['featuredBusiness'] == true
+                              ? {'featuredBusiness': false}
+                              : {
+                                  'featuredBusiness': true,
+                                  'featuredBusinessUntil': Timestamp.fromDate(
+                                    DateTime.now().add(
+                                      const Duration(days: 90),
+                                    ),
+                                  ),
+                                },
+                        ),
+                      )
+                    : const Icon(Icons.chevron_right),
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -1797,52 +1821,172 @@ class _AdminListingsTab extends StatelessWidget {
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final l = Listing.fromDoc(docs[i]);
+            final ref = docs[i].reference;
             final imgs = l.galleryImages;
+            final featured = l.isCurrentlyFeatured;
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                leading: imgs.isEmpty
-                    ? const Icon(Icons.image, size: 36)
-                    : Image.network(
-                        imgs.first,
-                        width: 52,
-                        height: 52,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => const Icon(Icons.image),
-                      ),
-                title: Text(
-                  l.title.isEmpty ? '(untitled)' : l.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  '${formatPrice(l.price)} · ${l.sellerName}'
-                  '${l.isFeatured ? ' · ★' : ''}${l.isSold ? ' · SOLD' : ''}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AdDetailsScreen(listing: l),
-                  ),
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    IconButton(
-                      tooltip: 'Toggle Featured',
-                      icon: Icon(
-                        l.isFeatured ? Icons.star : Icons.star_border,
-                        color: kGold,
-                      ),
-                      onPressed: () => docs[i].reference.update({
-                        'isFeatured': !l.isFeatured,
-                      }),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: imgs.isEmpty
+                              ? Container(
+                                  width: 52,
+                                  height: 52,
+                                  color: Colors.grey.shade200,
+                                  child: const Icon(Icons.image),
+                                )
+                              : Image.network(
+                                  imgs.first,
+                                  width: 52,
+                                  height: 52,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => Container(
+                                    width: 52,
+                                    height: 52,
+                                    color: Colors.grey.shade200,
+                                    child: const Icon(Icons.image),
+                                  ),
+                                ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l.title.isEmpty ? '(untitled)' : l.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                '${formatPrice(l.price)} · ${l.sellerName}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Wrap(
+                                spacing: 8,
+                                children: [
+                                  if (featured)
+                                    const Text(
+                                      '★ Featured',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: kGold,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  if (l.isSold)
+                                    const Text(
+                                      'SOLD',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.red,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => docs[i].reference.delete(),
+                    const Divider(height: 16),
+                    Wrap(
+                      spacing: 2,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AdDetailsScreen(listing: l),
+                            ),
+                          ),
+                          icon: const Icon(Icons.visibility, size: 18),
+                          label: const Text('View'),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => ref.update(
+                            featured
+                                ? {'isFeatured': false}
+                                : {
+                                    'isFeatured': true,
+                                    'featuredUntil': Timestamp.fromDate(
+                                      DateTime.now().add(
+                                        const Duration(days: 90),
+                                      ),
+                                    ),
+                                  },
+                          ),
+                          icon: Icon(
+                            featured ? Icons.star : Icons.star_border,
+                            size: 18,
+                            color: kGold,
+                          ),
+                          label: Text(featured ? 'Unfeature' : 'Feature'),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => ref.update({'isSold': !l.isSold}),
+                          icon: Icon(
+                            l.isSold ? Icons.shopping_bag : Icons.sell,
+                            size: 18,
+                          ),
+                          label: Text(l.isSold ? 'Mark available' : 'Mark sold'),
+                        ),
+                        TextButton.icon(
+                          onPressed: () async {
+                            final ok = await showDialog<bool>(
+                              context: context,
+                              builder: (c) => AlertDialog(
+                                title: const Text('Delete ad?'),
+                                content: Text(
+                                  'Permanently delete "${l.title}"? This cannot '
+                                  'be undone.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(c, false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red,
+                                    ),
+                                    onPressed: () => Navigator.pop(c, true),
+                                    child: const Text('Delete'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (ok == true) await ref.delete();
+                          },
+                          icon: const Icon(
+                            Icons.delete,
+                            size: 18,
+                            color: Colors.red,
+                          ),
+                          label: const Text(
+                            'Delete',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
