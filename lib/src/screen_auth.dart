@@ -85,7 +85,7 @@ class _AuthScreenState extends State<AuthScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [kPakGreen, Color(0xFF0B6E3D)],
+            colors: [kPakGreen, kPakGreenLight],
           ),
         ),
         child: Center(

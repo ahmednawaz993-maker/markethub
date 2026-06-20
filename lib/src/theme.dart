@@ -2,9 +2,11 @@ part of '../main.dart';
 
 // App colors and ThemeData.
 
-const Color kPakGreenDeep = Color(0xFF013318); // darkest flag green
-const Color kPakGreen = Color(0xFF015127); // primary flag green
-const Color kPakGreenLight = Color(0xFF0A7D3B); // lighter accent green
+// Brand palette — Midnight Navy + Gold (premium). The constant names are kept
+// (kPakGreen*) to avoid a large rename across the app; they now hold navy.
+const Color kPakGreenDeep = Color(0xFF0A1A33); // darkest navy (gradient ends)
+const Color kPakGreen = Color(0xFF173A6B); // primary royal navy (buttons/accents)
+const Color kPakGreenLight = Color(0xFF2E5AA0); // lighter navy accent
 const Color kGold = Color(0xFFC9A227); // premium gold accent
 
 ThemeData buildAppTheme() {

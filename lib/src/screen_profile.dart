@@ -879,7 +879,7 @@ class ProfileScreen extends StatelessWidget {
                   gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [kPakGreen, Color(0xFF0B6E3D)],
+                    colors: [kPakGreen, kPakGreenLight],
                   ),
                   borderRadius: BorderRadius.circular(16),
                 ),
