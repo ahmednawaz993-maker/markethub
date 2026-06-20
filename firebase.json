@@ -1,1 +1,85 @@
-{"functions":{"source":"functions"},"hosting":[{"site":"markethub-80276","public":"build/web","ignore":["firebase.json","**/.*","**/node_modules/**"],"rewrites":[{"source":"**","destination":"/index.html"}]},{"site":"pakbazar","public":"build/web","ignore":["firebase.json","**/.*","**/node_modules/**"],"rewrites":[{"source":"**","destination":"/index.html"}]}],"firestore":{"rules":"firestore.rules","indexes":"firestore.indexes.json"},"storage":{"rules":"storage.rules"},"flutter":{"platforms":{"android":{"default":{"projectId":"markethub-80276","appId":"1:541505846653:android:058fd729a280dbb28a2014","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"markethub-80276","configurations":{"android":"1:541505846653:android:058fd729a280dbb28a2014","ios":"1:541505846653:ios:deb9017ac06595108a2014","macos":"1:541505846653:ios:deb9017ac06595108a2014","web":"1:541505846653:web:2afe478f1fb52e358a2014","windows":"1:541505846653:web:9c882ed5a90d3ff38a2014"}}}}}}
+{
+  "functions": { "source": "functions" },
+  "hosting": [
+    {
+      "site": "markethub-80276",
+      "public": "build/web",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }],
+      "headers": [
+        {
+          "source": "/index.html",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "/flutter_service_worker.js",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "site": "pakbazar",
+      "public": "build/web",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }],
+      "headers": [
+        {
+          "source": "/index.html",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "/flutter_service_worker.js",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": { "rules": "storage.rules" },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "markethub-80276",
+          "appId": "1:541505846653:android:058fd729a280dbb28a2014",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "markethub-80276",
+          "configurations": {
+            "android": "1:541505846653:android:058fd729a280dbb28a2014",
+            "ios": "1:541505846653:ios:deb9017ac06595108a2014",
+            "macos": "1:541505846653:ios:deb9017ac06595108a2014",
+            "web": "1:541505846653:web:2afe478f1fb52e358a2014",
+            "windows": "1:541505846653:web:9c882ed5a90d3ff38a2014"
+          }
+        }
+      }
+    }
+  }
+}
