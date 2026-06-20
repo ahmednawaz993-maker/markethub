@@ -276,6 +276,7 @@ Future<void> showOfferSheet(BuildContext context, Listing listing) async {
       );
     },
   );
+  controller.dispose();
 }
 
 // ---------------------------------------------------------------------------
@@ -420,7 +421,7 @@ Future<bool> payFromWallet(
   if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Payment successful! Activating your purchase…'),
+        content: Text('Purchase requested — activating shortly…'),
       ),
     );
   }

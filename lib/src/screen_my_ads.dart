@@ -241,6 +241,7 @@ Future<void> showLowerPriceSheet(BuildContext context, Listing listing) async {
       );
     },
   );
+  controller.dispose();
 }
 
 class MyAdsScreen extends StatefulWidget {

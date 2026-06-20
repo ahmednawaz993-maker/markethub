@@ -33,6 +33,7 @@ Future<void> _counterDialog(BuildContext context, DocumentReference ref) async {
       ],
     ),
   );
+  controller.dispose();
 }
 
 class OffersScreen extends StatelessWidget {

@@ -405,6 +405,8 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
         );
       },
     );
+    minController.dispose();
+    maxController.dispose();
   }
 
   int get activeFilterCount {

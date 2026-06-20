@@ -278,20 +278,28 @@ Future<void> _orderFromOffer(
   double amount,
 ) async {
   final commission = amount * commissionRate;
-  await FirebaseFirestore.instance.collection('orders').add({
-    'listingId': offer['listingId'] ?? '',
-    'listingTitle': offer['listingTitle'] ?? '',
-    'listingImage': offer['listingImage'] ?? '',
-    'sellerId': offer['sellerId'] ?? '',
-    'sellerName': offer['sellerName'] ?? '',
-    'buyerId': offer['buyerId'] ?? '',
-    'buyerName': offer['buyerName'] ?? '',
-    'amount': amount,
-    'commission': commission,
-    'sellerPayout': amount - commission,
-    'status': 'pending_payment',
-    'createdAt': Timestamp.now(),
-    'fromOffer': true,
+  final orderRef = FirebaseFirestore.instance.collection('orders').doc();
+  // Atomic: re-read the offer and only create the order if it hasn't already
+  // been ordered, so a double-tap / race can't produce duplicate orders.
+  await FirebaseFirestore.instance.runTransaction((tx) async {
+    final snap = await tx.get(ref);
+    final status = (snap.data() as Map<String, dynamic>?)?['status'];
+    if (status == 'ordered') return;
+    tx.set(orderRef, {
+      'listingId': offer['listingId'] ?? '',
+      'listingTitle': offer['listingTitle'] ?? '',
+      'listingImage': offer['listingImage'] ?? '',
+      'sellerId': offer['sellerId'] ?? '',
+      'sellerName': offer['sellerName'] ?? '',
+      'buyerId': offer['buyerId'] ?? '',
+      'buyerName': offer['buyerName'] ?? '',
+      'amount': amount,
+      'commission': commission,
+      'sellerPayout': amount - commission,
+      'status': 'pending_payment',
+      'createdAt': Timestamp.now(),
+      'fromOffer': true,
+    });
+    tx.update(ref, {'status': 'ordered', 'agreedAmount': amount});
   });
-  await ref.update({'status': 'ordered', 'agreedAmount': amount});
 }

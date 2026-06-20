@@ -1490,6 +1490,7 @@ class _HomeScreenState extends State<HomeScreen> {
       title: InkWell(
         onTap: () async {
           final c = await showCityPicker(context, includeAll: true);
+          if (!mounted) return;
           if (c != null) {
             setState(() => homeCity = c == 'All' ? 'All Pakistan' : c);
           }
