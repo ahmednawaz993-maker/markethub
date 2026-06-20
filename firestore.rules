@@ -203,7 +203,8 @@ service cloud.firestore {
       allow create: if isSignedIn()
                     && request.resource.data.buyerId == request.auth.uid
                     && isVerifiedUser()
-                    && request.resource.data.status == 'pending_payment';
+                    && (request.resource.data.status == 'pending_payment'
+                        || request.resource.data.status == 'cod_pending');
       allow read: if isSignedIn() && (
                     resource.data.buyerId == request.auth.uid
                     || resource.data.sellerId == request.auth.uid
@@ -222,10 +223,16 @@ service cloud.firestore {
 
       function onlySafeOrderChange() {
         return request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['buyerConfirmed', 'buyerConfirmedAt', 'status'])
-               && (request.resource.data.status == resource.data.status
-                   || (resource.data.status == 'pending_payment'
-                       && request.resource.data.status == 'cancelled'));
+                 .hasOnly(['buyerConfirmed', 'buyerConfirmedAt', 'status',
+                           'completedAt'])
+               && (
+                 request.resource.data.status == resource.data.status
+                 || (resource.data.status == 'pending_payment'
+                     && request.resource.data.status == 'cancelled')
+                 || (resource.data.status == 'cod_pending'
+                     && (request.resource.data.status == 'cancelled'
+                         || request.resource.data.status == 'completed'))
+               );
       }
     }
 

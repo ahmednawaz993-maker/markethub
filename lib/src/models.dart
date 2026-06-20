@@ -18,6 +18,7 @@ class Listing {
   String condition;
   String unit; // pricing unit e.g. 'kg', 'dozen', 'plate' (optional)
   bool deliveryAvailable;
+  bool codAvailable; // Cash on Delivery offered for this ad
   bool sellerVerified;
   bool negotiable;
   Map<String, String> attributes; // e.g. {'Year': '2018', 'KM driven': '50000'}
@@ -51,6 +52,7 @@ class Listing {
     this.condition = '',
     this.unit = '',
     this.deliveryAvailable = false,
+    this.codAvailable = false,
     this.sellerVerified = false,
     this.negotiable = false,
     this.attributes = const {},
@@ -109,6 +111,7 @@ class Listing {
       'condition': condition,
       'unit': unit,
       'deliveryAvailable': deliveryAvailable,
+      'codAvailable': codAvailable,
       'city': city,
       'latitude': latitude,
       'longitude': longitude,
@@ -143,6 +146,7 @@ class Listing {
       condition: data['condition']?.toString() ?? '',
       unit: data['unit']?.toString() ?? '',
       deliveryAvailable: data['deliveryAvailable'] == true,
+      codAvailable: data['codAvailable'] == true,
       sellerVerified: data['sellerVerified'] == true,
       negotiable: data['negotiable'] == true,
       attributes:

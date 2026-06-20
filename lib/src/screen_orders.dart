@@ -199,6 +199,7 @@ class _OrdersList extends StatelessWidget {
             final payout = (d['sellerPayout'] as num?)?.toDouble() ?? 0;
             final buyerConfirmed = d['buyerConfirmed'] == true;
             final (label, color) = switch (status) {
+              'cod_pending' => ('Cash on Delivery', Colors.indigo),
               'payment_review' => ('Payment under review', Colors.orange),
               'in_escrow' => ('Paid · in escrow', kPakGreen),
               'released' => ('Completed · paid out', Colors.green),
@@ -319,6 +320,66 @@ class _OrdersList extends StatelessWidget {
                           'Waiting for the buyer to pay.',
                           style: TextStyle(fontSize: 12, color: Colors.grey),
                         ),
+                    ],
+                    if (status == 'cod_pending') ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.indigo.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.local_shipping,
+                              size: 16,
+                              color: Colors.indigo,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                asSeller
+                                    ? 'Cash on Delivery — deliver the item and '
+                                          'collect the cash.'
+                                    : 'Cash on Delivery — pay cash when the item '
+                                          'is delivered.',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (!asSeller)
+                            TextButton(
+                              onPressed: () => docs[i].reference.update({
+                                'status': 'cancelled',
+                              }),
+                              child: const Text('Cancel'),
+                            )
+                          else
+                            ElevatedButton(
+                              onPressed: () async {
+                                await docs[i].reference.update({
+                                  'status': 'completed',
+                                  'completedAt': Timestamp.now(),
+                                });
+                                final lid = d['listingId']?.toString() ?? '';
+                                if (lid.isNotEmpty) {
+                                  await FirebaseFirestore.instance
+                                      .collection('listings')
+                                      .doc(lid)
+                                      .update({'isSold': true});
+                                }
+                              },
+                              child: const Text('Mark delivered'),
+                            ),
+                        ],
+                      ),
                     ],
                     if (status == 'payment_review') ...[
                       const SizedBox(height: 8),

@@ -507,6 +507,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
   late String selectedCondition;
   late String selectedUnit;
   late bool deliveryAvailable;
+  late bool codAvailable;
   late bool negotiable;
   final Map<String, TextEditingController> attrControllers = {};
   late String selectedCity;
@@ -549,6 +550,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
         ? widget.listing.unit
         : 'None';
     deliveryAvailable = widget.listing.deliveryAvailable;
+    codAvailable = widget.listing.codAvailable;
     negotiable = widget.listing.negotiable;
     selectedCity = pakistanCities.contains(widget.listing.city)
         ? widget.listing.city
@@ -613,6 +615,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
         'condition': selectedCondition,
         'unit': selectedUnit == 'None' ? '' : selectedUnit,
         'deliveryAvailable': deliveryAvailable,
+        'codAvailable': codAvailable,
         'negotiable': negotiable,
       };
       final attributes = <String, String>{};
@@ -823,6 +826,14 @@ class _EditListingScreenState extends State<EditListingScreen> {
               value: deliveryAvailable,
               activeThumbColor: kPakGreen,
               onChanged: (v) => setState(() => deliveryAvailable = v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Cash on Delivery'),
+              subtitle: const Text('Let buyers pay cash when the item arrives'),
+              value: codAvailable,
+              activeThumbColor: kPakGreen,
+              onChanged: (v) => setState(() => codAvailable = v),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,

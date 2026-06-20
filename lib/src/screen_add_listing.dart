@@ -97,6 +97,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
   String selectedCondition = 'Used';
   String selectedUnit = 'None';
   bool deliveryAvailable = false;
+  bool codAvailable = false;
   bool negotiable = false;
   final Map<String, TextEditingController> attrControllers = {};
 
@@ -131,6 +132,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
     final u = d['unit']?.toString() ?? '';
     selectedUnit = pricingUnits.contains(u) ? u : 'None';
     deliveryAvailable = d['deliveryAvailable'] == true;
+    codAvailable = d['codAvailable'] == true;
     negotiable = d['negotiable'] == true;
     if (pakistanCities.contains(d['city'])) selectedCity = d['city'].toString();
     final attrs = (d['attributes'] as Map?) ?? {};
@@ -157,6 +159,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
       'condition': selectedCondition,
       'unit': selectedUnit,
       'deliveryAvailable': deliveryAvailable,
+      'codAvailable': codAvailable,
       'negotiable': negotiable,
       'city': selectedCity,
       'attributes': attributes,
@@ -301,6 +304,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'condition': selectedCondition,
         'unit': selectedUnit == 'None' ? '' : selectedUnit,
         'deliveryAvailable': deliveryAvailable,
+        'codAvailable': codAvailable,
         'negotiable': negotiable,
         'sellerVerified': true,
         'attributes': attributes,
@@ -530,6 +534,16 @@ class _AddListingScreenState extends State<AddListingScreen> {
               onChanged: isSubmitting
                   ? null
                   : (v) => setState(() => deliveryAvailable = v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Cash on Delivery'),
+              subtitle: const Text('Let buyers pay cash when the item arrives'),
+              value: codAvailable,
+              activeThumbColor: kPakGreen,
+              onChanged: isSubmitting
+                  ? null
+                  : (v) => setState(() => codAvailable = v),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,

@@ -104,6 +104,30 @@ Future<void> createOrder(Listing listing) async {
   });
 }
 
+/// Places a Cash-on-Delivery order: no online payment and no platform escrow —
+/// the buyer pays cash on handover. No commission is taken on COD.
+Future<void> createCodOrder(Listing listing) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+  final amount = parsePrice(listing.price);
+  await FirebaseFirestore.instance.collection('orders').add({
+    'listingId': listing.id,
+    'listingTitle': listing.title,
+    'listingImage':
+        listing.galleryImages.isEmpty ? '' : listing.galleryImages.first,
+    'sellerId': listing.userId,
+    'sellerName': listing.sellerName,
+    'buyerId': user.uid,
+    'buyerName': user.email ?? 'Buyer',
+    'amount': amount,
+    'commission': 0,
+    'sellerPayout': amount,
+    'paymentMethod': 'cod',
+    'status': 'cod_pending',
+    'createdAt': Timestamp.now(),
+  });
+}
+
 /// Confirmation sheet for "Buy now".
 Future<void> showBuyNowSheet(BuildContext context, Listing listing) async {
   if (!await ensureVerified(context)) return;
@@ -151,13 +175,38 @@ Future<void> showBuyNowSheet(BuildContext context, Listing listing) async {
                 ],
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Online payment is coming soon. Placing an order notifies the '
-                'seller so you can arrange a safe handover. Track it in '
-                'Profile → My Orders.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+              Text(
+                listing.codAvailable
+                    ? 'Pay online (held in escrow until you confirm receipt) or '
+                          'choose Cash on Delivery. Track it in Profile → My '
+                          'Orders.'
+                    : 'Your payment is held safely in escrow until you confirm '
+                          'you received the item. Track it in Profile → My '
+                          'Orders.',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
               const SizedBox(height: 12),
+              if (listing.codAvailable) ...[
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    await createCodOrder(listing);
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'COD order placed — pay cash on delivery. See '
+                            'Profile → My Orders.',
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.local_shipping),
+                  label: const Text('Cash on Delivery'),
+                ),
+                const SizedBox(height: 8),
+              ],
               ElevatedButton(
                 onPressed: () async {
                   await createOrder(listing);
@@ -166,13 +215,13 @@ Future<void> showBuyNowSheet(BuildContext context, Listing listing) async {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text(
-                          'Order placed! See it in Profile → My Orders.',
+                          'Order placed! Pay it from Profile → My Orders.',
                         ),
                       ),
                     );
                   }
                 },
-                child: const Text('Place order'),
+                child: const Text('Pay online (escrow)'),
               ),
             ],
           ),
@@ -277,78 +326,6 @@ Future<void> showOfferSheet(BuildContext context, Listing listing) async {
     },
   );
   controller.dispose();
-}
-
-// ---------------------------------------------------------------------------
-// Business advertising
-// ---------------------------------------------------------------------------
-
-const List<PromoPackage> businessAdPackages = [
-  PromoPackage('Featured Business · 30 days', 30, 3000),
-  PromoPackage('Featured Business · 90 days', 90, 8000),
-];
-
-Future<void> showBusinessAdSheet(
-  BuildContext context,
-  String businessName,
-) async {
-  await showModalBottomSheet(
-    context: context,
-    builder: (sheetCtx) {
-      return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Text(
-                'Advertise your business',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'Get a Featured Business spot on the home screen to reach more '
-                'buyers across Pakistan.',
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-            const SizedBox(height: 8),
-            for (final p in businessAdPackages)
-              ListTile(
-                leading: const Icon(Icons.storefront, color: kGold),
-                title: Text(p.name),
-                trailing: Text(
-                  formatPrice(p.price.toString()),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                onTap: () async {
-                  Navigator.pop(sheetCtx);
-                  await payFromWallet(
-                    context,
-                    type: 'featuredBusiness',
-                    amount: p.price,
-                    days: p.days,
-                  );
-                },
-              ),
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'Paid instantly from your PakBazar Wallet (Profile → Wallet).',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ),
-          ],
-        ),
-      );
-    },
-  );
 }
 
 // ---------------------------------------------------------------------------

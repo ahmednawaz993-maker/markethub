@@ -539,6 +539,11 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                     icon: Icons.delivery_dining,
                     text: 'Delivery available',
                   ),
+                if (listing.codAvailable)
+                  const _IconText(
+                    icon: Icons.local_shipping,
+                    text: 'Cash on Delivery',
+                  ),
               ],
             ),
             if (!listing.isSold) _PriceInsight(listing: listing),

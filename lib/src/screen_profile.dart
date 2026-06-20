@@ -477,15 +477,6 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () =>
-                      showBusinessAdSheet(context, nameController.text.trim()),
-                  icon: const Icon(Icons.campaign, color: kGold),
-                  label: const Text('Advertise my business'),
-                ),
-              ),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const BannerAdScreen()),
