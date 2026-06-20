@@ -312,6 +312,26 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // Seller withdrawals — a seller requests a payout; Cloud Functions reserve
+    // the funds and settle. Clients never write money state.
+    // ---------------------------------------------------------------------
+    match /withdrawals/{withdrawalId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.status == 'pending';
+      allow read: if isSignedIn()
+                  && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if false; // settled only by Cloud Functions
+    }
+
+    // Admin pay/reject instructions — processed by onWithdrawalAction.
+    match /withdrawalActions/{actionId} {
+      allow create: if isAdmin() && request.resource.data.status == 'pending';
+      allow read: if isAdmin();
+      allow update, delete: if false; // Cloud Functions only
+    }
+
+    // ---------------------------------------------------------------------
     // Purchases — user spends wallet balance on a feature. A Cloud Function
     // (processPurchase) validates the balance and applies the effect.
     // ---------------------------------------------------------------------

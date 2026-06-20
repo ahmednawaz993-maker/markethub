@@ -8,7 +8,7 @@ class AdminPanelScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 13,
+      length: 14,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Panel'),
@@ -25,6 +25,7 @@ class AdminPanelScreen extends StatelessWidget {
               Tab(text: 'Reports'),
               Tab(text: 'Top-ups'),
               Tab(text: 'Payment a/c'),
+              Tab(text: 'Withdrawals'),
               Tab(text: 'Promotions'),
               Tab(text: 'Orders'),
               Tab(text: 'Offers'),
@@ -43,6 +44,7 @@ class AdminPanelScreen extends StatelessWidget {
             _AdminReportsTab(),
             _AdminTopupsTab(),
             _AdminPaymentTab(),
+            _AdminWithdrawalsTab(),
             _AdminPromotionsTab(),
             _AdminOrdersTab(),
             _AdminOffersTab(),
@@ -375,6 +377,131 @@ class _PaymentAccountEditorState extends State<_PaymentAccountEditor> {
             icon: const Icon(Icons.save),
             label: Text(saving ? 'Saving…' : 'Save receiving account'),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Seller withdrawal requests awaiting payout. The admin sends money to the
+/// seller's account off-platform, then marks it paid (or rejects -> refunds
+/// the reserved amount to the seller's wallet via onWithdrawalAction).
+class _AdminWithdrawalsTab extends StatelessWidget {
+  const _AdminWithdrawalsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('withdrawals')
+          .where('status', isEqualTo: 'processing')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.account_balance,
+            title: 'No withdrawals pending',
+            subtitle: 'Seller payout requests appear here.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final amount = (d['amount'] as num?)?.toDouble() ?? 0;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      formatPrice(amount.toStringAsFixed(0)),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      d['userEmail']?.toString() ?? '',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 6),
+                    SelectableText(
+                      'Pay to: ${d['payoutBank'] ?? ''}\n'
+                      'Title: ${d['payoutTitle'] ?? ''}\n'
+                      'Number: ${d['payoutNumber'] ?? ''}',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    const SizedBox(height: 8),
+                    _WithdrawalActions(withdrawalId: docs[i].id),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// Mark paid / reject buttons for one withdrawal. Stateful so both disable
+/// while the instruction is written (the Cloud Function also guards on status,
+/// so it stays idempotent).
+class _WithdrawalActions extends StatefulWidget {
+  const _WithdrawalActions({required this.withdrawalId});
+
+  final String withdrawalId;
+
+  @override
+  State<_WithdrawalActions> createState() => _WithdrawalActionsState();
+}
+
+class _WithdrawalActionsState extends State<_WithdrawalActions> {
+  bool busy = false;
+
+  Future<void> _act(String type) async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      await FirebaseFirestore.instance.collection('withdrawalActions').add({
+        'withdrawalId': widget.withdrawalId,
+        'type': type,
+        'by': FirebaseAuth.instance.currentUser?.uid ?? '',
+        'status': 'pending',
+        'createdAt': Timestamp.now(),
+      });
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        TextButton(
+          onPressed: busy ? null : () => _act('rejected'),
+          child: const Text('Reject'),
+        ),
+        const SizedBox(width: 4),
+        ElevatedButton(
+          onPressed: busy ? null : () => _act('paid'),
+          child: busy
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Mark paid'),
         ),
       ],
     );

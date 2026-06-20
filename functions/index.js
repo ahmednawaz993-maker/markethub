@@ -750,3 +750,113 @@ exports.onEscrowAction = onDocumentCreated(
     });
   }
 );
+
+// ---------------------------------------------------------------------------
+// Seller payout / withdrawal
+//
+// A seller requests a withdrawal (withdrawals doc). onWithdrawalCreated
+// reserves the funds by deducting their wallet immediately (so the same money
+// can't be spent or withdrawn twice). An admin then creates a withdrawalActions
+// doc: "paid" finalizes it (money sent off-platform), "rejected" refunds the
+// reserved amount back to the wallet. All movement is server-side and logged.
+// ---------------------------------------------------------------------------
+
+exports.onWithdrawalCreated = onDocumentCreated(
+  "withdrawals/{withdrawalId}",
+  async (event) => {
+    const w = event.data && event.data.data();
+    if (!w || !w.userId) return;
+
+    const db = getFirestore();
+    const wRef = event.data.ref;
+    const userRef = db.collection("users").doc(w.userId);
+    const amount = Number(w.amount) || 0;
+
+    await db.runTransaction(async (tx) => {
+      const userSnap = await tx.get(userRef);
+      const bal = Number(userSnap.get("walletBalance")) || 0;
+      if (amount <= 0 || bal < amount) {
+        tx.update(wRef, { status: "insufficient" });
+        return;
+      }
+      // Reserve: deduct now so the balance can't be double-spent/withdrawn.
+      tx.update(userRef, { walletBalance: bal - amount });
+      tx.update(wRef, { status: "processing", reservedAt: Timestamp.now() });
+      tx.set(userRef.collection("walletTransactions").doc(), {
+        type: "debit",
+        amount,
+        purpose: "Withdrawal",
+        createdAt: Timestamp.now(),
+      });
+      tx.set(db.collection("ledger").doc(), {
+        type: "withdrawal_reserve",
+        withdrawalId: wRef.id,
+        userId: w.userId,
+        amount,
+        createdAt: Timestamp.now(),
+      });
+    });
+  }
+);
+
+exports.onWithdrawalAction = onDocumentCreated(
+  "withdrawalActions/{actionId}",
+  async (event) => {
+    const act = event.data && event.data.data();
+    if (!act || !act.withdrawalId || !act.type) return;
+
+    const db = getFirestore();
+    const actRef = event.data.ref;
+    const wRef = db.collection("withdrawals").doc(act.withdrawalId);
+
+    await db.runTransaction(async (tx) => {
+      const wSnap = await tx.get(wRef);
+      if (!wSnap.exists) {
+        tx.update(actRef, { status: "missing" });
+        return;
+      }
+      const w = wSnap.data();
+      if (w.status !== "processing") {
+        tx.update(actRef, { status: "not_processing" });
+        return;
+      }
+      const amount = Number(w.amount) || 0;
+
+      if (act.type === "paid") {
+        tx.update(wRef, { status: "paid", paidAt: Timestamp.now() });
+        tx.set(db.collection("ledger").doc(), {
+          type: "withdrawal_paid",
+          withdrawalId: act.withdrawalId,
+          userId: w.userId || "",
+          amount,
+          createdAt: Timestamp.now(),
+        });
+      } else if (act.type === "rejected") {
+        // Refund the reserved amount back to the seller's wallet.
+        const userRef = db.collection("users").doc(w.userId);
+        const userSnap = await tx.get(userRef);
+        const bal = Number(userSnap.get("walletBalance")) || 0;
+        tx.update(userRef, { walletBalance: bal + amount });
+        tx.update(wRef, { status: "rejected", rejectedAt: Timestamp.now() });
+        tx.set(userRef.collection("walletTransactions").doc(), {
+          type: "credit",
+          amount,
+          purpose: "Withdrawal refund",
+          createdAt: Timestamp.now(),
+        });
+        tx.set(db.collection("ledger").doc(), {
+          type: "withdrawal_refund",
+          withdrawalId: act.withdrawalId,
+          userId: w.userId || "",
+          amount,
+          createdAt: Timestamp.now(),
+        });
+      } else {
+        tx.update(actRef, { status: "unknown_type" });
+        return;
+      }
+
+      tx.update(actRef, { status: "done", processedAt: Timestamp.now() });
+    });
+  }
+);

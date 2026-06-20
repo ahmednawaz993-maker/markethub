@@ -59,14 +59,31 @@ class WalletScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: kPakGreen,
-                      ),
-                      onPressed: () => showTopupSheet(context),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Top up'),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: kPakGreen,
+                          ),
+                          onPressed: () => showTopupSheet(context),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Top up'),
+                        ),
+                        const SizedBox(width: 10),
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white70),
+                          ),
+                          onPressed: balance <= 0
+                              ? null
+                              : () => showWithdrawSheet(context, balance),
+                          icon: const Icon(Icons.account_balance),
+                          label: const Text('Withdraw'),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -135,6 +152,162 @@ class WalletScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Lets a seller request a payout to their own bank / mobile-wallet account.
+/// Saves the payout details on the user doc and creates a withdrawal request;
+/// a Cloud Function reserves the balance and an admin pays it out.
+Future<void> showWithdrawSheet(BuildContext context, int balance) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return;
+  final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+  final messenger = ScaffoldMessenger.of(context);
+  final snap = await userRef.get();
+  final d = snap.data();
+  if (!context.mounted) return;
+
+  final bank = TextEditingController(text: d?['payoutBank']?.toString() ?? '');
+  final title = TextEditingController(text: d?['payoutTitle']?.toString() ?? '');
+  final number = TextEditingController(
+    text: d?['payoutNumber']?.toString() ?? '',
+  );
+  final amount = TextEditingController();
+
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) {
+      return Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Withdraw to your account',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Available: ${formatPrice('$balance')}',
+                style: const TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: bank,
+                decoration: const InputDecoration(
+                  labelText: 'Bank / wallet (e.g. Meezan, JazzCash)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: title,
+                decoration: const InputDecoration(
+                  labelText: 'Account title',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: number,
+                decoration: const InputDecoration(
+                  labelText: 'Account / IBAN / mobile number',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: amount,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Amount (Rs)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final amt = int.tryParse(
+                    amount.text.replaceAll(RegExp(r'[^0-9]'), ''),
+                  );
+                  if (amt == null || amt <= 0) {
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Enter a valid amount')),
+                    );
+                    return;
+                  }
+                  if (amt > balance) {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('Amount exceeds your balance'),
+                      ),
+                    );
+                    return;
+                  }
+                  if (bank.text.trim().isEmpty ||
+                      title.text.trim().isEmpty ||
+                      number.text.trim().isEmpty) {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('Fill in your payout account details'),
+                      ),
+                    );
+                    return;
+                  }
+                  await userRef.set({
+                    'payoutBank': bank.text.trim(),
+                    'payoutTitle': title.text.trim(),
+                    'payoutNumber': number.text.trim(),
+                  }, SetOptions(merge: true));
+                  await FirebaseFirestore.instance
+                      .collection('withdrawals')
+                      .add({
+                        'userId': uid,
+                        'userEmail':
+                            FirebaseAuth.instance.currentUser?.email ?? '',
+                        'amount': amt,
+                        'payoutBank': bank.text.trim(),
+                        'payoutTitle': title.text.trim(),
+                        'payoutNumber': number.text.trim(),
+                        'status': 'pending',
+                        'createdAt': Timestamp.now(),
+                      });
+                  if (context.mounted) Navigator.pop(context);
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Withdrawal requested — the admin will pay out to your '
+                        'account.',
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.account_balance),
+                label: const Text('Request withdrawal'),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Your balance is held while the payout is processed. If it is '
+                'rejected, the amount is refunded to your wallet.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+  bank.dispose();
+  title.dispose();
+  number.dispose();
+  amount.dispose();
 }
 
 /// Lets a business upload a home-screen banner ad and request a slot.
