@@ -47,6 +47,7 @@ class SellerProfileScreen extends StatelessWidget {
               final isSelf = me != null && me.uid == sellerId;
 
               final storeCategory = data['storeCategory']?.toString() ?? '';
+              final storePolicies = data['storePolicies']?.toString() ?? '';
 
               Widget chip(String text, Color bg) => Container(
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
@@ -252,6 +253,48 @@ class SellerProfileScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (storePolicies.isNotEmpty)
+                    Card(
+                      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.rule, size: 18, color: kPakGreen),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Store policies',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(storePolicies),
+                            const SizedBox(height: 10),
+                            InkWell(
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const TrustSafetyScreen(),
+                                ),
+                              ),
+                              child: const Text(
+                                "This store also follows PakBazar's platform "
+                                'rules ›',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: kPakGreen,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               );
             },

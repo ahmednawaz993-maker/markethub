@@ -222,6 +222,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
   bool saving = false;
   final nameController = TextEditingController();
   final taglineController = TextEditingController();
+  final policiesController = TextEditingController();
   final ImagePicker picker = ImagePicker();
   String? logoUrl;
   bool uploadingLogo = false;
@@ -302,6 +303,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       isBusiness = d?['isBusiness'] == true;
       nameController.text = d?['businessName']?.toString() ?? '';
       taglineController.text = d?['tagline']?.toString() ?? '';
+      policiesController.text = d?['storePolicies']?.toString() ?? '';
       logoUrl = d?['logoUrl']?.toString();
       coverUrl = d?['coverUrl']?.toString();
       final sc = d?['storeCategory']?.toString();
@@ -318,6 +320,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       'isBusiness': isBusiness,
       'businessName': nameController.text.trim(),
       'tagline': taglineController.text.trim(),
+      'storePolicies': policiesController.text.trim(),
       'logoUrl': logoUrl ?? '',
       'coverUrl': coverUrl ?? '',
       'storeCategory': storeCategory ?? '',
@@ -333,6 +336,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
   void dispose() {
     nameController.dispose();
     taglineController.dispose();
+    policiesController.dispose();
     super.dispose();
   }
 
@@ -442,6 +446,23 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                       DropdownMenuItem(value: c.title, child: Text(c.title)),
                   ],
                   onChanged: (v) => setState(() => storeCategory = v),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: TextField(
+                  controller: policiesController,
+                  minLines: 3,
+                  maxLines: 6,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Store rules / policies',
+                    alignLabelWithHint: true,
+                    helperText:
+                        'Your returns, delivery & payment rules. They must '
+                        'comply with PakBazar\'s platform rules.',
+                    helperMaxLines: 2,
+                  ),
                 ),
               ),
             ],
