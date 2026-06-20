@@ -229,6 +229,9 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
   String? coverUrl;
   bool uploadingCover = false;
   String? storeCategory;
+  bool featuredBusiness = false;
+  Timestamp? featuredUntil;
+  bool featuredTrialUsed = false;
 
   @override
   void initState() {
@@ -308,6 +311,11 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       coverUrl = d?['coverUrl']?.toString();
       final sc = d?['storeCategory']?.toString();
       storeCategory = (sc != null && sc.isNotEmpty) ? sc : null;
+      featuredBusiness = d?['featuredBusiness'] == true;
+      featuredUntil = d?['featuredBusinessUntil'] is Timestamp
+          ? d!['featuredBusinessUntil'] as Timestamp
+          : null;
+      featuredTrialUsed = d?['featuredTrialUsed'] == true;
       loaded = true;
     });
   }
@@ -330,6 +338,32 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Business profile saved')));
+  }
+
+  /// Activates the free 3-month Featured Business trial (no payment).
+  Future<void> _activateFeaturedTrial() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final until = Timestamp.fromDate(
+      DateTime.now().add(const Duration(days: 90)),
+    );
+    await FirebaseFirestore.instance.collection('users').doc(uid).set({
+      'isBusiness': true,
+      'featuredBusiness': true,
+      'featuredBusinessUntil': until,
+      'featuredTrialUsed': true,
+    }, SetOptions(merge: true));
+    if (!mounted) return;
+    setState(() {
+      featuredBusiness = true;
+      featuredUntil = until;
+      featuredTrialUsed = true;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Featured Business activated — free for 3 months!'),
+      ),
+    );
   }
 
   @override
@@ -474,6 +508,89 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
               ),
             ),
             if (isBusiness) ...[
+              Builder(
+                builder: (context) {
+                  final active =
+                      featuredBusiness &&
+                      featuredUntil != null &&
+                      featuredUntil!.toDate().isAfter(DateTime.now());
+                  return Card(
+                    color: kGold.withValues(alpha: 0.10),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.star, color: kGold),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Featured Business',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: kPakGreen,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Text(
+                                  'FREE',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          if (active)
+                            Text(
+                              'Active — featured on the home screen until '
+                              '${featuredUntil!.toDate().day}/'
+                              '${featuredUntil!.toDate().month}/'
+                              '${featuredUntil!.toDate().year}.',
+                              style: const TextStyle(fontSize: 13),
+                            )
+                          else if (featuredTrialUsed)
+                            const Text(
+                              'Your free 3-month trial has ended.',
+                              style: TextStyle(fontSize: 13, color: Colors.grey),
+                            )
+                          else ...[
+                            const Text(
+                              'Get a Featured Business spot on the home screen '
+                              '— free for 3 months.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: loaded
+                                    ? _activateFeaturedTrial
+                                    : null,
+                                icon: const Icon(Icons.star),
+                                label: const Text('Activate free 3-month trial'),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
