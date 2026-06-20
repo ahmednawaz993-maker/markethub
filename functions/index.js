@@ -37,12 +37,10 @@ const SUPPORT_FROM = "ahmednawaz993@gmail.com";
 // commissionRate in the app (lib/src/commerce.dart).
 const COMMISSION_RATE = 0.02;
 
-// PayFast (gopayfast, Pakistan) credentials from your merchant onboarding pack.
-// Set once you have them:
-//   firebase functions:secrets:set PAYFAST_MERCHANT_ID
-//   firebase functions:secrets:set PAYFAST_SECURED_KEY
-const PAYFAST_MERCHANT_ID = defineSecret("PAYFAST_MERCHANT_ID");
-const PAYFAST_SECURED_KEY = defineSecret("PAYFAST_SECURED_KEY");
+// PayFast (gopayfast, Pakistan) credentials — read from process.env so the
+// (default) manual payment flow deploys without them. When you activate the
+// gateway, set them: firebase functions:secrets:set PAYFAST_MERCHANT_ID /
+// PAYFAST_SECURED_KEY, then bind the secrets to onPaymentCreated + payfastIpn.
 
 exports.notifyOnNewMessage = onDocumentCreated(
   "chats/{chatId}/messages/{messageId}",
@@ -682,10 +680,7 @@ async function confirmPaymentIntoEscrow(db, orderId, paymentRef, provider) {
 }
 
 exports.onPaymentCreated = onDocumentCreated(
-  {
-    document: "payments/{paymentId}",
-    secrets: [PAYFAST_MERCHANT_ID, PAYFAST_SECURED_KEY],
-  },
+  "payments/{paymentId}",
   async (event) => {
     const pay = event.data && event.data.data();
     if (!pay || !pay.orderId) return;
@@ -1018,8 +1013,8 @@ async function payfastConfig(db) {
 // basketId is the payment doc id so the IPN can map the callback back to it.
 async function initiatePayfastCheckout(db, basketId, order) {
   const cfg = await payfastConfig(db);
-  const merchantId = PAYFAST_MERCHANT_ID.value();
-  const securedKey = PAYFAST_SECURED_KEY.value();
+  const merchantId = process.env.PAYFAST_MERCHANT_ID || "";
+  const securedKey = process.env.PAYFAST_SECURED_KEY || "";
   const amount = Number(order.amount) || 0;
 
   const tokenRes = await fetch(cfg.tokenUrl, {
@@ -1068,9 +1063,7 @@ async function initiatePayfastCheckout(db, basketId, order) {
 
 // PayFast posts the transaction result here (the IPN/ITN). Configure this
 // function's URL as the IPN / CHECKOUT_URL in the PayFast dashboard.
-exports.payfastIpn = onRequest(
-  { secrets: [PAYFAST_MERCHANT_ID, PAYFAST_SECURED_KEY] },
-  async (req, res) => {
+exports.payfastIpn = onRequest(async (req, res) => {
     const body = req.body || {};
     const q = req.query || {};
     // VERIFY these field names against your onboarding pack.
