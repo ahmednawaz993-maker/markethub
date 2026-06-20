@@ -43,9 +43,9 @@ class _DisplayNameTileState extends State<_DisplayNameTile> {
     }, SetOptions(merge: true));
     if (!mounted) return;
     setState(() => saving = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Display name saved')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Display name saved')));
   }
 
   @override
@@ -197,9 +197,9 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
     }, SetOptions(merge: true));
     if (!mounted) return;
     setState(() => saving = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Business profile saved')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Business profile saved')));
   }
 
   @override
@@ -231,8 +231,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                     CircleAvatar(
                       radius: 28,
                       backgroundColor: kPakGreen.withValues(alpha: 0.12),
-                      backgroundImage:
-                          (logoUrl != null && logoUrl!.isNotEmpty)
+                      backgroundImage: (logoUrl != null && logoUrl!.isNotEmpty)
                           ? NetworkImage(logoUrl!)
                           : null,
                       child: (logoUrl == null || logoUrl!.isEmpty)
@@ -389,9 +388,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
     // uses the front camera; the CNIC uses the rear camera.
     final img = await picker.pickImage(
       source: ImageSource.camera,
-      preferredCameraDevice: selfie
-          ? CameraDevice.front
-          : CameraDevice.rear,
+      preferredCameraDevice: selfie ? CameraDevice.front : CameraDevice.rear,
       imageQuality: 70,
     );
     if (img == null) return;
@@ -530,7 +527,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     child: ListTile(
                       leading: Icon(Icons.cancel, color: Colors.red),
                       title: Text('Verification rejected'),
-                      subtitle: Text('Please re-upload clear photos and resubmit.'),
+                      subtitle: Text(
+                        'Please re-upload clear photos and resubmit.',
+                      ),
                     ),
                   ),
                 const Padding(
@@ -659,11 +658,16 @@ class TrustSafetyScreen extends StatelessWidget {
             'Do not ship or release goods before payment clears.',
             'Reply quickly and complete deals smoothly to grow your rating.',
           ]),
-          _card(Icons.report_gmailerrorred, 'Spotted something wrong?', Colors.red, const [
-            'Use the Report button on any suspicious ad or user.',
-            'Our team reviews reports and removes bad actors.',
-            'Block and stop dealing with anyone who pressures or threatens you.',
-          ]),
+          _card(
+            Icons.report_gmailerrorred,
+            'Spotted something wrong?',
+            Colors.red,
+            const [
+              'Use the Report button on any suspicious ad or user.',
+              'Our team reviews reports and removes bad actors.',
+              'Block and stop dealing with anyone who pressures or threatens you.',
+            ],
+          ),
         ],
       ),
     );
@@ -864,21 +868,22 @@ class ProfileScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Seller Profile')),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [kPakGreen, Color(0xFF0B6E3D)],
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [kPakGreen, Color(0xFF0B6E3D)],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const CircleAvatar(
@@ -949,122 +954,125 @@ class ProfileScreen extends StatelessWidget {
                   ],
                 ),
               ),
-            if (!(user?.isAnonymous ?? true)) ...[
-              const SizedBox(height: 16),
-              const _FollowStatsRow(),
-              const SizedBox(height: 12),
-              const _DisplayNameTile(),
-              const SizedBox(height: 12),
-              const _BusinessAccountTile(),
-            ],
-            if (isAdminUser()) ...[
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
+              if (!(user?.isAnonymous ?? true)) ...[
+                const SizedBox(height: 16),
+                const _FollowStatsRow(),
+                const SizedBox(height: 12),
+                const _DisplayNameTile(),
+                const SizedBox(height: 12),
+                const _BusinessAccountTile(),
+              ],
+              if (isAdminUser()) ...[
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                  ),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AdminPanelScreen()),
+                  ),
+                  icon: const Icon(Icons.admin_panel_settings),
+                  label: const Text('Admin Panel'),
                 ),
+              ],
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
                 onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const AdminPanelScreen()),
+                  MaterialPageRoute(builder: (_) => const OrdersScreen()),
                 ),
-                icon: const Icon(Icons.admin_panel_settings),
-                label: const Text('Admin Panel'),
+                icon: const Icon(Icons.receipt_long),
+                label: const Text('My Orders'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const OffersScreen()),
+                ),
+                icon: const Icon(Icons.local_offer),
+                label: const Text('Offers'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WalletScreen()),
+                ),
+                icon: const Icon(Icons.account_balance_wallet),
+                label: const Text('PakBazar Wallet'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const VerificationScreen()),
+                ),
+                icon: const Icon(Icons.verified_user),
+                label: const Text('Verify Identity'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DraftsScreen()),
+                ),
+                icon: const Icon(Icons.edit_note),
+                label: const Text('Drafts'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const SavedSearchesScreen(),
+                  ),
+                ),
+                icon: const Icon(Icons.bookmark),
+                label: const Text('Saved Searches'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FollowingScreen()),
+                ),
+                icon: const Icon(Icons.people_alt),
+                label: const Text('Following'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final url = Uri.parse(
+                    'mailto:support@pakbazar.pk?subject=PakBazar Feedback',
+                  );
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                },
+                icon: const Icon(Icons.help_outline),
+                label: const Text('Help & Feedback'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AboutScreen()),
+                ),
+                icon: const Icon(Icons.info_outline),
+                label: const Text('About PakBazar'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  favoriteListings.clear();
+                  await FirebaseAuth.instance.signOut();
+                  // AuthGate listens to authStateChanges and shows the login screen.
+                },
+                icon: const Icon(Icons.logout),
+                label: const Text('Logout'),
               ),
             ],
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const OrdersScreen()),
-              ),
-              icon: const Icon(Icons.receipt_long),
-              label: const Text('My Orders'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const OffersScreen()),
-              ),
-              icon: const Icon(Icons.local_offer),
-              label: const Text('Offers'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const WalletScreen()),
-              ),
-              icon: const Icon(Icons.account_balance_wallet),
-              label: const Text('PakBazar Wallet'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const VerificationScreen()),
-              ),
-              icon: const Icon(Icons.verified_user),
-              label: const Text('Verify Identity'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DraftsScreen()),
-              ),
-              icon: const Icon(Icons.edit_note),
-              label: const Text('Drafts'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SavedSearchesScreen()),
-              ),
-              icon: const Icon(Icons.bookmark),
-              label: const Text('Saved Searches'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const FollowingScreen()),
-              ),
-              icon: const Icon(Icons.people_alt),
-              label: const Text('Following'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () async {
-                final url = Uri.parse(
-                  'mailto:support@pakbazar.pk?subject=PakBazar Feedback',
-                );
-                await launchUrl(url, mode: LaunchMode.externalApplication);
-              },
-              icon: const Icon(Icons.help_outline),
-              label: const Text('Help & Feedback'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AboutScreen()),
-              ),
-              icon: const Icon(Icons.info_outline),
-              label: const Text('About PakBazar'),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: () async {
-                favoriteListings.clear();
-                await FirebaseAuth.instance.signOut();
-                // AuthGate listens to authStateChanges and shows the login screen.
-              },
-              icon: const Icon(Icons.logout),
-              label: const Text('Logout'),
-            ),
-          ],
+          ),
         ),
       ),
     );
