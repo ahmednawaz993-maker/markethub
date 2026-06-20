@@ -164,6 +164,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
   late String searchText;
   late final TextEditingController searchController;
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _listingsStream;
+  Timer? _debounce;
   late String selectedSubcategory;
   String sortBy = 'Newest';
   late String cityFilter;
@@ -249,6 +250,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     searchController.dispose();
     super.dispose();
   }
@@ -508,145 +510,158 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     final currentCategory = categoryByTitle(widget.category ?? 'All');
     final subcategories = ['All', ...currentCategory.subcategories];
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: _listingsStream,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(child: Text('Error loading listings: ${snapshot.error}'));
-        }
-
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final docs = snapshot.data?.docs ?? [];
-        final allListings = docs.map((d) => Listing.fromDoc(d)).toList();
-        final filtered = applyFilters(allListings);
-
-        return Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-              child: TextField(
-                controller: searchController,
-                decoration: const InputDecoration(
-                  hintText: 'Search by title, location or price...',
-                  prefixIcon: Icon(Icons.search),
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    searchText = value;
-                  });
-                },
-              ),
+    // The search box + filters live OUTSIDE the StreamBuilder so they're never
+    // rebuilt by stream ticks or replaced by the loading spinner — the field
+    // stays responsive and keeps focus. Only the results list reacts to data.
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+          child: TextField(
+            controller: searchController,
+            textInputAction: TextInputAction.search,
+            decoration: const InputDecoration(
+              hintText: 'Search by title, location or price...',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(),
             ),
-            // Sort + filter bar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: sortBy,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Sort',
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                      ),
-                      items: sortOptions
-                          .map(
-                            (s) => DropdownMenuItem(value: s, child: Text(s)),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value != null) setState(() => sortBy = value);
-                      },
+            // Debounced: re-filter 250ms after the user stops typing, not on
+            // every keystroke (which would rebuild the whole results list).
+            onChanged: (value) {
+              _debounce?.cancel();
+              _debounce = Timer(const Duration(milliseconds: 250), () {
+                if (mounted) setState(() => searchText = value);
+              });
+            },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: sortBy,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Sort',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    onPressed: openFilters,
-                    icon: const Icon(Icons.tune),
-                    label: Text(
-                      activeFilterCount == 0
-                          ? 'Filters'
-                          : 'Filters ($activeFilterCount)',
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: IconButton(
-                      tooltip: 'Save this search & get alerts',
-                      icon: const Icon(Icons.notification_add, color: kPakGreen),
-                      onPressed: saveCurrentSearch,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (hasCategory)
-              SizedBox(
-                height: 48,
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: subcategories.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
-                  itemBuilder: (context, index) {
-                    final subcategory = subcategories[index];
-                    final isSelected = selectedSubcategory == subcategory;
-
-                    return ChoiceChip(
-                      label: Text(subcategory),
-                      selected: isSelected,
-                      onSelected: (_) {
-                        setState(() {
-                          selectedSubcategory = subcategory;
-                        });
-                      },
-                    );
+                  items: sortOptions
+                      .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) setState(() => sortBy = value);
                   },
                 ),
               ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '${filtered.length} result${filtered.length == 1 ? '' : 's'}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                  ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: openFilters,
+                icon: const Icon(Icons.tune),
+                label: Text(
+                  activeFilterCount == 0
+                      ? 'Filters'
+                      : 'Filters ($activeFilterCount)',
                 ),
               ),
+              const SizedBox(width: 4),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: IconButton(
+                  tooltip: 'Save this search & get alerts',
+                  icon: const Icon(Icons.notification_add, color: kPakGreen),
+                  onPressed: saveCurrentSearch,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (hasCategory)
+          SizedBox(
+            height: 48,
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              scrollDirection: Axis.horizontal,
+              itemCount: subcategories.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final subcategory = subcategories[index];
+                final isSelected = selectedSubcategory == subcategory;
+
+                return ChoiceChip(
+                  label: Text(subcategory),
+                  selected: isSelected,
+                  onSelected: (_) {
+                    setState(() {
+                      selectedSubcategory = subcategory;
+                    });
+                  },
+                );
+              },
             ),
-            Expanded(
-              child: filtered.isEmpty
-                  ? const EmptyState(
-                      icon: Icons.search_off,
-                      title: 'No listings found',
-                      subtitle: 'Try a different search or adjust your filters.',
-                    )
-                  : ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: filtered
-                          .map((listing) => ListingCard(listing: listing))
-                          .toList(),
+          ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: _listingsStream,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text('Error loading listings: ${snapshot.error}'),
+                );
+              }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final docs = snapshot.data?.docs ?? [];
+              final allListings = docs.map((d) => Listing.fromDoc(d)).toList();
+              final filtered = applyFilters(allListings);
+
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${filtered.length} result'
+                        '${filtered.length == 1 ? '' : 's'}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
-            ),
-          ],
-        );
-      },
+                  ),
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? const EmptyState(
+                            icon: Icons.search_off,
+                            title: 'No listings found',
+                            subtitle:
+                                'Try a different search or adjust your filters.',
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: filtered.length,
+                            itemBuilder: (context, i) =>
+                                ListingCard(listing: filtered[i]),
+                          ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
