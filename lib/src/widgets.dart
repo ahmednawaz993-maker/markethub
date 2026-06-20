@@ -218,7 +218,9 @@ Future<String?> showCityPicker(
       return StatefulBuilder(
         builder: (context, setSheetState) {
           final filtered = options
-              .where((c) => c.toLowerCase().contains(query.toLowerCase()))
+              .where(
+                (c) => c.toLowerCase().contains(query.trim().toLowerCase()),
+              )
               .toList();
 
           return Padding(

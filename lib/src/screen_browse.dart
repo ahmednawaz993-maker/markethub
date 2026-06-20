@@ -422,7 +422,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
   }
 
   List<Listing> applyFilters(List<Listing> listings) {
-    final query = searchText.toLowerCase();
+    final query = searchText.trim().toLowerCase();
 
     final result = listings.where((listing) {
       final matchesSearch =
@@ -433,6 +433,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
           listing.city.toLowerCase().contains(query) ||
           listing.category.toLowerCase().contains(query) ||
           listing.subcategory.toLowerCase().contains(query) ||
+          listing.price.toLowerCase().contains(query) ||
           listing.attributes.values.any(
             (v) => v.toLowerCase().contains(query),
           );

@@ -1317,7 +1317,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _desktopHome() {
     final filteredCategories = appCategories.where((category) {
-      return category.title.toLowerCase().contains(searchQuery.toLowerCase());
+      return category.title.toLowerCase().contains(
+        searchQuery.trim().toLowerCase(),
+      );
     }).toList();
     final phone = isPhone(context);
 
