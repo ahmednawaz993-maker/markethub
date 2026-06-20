@@ -7461,6 +7461,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                   ),
               ],
             ),
+            if (!listing.isSold) _PriceInsight(listing: listing),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -7711,6 +7712,115 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
 }
 
 /// Horizontal rail of other ads in the same category (excludes this ad).
+/// Compares this ad's price against recent comparable ads (same subcategory, or
+/// category as a fallback) and shows a "Great price / Fair price / Above
+/// typical" badge plus the typical range. Hidden when there aren't enough
+/// comparable ads to be meaningful.
+class _PriceInsight extends StatelessWidget {
+  final Listing listing;
+
+  const _PriceInsight({required this.listing});
+
+  @override
+  Widget build(BuildContext context) {
+    final myPrice = parsePrice(listing.price);
+    if (listing.category.isEmpty || myPrice <= 0) {
+      return const SizedBox.shrink();
+    }
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('listings')
+          .where('category', isEqualTo: listing.category)
+          .limit(50)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        final sameSub = listing.subcategory.isNotEmpty;
+        final prices =
+            snapshot.data!.docs
+                .map((d) => Listing.fromDoc(d))
+                .where(
+                  (l) =>
+                      l.id != listing.id &&
+                      !l.isSold &&
+                      (!sameSub || l.subcategory == listing.subcategory),
+                )
+                .map((l) => parsePrice(l.price))
+                .where((p) => p > 0)
+                .toList()
+              ..sort();
+        if (prices.length < 4) return const SizedBox.shrink();
+
+        final median = prices[prices.length ~/ 2];
+        if (median <= 0) return const SizedBox.shrink();
+        final low = prices[(prices.length * 0.15).floor()];
+        final high = prices[(prices.length * 0.85).floor().clamp(
+          0,
+          prices.length - 1,
+        )];
+        final ratio = myPrice / median;
+
+        final String label;
+        final IconData icon;
+        final Color color;
+        if (ratio <= 0.85) {
+          label = 'Great price';
+          icon = Icons.thumb_up;
+          color = Colors.green.shade700;
+        } else if (ratio <= 1.12) {
+          label = 'Fair price';
+          icon = Icons.check_circle;
+          color = Colors.blue.shade700;
+        } else {
+          label = 'Above typical';
+          icon = Icons.trending_up;
+          color = Colors.orange.shade800;
+        }
+
+        final scope = sameSub ? listing.subcategory : listing.category;
+        return Container(
+          margin: const EdgeInsets.only(top: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                    Text(
+                      'Similar $scope ads sell for '
+                      '${formatPrice(low.toStringAsFixed(0))}–'
+                      '${formatPrice(high.toStringAsFixed(0))}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _SimilarAds extends StatelessWidget {
   final Listing listing;
 
