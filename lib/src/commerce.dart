@@ -9,68 +9,86 @@ class PromoPackage {
   const PromoPackage(this.name, this.days, this.price);
 }
 
-const List<PromoPackage> promoPackages = [
-  PromoPackage('Featured · 7 days', 7, 500),
-  PromoPackage('Featured · 15 days', 15, 900),
-  PromoPackage('Featured · 30 days', 30, 1500),
-];
-
-/// Bottom sheet to choose a promotion package for a listing.
+/// Bottom sheet to feature a listing — free for 3 months. Sets the FEATURED
+/// badge + top placement; expireFeatured ends it after 90 days.
 Future<void> showPromoteSheet(BuildContext context, Listing listing) async {
+  final messenger = ScaffoldMessenger.of(context);
   await showModalBottomSheet(
     context: context,
     builder: (sheetCtx) {
+      final active = listing.isCurrentlyFeatured;
       return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Text(
-                'Promote your ad',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'Feature your ad',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: kPakGreen,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'FREE',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'Get more views with a FEATURED badge and top placement.',
+              const SizedBox(height: 8),
+              const Text(
+                'Get a FEATURED badge and top placement — free for 3 months.',
                 style: TextStyle(color: Colors.grey),
               ),
-            ),
-            const SizedBox(height: 8),
-            for (final p in promoPackages)
-              ListTile(
-                leading: const Icon(Icons.star, color: kGold),
-                title: Text(p.name),
-                trailing: Text(
-                  formatPrice(p.price.toString()),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+              const SizedBox(height: 16),
+              if (active)
+                const Text(
+                  'This ad is already featured.',
+                  style: TextStyle(
+                    color: kPakGreen,
+                    fontWeight: FontWeight.w600,
                   ),
+                )
+              else
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final until = Timestamp.fromDate(
+                      DateTime.now().add(const Duration(days: 90)),
+                    );
+                    await FirebaseFirestore.instance
+                        .collection('listings')
+                        .doc(listing.id)
+                        .update({'isFeatured': true, 'featuredUntil': until});
+                    if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Your ad is now featured — free for 3 months!',
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.star),
+                  label: const Text('Feature free for 3 months'),
                 ),
-                onTap: () async {
-                  Navigator.pop(sheetCtx);
-                  await payFromWallet(
-                    context,
-                    type: 'feature',
-                    refId: listing.id,
-                    amount: p.price,
-                    days: p.days,
-                  );
-                },
-              ),
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'Paid instantly from your PakBazar Wallet. Top up in '
-                'Profile → Wallet.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     },
