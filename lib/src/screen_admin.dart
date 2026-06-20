@@ -8,7 +8,7 @@ class AdminPanelScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 10,
+      length: 11,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Panel'),
@@ -19,6 +19,7 @@ class AdminPanelScreen extends StatelessWidget {
             tabs: [
               Tab(text: 'Overview'),
               Tab(text: 'Verify ID'),
+              Tab(text: 'Feedback'),
               Tab(text: 'Users'),
               Tab(text: 'Reports'),
               Tab(text: 'Top-ups'),
@@ -34,6 +35,7 @@ class AdminPanelScreen extends StatelessWidget {
           children: [
             _AdminOverviewTab(),
             _AdminVerificationsTab(),
+            _AdminFeedbackTab(),
             _AdminUsersTab(),
             _AdminReportsTab(),
             _AdminTopupsTab(),
@@ -73,6 +75,120 @@ class _Metric {
   final String value;
   final String label;
   const _Metric(this.value, this.label);
+}
+
+/// Support requests and suggestions sent from the Help & Feedback sheet.
+class _AdminFeedbackTab extends StatelessWidget {
+  const _AdminFeedbackTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('feedback')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.feedback_outlined,
+            title: 'No messages yet',
+            subtitle: 'Help requests and suggestions appear here.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final type = d['type']?.toString() ?? 'Help';
+            final email = d['email']?.toString() ?? '';
+            final msg = d['message']?.toString() ?? '';
+            final resolved = (d['status']?.toString() ?? 'open') == 'resolved';
+            final isSuggestion = type == 'Suggestion';
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          isSuggestion
+                              ? Icons.lightbulb_outline
+                              : Icons.help_outline,
+                          size: 18,
+                          color: isSuggestion ? kGold : kPakGreen,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          type,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const Spacer(),
+                        if (resolved)
+                          const Text(
+                            'Resolved',
+                            style: TextStyle(
+                              color: Colors.green,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                      ],
+                    ),
+                    if (email.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          email,
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 6),
+                    Text(msg),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (email.isNotEmpty)
+                          TextButton.icon(
+                            onPressed: () => launchUrl(
+                              Uri.parse(
+                                'mailto:$email?subject='
+                                '${Uri.encodeComponent('Re: PakBazar $type')}',
+                              ),
+                              mode: LaunchMode.externalApplication,
+                            ),
+                            icon: const Icon(Icons.reply, size: 18),
+                            label: const Text('Reply'),
+                          ),
+                        if (!resolved)
+                          TextButton(
+                            onPressed: () => docs[i].reference.update({
+                              'status': 'resolved',
+                            }),
+                            child: const Text('Mark resolved'),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 /// Admin face-match review: compare the selfie to the CNIC and approve/reject.

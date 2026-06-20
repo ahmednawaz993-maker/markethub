@@ -2,6 +2,129 @@ part of '../main.dart';
 
 // Profile, verification, trust & safety, about.
 
+/// Help & Suggestions: lets any user send a support request or an idea. The
+/// message is saved to the `feedback` collection (the admin reviews it in
+/// Admin Panel → Feedback) and also opens the user's mail app pre-addressed to
+/// [supportEmail], so it reaches the admin inbox directly too.
+Future<void> showSupportSheet(BuildContext context) async {
+  final controller = TextEditingController();
+  String type = 'Help';
+  final messenger = ScaffoldMessenger.of(context);
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (context, setSheetState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Help & Suggestions',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Need help or have an idea to improve PakBazar? Send it to our '
+                  'team — we read every message.',
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Need help'),
+                      selected: type == 'Help',
+                      onSelected: (_) => setSheetState(() => type = 'Help'),
+                    ),
+                    ChoiceChip(
+                      label: const Text('Suggestion'),
+                      selected: type == 'Suggestion',
+                      onSelected: (_) =>
+                          setSheetState(() => type = 'Suggestion'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  minLines: 3,
+                  maxLines: 6,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Your message',
+                    alignLabelWithHint: true,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final msg = controller.text.trim();
+                    if (msg.isEmpty) {
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('Please type your message first'),
+                        ),
+                      );
+                      return;
+                    }
+                    final user = FirebaseAuth.instance.currentUser;
+                    // Durable record for the admin (Admin Panel → Feedback).
+                    try {
+                      await FirebaseFirestore.instance
+                          .collection('feedback')
+                          .add({
+                            'userId': user?.uid ?? '',
+                            'email': user?.email ?? '',
+                            'type': type,
+                            'message': msg,
+                            'status': 'open',
+                            'createdAt': Timestamp.now(),
+                          });
+                    } catch (_) {}
+                    // Also deliver straight to the admin's email inbox.
+                    try {
+                      await launchUrl(
+                        Uri.parse(
+                          'mailto:$supportEmail'
+                          '?subject=${Uri.encodeComponent('PakBazar $type')}'
+                          '&body=${Uri.encodeComponent(msg)}',
+                        ),
+                        mode: LaunchMode.externalApplication,
+                      );
+                    } catch (_) {}
+                    if (context.mounted) Navigator.pop(context);
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Thanks! Your message has been sent to our team.',
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.send),
+                  label: const Text('Send to support'),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+  controller.dispose();
+}
+
 class _DisplayNameTile extends StatefulWidget {
   const _DisplayNameTile();
 
@@ -758,10 +881,7 @@ class AboutScreen extends StatelessWidget {
                   leading: const Icon(Icons.email_outlined),
                   title: const Text('Contact support'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => launchUrl(
-                    Uri.parse('mailto:support@pakbazar.pk?subject=PakBazar'),
-                    mode: LaunchMode.externalApplication,
-                  ),
+                  onTap: () => showSupportSheet(context),
                 ),
                 const Divider(height: 1),
                 ListTile(
@@ -1043,12 +1163,7 @@ class ProfileScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
-                onPressed: () async {
-                  final url = Uri.parse(
-                    'mailto:support@pakbazar.pk?subject=PakBazar Feedback',
-                  );
-                  await launchUrl(url, mode: LaunchMode.externalApplication);
-                },
+                onPressed: () => showSupportSheet(context),
                 icon: const Icon(Icons.help_outline),
                 label: const Text('Help & Feedback'),
               ),

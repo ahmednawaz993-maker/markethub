@@ -246,6 +246,19 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // Feedback — help requests and suggestions from the Help & Feedback sheet.
+    // A signed-in user submits their own; only the author or an admin can read;
+    // admins resolve/delete.
+    // ---------------------------------------------------------------------
+    match /feedback/{feedbackId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn()
+                  && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
     // Purchases — user spends wallet balance on a feature. A Cloud Function
     // (processPurchase) validates the balance and applies the effect.
     // ---------------------------------------------------------------------

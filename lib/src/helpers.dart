@@ -36,6 +36,11 @@ String formatPrice(String raw) {
 /// auth token email). Add more to expand the admin team.
 const List<String> adminEmails = ['ahmednawaz993@gmail.com'];
 
+/// Inbox that receives support requests and suggestions (the admin). Used by
+/// the Help & Suggestions sheet, which both stores the message in Firestore
+/// (shown in Admin Panel → Feedback) and emails it here directly.
+const String supportEmail = 'ahmednawaz993@gmail.com';
+
 bool isAdminUser() =>
     adminEmails.contains(FirebaseAuth.instance.currentUser?.email);
 
