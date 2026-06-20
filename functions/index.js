@@ -31,6 +31,10 @@ const SENDGRID_API_KEY = defineSecret("SENDGRID_API_KEY");
 const SUPPORT_TO = "ahmednawaz993@gmail.com";
 const SUPPORT_FROM = "ahmednawaz993@gmail.com";
 
+// Platform commission taken on each released escrow deal. Keep in sync with
+// commissionRate in the app (lib/src/commerce.dart).
+const COMMISSION_RATE = 0.02;
+
 exports.notifyOnNewMessage = onDocumentCreated(
   "chats/{chatId}/messages/{messageId}",
   async (event) => {
@@ -598,5 +602,151 @@ exports.emailFeedbackToAdmin = onDocumentCreated(
     } catch (err) {
       console.error("SendGrid send failed:", (err && err.message) || err);
     }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Escrow payments
+//
+// Money only ever moves inside these Cloud Functions (admin SDK), never from a
+// client. Flow:
+//   1. Buyer creates a `payments` doc (status 'initiated').
+//   2. onPaymentCreated confirms it and moves the order to `in_escrow`. The
+//      TEST provider auto-confirms here; once PayFast is configured, confirm
+//      from the verified gateway webhook instead of auto-confirming.
+//   3. An admin creates an `escrowActions` doc (release | refund).
+//   4. onEscrowAction releases the seller payout into their wallet (and books
+//      the commission) or refunds the buyer.
+// Every movement is appended to the immutable `ledger` collection for audit.
+// All transitions are guarded on the order status, so they are idempotent and
+// safe against double-taps / retries.
+// ---------------------------------------------------------------------------
+
+exports.onPaymentCreated = onDocumentCreated(
+  "payments/{paymentId}",
+  async (event) => {
+    const pay = event.data && event.data.data();
+    if (!pay || !pay.orderId) return;
+
+    const db = getFirestore();
+    const orderRef = db.collection("orders").doc(pay.orderId);
+    const payRef = event.data.ref;
+
+    await db.runTransaction(async (tx) => {
+      const orderSnap = await tx.get(orderRef);
+      if (!orderSnap.exists) {
+        tx.update(payRef, { status: "order_missing" });
+        return;
+      }
+      const order = orderSnap.data();
+      // Only an unpaid order can enter escrow; guards replays/races.
+      if (order.status !== "pending_payment") {
+        tx.update(payRef, { status: "ignored" });
+        return;
+      }
+
+      // Read the listing up-front (reads must precede writes) so a paid order
+      // marks the item sold and stops further buyers.
+      const listingRef = order.listingId
+        ? db.collection("listings").doc(String(order.listingId))
+        : null;
+      const listingSnap = listingRef ? await tx.get(listingRef) : null;
+
+      // TEST PROVIDER: treat the payment as captured immediately. When PayFast
+      // is wired, do this from the verified webhook instead of here.
+      tx.update(payRef, {
+        status: "paid",
+        provider: pay.provider || "test",
+        confirmedAt: Timestamp.now(),
+      });
+      tx.update(orderRef, {
+        status: "in_escrow",
+        paymentId: payRef.id,
+        paidAt: Timestamp.now(),
+      });
+      if (listingSnap && listingSnap.exists) {
+        tx.update(listingRef, { isSold: true });
+      }
+      tx.set(db.collection("ledger").doc(), {
+        type: "escrow_hold",
+        orderId: pay.orderId,
+        amount: Number(order.amount) || 0,
+        buyerId: order.buyerId || "",
+        sellerId: order.sellerId || "",
+        createdAt: Timestamp.now(),
+      });
+    });
+  }
+);
+
+exports.onEscrowAction = onDocumentCreated(
+  "escrowActions/{actionId}",
+  async (event) => {
+    const act = event.data && event.data.data();
+    if (!act || !act.orderId || !act.type) return;
+
+    const db = getFirestore();
+    const orderRef = db.collection("orders").doc(act.orderId);
+    const actRef = event.data.ref;
+
+    await db.runTransaction(async (tx) => {
+      const orderSnap = await tx.get(orderRef);
+      if (!orderSnap.exists) {
+        tx.update(actRef, { status: "order_missing" });
+        return;
+      }
+      const order = orderSnap.data();
+      if (order.status !== "in_escrow") {
+        tx.update(actRef, { status: "not_in_escrow" });
+        return;
+      }
+
+      const amount = Number(order.amount) || 0;
+
+      if (act.type === "release") {
+        // Commission/payout are recomputed here (server-authoritative) rather
+        // than trusting whatever the client stored on the order.
+        const commission = Math.round(amount * COMMISSION_RATE * 100) / 100;
+        const payout = amount - commission;
+        const sellerRef = db.collection("users").doc(order.sellerId);
+        const sellerSnap = await tx.get(sellerRef);
+        const bal = Number(sellerSnap.get("walletBalance")) || 0;
+
+        tx.update(sellerRef, { walletBalance: bal + payout });
+        tx.update(orderRef, {
+          status: "released",
+          commission,
+          sellerPayout: payout,
+          releasedAt: Timestamp.now(),
+        });
+        tx.set(db.collection("ledger").doc(), {
+          type: "escrow_release",
+          orderId: act.orderId,
+          amount: payout,
+          commission,
+          sellerId: order.sellerId || "",
+          createdAt: Timestamp.now(),
+        });
+      } else if (act.type === "refund") {
+        const buyerRef = db.collection("users").doc(order.buyerId);
+        const buyerSnap = await tx.get(buyerRef);
+        const bal = Number(buyerSnap.get("walletBalance")) || 0;
+
+        tx.update(buyerRef, { walletBalance: bal + amount });
+        tx.update(orderRef, { status: "refunded", refundedAt: Timestamp.now() });
+        tx.set(db.collection("ledger").doc(), {
+          type: "escrow_refund",
+          orderId: act.orderId,
+          amount,
+          buyerId: order.buyerId || "",
+          createdAt: Timestamp.now(),
+        });
+      } else {
+        tx.update(actRef, { status: "unknown_type" });
+        return;
+      }
+
+      tx.update(actRef, { status: "done", processedAt: Timestamp.now() });
+    });
   }
 );

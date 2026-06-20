@@ -8,7 +8,7 @@ class AdminPanelScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 11,
+      length: 12,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Panel'),
@@ -19,6 +19,7 @@ class AdminPanelScreen extends StatelessWidget {
             tabs: [
               Tab(text: 'Overview'),
               Tab(text: 'Verify ID'),
+              Tab(text: 'Escrow'),
               Tab(text: 'Feedback'),
               Tab(text: 'Users'),
               Tab(text: 'Reports'),
@@ -35,6 +36,7 @@ class AdminPanelScreen extends StatelessWidget {
           children: [
             _AdminOverviewTab(),
             _AdminVerificationsTab(),
+            _AdminEscrowTab(),
             _AdminFeedbackTab(),
             _AdminUsersTab(),
             _AdminReportsTab(),
@@ -75,6 +77,155 @@ class _Metric {
   final String value;
   final String label;
   const _Metric(this.value, this.label);
+}
+
+/// Funds currently held in escrow (paid orders awaiting release). The admin
+/// releases the payout to the seller's wallet or refunds the buyer; the actual
+/// money movement happens server-side in the onEscrowAction Cloud Function.
+class _AdminEscrowTab extends StatelessWidget {
+  const _AdminEscrowTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('orders')
+          .where('status', isEqualTo: 'in_escrow')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.lock_clock,
+            title: 'No funds in escrow',
+            subtitle: 'Paid orders awaiting release appear here.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final amount = (d['amount'] as num?)?.toDouble() ?? 0;
+            final commission = amount * commissionRate;
+            final payout = amount - commission;
+            final confirmed = d['buyerConfirmed'] == true;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      d['listingTitle']?.toString() ?? '',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Buyer: ${d['buyerName'] ?? ''}   ·   '
+                      'Seller: ${d['sellerName'] ?? ''}',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Held ${formatPrice(amount.toStringAsFixed(0))}  ·  '
+                      'payout ${formatPrice(payout.toStringAsFixed(0))}  ·  '
+                      'fee ${formatPrice(commission.toStringAsFixed(0))}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          confirmed
+                              ? Icons.check_circle
+                              : Icons.hourglass_top,
+                          size: 15,
+                          color: confirmed ? Colors.green : Colors.orange,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          confirmed
+                              ? 'Buyer confirmed receipt'
+                              : 'Buyer has not confirmed yet',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: confirmed ? Colors.green : Colors.orange,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _EscrowActions(orderId: docs[i].id),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// Release / refund buttons for one escrowed order. Stateful so both disable
+/// while the instruction is written — a double-tap can't queue two actions
+/// (the Cloud Function also guards on order status, so it stays idempotent).
+class _EscrowActions extends StatefulWidget {
+  const _EscrowActions({required this.orderId});
+
+  final String orderId;
+
+  @override
+  State<_EscrowActions> createState() => _EscrowActionsState();
+}
+
+class _EscrowActionsState extends State<_EscrowActions> {
+  bool busy = false;
+
+  Future<void> _act(String type) async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      await FirebaseFirestore.instance.collection('escrowActions').add({
+        'orderId': widget.orderId,
+        'type': type,
+        'by': FirebaseAuth.instance.currentUser?.uid ?? '',
+        'status': 'pending',
+        'createdAt': Timestamp.now(),
+      });
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        TextButton(
+          onPressed: busy ? null : () => _act('refund'),
+          child: const Text('Refund buyer'),
+        ),
+        const SizedBox(width: 4),
+        ElevatedButton(
+          onPressed: busy ? null : () => _act('release'),
+          child: busy
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Release to seller'),
+        ),
+      ],
+    );
+  }
 }
 
 /// Support requests and suggestions sent from the Help & Feedback sheet.

@@ -2,6 +2,38 @@ part of '../main.dart';
 
 // Orders.
 
+/// Buyer pays for an order, moving it into escrow. Creates a `payments` doc;
+/// a Cloud Function (onPaymentCreated) confirms it and flips the order to
+/// `in_escrow`. With the TEST provider this is instant; once PayFast is wired,
+/// this is where the gateway checkout/redirect happens instead.
+Future<void> _payOrderEscrow(
+  BuildContext context,
+  String orderId,
+  Map<String, dynamic> order,
+) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return;
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    await FirebaseFirestore.instance.collection('payments').add({
+      'orderId': orderId,
+      'buyerId': uid,
+      'sellerId': order['sellerId'] ?? '',
+      'amount': (order['amount'] as num?)?.toDouble() ?? 0,
+      'provider': 'test',
+      'status': 'initiated',
+      'createdAt': Timestamp.now(),
+    });
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Payment received — your money is now held in escrow.'),
+      ),
+    );
+  } catch (e) {
+    messenger.showSnackBar(SnackBar(content: Text('Payment failed: $e')));
+  }
+}
+
 class OrdersScreen extends StatelessWidget {
   const OrdersScreen({super.key});
 
@@ -77,9 +109,12 @@ class _OrdersList extends StatelessWidget {
             final payout = (d['sellerPayout'] as num?)?.toDouble() ?? 0;
             final buyerConfirmed = d['buyerConfirmed'] == true;
             final (label, color) = switch (status) {
+              'in_escrow' => ('Paid · in escrow', kPakGreen),
+              'released' => ('Completed · paid out', Colors.green),
               'completed' => ('Completed', Colors.green),
+              'refunded' => ('Refunded', Colors.blueGrey),
               'cancelled' => ('Cancelled', Colors.grey),
-              _ => ('Pending payment', Colors.orange),
+              _ => ('Awaiting payment', Colors.orange),
             };
             return Card(
               margin: const EdgeInsets.only(bottom: 10),
@@ -169,90 +204,118 @@ class _OrdersList extends StatelessWidget {
                     ),
                     if (status == 'pending_payment') ...[
                       const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          if (asSeller)
-                            ElevatedButton(
-                              onPressed: () async {
-                                await docs[i].reference.update({
-                                  'status': 'completed',
-                                  'completedAt': Timestamp.now(),
-                                });
-                                final lid = d['listingId']?.toString() ?? '';
-                                if (lid.isNotEmpty) {
-                                  await FirebaseFirestore.instance
-                                      .collection('listings')
-                                      .doc(lid)
-                                      .update({'isSold': true});
-                                }
-                              },
-                              child: const Text('Mark completed'),
-                            )
-                          else
+                      if (!asSeller)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
                             TextButton(
                               onPressed: () => docs[i].reference.update({
                                 'status': 'cancelled',
                               }),
                               child: const Text('Cancel'),
                             ),
-                        ],
-                      ),
-                    ],
-                    if (status == 'completed' && buyerConfirmed) ...[
-                      const SizedBox(height: 6),
-                      const Row(
-                        children: [
-                          Icon(Icons.verified, size: 16, color: kPakGreen),
-                          SizedBox(width: 4),
-                          Text(
-                            'Receipt confirmed by buyer',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: kPakGreen,
-                              fontWeight: FontWeight.w600,
+                            const SizedBox(width: 4),
+                            ElevatedButton.icon(
+                              onPressed: () =>
+                                  _payOrderEscrow(context, docs[i].id, d),
+                              icon: const Icon(Icons.lock, size: 18),
+                              label: const Text('Pay & hold in escrow'),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        )
+                      else
+                        const Text(
+                          'Waiting for the buyer to pay.',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
                     ],
-                    if (status == 'completed' && !asSeller) ...[
+                    if (status == 'in_escrow') ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: kPakGreen.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.lock, size: 16, color: kPakGreen),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                asSeller
+                                    ? 'Payment is held in escrow. It is paid to '
+                                          'your wallet once released.'
+                                    : 'Your payment is held safely. Confirm once '
+                                          'you have received the item.',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!asSeller && !buyerConfirmed) ...[
+                        const SizedBox(height: 6),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: ElevatedButton.icon(
+                            onPressed: () => docs[i].reference.update({
+                              'buyerConfirmed': true,
+                              'buyerConfirmedAt': Timestamp.now(),
+                            }),
+                            icon: const Icon(Icons.check_circle, size: 18),
+                            label: const Text('Confirm received'),
+                          ),
+                        ),
+                      ],
+                      if (buyerConfirmed) ...[
+                        const SizedBox(height: 6),
+                        const Row(
+                          children: [
+                            Icon(Icons.verified, size: 16, color: kPakGreen),
+                            SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                'Receipt confirmed — awaiting payout to seller.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: kPakGreen,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                    if (status == 'released' || status == 'completed') ...[
                       const SizedBox(height: 8),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          if (!buyerConfirmed)
-                            TextButton.icon(
-                              onPressed: () => docs[i].reference.update({
-                                'buyerConfirmed': true,
-                                'buyerConfirmedAt': Timestamp.now(),
-                              }),
-                              icon: const Icon(Icons.check_circle, size: 18),
-                              label: const Text('Confirm received'),
+                          if (asSeller && status == 'released')
+                            const Padding(
+                              padding: EdgeInsets.only(right: 8),
+                              child: Text(
+                                'Paid to your wallet',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
                           OutlinedButton.icon(
                             onPressed: () => showReviewDialog(
                               context,
-                              d['sellerId']?.toString() ?? '',
+                              (asSeller ? d['buyerId'] : d['sellerId'])
+                                      ?.toString() ??
+                                  '',
                             ),
                             icon: const Icon(Icons.star, size: 18),
-                            label: const Text('Rate seller'),
+                            label: Text(asSeller ? 'Rate buyer' : 'Rate seller'),
                           ),
                         ],
-                      ),
-                    ],
-                    if (status == 'completed' && asSeller) ...[
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: OutlinedButton.icon(
-                          onPressed: () => showReviewDialog(
-                            context,
-                            d['buyerId']?.toString() ?? '',
-                          ),
-                          icon: const Icon(Icons.star, size: 18),
-                          label: const Text('Rate buyer'),
-                        ),
                       ),
                     ],
                   ],
