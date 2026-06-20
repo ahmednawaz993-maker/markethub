@@ -176,64 +176,7 @@ class _AdminVerificationsTab extends StatelessWidget {
                       ),
                     ),
                     if (pending)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton(
-                            onPressed: () async {
-                              final users = FirebaseFirestore.instance
-                                  .collection('users');
-                              await users.doc(uid).set({
-                                'idVerified': false,
-                              }, SetOptions(merge: true));
-                              await users
-                                  .doc(uid)
-                                  .collection('notifications')
-                                  .add({
-                                    'title': 'Verification needs another try',
-                                    'body':
-                                        'Please re-upload a clear selfie and '
-                                        'CNIC photo, then resubmit.',
-                                    'type': 'verification',
-                                    'read': false,
-                                    'createdAt': Timestamp.now(),
-                                  });
-                              await docs[i].reference.update({
-                                'status': 'rejected',
-                                'reviewedAt': Timestamp.now(),
-                              });
-                            },
-                            child: const Text('Reject'),
-                          ),
-                          const SizedBox(width: 4),
-                          ElevatedButton(
-                            onPressed: () async {
-                              final users = FirebaseFirestore.instance
-                                  .collection('users');
-                              await users.doc(uid).set({
-                                'idVerified': true,
-                              }, SetOptions(merge: true));
-                              await users
-                                  .doc(uid)
-                                  .collection('notifications')
-                                  .add({
-                                    'title': 'Identity verified ✓',
-                                    'body':
-                                        'You can now post ads, buy, make offers '
-                                        'and chat on PakBazar.',
-                                    'type': 'verification',
-                                    'read': false,
-                                    'createdAt': Timestamp.now(),
-                                  });
-                              await docs[i].reference.update({
-                                'status': 'approved',
-                                'reviewedAt': Timestamp.now(),
-                              });
-                            },
-                            child: const Text('Approve'),
-                          ),
-                        ],
-                      ),
+                      _VerificationActions(uid: uid, ref: docs[i].reference),
                   ],
                 ),
               ),
@@ -241,6 +184,85 @@ class _AdminVerificationsTab extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+/// Approve / reject buttons for a pending verification. Stateful so both
+/// buttons disable while the decision is being written — avoids a double-tap
+/// applying the change twice and sending duplicate notifications.
+class _VerificationActions extends StatefulWidget {
+  const _VerificationActions({required this.uid, required this.ref});
+
+  final String uid;
+  final DocumentReference ref;
+
+  @override
+  State<_VerificationActions> createState() => _VerificationActionsState();
+}
+
+class _VerificationActionsState extends State<_VerificationActions> {
+  bool busy = false;
+
+  Future<void> _decide(bool approve) async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      final users = FirebaseFirestore.instance.collection('users');
+      await users.doc(widget.uid).set({
+        'idVerified': approve,
+      }, SetOptions(merge: true));
+      await users.doc(widget.uid).collection('notifications').add(
+        approve
+            ? {
+                'title': 'Identity verified ✓',
+                'body':
+                    'You can now post ads, buy, make offers and chat on '
+                    'PakBazar.',
+                'type': 'verification',
+                'read': false,
+                'createdAt': Timestamp.now(),
+              }
+            : {
+                'title': 'Verification needs another try',
+                'body':
+                    'Please re-upload a clear selfie and CNIC photo, then '
+                    'resubmit.',
+                'type': 'verification',
+                'read': false,
+                'createdAt': Timestamp.now(),
+              },
+      );
+      await widget.ref.update({
+        'status': approve ? 'approved' : 'rejected',
+        'reviewedAt': Timestamp.now(),
+      });
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        TextButton(
+          onPressed: busy ? null : () => _decide(false),
+          child: const Text('Reject'),
+        ),
+        const SizedBox(width: 4),
+        ElevatedButton(
+          onPressed: busy ? null : () => _decide(true),
+          child: busy
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Approve'),
+        ),
+      ],
     );
   }
 }

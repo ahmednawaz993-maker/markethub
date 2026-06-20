@@ -231,9 +231,17 @@ service cloud.firestore {
     match /verifications/{userId} {
       allow read: if isSignedIn()
                   && (request.auth.uid == userId || isAdmin());
-      allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isSignedIn()
-                    && (request.auth.uid == userId || isAdmin());
+      // The owner may submit/resubmit, but may only set status 'pending'. Only
+      // an admin may mark a record 'approved'/'rejected', so a user cannot make
+      // their own request look reviewed and skip the admin queue. (The
+      // authoritative idVerified flag on the user doc stays admin-only too.)
+      allow create: if isSignedIn()
+                    && request.auth.uid == userId
+                    && request.resource.data.status == 'pending';
+      allow update: if isAdmin()
+                    || (isSignedIn()
+                        && request.auth.uid == userId
+                        && request.resource.data.status == 'pending');
       allow delete: if isAdmin();
     }
 
