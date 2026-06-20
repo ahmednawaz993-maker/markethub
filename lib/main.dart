@@ -1,3 +1,4 @@
+
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -48,6 +49,7 @@ Future<void> main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await loadSavedLocale();
+  await loadFeaturingFlag();
 
   runApp(const PakBazarApp());
 }

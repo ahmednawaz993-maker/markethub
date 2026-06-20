@@ -41,6 +41,21 @@ const List<String> adminEmails = ['ahmednawaz993@gmail.com'];
 /// (shown in Admin Panel → Feedback) and emails it here directly.
 const String supportEmail = 'ahmednawaz993@gmail.com';
 
+/// Platform-wide featuring on/off, controlled by the admin (config/featuring).
+/// When false, the home Featured rails (ads + businesses) are hidden. Loaded
+/// at startup and flipped live by the admin Featured tab.
+final ValueNotifier<bool> featuringEnabled = ValueNotifier<bool>(true);
+
+Future<void> loadFeaturingFlag() async {
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('config')
+        .doc('featuring')
+        .get();
+    featuringEnabled.value = doc.data()?['enabled'] != false;
+  } catch (_) {}
+}
+
 bool isAdminUser() =>
     adminEmails.contains(FirebaseAuth.instance.currentUser?.email);
 

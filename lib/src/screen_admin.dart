@@ -8,7 +8,7 @@ class AdminPanelScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 15,
+      length: 16,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Panel'),
@@ -21,6 +21,7 @@ class AdminPanelScreen extends StatelessWidget {
               Tab(text: 'Verify ID'),
               Tab(text: 'Payments'),
               Tab(text: 'Escrow'),
+              Tab(text: 'Featured'),
               Tab(text: 'Feedback'),
               Tab(text: 'Users'),
               Tab(text: 'Reports'),
@@ -41,6 +42,7 @@ class AdminPanelScreen extends StatelessWidget {
             _AdminVerificationsTab(),
             _AdminPaymentsTab(),
             _AdminEscrowTab(),
+            _AdminFeaturedTab(),
             _AdminFeedbackTab(),
             _AdminUsersTab(),
             _AdminReportsTab(),
@@ -206,6 +208,160 @@ class _PaymentConfirmActionsState extends State<_PaymentConfirmActions> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Text('Confirm payment'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Featuring control centre: a master on/off switch for the whole featuring
+/// system (config/featuring), plus lists of currently featured ads and
+/// businesses that can each be turned off directly.
+class _AdminFeaturedTab extends StatelessWidget {
+  const _AdminFeaturedTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final fs = FirebaseFirestore.instance;
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        Card(
+          child: StreamBuilder<DocumentSnapshot>(
+            stream: fs.collection('config').doc('featuring').snapshots(),
+            builder: (context, snap) {
+              final enabled =
+                  (snap.data?.data() as Map<String, dynamic>?)?['enabled'] !=
+                  false;
+              return SwitchListTile(
+                title: const Text(
+                  'Featuring system',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  enabled
+                      ? 'ON — featured ads & businesses show on the home screen'
+                      : 'OFF — featured sections are hidden on the home screen',
+                ),
+                value: enabled,
+                activeThumbColor: kPakGreen,
+                onChanged: (v) {
+                  fs.collection('config').doc('featuring').set({
+                    'enabled': v,
+                  }, SetOptions(merge: true));
+                  featuringEnabled.value = v;
+                },
+              );
+            },
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(4, 12, 4, 6),
+          child: Text(
+            'Featured ads',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          ),
+        ),
+        StreamBuilder<QuerySnapshot>(
+          stream: fs
+              .collection('listings')
+              .where('isFeatured', isEqualTo: true)
+              .snapshots(),
+          builder: (context, snap) {
+            if (!snap.hasData) {
+              return const Padding(
+                padding: EdgeInsets.all(8),
+                child: LinearProgressIndicator(),
+              );
+            }
+            final docs = snap.data!.docs;
+            if (docs.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.all(8),
+                child: Text(
+                  'No featured ads.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              );
+            }
+            return Column(
+              children: docs.map((doc) {
+                final l = Listing.fromDoc(doc);
+                return Card(
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.star, color: kGold),
+                    title: Text(
+                      l.title.isEmpty ? '(untitled)' : l.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text('${formatPrice(l.price)} · ${l.sellerName}'),
+                    trailing: TextButton(
+                      onPressed: () =>
+                          doc.reference.update({'isFeatured': false}),
+                      child: const Text('Turn off'),
+                    ),
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(4, 12, 4, 6),
+          child: Text(
+            'Featured businesses',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          ),
+        ),
+        StreamBuilder<QuerySnapshot>(
+          stream: fs
+              .collection('users')
+              .where('featuredBusiness', isEqualTo: true)
+              .snapshots(),
+          builder: (context, snap) {
+            if (!snap.hasData) {
+              return const Padding(
+                padding: EdgeInsets.all(8),
+                child: LinearProgressIndicator(),
+              );
+            }
+            final docs = snap.data!.docs;
+            if (docs.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.all(8),
+                child: Text(
+                  'No featured businesses.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              );
+            }
+            return Column(
+              children: docs.map((doc) {
+                final d = doc.data() as Map<String, dynamic>;
+                final name = (d['businessName']?.toString() ?? '').isNotEmpty
+                    ? d['businessName'].toString()
+                    : (d['email']?.toString() ?? 'Business');
+                return Card(
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.storefront, color: kGold),
+                    title: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: TextButton(
+                      onPressed: () =>
+                          doc.reference.update({'featuredBusiness': false}),
+                      child: const Text('Turn off'),
+                    ),
+                  ),
+                );
+              }).toList(),
+            );
+          },
         ),
       ],
     );

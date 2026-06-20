@@ -1118,7 +1118,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: PromoCarousel(),
                 ),
               ),
-              const SliverToBoxAdapter(child: FeaturedBusinessesRail()),
+              if (featuringEnabled.value)
+                const SliverToBoxAdapter(child: FeaturedBusinessesRail()),
               if (topDealsList.length >= 3)
                 SliverToBoxAdapter(
                   child: Column(
@@ -1168,7 +1169,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-              if (featured.isNotEmpty)
+              if (featured.isNotEmpty && featuringEnabled.value)
                 SliverToBoxAdapter(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1410,15 +1411,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                   ),
-                  AdsRail(
-                    title: 'Featured',
-                    icon: Icons.star,
-                    stream: FirebaseFirestore.instance
-                        .collection('listings')
-                        .where('isFeatured', isEqualTo: true)
-                        .limit(10)
-                        .snapshots(),
-                  ),
+                  if (featuringEnabled.value)
+                    AdsRail(
+                      title: 'Featured',
+                      icon: Icons.star,
+                      stream: FirebaseFirestore.instance
+                          .collection('listings')
+                          .where('isFeatured', isEqualTo: true)
+                          .limit(10)
+                          .snapshots(),
+                    ),
                   AdsRail(
                     title: 'Deals & price drops',
                     icon: Icons.local_fire_department,
