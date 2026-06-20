@@ -9346,6 +9346,62 @@ class AboutScreen extends StatelessWidget {
   }
 }
 
+/// Compact "X Followers · Y Following" row for the current user's own profile.
+class _FollowStatsRow extends StatelessWidget {
+  const _FollowStatsRow();
+
+  Widget _stat(String value, String label) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(
+        value,
+        style: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: kPakGreen,
+        ),
+      ),
+      Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+    ],
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const SizedBox.shrink();
+    final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: userRef.collection('followers').snapshots(),
+                builder: (context, snap) =>
+                    _stat('${snap.data?.docs.length ?? 0}', 'Followers'),
+              ),
+            ),
+            Expanded(
+              child: InkWell(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FollowingScreen()),
+                ),
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: userRef.collection('following').snapshots(),
+                  builder: (context, snap) =>
+                      _stat('${snap.data?.docs.length ?? 0}', 'Following'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -9444,6 +9500,8 @@ class ProfileScreen extends StatelessWidget {
               ),
             if (!(user?.isAnonymous ?? true)) ...[
               const SizedBox(height: 16),
+              const _FollowStatsRow(),
+              const SizedBox(height: 12),
               const _DisplayNameTile(),
               const SizedBox(height: 12),
               const _BusinessAccountTile(),
