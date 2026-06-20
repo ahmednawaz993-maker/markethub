@@ -15,7 +15,7 @@ class SellerProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Seller Profile')),
+      appBar: AppBar(title: Text(sellerName.isEmpty ? 'Store' : sellerName)),
       body: Column(
         children: [
           StreamBuilder<DocumentSnapshot>(
@@ -46,167 +46,212 @@ class SellerProfileScreen extends StatelessWidget {
               final me = FirebaseAuth.instance.currentUser;
               final isSelf = me != null && me.uid == sellerId;
 
-              final card = Card(
-                margin: const EdgeInsets.all(12),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 32,
-                            backgroundColor: kPakGreen,
-                            backgroundImage: logoUrl.isNotEmpty
-                                ? NetworkImage(logoUrl)
-                                : null,
-                            child: logoUrl.isEmpty
-                                ? Icon(
-                                    isBusiness
-                                        ? Icons.storefront
-                                        : Icons.person,
-                                    size: 36,
-                                    color: Colors.white,
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        displayName,
-                                        style: const TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                    if (verified) ...[
-                                      const SizedBox(width: 6),
-                                      const Icon(
-                                        Icons.verified,
-                                        size: 18,
-                                        color: kPakGreen,
-                                      ),
-                                    ],
-                                    if (data['idVerified'] == true) ...[
-                                      const SizedBox(width: 6),
-                                      const Tooltip(
-                                        message: 'ID Verified',
-                                        child: Icon(
-                                          Icons.verified_user,
-                                          size: 18,
-                                          color: Colors.blue,
-                                        ),
-                                      ),
-                                    ],
-                                    if (isBusiness) ...[
-                                      const SizedBox(width: 6),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 1,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: kPakGreen,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: const Text(
-                                          'BUSINESS',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                                if (isBusiness && tagline.isNotEmpty)
-                                  Text(
-                                    tagline,
-                                    style: const TextStyle(
-                                      color: Colors.black54,
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                  ),
-                                if (memberSince.isNotEmpty)
-                                  Text(
-                                    memberSince,
-                                    style: const TextStyle(color: Colors.grey),
-                                  ),
-                                const SizedBox(height: 6),
-                                StarRating(rating: avg, count: count, size: 16),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (!isSelf) ...[
-                        const SizedBox(height: 12),
-                        _FollowButton(
-                          sellerId: sellerId,
-                          sellerName: displayName,
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () =>
-                                    showReviewDialog(context, sellerId),
-                                icon: const Icon(Icons.rate_review),
-                                label: const Text('Write a review'),
-                              ),
-                            ),
-                            if (count > 0) ...[
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: TextButton(
-                                  onPressed: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => ReviewsScreen(
-                                        sellerId: sellerId,
-                                        sellerName: sellerName,
-                                      ),
-                                    ),
-                                  ),
-                                  child: Text('See $count reviews'),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ],
-                    ],
+              final storeCategory = data['storeCategory']?.toString() ?? '';
+
+              Widget chip(String text, Color bg) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  text,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               );
 
-              if (coverUrl.isEmpty) return card;
               return Column(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        coverUrl,
-                        height: 130,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  // Branded shop banner: cover (or gradient) with the logo and
+                  // store name overlaid, plus BUSINESS and category chips.
+                  SizedBox(
+                    height: 168,
+                    width: double.infinity,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (coverUrl.isNotEmpty)
+                          Image.network(
+                            coverUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) =>
+                                const ColoredBox(color: kPakGreen),
+                          )
+                        else
+                          const DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [kPakGreen, kPakGreenLight],
+                              ),
+                            ),
+                          ),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.15),
+                                Colors.black.withValues(alpha: 0.62),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 10,
+                          left: 12,
+                          right: 12,
+                          child: Row(
+                            children: [
+                              if (isBusiness) chip('BUSINESS', kPakGreen),
+                              const Spacer(),
+                              if (storeCategory.isNotEmpty)
+                                chip(storeCategory, kGold),
+                            ],
+                          ),
+                        ),
+                        Positioned(
+                          left: 12,
+                          right: 12,
+                          bottom: 12,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              CircleAvatar(
+                                radius: 34,
+                                backgroundColor: Colors.white,
+                                backgroundImage: logoUrl.isNotEmpty
+                                    ? NetworkImage(logoUrl)
+                                    : null,
+                                child: logoUrl.isEmpty
+                                    ? Icon(
+                                        isBusiness
+                                            ? Icons.storefront
+                                            : Icons.person,
+                                        size: 34,
+                                        color: kPakGreen,
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            displayName,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 21,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        if (verified ||
+                                            data['idVerified'] == true) ...[
+                                          const SizedBox(width: 6),
+                                          const Icon(
+                                            Icons.verified,
+                                            size: 18,
+                                            color: Colors.white,
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                    if (isBusiness && tagline.isNotEmpty)
+                                      Text(
+                                        tagline,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 12,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Rating, member-since and actions.
+                  Card(
+                    margin: const EdgeInsets.all(12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              StarRating(rating: avg, count: count, size: 16),
+                              const Spacer(),
+                              if (memberSince.isNotEmpty)
+                                Text(
+                                  memberSince,
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          if (!isSelf) ...[
+                            const SizedBox(height: 10),
+                            _FollowButton(
+                              sellerId: sellerId,
+                              sellerName: displayName,
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () =>
+                                        showReviewDialog(context, sellerId),
+                                    icon: const Icon(Icons.rate_review),
+                                    label: const Text('Write a review'),
+                                  ),
+                                ),
+                                if (count > 0) ...[
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: TextButton(
+                                      onPressed: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => ReviewsScreen(
+                                            sellerId: sellerId,
+                                            sellerName: sellerName,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Text('See $count reviews'),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ),
-                  card,
                 ],
               );
             },
@@ -216,7 +261,7 @@ class SellerProfileScreen extends StatelessWidget {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Ads by this seller',
+                'Products',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.white.withValues(alpha: 0.9),
@@ -253,11 +298,16 @@ class SellerProfileScreen extends StatelessWidget {
                   );
                 }
 
-                return ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: listings
-                      .map((listing) => ListingCard(listing: listing))
-                      .toList(),
+                return GridView.builder(
+                  padding: const EdgeInsets.all(12),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 0.62,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                  ),
+                  itemCount: listings.length,
+                  itemBuilder: (context, i) => FeedAdCard(listing: listings[i]),
                 );
               },
             ),

@@ -227,6 +227,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
   bool uploadingLogo = false;
   String? coverUrl;
   bool uploadingCover = false;
+  String? storeCategory;
 
   @override
   void initState() {
@@ -303,6 +304,8 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       taglineController.text = d?['tagline']?.toString() ?? '';
       logoUrl = d?['logoUrl']?.toString();
       coverUrl = d?['coverUrl']?.toString();
+      final sc = d?['storeCategory']?.toString();
+      storeCategory = (sc != null && sc.isNotEmpty) ? sc : null;
       loaded = true;
     });
   }
@@ -317,6 +320,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       'tagline': taglineController.text.trim(),
       'logoUrl': logoUrl ?? '',
       'coverUrl': coverUrl ?? '',
+      'storeCategory': storeCategory ?? '',
     }, SetOptions(merge: true));
     if (!mounted) return;
     setState(() => saving = false);
@@ -424,6 +428,20 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                   decoration: const InputDecoration(
                     labelText: 'Tagline (e.g. "Best deals on phones")',
                   ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: DropdownButtonFormField<String>(
+                  initialValue: storeCategory,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Store category'),
+                  items: [
+                    for (final c
+                        in appCategories.where((c) => c.title != 'All'))
+                      DropdownMenuItem(value: c.title, child: Text(c.title)),
+                  ],
+                  onChanged: (v) => setState(() => storeCategory = v),
                 ),
               ),
             ],

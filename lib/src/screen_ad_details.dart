@@ -658,6 +658,21 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                             ),
                             const SizedBox(height: 2),
                             StarRating(rating: avg, count: count, size: 14),
+                            if (data['isBusiness'] == true) ...[
+                              const SizedBox(height: 6),
+                              OutlinedButton.icon(
+                                onPressed: openSellerProfile,
+                                icon: const Icon(Icons.storefront, size: 16),
+                                label: const Text('Visit store'),
+                                style: OutlinedButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 2,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
