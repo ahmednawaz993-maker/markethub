@@ -1566,14 +1566,14 @@ class _HomeScreenState extends State<HomeScreen> {
           onPressed: _postAd,
           backgroundColor: kPakGreen,
           shape: const CircleBorder(),
-          child: const Column(
+          child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.add, size: 22, color: Colors.white),
+              const Icon(Icons.add, size: 22, color: Colors.white),
               Text(
-                'SELL',
-                style: TextStyle(
+                tr('nav.sell'),
+                style: const TextStyle(
                   fontSize: 8,
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -1593,11 +1593,11 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: EdgeInsets.zero,
         child: Row(
           children: [
-            _navItem(Icons.home, 'Home', 0),
-            _navItem(Icons.chat, 'Chats', 1),
+            _navItem(Icons.home, tr('nav.home'), 0),
+            _navItem(Icons.chat, tr('nav.chats'), 1),
             const SizedBox(width: 64),
-            _navItem(Icons.list_alt, 'My Ads', 2),
-            _navItem(Icons.person, 'Profile', 3),
+            _navItem(Icons.list_alt, tr('nav.myAds'), 2),
+            _navItem(Icons.person, tr('nav.profile'), 3),
           ],
         ),
       ),

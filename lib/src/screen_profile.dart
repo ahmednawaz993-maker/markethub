@@ -1093,17 +1093,19 @@ class ProfileScreen extends StatelessWidget {
                     MaterialPageRoute(builder: (_) => const AdminPanelScreen()),
                   ),
                   icon: const Icon(Icons.admin_panel_settings),
-                  label: const Text('Admin Panel'),
+                  label: Text(tr('profile.adminPanel')),
                 ),
               ],
               const SizedBox(height: 16),
+              const LanguageTile(),
+              const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const OrdersScreen()),
                 ),
                 icon: const Icon(Icons.receipt_long),
-                label: const Text('My Orders'),
+                label: Text(tr('profile.orders')),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
@@ -1112,7 +1114,7 @@ class ProfileScreen extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const OffersScreen()),
                 ),
                 icon: const Icon(Icons.local_offer),
-                label: const Text('Offers'),
+                label: Text(tr('profile.offers')),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
@@ -1121,7 +1123,7 @@ class ProfileScreen extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const WalletScreen()),
                 ),
                 icon: const Icon(Icons.account_balance_wallet),
-                label: const Text('PakBazar Wallet'),
+                label: Text(tr('profile.wallet')),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
@@ -1130,7 +1132,7 @@ class ProfileScreen extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const VerificationScreen()),
                 ),
                 icon: const Icon(Icons.verified_user),
-                label: const Text('Verify Identity'),
+                label: Text(tr('profile.verify')),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
@@ -1139,7 +1141,7 @@ class ProfileScreen extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const DraftsScreen()),
                 ),
                 icon: const Icon(Icons.edit_note),
-                label: const Text('Drafts'),
+                label: Text(tr('profile.drafts')),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
@@ -1150,7 +1152,7 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
                 icon: const Icon(Icons.bookmark),
-                label: const Text('Saved Searches'),
+                label: Text(tr('profile.savedSearches')),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
@@ -1159,13 +1161,13 @@ class ProfileScreen extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const FollowingScreen()),
                 ),
                 icon: const Icon(Icons.people_alt),
-                label: const Text('Following'),
+                label: Text(tr('profile.following')),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: () => showSupportSheet(context),
                 icon: const Icon(Icons.help_outline),
-                label: const Text('Help & Feedback'),
+                label: Text(tr('profile.help')),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
@@ -1174,7 +1176,7 @@ class ProfileScreen extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const AboutScreen()),
                 ),
                 icon: const Icon(Icons.info_outline),
-                label: const Text('About PakBazar'),
+                label: Text(tr('profile.about')),
               ),
               const SizedBox(height: 12),
               ElevatedButton.icon(
@@ -1184,7 +1186,7 @@ class ProfileScreen extends StatelessWidget {
                   // AuthGate listens to authStateChanges and shows the login screen.
                 },
                 icon: const Icon(Icons.logout),
-                label: const Text('Logout'),
+                label: Text(tr('profile.logout')),
               ),
             ],
           ),

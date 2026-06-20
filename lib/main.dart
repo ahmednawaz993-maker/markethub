@@ -12,8 +12,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Implementation is split across part files under lib/src/ (see below).
+part 'src/i18n.dart';
 part 'src/helpers.dart';
 part 'src/theme.dart';
 part 'src/models.dart';
@@ -44,6 +47,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await loadSavedLocale();
 
   runApp(const PakBazarApp());
 }

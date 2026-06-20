@@ -7,13 +7,28 @@ class PakBazarApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'PakBazar',
-      debugShowCheckedModeBanner: false,
-      scaffoldMessengerKey: rootMessengerKey,
-      theme: buildAppTheme(),
-      builder: (context, child) => AppBackground(child: child ?? const SizedBox()),
-      home: const AuthGate(),
+    // Rebuild the whole app when the language changes; the locale drives both
+    // translations and text direction (Urdu => RTL automatically).
+    return ValueListenableBuilder<Locale>(
+      valueListenable: appLocale,
+      builder: (context, locale, _) {
+        return MaterialApp(
+          title: 'PakBazar',
+          debugShowCheckedModeBanner: false,
+          scaffoldMessengerKey: rootMessengerKey,
+          theme: buildAppTheme(),
+          locale: locale,
+          supportedLocales: const [kEnglish, kUrdu],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          builder: (context, child) =>
+              AppBackground(child: child ?? const SizedBox()),
+          home: const AuthGate(),
+        );
+      },
     );
   }
 }
