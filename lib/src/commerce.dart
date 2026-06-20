@@ -449,11 +449,13 @@ Future<void> showTopupSheet(BuildContext context) async {
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Text(
-                'Choose an amount. Pay via bank transfer / JazzCash and an admin '
-                'credits your wallet. Instant card/wallet top-up coming soon.',
+                'Pay to the account below via bank transfer / JazzCash / '
+                'EasyPaisa, then tap your amount to request credit. An admin '
+                'confirms the payment and credits your wallet.',
                 style: TextStyle(color: Colors.grey),
               ),
             ),
+            const _PaymentAccountInfo(),
             const SizedBox(height: 8),
             for (final a in topupAmounts)
               ListTile(
@@ -493,4 +495,93 @@ Future<void> showTopupSheet(BuildContext context) async {
       );
     },
   );
+}
+
+/// Shows the platform's receiving account (bank / JazzCash / EasyPaisa) on the
+/// top-up sheet so a user knows where to send payment. Admin-editable via
+/// Admin Panel → Payment a/c; stored at config/paymentAccount.
+class _PaymentAccountInfo extends StatelessWidget {
+  const _PaymentAccountInfo();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance
+          .collection('config')
+          .doc('paymentAccount')
+          .get(),
+      builder: (context, snap) {
+        final d = snap.data?.data() as Map<String, dynamic>?;
+        if (d == null) return const SizedBox.shrink();
+        final rows = <Widget>[];
+        void add(String label, String? value) {
+          final v = (value ?? '').trim();
+          if (v.isEmpty) return;
+          rows.add(
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 104,
+                    child: Text(
+                      label,
+                      style: const TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                  ),
+                  Expanded(
+                    child: SelectableText(
+                      v,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        add('Bank', d['bankName']?.toString());
+        add('Account title', d['accountTitle']?.toString());
+        add('Account no.', d['accountNumber']?.toString());
+        add('IBAN', d['iban']?.toString());
+        add('JazzCash', d['jazzCash']?.toString());
+        add('EasyPaisa', d['easyPaisa']?.toString());
+        final note = (d['note']?.toString() ?? '').trim();
+        if (rows.isEmpty && note.isEmpty) return const SizedBox.shrink();
+
+        return Container(
+          margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: kPakGreen.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: kPakGreen.withValues(alpha: 0.25)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Send payment to',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              ...rows,
+              if (note.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    note,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }

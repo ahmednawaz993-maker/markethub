@@ -8,7 +8,7 @@ class AdminPanelScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 12,
+      length: 13,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Panel'),
@@ -24,6 +24,7 @@ class AdminPanelScreen extends StatelessWidget {
               Tab(text: 'Users'),
               Tab(text: 'Reports'),
               Tab(text: 'Top-ups'),
+              Tab(text: 'Payment a/c'),
               Tab(text: 'Promotions'),
               Tab(text: 'Orders'),
               Tab(text: 'Offers'),
@@ -41,6 +42,7 @@ class AdminPanelScreen extends StatelessWidget {
             _AdminUsersTab(),
             _AdminReportsTab(),
             _AdminTopupsTab(),
+            _AdminPaymentTab(),
             _AdminPromotionsTab(),
             _AdminOrdersTab(),
             _AdminOffersTab(),
@@ -222,6 +224,157 @@ class _EscrowActionsState extends State<_EscrowActions> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Text('Release to seller'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Edits the platform's receiving account (bank / JazzCash / EasyPaisa) shown
+/// to users on the wallet top-up sheet. Stored at config/paymentAccount.
+class _AdminPaymentTab extends StatelessWidget {
+  const _AdminPaymentTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SingleChildScrollView(
+      padding: EdgeInsets.all(14),
+      child: _PaymentAccountEditor(),
+    );
+  }
+}
+
+class _PaymentAccountEditor extends StatefulWidget {
+  const _PaymentAccountEditor();
+
+  @override
+  State<_PaymentAccountEditor> createState() => _PaymentAccountEditorState();
+}
+
+class _PaymentAccountEditorState extends State<_PaymentAccountEditor> {
+  final bankName = TextEditingController();
+  final accountTitle = TextEditingController();
+  final accountNumber = TextEditingController();
+  final iban = TextEditingController();
+  final jazzCash = TextEditingController();
+  final easyPaisa = TextEditingController();
+  final note = TextEditingController();
+  bool loaded = false;
+  bool saving = false;
+
+  DocumentReference get _ref =>
+      FirebaseFirestore.instance.collection('config').doc('paymentAccount');
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final doc = await _ref.get();
+    final d = doc.data() as Map<String, dynamic>?;
+    if (!mounted) return;
+    setState(() {
+      bankName.text = d?['bankName']?.toString() ?? '';
+      accountTitle.text = d?['accountTitle']?.toString() ?? '';
+      accountNumber.text = d?['accountNumber']?.toString() ?? '';
+      iban.text = d?['iban']?.toString() ?? '';
+      jazzCash.text = d?['jazzCash']?.toString() ?? '';
+      easyPaisa.text = d?['easyPaisa']?.toString() ?? '';
+      note.text = d?['note']?.toString() ?? '';
+      loaded = true;
+    });
+  }
+
+  Future<void> _save() async {
+    setState(() => saving = true);
+    try {
+      await _ref.set({
+        'bankName': bankName.text.trim(),
+        'accountTitle': accountTitle.text.trim(),
+        'accountNumber': accountNumber.text.trim(),
+        'iban': iban.text.trim(),
+        'jazzCash': jazzCash.text.trim(),
+        'easyPaisa': easyPaisa.text.trim(),
+        'note': note.text.trim(),
+        'updatedAt': Timestamp.now(),
+      }, SetOptions(merge: true));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Receiving account saved')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    bankName.dispose();
+    accountTitle.dispose();
+    accountNumber.dispose();
+    iban.dispose();
+    jazzCash.dispose();
+    easyPaisa.dispose();
+    note.dispose();
+    super.dispose();
+  }
+
+  Widget _field(TextEditingController c, String label, {TextInputType? kb}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextField(
+        controller: c,
+        enabled: loaded,
+        keyboardType: kb,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!loaded) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Receiving account',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Shown to users on the wallet top-up sheet so they know where to '
+          'send payment. Leave a field blank to hide it.',
+          style: TextStyle(color: Colors.grey, fontSize: 13),
+        ),
+        const SizedBox(height: 12),
+        _field(bankName, 'Bank name'),
+        _field(accountTitle, 'Account title'),
+        _field(accountNumber, 'Account number', kb: TextInputType.number),
+        _field(iban, 'IBAN (optional)'),
+        _field(jazzCash, 'JazzCash number', kb: TextInputType.phone),
+        _field(easyPaisa, 'EasyPaisa number', kb: TextInputType.phone),
+        _field(note, 'Note / instructions (optional)'),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: saving ? null : _save,
+            icon: const Icon(Icons.save),
+            label: Text(saving ? 'Saving…' : 'Save receiving account'),
+          ),
         ),
       ],
     );

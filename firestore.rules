@@ -303,6 +303,15 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // App config — e.g. the platform's receiving account shown on the top-up
+    // sheet. Readable by any signed-in user; only admins can change it.
+    // ---------------------------------------------------------------------
+    match /config/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
     // Purchases — user spends wallet balance on a feature. A Cloud Function
     // (processPurchase) validates the balance and applies the effect.
     // ---------------------------------------------------------------------
