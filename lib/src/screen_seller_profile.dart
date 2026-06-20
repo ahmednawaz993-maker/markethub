@@ -341,16 +341,60 @@ class SellerProfileScreen extends StatelessWidget {
                   );
                 }
 
-                return GridView.builder(
+                // Group the seller's products by category so a store with
+                // items across several categories shows them as sections — all
+                // of the seller's products appear under their profile.
+                final groups = <String, List<Listing>>{};
+                for (final l in listings) {
+                  final c = l.category.isEmpty ? 'Other' : l.category;
+                  (groups[c] ??= []).add(l);
+                }
+                final cats = groups.keys.toList()..sort();
+
+                return ListView(
                   padding: const EdgeInsets.all(12),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.62,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                  ),
-                  itemCount: listings.length,
-                  itemBuilder: (context, i) => FeedAdCard(listing: listings[i]),
+                  children: [
+                    for (final cat in cats) ...[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(2, 4, 2, 8),
+                        child: Row(
+                          children: [
+                            Text(
+                              cat,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '(${groups[cat]!.length})',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              childAspectRatio: 0.62,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                            ),
+                        itemCount: groups[cat]!.length,
+                        itemBuilder: (context, i) =>
+                            FeedAdCard(listing: groups[cat]![i]),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+                  ],
                 );
               },
             ),
