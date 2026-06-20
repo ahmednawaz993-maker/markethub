@@ -8,7 +8,7 @@ class AdminPanelScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 14,
+      length: 15,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Panel'),
@@ -19,6 +19,7 @@ class AdminPanelScreen extends StatelessWidget {
             tabs: [
               Tab(text: 'Overview'),
               Tab(text: 'Verify ID'),
+              Tab(text: 'Payments'),
               Tab(text: 'Escrow'),
               Tab(text: 'Feedback'),
               Tab(text: 'Users'),
@@ -38,6 +39,7 @@ class AdminPanelScreen extends StatelessWidget {
           children: [
             _AdminOverviewTab(),
             _AdminVerificationsTab(),
+            _AdminPaymentsTab(),
             _AdminEscrowTab(),
             _AdminFeedbackTab(),
             _AdminUsersTab(),
@@ -81,6 +83,133 @@ class _Metric {
   final String value;
   final String label;
   const _Metric(this.value, this.label);
+}
+
+/// Manual payments awaiting confirmation: the buyer transferred to the platform
+/// receiving account and submitted proof. The admin checks the bank/wallet,
+/// then confirms (order -> escrow) or rejects (order back to payable). The
+/// money movement happens server-side in onPaymentAction.
+class _AdminPaymentsTab extends StatelessWidget {
+  const _AdminPaymentsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('payments')
+          .where('status', isEqualTo: 'awaiting_confirmation')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.payments,
+            title: 'No payments to confirm',
+            subtitle: 'Buyer payments awaiting your confirmation appear here.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final amount = (d['amount'] as num?)?.toDouble() ?? 0;
+            final from = (d['proofFrom']?.toString() ?? '').trim();
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      formatPrice(amount.toStringAsFixed(0)),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      d['listingTitle']?.toString() ?? '',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      d['buyerEmail']?.toString() ?? '',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 6),
+                    SelectableText(
+                      'Reference: ${d['proofRef'] ?? ''}'
+                      '${from.isEmpty ? '' : '\nPaid from: $from'}',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    const SizedBox(height: 8),
+                    _PaymentConfirmActions(paymentId: docs[i].id),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _PaymentConfirmActions extends StatefulWidget {
+  const _PaymentConfirmActions({required this.paymentId});
+
+  final String paymentId;
+
+  @override
+  State<_PaymentConfirmActions> createState() => _PaymentConfirmActionsState();
+}
+
+class _PaymentConfirmActionsState extends State<_PaymentConfirmActions> {
+  bool busy = false;
+
+  Future<void> _act(String type) async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      await FirebaseFirestore.instance.collection('paymentActions').add({
+        'paymentId': widget.paymentId,
+        'type': type,
+        'by': FirebaseAuth.instance.currentUser?.uid ?? '',
+        'status': 'pending',
+        'createdAt': Timestamp.now(),
+      });
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        TextButton(
+          onPressed: busy ? null : () => _act('reject'),
+          child: const Text('Reject'),
+        ),
+        const SizedBox(width: 4),
+        ElevatedButton(
+          onPressed: busy ? null : () => _act('confirm'),
+          child: busy
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Confirm payment'),
+        ),
+      ],
+    );
+  }
 }
 
 /// Funds currently held in escrow (paid orders awaiting release). The admin

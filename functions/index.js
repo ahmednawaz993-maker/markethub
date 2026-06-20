@@ -10,6 +10,8 @@ const {
   onDocumentUpdated,
 } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onRequest } = require("firebase-functions/v2/https");
+const crypto = require("crypto");
 const { initializeApp } = require("firebase-admin/app");
 const {
   getFirestore,
@@ -34,6 +36,13 @@ const SUPPORT_FROM = "ahmednawaz993@gmail.com";
 // Platform commission taken on each released escrow deal. Keep in sync with
 // commissionRate in the app (lib/src/commerce.dart).
 const COMMISSION_RATE = 0.02;
+
+// PayFast (gopayfast, Pakistan) credentials from your merchant onboarding pack.
+// Set once you have them:
+//   firebase functions:secrets:set PAYFAST_MERCHANT_ID
+//   firebase functions:secrets:set PAYFAST_SECURED_KEY
+const PAYFAST_MERCHANT_ID = defineSecret("PAYFAST_MERCHANT_ID");
+const PAYFAST_SECURED_KEY = defineSecret("PAYFAST_SECURED_KEY");
 
 exports.notifyOnNewMessage = onDocumentCreated(
   "chats/{chatId}/messages/{messageId}",
@@ -622,60 +631,163 @@ exports.emailFeedbackToAdmin = onDocumentCreated(
 // safe against double-taps / retries.
 // ---------------------------------------------------------------------------
 
+// Shared: confirm a captured payment -> move the order into escrow, mark the
+// listing sold, record the hold in the ledger. Idempotent (guards on order
+// status). Used by the TEST provider and by the verified PayFast IPN webhook.
+async function confirmPaymentIntoEscrow(db, orderId, paymentRef, provider) {
+  const orderRef = db.collection("orders").doc(String(orderId));
+  await db.runTransaction(async (tx) => {
+    const orderSnap = await tx.get(orderRef);
+    if (!orderSnap.exists) {
+      if (paymentRef) tx.update(paymentRef, { status: "order_missing" });
+      return;
+    }
+    const order = orderSnap.data();
+    if (
+      order.status !== "pending_payment" &&
+      order.status !== "payment_review"
+    ) {
+      if (paymentRef) tx.update(paymentRef, { status: "ignored" });
+      return;
+    }
+    const listingRef = order.listingId
+      ? db.collection("listings").doc(String(order.listingId))
+      : null;
+    const listingSnap = listingRef ? await tx.get(listingRef) : null;
+
+    if (paymentRef) {
+      tx.update(paymentRef, {
+        status: "paid",
+        provider: provider || "test",
+        confirmedAt: Timestamp.now(),
+      });
+    }
+    tx.update(orderRef, {
+      status: "in_escrow",
+      paymentId: paymentRef ? paymentRef.id : null,
+      paidAt: Timestamp.now(),
+    });
+    if (listingSnap && listingSnap.exists) {
+      tx.update(listingRef, { isSold: true });
+    }
+    tx.set(db.collection("ledger").doc(), {
+      type: "escrow_hold",
+      orderId: String(orderId),
+      amount: Number(order.amount) || 0,
+      buyerId: order.buyerId || "",
+      sellerId: order.sellerId || "",
+      createdAt: Timestamp.now(),
+    });
+  });
+}
+
 exports.onPaymentCreated = onDocumentCreated(
-  "payments/{paymentId}",
+  {
+    document: "payments/{paymentId}",
+    secrets: [PAYFAST_MERCHANT_ID, PAYFAST_SECURED_KEY],
+  },
   async (event) => {
     const pay = event.data && event.data.data();
     if (!pay || !pay.orderId) return;
-
+    const provider = pay.provider || "test";
     const db = getFirestore();
-    const orderRef = db.collection("orders").doc(pay.orderId);
     const payRef = event.data.ref;
 
-    await db.runTransaction(async (tx) => {
-      const orderSnap = await tx.get(orderRef);
-      if (!orderSnap.exists) {
-        tx.update(payRef, { status: "order_missing" });
+    if (provider === "payfast") {
+      // Initiate the hosted checkout and store the redirect URL on the payment
+      // doc; the order only enters escrow once the verified PayFast IPN fires.
+      try {
+        const orderSnap = await db
+          .collection("orders")
+          .doc(pay.orderId)
+          .get();
+        if (
+          !orderSnap.exists ||
+          orderSnap.get("status") !== "pending_payment"
+        ) {
+          await payRef.update({ status: "ignored" });
+          return;
+        }
+        const checkout = await initiatePayfastCheckout(
+          db,
+          payRef.id,
+          orderSnap.data()
+        );
+        await payRef.update({
+          status: "awaiting_gateway",
+          redirectUrl: checkout.redirectUrl,
+          gatewayMode: checkout.mode,
+        });
+      } catch (err) {
+        console.error("PayFast initiate failed:", (err && err.message) || err);
+        await payRef.update({
+          status: "gateway_error",
+          error: String((err && err.message) || err),
+        });
+      }
+      return;
+    }
+
+    if (provider === "manual") {
+      // Buyer transferred to the platform's receiving account off-app and
+      // submitted proof; an admin verifies and confirms. No external gateway.
+      const oRef = db.collection("orders").doc(pay.orderId);
+      const oSnap = await oRef.get();
+      if (!oSnap.exists || oSnap.get("status") !== "pending_payment") {
+        await payRef.update({ status: "ignored" });
         return;
       }
-      const order = orderSnap.data();
-      // Only an unpaid order can enter escrow; guards replays/races.
-      if (order.status !== "pending_payment") {
-        tx.update(payRef, { status: "ignored" });
-        return;
-      }
+      await payRef.update({ status: "awaiting_confirmation" });
+      await oRef.update({ status: "payment_review" });
+      return;
+    }
 
-      // Read the listing up-front (reads must precede writes) so a paid order
-      // marks the item sold and stops further buyers.
-      const listingRef = order.listingId
-        ? db.collection("listings").doc(String(order.listingId))
-        : null;
-      const listingSnap = listingRef ? await tx.get(listingRef) : null;
+    // TEST provider: capture immediately.
+    await confirmPaymentIntoEscrow(db, pay.orderId, payRef, "test");
+  }
+);
 
-      // TEST PROVIDER: treat the payment as captured immediately. When PayFast
-      // is wired, do this from the verified webhook instead of here.
-      tx.update(payRef, {
-        status: "paid",
-        provider: pay.provider || "test",
-        confirmedAt: Timestamp.now(),
-      });
-      tx.update(orderRef, {
-        status: "in_escrow",
-        paymentId: payRef.id,
-        paidAt: Timestamp.now(),
-      });
-      if (listingSnap && listingSnap.exists) {
-        tx.update(listingRef, { isSold: true });
+// Admin confirms or rejects a manual payment (buyer paid the platform account
+// and submitted proof). Confirm -> the order enters escrow; reject -> the
+// payment is marked rejected. The admin creates a paymentActions doc.
+exports.onPaymentAction = onDocumentCreated(
+  "paymentActions/{actionId}",
+  async (event) => {
+    const act = event.data && event.data.data();
+    if (!act || !act.paymentId || !act.type) return;
+
+    const db = getFirestore();
+    const actRef = event.data.ref;
+    const payRef = db.collection("payments").doc(act.paymentId);
+    const paySnap = await payRef.get();
+    if (!paySnap.exists) {
+      await actRef.update({ status: "missing" });
+      return;
+    }
+    const pay = paySnap.data();
+    if (pay.status !== "awaiting_confirmation") {
+      await actRef.update({ status: "not_pending" });
+      return;
+    }
+
+    if (act.type === "confirm") {
+      // confirmPaymentIntoEscrow is idempotent (guards on order status).
+      await confirmPaymentIntoEscrow(db, pay.orderId, payRef, "manual");
+    } else if (act.type === "reject") {
+      await payRef.update({ status: "rejected", rejectedAt: Timestamp.now() });
+      // Return the order to payable so the buyer can retry.
+      if (pay.orderId) {
+        await db
+          .collection("orders")
+          .doc(pay.orderId)
+          .update({ status: "pending_payment" })
+          .catch(() => {});
       }
-      tx.set(db.collection("ledger").doc(), {
-        type: "escrow_hold",
-        orderId: pay.orderId,
-        amount: Number(order.amount) || 0,
-        buyerId: order.buyerId || "",
-        sellerId: order.sellerId || "",
-        createdAt: Timestamp.now(),
-      });
-    });
+    } else {
+      await actRef.update({ status: "unknown_type" });
+      return;
+    }
+    await actRef.update({ status: "done", processedAt: Timestamp.now() });
   }
 );
 
@@ -858,5 +970,146 @@ exports.onWithdrawalAction = onDocumentCreated(
 
       tx.update(actRef, { status: "done", processedAt: Timestamp.now() });
     });
+  }
+);
+
+// ---------------------------------------------------------------------------
+// PayFast (gopayfast, Pakistan) gateway — Phase 2 scaffold
+//
+// SCAFFOLD: the flow and signing follow PayFast Pakistan's documented hosted-
+// checkout API, but the exact endpoint URLs, the IPN field names, and the IPN
+// verification MUST be confirmed against YOUR merchant onboarding pack and
+// tested in the sandbox before going live. Adjust the marked spots below.
+//
+// Activation:
+//   1. Get a gopayfast merchant account (sandbox + production credentials).
+//   2. firebase functions:secrets:set PAYFAST_MERCHANT_ID
+//      firebase functions:secrets:set PAYFAST_SECURED_KEY
+//   3. Admin Panel -> Payment a/c: set provider=payfast, mode, merchant name,
+//      token/transaction URLs, and the return/IPN URL (the deployed payfastIpn
+//      URL). Configure that same IPN URL in the PayFast dashboard.
+//   4. Deploy:  firebase deploy --only functions
+// ---------------------------------------------------------------------------
+
+async function payfastConfig(db) {
+  const snap = await db.collection("config").doc("payment").get();
+  const c = snap.data() || {};
+  const sandbox = (c.payfastMode || "sandbox") !== "live";
+  return {
+    mode: sandbox ? "sandbox" : "live",
+    merchantName: c.merchantName || "PakBazar",
+    // Defaults are the commonly-published gopayfast endpoints — VERIFY against
+    // your onboarding pack; override via these config fields if they differ.
+    tokenUrl:
+      c.payfastTokenUrl ||
+      (sandbox
+        ? "https://ipguat.apps.net.pk/Ecommerce/api/Transaction/GetAccessToken"
+        : "https://ipg1.apps.net.pk/Ecommerce/api/Transaction/GetAccessToken"),
+    txnUrl:
+      c.payfastTxnUrl ||
+      (sandbox
+        ? "https://ipguat.apps.net.pk/Ecommerce/api/Transaction/PostTransaction"
+        : "https://ipg1.apps.net.pk/Ecommerce/api/Transaction/PostTransaction"),
+    returnUrl: c.payfastReturnUrl || "",
+  };
+}
+
+// Gets a one-time access token, then builds the signed hosted-checkout URL.
+// basketId is the payment doc id so the IPN can map the callback back to it.
+async function initiatePayfastCheckout(db, basketId, order) {
+  const cfg = await payfastConfig(db);
+  const merchantId = PAYFAST_MERCHANT_ID.value();
+  const securedKey = PAYFAST_SECURED_KEY.value();
+  const amount = Number(order.amount) || 0;
+
+  const tokenRes = await fetch(cfg.tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      MERCHANT_ID: merchantId,
+      SECURED_KEY: securedKey,
+      BASKET_ID: String(basketId),
+      TXNAMT: String(amount),
+    }),
+  });
+  const tokenJson = await tokenRes.json().catch(() => ({}));
+  const token = tokenJson.ACCESS_TOKEN || tokenJson.token;
+  if (!token) {
+    throw new Error("No PayFast access token: " + JSON.stringify(tokenJson));
+  }
+
+  const signature = crypto
+    .createHash("md5")
+    .update(`${merchantId}:${cfg.merchantName}:${amount}:${basketId}`)
+    .digest("hex");
+
+  const params = new URLSearchParams({
+    MERCHANT_ID: merchantId,
+    MERCHANT_NAME: cfg.merchantName,
+    TOKEN: token,
+    PROCCODE: "00",
+    TXNAMT: String(amount),
+    CUSTOMER_MOBILE_NO: order.buyerPhone || "",
+    CUSTOMER_EMAIL_ADDRESS: order.buyerEmail || "",
+    SIGNATURE: signature,
+    TXNDESC: `PakBazar order ${order.listingTitle || basketId}`,
+    BASKET_ID: String(basketId),
+    ORDER_DATE: new Date().toISOString().slice(0, 19).replace("T", " "),
+    SUCCESS_URL: cfg.returnUrl,
+    FAILURE_URL: cfg.returnUrl,
+    CHECKOUT_URL: cfg.returnUrl,
+  });
+
+  // NOTE: some PayFast setups require a form POST to txnUrl rather than a GET
+  // redirect. If your sandbox needs a POST, host a tiny auto-submitting form
+  // page and point redirectUrl at it. Verify during sandbox testing.
+  return { redirectUrl: `${cfg.txnUrl}?${params.toString()}`, mode: cfg.mode };
+}
+
+// PayFast posts the transaction result here (the IPN/ITN). Configure this
+// function's URL as the IPN / CHECKOUT_URL in the PayFast dashboard.
+exports.payfastIpn = onRequest(
+  { secrets: [PAYFAST_MERCHANT_ID, PAYFAST_SECURED_KEY] },
+  async (req, res) => {
+    const body = req.body || {};
+    const q = req.query || {};
+    // VERIFY these field names against your onboarding pack.
+    const basketId =
+      body.BASKET_ID || body.basket_id || q.basket_id || q.BASKET_ID;
+    const code = String(
+      body.err_code || body.ERR_CODE || body.RESPONSE_CODE || ""
+    );
+    const success =
+      code === "000" ||
+      String(body.transaction_status || "").toLowerCase() === "completed";
+
+    if (!basketId) {
+      res.status(400).send("missing basket id");
+      return;
+    }
+
+    // TODO: verify the IPN signature/authenticity per your PayFast pack before
+    // trusting it (recompute the validation hash and compare) — do not settle
+    // money on an unverified callback in production.
+
+    const db = getFirestore();
+    const payRef = db.collection("payments").doc(String(basketId));
+    try {
+      const paySnap = await payRef.get();
+      if (!paySnap.exists) {
+        res.status(404).send("unknown payment");
+        return;
+      }
+      const orderId = paySnap.get("orderId");
+      if (success) {
+        await confirmPaymentIntoEscrow(db, orderId, payRef, "payfast");
+      } else {
+        await payRef.update({ status: "failed", gatewayCode: code });
+      }
+      res.status(200).send("OK");
+    } catch (err) {
+      console.error("PayFast IPN error:", (err && err.message) || err);
+      res.status(500).send("error");
+    }
   }
 );

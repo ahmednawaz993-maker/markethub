@@ -2,10 +2,10 @@ part of '../main.dart';
 
 // Orders.
 
-/// Buyer pays for an order, moving it into escrow. Creates a `payments` doc;
-/// a Cloud Function (onPaymentCreated) confirms it and flips the order to
-/// `in_escrow`. With the TEST provider this is instant; once PayFast is wired,
-/// this is where the gateway checkout/redirect happens instead.
+/// Buyer pays for an order using the in-app manual flow (no external gateway):
+/// they transfer to the platform's receiving account, enter their transaction
+/// reference as proof, and submit. The order moves to "payment under review";
+/// an admin confirms it (onPaymentAction) and it then enters escrow.
 Future<void> _payOrderEscrow(
   BuildContext context,
   String orderId,
@@ -13,25 +13,115 @@ Future<void> _payOrderEscrow(
 ) async {
   final uid = FirebaseAuth.instance.currentUser?.uid;
   if (uid == null) return;
+  final amount = (order['amount'] as num?)?.toDouble() ?? 0;
   final messenger = ScaffoldMessenger.of(context);
-  try {
-    await FirebaseFirestore.instance.collection('payments').add({
-      'orderId': orderId,
-      'buyerId': uid,
-      'sellerId': order['sellerId'] ?? '',
-      'amount': (order['amount'] as num?)?.toDouble() ?? 0,
-      'provider': 'test',
-      'status': 'initiated',
-      'createdAt': Timestamp.now(),
-    });
-    messenger.showSnackBar(
-      const SnackBar(
-        content: Text('Payment received — your money is now held in escrow.'),
-      ),
-    );
-  } catch (e) {
-    messenger.showSnackBar(SnackBar(content: Text('Payment failed: $e')));
-  }
+  final ref = TextEditingController();
+  final from = TextEditingController();
+
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) {
+      return Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Pay & hold in escrow',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Amount: ${formatPrice(amount.toStringAsFixed(0))}',
+                style: const TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Transfer the amount to the account below, then enter your '
+                'transaction reference. An admin confirms it and your payment '
+                'is held safely in escrow until you confirm you received the '
+                'item.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const _PaymentAccountInfo(),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ref,
+                decoration: const InputDecoration(
+                  labelText: 'Transaction ID / reference',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: from,
+                decoration: const InputDecoration(
+                  labelText: 'Paid from (your account / number, optional)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  if (ref.text.trim().isEmpty) {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('Enter your transaction reference'),
+                      ),
+                    );
+                    return;
+                  }
+                  try {
+                    await FirebaseFirestore.instance
+                        .collection('payments')
+                        .add({
+                          'orderId': orderId,
+                          'buyerId': uid,
+                          'buyerEmail':
+                              FirebaseAuth.instance.currentUser?.email ?? '',
+                          'sellerId': order['sellerId'] ?? '',
+                          'listingTitle': order['listingTitle'] ?? '',
+                          'amount': amount,
+                          'provider': 'manual',
+                          'status': 'initiated',
+                          'proofRef': ref.text.trim(),
+                          'proofFrom': from.text.trim(),
+                          'createdAt': Timestamp.now(),
+                        });
+                    if (context.mounted) Navigator.pop(context);
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Payment submitted — an admin will confirm it '
+                          'shortly.',
+                        ),
+                      ),
+                    );
+                  } catch (e) {
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('Failed: $e')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.lock),
+                label: const Text('I have paid — submit'),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+  ref.dispose();
+  from.dispose();
 }
 
 class OrdersScreen extends StatelessWidget {
@@ -109,6 +199,7 @@ class _OrdersList extends StatelessWidget {
             final payout = (d['sellerPayout'] as num?)?.toDouble() ?? 0;
             final buyerConfirmed = d['buyerConfirmed'] == true;
             final (label, color) = switch (status) {
+              'payment_review' => ('Payment under review', Colors.orange),
               'in_escrow' => ('Paid · in escrow', kPakGreen),
               'released' => ('Completed · paid out', Colors.green),
               'completed' => ('Completed', Colors.green),
@@ -228,6 +319,29 @@ class _OrdersList extends StatelessWidget {
                           'Waiting for the buyer to pay.',
                           style: TextStyle(fontSize: 12, color: Colors.grey),
                         ),
+                    ],
+                    if (status == 'payment_review') ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.hourglass_top,
+                            size: 16,
+                            color: Colors.orange,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              asSeller
+                                  ? "Buyer's payment is under review."
+                                  : 'Payment submitted — under review. It is '
+                                        'held in escrow once an admin confirms '
+                                        'it.',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                     if (status == 'in_escrow') ...[
                       const SizedBox(height: 8),

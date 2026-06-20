@@ -242,6 +242,14 @@ service cloud.firestore {
       allow update, delete: if false; // settled only by Cloud Functions
     }
 
+    // Admin confirm/reject instructions for manual payments — processed by
+    // onPaymentAction.
+    match /paymentActions/{actionId} {
+      allow create: if isAdmin() && request.resource.data.status == 'pending';
+      allow read: if isAdmin();
+      allow update, delete: if false; // Cloud Functions only
+    }
+
     // Admin release/refund instructions — processed by onEscrowAction.
     match /escrowActions/{actionId} {
       allow create: if isAdmin() && request.resource.data.status == 'pending';
