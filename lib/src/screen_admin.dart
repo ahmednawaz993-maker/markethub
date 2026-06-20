@@ -637,24 +637,34 @@ class _AdminOverviewTab extends StatelessWidget {
             _Metric('$sold', 'Sold'),
           ];
         }),
-        _section('Orders & revenue', fs.collection('orders').snapshots(), (
+        // Platform owner's revenue: the 2% commission on every released escrow
+        // deal accrues to you (it's the gap between what the buyer paid and the
+        // seller payout). With PayFast wired, it settles into your merchant
+        // account automatically; here it's the running total you've earned.
+        _section('Escrow & your earnings', fs.collection('orders').snapshots(), (
           docs,
         ) {
-          int completed = 0;
-          num gmv = 0, commission = 0;
+          int inEscrow = 0, settled = 0;
+          num held = 0, gmv = 0, earnings = 0;
           for (final d in docs) {
             final m = d.data() as Map;
-            if (m['status'] == 'completed') {
-              completed++;
-              gmv += (m['amount'] as num?) ?? 0;
-              commission += (m['commission'] as num?) ?? 0;
+            final amt = (m['amount'] as num?) ?? 0;
+            switch (m['status']) {
+              case 'in_escrow':
+                inEscrow++;
+                held += amt;
+              case 'released' || 'completed': // 'completed' = legacy orders
+                settled++;
+                gmv += amt;
+                earnings += (m['commission'] as num?) ?? (amt * commissionRate);
             }
           }
           return [
-            _Metric('${docs.length}', 'Orders'),
-            _Metric('$completed', 'Completed'),
+            _Metric('$settled', 'Deals done'),
             _Metric(formatPrice('${gmv.toInt()}'), 'GMV'),
-            _Metric(formatPrice('${commission.toInt()}'), 'Commission'),
+            _Metric(formatPrice('${earnings.toInt()}'), 'Your earnings (2%)'),
+            _Metric('$inEscrow', 'In escrow'),
+            _Metric(formatPrice('${held.toInt()}'), 'Held now'),
           ];
         }),
         _section('Negotiation & purchases', fs.collection('offers').snapshots(), (
