@@ -1,19 +1,39 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8">
-<style>
-  html,body{margin:0;padding:0;}
-  .icon{width:100vw;height:100vh;
-    background:linear-gradient(135deg,#013318 0%,#015127 45%,#0A7D3B 100%);
-    display:flex;align-items:center;justify-content:center;position:relative;
-    font-family:Arial,Helvetica,sans-serif;overflow:hidden;}
-  .pb{color:#fff;font-weight:900;font-size:40vw;letter-spacing:-2vw;
-    text-shadow:0 1vw 3vw rgba(0,0,0,.25);}
-  .star{position:absolute;top:11%;right:15%;color:#C9A227;font-size:15vw;
-    line-height:1;text-shadow:0 .5vw 1.5vw rgba(0,0,0,.25);}
-  .moon{position:absolute;bottom:13%;left:14%;width:13vw;height:13vw;
-    border-radius:50%;box-shadow:5vw 0 0 0 #C9A227;}
-</style></head>
-<body><div class="icon">
-  <div class="moon"></div>
-  <div class="pb">PB</div>
-  <div class="star">&#9733;</div>
-</div></body></html>
+<!DOCTYPE html><html><head><meta charset="UTF-8"><style>html,body{margin:0;padding:0;background:#015127;}svg{display:block;}</style></head><body><svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#04572a"/>
+      <stop offset="0.5" stop-color="#015127"/>
+      <stop offset="1" stop-color="#012e17"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.30" r="0.7">
+      <stop offset="0" stop-color="#0A7D3B" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#0A7D3B" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0.25" y2="1">
+      <stop offset="0" stop-color="#FBE9A8"/>
+      <stop offset="0.42" stop-color="#E2BE5C"/>
+      <stop offset="0.55" stop-color="#C9A227"/>
+      <stop offset="1" stop-color="#9C7715"/>
+    </linearGradient>
+    <linearGradient id="bagface" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E9EAE3"/>
+    </linearGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="20" stdDeviation="30" flood-color="#001a0c" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#glow)"/>
+  <rect x="48" y="48" width="928" height="928" rx="190" fill="none" stroke="url(#gold)" stroke-opacity="0.5" stroke-width="6"/>
+
+    <defs><mask id="cres512_512"><circle cx="498.0" cy="547.8" r="96.0" fill="white"/><circle cx="546.0" cy="523.8" r="80.6" fill="black"/></mask></defs>
+    <g filter="url(#soft)">
+      <rect x="332.0" y="344.0" width="360.0" height="392.0" rx="56.0" fill="url(#bagface)"/>
+      <rect x="332.0" y="344.0" width="360.0" height="392.0" rx="56.0" fill="none" stroke="url(#gold)" stroke-width="5.0" stroke-opacity="0.6"/>
+    </g>
+    <path d="M404.0,344.0 C404.0,212.0 490.4,212.0 490.4,344.0" fill="none" stroke="url(#gold)" stroke-width="30.0" stroke-linecap="round"/><path d="M533.6,344.0 C533.6,212.0 620.0,212.0 620.0,344.0" fill="none" stroke="url(#gold)" stroke-width="30.0" stroke-linecap="round"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#gold)" mask="url(#cres512_512)"/>
+    <path d="M582.00,491.84 L594.34,524.85 L629.55,526.39 L601.97,548.33 L611.39,582.29 L582.00,562.84 L552.61,582.29 L562.03,548.33 L534.45,526.39 L569.66,524.85 Z" fill="url(#gold)"/>
+  </svg></body></html>
