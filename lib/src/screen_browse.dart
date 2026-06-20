@@ -163,6 +163,7 @@ class ListingsBrowser extends StatefulWidget {
 class _ListingsBrowserState extends State<ListingsBrowser> {
   late String searchText;
   late final TextEditingController searchController;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _listingsStream;
   late String selectedSubcategory;
   String sortBy = 'Newest';
   late String cityFilter;
@@ -188,6 +189,20 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     cityFilter = widget.initialCity ?? 'All';
     minPrice = widget.initialMinPrice;
     maxPrice = widget.initialMaxPrice;
+
+    // Build the listings stream ONCE. Otherwise every keystroke (setState)
+    // recreates query.snapshots(), resetting the StreamBuilder to a loading
+    // spinner and making the search box flicker / lose focus.
+    Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection(
+      'listings',
+    );
+    if (widget.category != null && widget.category != 'All') {
+      q = q.where('category', isEqualTo: widget.category);
+    }
+    _listingsStream = q
+        .orderBy('createdAt', descending: true)
+        .limit(100)
+        .snapshots();
   }
 
   /// Saves the current search criteria so the user can be alerted when a new
@@ -490,21 +505,11 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
 
   @override
   Widget build(BuildContext context) {
-    Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection(
-      'listings',
-    );
-
-    if (hasCategory) {
-      query = query.where('category', isEqualTo: widget.category);
-    }
-    // Bound the read: newest 100 (uses the listings category+createdAt index).
-    query = query.orderBy('createdAt', descending: true).limit(100);
-
     final currentCategory = categoryByTitle(widget.category ?? 'All');
     final subcategories = ['All', ...currentCategory.subcategories];
 
     return StreamBuilder<QuerySnapshot>(
-      stream: query.snapshots(),
+      stream: _listingsStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text('Error loading listings: ${snapshot.error}'));
