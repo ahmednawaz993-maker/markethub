@@ -1099,84 +1099,111 @@ class ProfileScreen extends StatelessWidget {
               const SizedBox(height: 16),
               const LanguageTile(),
               const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const OrdersScreen()),
-                ),
-                icon: const Icon(Icons.receipt_long),
-                label: Text(tr('profile.orders')),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const OffersScreen()),
-                ),
-                icon: const Icon(Icons.local_offer),
-                label: Text(tr('profile.offers')),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const WalletScreen()),
-                ),
-                icon: const Icon(Icons.account_balance_wallet),
-                label: Text(tr('profile.wallet')),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const VerificationScreen()),
-                ),
-                icon: const Icon(Icons.verified_user),
-                label: Text(tr('profile.verify')),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const DraftsScreen()),
-                ),
-                icon: const Icon(Icons.edit_note),
-                label: Text(tr('profile.drafts')),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const SavedSearchesScreen(),
+              // White outline/text so these options are clearly visible on the
+              // dark navy background.
+              OutlinedButtonTheme(
+                data: OutlinedButtonThemeData(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white60, width: 1.4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 13,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
-                icon: const Icon(Icons.bookmark),
-                label: Text(tr('profile.savedSearches')),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const FollowingScreen()),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const OrdersScreen()),
+                      ),
+                      icon: const Icon(Icons.receipt_long),
+                      label: Text(tr('profile.orders')),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const OffersScreen()),
+                      ),
+                      icon: const Icon(Icons.local_offer),
+                      label: Text(tr('profile.offers')),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const WalletScreen()),
+                      ),
+                      icon: const Icon(Icons.account_balance_wallet),
+                      label: Text(tr('profile.wallet')),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const VerificationScreen(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.verified_user),
+                      label: Text(tr('profile.verify')),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const DraftsScreen()),
+                      ),
+                      icon: const Icon(Icons.edit_note),
+                      label: Text(tr('profile.drafts')),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SavedSearchesScreen(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.bookmark),
+                      label: Text(tr('profile.savedSearches')),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const FollowingScreen(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.people_alt),
+                      label: Text(tr('profile.following')),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => showSupportSheet(context),
+                      icon: const Icon(Icons.help_outline),
+                      label: Text(tr('profile.help')),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AboutScreen()),
+                      ),
+                      icon: const Icon(Icons.info_outline),
+                      label: Text(tr('profile.about')),
+                    ),
+                  ],
                 ),
-                icon: const Icon(Icons.people_alt),
-                label: Text(tr('profile.following')),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () => showSupportSheet(context),
-                icon: const Icon(Icons.help_outline),
-                label: Text(tr('profile.help')),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AboutScreen()),
-                ),
-                icon: const Icon(Icons.info_outline),
-                label: Text(tr('profile.about')),
               ),
               const SizedBox(height: 12),
               ElevatedButton.icon(
