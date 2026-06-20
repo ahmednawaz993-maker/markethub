@@ -17,8 +17,19 @@ const {
   Timestamp,
 } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
+const { defineSecret } = require("firebase-functions/params");
+const sgMail = require("@sendgrid/mail");
 
 initializeApp();
+
+// SendGrid API key. Set it once with:
+//   firebase functions:secrets:set SENDGRID_API_KEY
+const SENDGRID_API_KEY = defineSecret("SENDGRID_API_KEY");
+
+// Support inbox that receives Help/Suggestion emails. SUPPORT_FROM must be a
+// verified Single Sender (or a verified domain) in your SendGrid account.
+const SUPPORT_TO = "ahmednawaz993@gmail.com";
+const SUPPORT_FROM = "ahmednawaz993@gmail.com";
 
 exports.notifyOnNewMessage = onDocumentCreated(
   "chats/{chatId}/messages/{messageId}",
@@ -555,3 +566,37 @@ exports.expireFeatured = onSchedule("every 24 hours", async () => {
 
   await flush(true);
 });
+
+// When a user submits a Help request or Suggestion (a `feedback` doc), email
+// it to the admin via SendGrid so it lands in the inbox automatically — no
+// user mail-app step. Reply-To is set to the user so the admin can reply
+// straight from their inbox.
+exports.emailFeedbackToAdmin = onDocumentCreated(
+  { document: "feedback/{feedbackId}", secrets: [SENDGRID_API_KEY] },
+  async (event) => {
+    const fb = event.data && event.data.data();
+    if (!fb) return;
+
+    const type = fb.type || "Help";
+    const userEmail = fb.email || "(not provided)";
+    const message = String(fb.message || "");
+
+    sgMail.setApiKey(SENDGRID_API_KEY.value());
+
+    try {
+      await sgMail.send({
+        to: SUPPORT_TO,
+        from: SUPPORT_FROM,
+        replyTo: fb.email || SUPPORT_TO,
+        subject: `PakBazar ${type} — from ${userEmail}`,
+        text:
+          `New ${type} submitted on PakBazar.\n\n` +
+          `From: ${userEmail}\n` +
+          `User ID: ${fb.userId || "(none)"}\n\n` +
+          `Message:\n${message}\n`,
+      });
+    } catch (err) {
+      console.error("SendGrid send failed:", (err && err.message) || err);
+    }
+  }
+);
