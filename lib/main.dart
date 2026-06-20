@@ -6179,6 +6179,100 @@ class SellerAnalyticsScreen extends StatelessWidget {
   }
 }
 
+/// Quick seller action to reduce an ad's price — records the drop so cards show
+/// the "Price dropped" badge and savers/followers get alerted.
+Future<void> showLowerPriceSheet(BuildContext context, Listing listing) async {
+  final current = parsePrice(listing.price);
+  final controller = TextEditingController();
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) {
+      return Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Lower the price',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Current price: ${formatPrice(listing.price)}',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'A lower price shows a "Price dropped" badge and alerts '
+                  'everyone who saved this ad or follows you.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'New price (Rs)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final newP = double.tryParse(
+                      controller.text.replaceAll(RegExp(r'[^0-9.]'), ''),
+                    );
+                    if (newP == null || newP <= 0) {
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('Enter a valid amount')),
+                      );
+                      return;
+                    }
+                    if (current > 0 && newP >= current) {
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'New price must be lower than the current price',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                    await FirebaseFirestore.instance
+                        .collection('listings')
+                        .doc(listing.id)
+                        .update({
+                          'price': newP.toStringAsFixed(0),
+                          'previousPrice': listing.price,
+                          'priceDropAt': Timestamp.now(),
+                        });
+                    if (context.mounted) Navigator.pop(context);
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('Price lowered — buyers will be notified'),
+                      ),
+                    );
+                  },
+                  child: const Text('Lower price'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
 class MyAdsScreen extends StatefulWidget {
   const MyAdsScreen({super.key});
 
@@ -6347,14 +6441,68 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                           }
                         },
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () async {
-                          await FirebaseFirestore.instance
-                              .collection('listings')
-                              .doc(listing.id)
-                              .delete();
+                      PopupMenuButton<String>(
+                        tooltip: 'More',
+                        icon: const Icon(Icons.more_vert),
+                        onSelected: (value) async {
+                          if (value == 'lower') {
+                            showLowerPriceSheet(context, listing);
+                          } else if (value == 'delete') {
+                            final ok = await showDialog<bool>(
+                              context: context,
+                              builder: (_) => AlertDialog(
+                                title: const Text('Delete ad?'),
+                                content: const Text(
+                                  'This permanently removes the ad and '
+                                  'cannot be undone.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, true),
+                                    child: const Text(
+                                      'Delete',
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (ok == true) {
+                              await FirebaseFirestore.instance
+                                  .collection('listings')
+                                  .doc(listing.id)
+                                  .delete();
+                            }
+                          }
                         },
+                        itemBuilder: (_) => [
+                          if (!listing.isSold)
+                            const PopupMenuItem(
+                              value: 'lower',
+                              child: ListTile(
+                                leading: Icon(
+                                  Icons.south,
+                                  color: Colors.deepOrange,
+                                ),
+                                title: Text('Lower price'),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: ListTile(
+                              leading: Icon(Icons.delete, color: Colors.red),
+                              title: Text('Delete'),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
