@@ -7120,11 +7120,42 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
       '${formatPrice(l.price)}${loc.isEmpty ? '' : ' · $loc'}',
       'See more on PakBazar: https://pakbazar24.com',
     ].join('\n');
-    await Clipboard.setData(ClipboardData(text: text));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Ad details copied — paste anywhere to share'),
+    final messenger = ScaffoldMessenger.of(context);
+
+    await showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.chat, color: Color(0xFF25D366)),
+              title: const Text('Share on WhatsApp'),
+              onTap: () async {
+                Navigator.pop(context);
+                final uri = Uri.parse(
+                  'https://wa.me/?text=${Uri.encodeComponent(text)}',
+                );
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy),
+              title: const Text('Copy details'),
+              onTap: () async {
+                Navigator.pop(context);
+                await Clipboard.setData(ClipboardData(text: text));
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Ad details copied — paste anywhere to share',
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
