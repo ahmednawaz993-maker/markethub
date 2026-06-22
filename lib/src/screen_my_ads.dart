@@ -626,6 +626,12 @@ class _EditListingScreenState extends State<EditListingScreen> {
   }
 
   Future<void> updateListing() async {
+    if (normalizePhoneForWhatsApp(phoneController.text.trim()).length < 11) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid phone number')),
+      );
+      return;
+    }
     setState(() => isSaving = true);
     try {
       final data = <String, dynamic>{
@@ -889,7 +895,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
             TextField(
               controller: phoneController,
               decoration: const InputDecoration(
-                labelText: 'WhatsApp / Phone Number',
+                labelText: 'WhatsApp / Phone Number *',
                 hintText: 'Example: 03001234567 or +92 300 1234567',
               ),
               keyboardType: TextInputType.phone,

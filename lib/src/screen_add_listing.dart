@@ -253,6 +253,15 @@ class _AddListingScreenState extends State<AddListingScreen> {
       );
       return;
     }
+    // A contact number is required so buyers can reach the seller.
+    if (normalizePhoneForWhatsApp(phoneController.text.trim()).length < 11) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid phone number'),
+        ),
+      );
+      return;
+    }
 
     setState(() {
       isSubmitting = true;
@@ -576,7 +585,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
             TextField(
               controller: phoneController,
               decoration: const InputDecoration(
-                labelText: 'WhatsApp / Phone Number',
+                labelText: 'WhatsApp / Phone Number *',
                 hintText: 'Example: 03001234567 or +92 300 1234567',
               ),
               keyboardType: TextInputType.phone,
