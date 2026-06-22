@@ -202,3 +202,8 @@ final Set<String> platformBlockedUserIds = <String>{};
 /// viewer personally blocked them, or an admin suspended them platform-wide.
 bool isHiddenSeller(String? userId) =>
     blockedUserIds.contains(userId) || platformBlockedUserIds.contains(userId);
+
+/// Phone number captured during email sign-up, handed to ensureUserDoc so it
+/// lands on the profile when the user doc is first created (avoids a write race
+/// with the doc-creation that happens on the first home load). Cleared after.
+String? pendingSignupPhone;

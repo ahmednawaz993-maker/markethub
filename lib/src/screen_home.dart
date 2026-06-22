@@ -787,9 +787,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final snap = await ref.get();
 
     if (!snap.exists) {
+      // Phone from OTP login (user.phoneNumber) or, for email sign-up, the
+      // number entered on the form (pendingSignupPhone).
+      final phone = (user.phoneNumber?.isNotEmpty == true)
+          ? user.phoneNumber!
+          : (pendingSignupPhone ?? '');
+      pendingSignupPhone = null;
       await ref.set({
         'email': user.email ?? '',
-        'phone': user.phoneNumber ?? '',
+        'phone': phone,
         'isAnonymous': user.isAnonymous,
         'verified': user.emailVerified,
         'createdAt': Timestamp.now(),

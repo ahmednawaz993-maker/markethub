@@ -12,6 +12,7 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+  final signupPhoneController = TextEditingController();
   final phoneController = TextEditingController();
   final otpController = TextEditingController();
 
@@ -96,9 +97,14 @@ class _AuthScreenState extends State<AuthScreen> {
   Future<void> submit() async {
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
+    final phoneRaw = signupPhoneController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
       setState(() => errorMessage = 'Please enter email and password');
+      return;
+    }
+    if (!isLogin && phoneRaw.isEmpty) {
+      setState(() => errorMessage = 'Please enter your phone number');
       return;
     }
 
@@ -114,6 +120,8 @@ class _AuthScreenState extends State<AuthScreen> {
           password: password,
         );
       } else {
+        // Stash the phone so ensureUserDoc writes it onto the new profile.
+        pendingSignupPhone = '+${normalizePhoneForWhatsApp(phoneRaw)}';
         await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: email,
           password: password,
@@ -150,6 +158,7 @@ class _AuthScreenState extends State<AuthScreen> {
   void dispose() {
     emailController.dispose();
     passwordController.dispose();
+    signupPhoneController.dispose();
     phoneController.dispose();
     otpController.dispose();
     super.dispose();
@@ -261,6 +270,22 @@ class _AuthScreenState extends State<AuthScreen> {
                       prefixIcon: Icon(Icons.lock),
                     ),
                   ),
+                  if (!isLogin) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: signupPhoneController,
+                      enabled: !isLoading,
+                      keyboardType: TextInputType.phone,
+                      onSubmitted: (_) => isLoading ? null : submit(),
+                      decoration: const InputDecoration(
+                        labelText: 'Phone number',
+                        hintText: '03xx xxxxxxx',
+                        prefixText: '+92 ',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.phone),
+                      ),
+                    ),
+                  ],
                 ] else if (!otpSent) ...[
                   TextField(
                     controller: phoneController,
