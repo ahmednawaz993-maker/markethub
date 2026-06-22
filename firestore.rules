@@ -111,6 +111,7 @@ service cloud.firestore {
                     && isVerifiedUser()
                     && isNotBlocked()
                     && (isAdmin()
+                        || isDemo()
                         || request.resource.data.approvalStatus == 'pending');
 
       // Owners can edit/delete their ad, but may never self-approve: an owner
@@ -119,7 +120,7 @@ service cloud.firestore {
       // Anyone signed in may bump the view/lead counters, but ONLY those.
       allow update: if isSignedIn() && (
                       (resource.data.userId == request.auth.uid
-                        && noSelfApproval())
+                        && (noSelfApproval() || isDemo()))
                       || onlyBumpsStats()
                       || can('approvals') || can('listings')
                       || ((can('featured') || can('promotions'))

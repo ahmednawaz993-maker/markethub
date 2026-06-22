@@ -341,7 +341,8 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'views': 0,
         'isFeatured': false,
         // New ads are hidden until an admin approves them (admin Approvals tab).
-        'approvalStatus': 'pending',
+        // Demo/review accounts auto-approve so reviewers see ads go live.
+        'approvalStatus': isDemoUser() ? 'approved' : 'pending',
       });
 
       // Mirror the seller's location onto their profile (for the admin panel).
@@ -368,11 +369,20 @@ class _AddListingScreenState extends State<AddListingScreen> {
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          icon: const Icon(Icons.hourglass_top, color: kPakGreen, size: 52),
-          title: const Text('Ad submitted for review'),
-          content: const Text(
-            'Thanks! Your ad has been submitted and will go live once an admin '
-            'approves it. You can track its status in My Ads.',
+          icon: Icon(
+            isDemoUser() ? Icons.check_circle : Icons.hourglass_top,
+            color: kPakGreen,
+            size: 52,
+          ),
+          title: Text(
+            isDemoUser() ? 'Your ad is live!' : 'Ad submitted for review',
+          ),
+          content: Text(
+            isDemoUser()
+                ? 'Your ad has been posted to PakBazar. Boost it to Featured '
+                      'from My Ads to reach more buyers.'
+                : 'Thanks! Your ad has been submitted and will go live once an '
+                      'admin approves it. You can track its status in My Ads.',
             textAlign: TextAlign.center,
           ),
           actions: [

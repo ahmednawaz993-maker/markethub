@@ -675,7 +675,8 @@ class _EditListingScreenState extends State<EditListingScreen> {
       }
       // Any edit re-enters the moderation queue so changes are reviewed before
       // going live again (also lets a rejected ad be resubmitted by editing).
-      data['approvalStatus'] = 'pending';
+      // Demo/review accounts stay auto-approved.
+      data['approvalStatus'] = isDemoUser() ? 'approved' : 'pending';
       await FirebaseFirestore.instance
           .collection('listings')
           .doc(widget.listing.id)
