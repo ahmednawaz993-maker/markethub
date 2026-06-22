@@ -768,6 +768,9 @@ class _HomeScreenState extends State<HomeScreen> {
     loadPlatformBlockedUsers().then((_) {
       if (mounted) setState(() {});
     });
+    loadStaffPermissions().then((_) {
+      if (mounted) setState(() {});
+    });
     setupPushNotifications();
   }
 

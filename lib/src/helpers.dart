@@ -99,6 +99,68 @@ Future<void> saveUserLocation({String? city, double? lat, double? lng}) async {
 bool isAdminUser() =>
     adminEmails.contains(FirebaseAuth.instance.currentUser?.email);
 
+/// The super admin (full access). Staff are everyone else granted permissions.
+bool isSuperAdmin() => isAdminUser();
+
+/// Grantable admin areas: (permission code, display label). Drives both the
+/// admin-panel tabs a staff member sees and the staff permission checkboxes.
+/// Keep the codes in sync with the `can('...')` checks in firestore.rules.
+const List<(String, String)> kAdminAreas = [
+  ('approvals', 'Approvals'),
+  ('verifyId', 'Verify ID'),
+  ('payments', 'Payments'),
+  ('escrow', 'Escrow'),
+  ('featured', 'Featured'),
+  ('feedback', 'Feedback'),
+  ('users', 'Users'),
+  ('reports', 'Reports'),
+  ('topups', 'Top-ups'),
+  ('paymentAccount', 'Payment a/c'),
+  ('withdrawals', 'Withdrawals'),
+  ('promotions', 'Promotions'),
+  ('orders', 'Orders'),
+  ('offers', 'Offers'),
+  ('purchases', 'Purchases'),
+  ('listings', 'Listings'),
+  ('chats', 'Chats'),
+  ('appeals', 'Appeals'),
+];
+
+/// Permission codes granted to the current staff member (empty for the super
+/// admin, who bypasses these checks, and for non-staff users). Loaded at
+/// startup by [loadStaffPermissions].
+final Set<String> staffPermissions = <String>{};
+
+/// Loads the signed-in user's staff permissions from `staff/{email}`. The super
+/// admin needs no entry. Safe to call repeatedly.
+Future<void> loadStaffPermissions() async {
+  staffPermissions.clear();
+  final email = FirebaseAuth.instance.currentUser?.email?.toLowerCase();
+  if (email == null || isSuperAdmin()) return;
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('staff')
+        .doc(email)
+        .get();
+    final d = doc.data();
+    if (d != null && d['active'] != false) {
+      final perms = (d['permissions'] as Map?) ?? const {};
+      perms.forEach((k, v) {
+        if (v == true) staffPermissions.add(k.toString());
+      });
+    }
+  } catch (_) {}
+}
+
+/// True if the user may act on the given admin area (super admin or granted).
+bool hasAdminPerm(String code) =>
+    isSuperAdmin() || staffPermissions.contains(code);
+
+/// True if the user can open the admin panel at all (super admin or any staff
+/// permission).
+bool canOpenAdminPanel() =>
+    isSuperAdmin() || staffPermissions.isNotEmpty;
+
 /// Price with an optional unit suffix, e.g. "Rs 250 / kg".
 String priceLabel(Listing l) =>
     formatPrice(l.price) + (l.unit.isEmpty ? '' : ' / ${l.unit}');

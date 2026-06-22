@@ -7,60 +7,59 @@ class AdminPanelScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Each entry: (permission code | '__super' for super-admin-only, title, tab).
+    // Staff see only the tabs they've been granted; the super admin sees all.
+    const entries = <(String, String, Widget)>[
+      ('__super', 'Overview', _AdminOverviewTab()),
+      ('approvals', 'Approvals', _AdminApprovalsTab()),
+      ('verifyId', 'Verify ID', _AdminVerificationsTab()),
+      ('payments', 'Payments', _AdminPaymentsTab()),
+      ('escrow', 'Escrow', _AdminEscrowTab()),
+      ('featured', 'Featured', _AdminFeaturedTab()),
+      ('feedback', 'Feedback', _AdminFeedbackTab()),
+      ('users', 'Users', _AdminUsersTab()),
+      ('reports', 'Reports', _AdminReportsTab()),
+      ('topups', 'Top-ups', _AdminTopupsTab()),
+      ('paymentAccount', 'Payment a/c', _AdminPaymentTab()),
+      ('withdrawals', 'Withdrawals', _AdminWithdrawalsTab()),
+      ('promotions', 'Promotions', _AdminPromotionsTab()),
+      ('orders', 'Orders', _AdminOrdersTab()),
+      ('offers', 'Offers', _AdminOffersTab()),
+      ('purchases', 'Purchases', _AdminPurchasesTab()),
+      ('listings', 'Listings', _AdminListingsTab()),
+      ('chats', 'Chats', _AdminChatsTab()),
+      ('appeals', 'Appeals', _AdminAppealsTab()),
+      ('__super', 'Staff', _AdminStaffTab()),
+    ];
+    final visible = entries.where((e) {
+      return e.$1 == '__super' ? isSuperAdmin() : hasAdminPerm(e.$1);
+    }).toList();
+
+    if (visible.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Admin Panel')),
+        body: const EmptyState(
+          icon: Icons.lock_outline,
+          title: 'No access',
+          subtitle: 'You have no admin permissions assigned.',
+        ),
+      );
+    }
+
     return DefaultTabController(
-      length: 19,
+      length: visible.length,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Admin Panel'),
-          bottom: const TabBar(
+          title: Text(isSuperAdmin() ? 'Admin Panel' : 'Staff Panel'),
+          bottom: TabBar(
             labelColor: Colors.white,
             indicatorColor: Colors.white,
             isScrollable: true,
-            tabs: [
-              Tab(text: 'Overview'),
-              Tab(text: 'Approvals'),
-              Tab(text: 'Verify ID'),
-              Tab(text: 'Payments'),
-              Tab(text: 'Escrow'),
-              Tab(text: 'Featured'),
-              Tab(text: 'Feedback'),
-              Tab(text: 'Users'),
-              Tab(text: 'Reports'),
-              Tab(text: 'Top-ups'),
-              Tab(text: 'Payment a/c'),
-              Tab(text: 'Withdrawals'),
-              Tab(text: 'Promotions'),
-              Tab(text: 'Orders'),
-              Tab(text: 'Offers'),
-              Tab(text: 'Purchases'),
-              Tab(text: 'Listings'),
-              Tab(text: 'Chats'),
-              Tab(text: 'Appeals'),
-            ],
+            tabs: [for (final e in visible) Tab(text: e.$2)],
           ),
         ),
-        body: const TabBarView(
-          children: [
-            _AdminOverviewTab(),
-            _AdminApprovalsTab(),
-            _AdminVerificationsTab(),
-            _AdminPaymentsTab(),
-            _AdminEscrowTab(),
-            _AdminFeaturedTab(),
-            _AdminFeedbackTab(),
-            _AdminUsersTab(),
-            _AdminReportsTab(),
-            _AdminTopupsTab(),
-            _AdminPaymentTab(),
-            _AdminWithdrawalsTab(),
-            _AdminPromotionsTab(),
-            _AdminOrdersTab(),
-            _AdminOffersTab(),
-            _AdminPurchasesTab(),
-            _AdminListingsTab(),
-            _AdminChatsTab(),
-            _AdminAppealsTab(),
-          ],
+        body: TabBarView(
+          children: [for (final e in visible) e.$3],
         ),
       ),
     );
@@ -3044,6 +3043,224 @@ class _ListingApprovalActionsState extends State<_ListingApprovalActions> {
           onPressed: _approve,
           icon: const Icon(Icons.check, size: 18),
           label: const Text('Approve'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Add or edit a staff member's record: email + per-area permission checkboxes
+/// + active toggle. Writes to staff/{lowercased-email}. Super-admin only (the
+/// tab itself is gated).
+Future<void> _editStaffDialog(
+  BuildContext context, {
+  String? email,
+  Map<String, bool>? perms,
+  bool active = true,
+}) async {
+  final emailCtrl = TextEditingController(text: email ?? '');
+  final selected = <String>{
+    for (final a in kAdminAreas)
+      if (perms?[a.$1] == true) a.$1,
+  };
+  var isActive = active;
+  final isNew = email == null;
+  final messenger = ScaffoldMessenger.of(context);
+
+  final saved = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setLocal) => AlertDialog(
+        title: Text(isNew ? 'Add staff' : 'Edit staff'),
+        content: SizedBox(
+          width: 400,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: emailCtrl,
+                  enabled: isNew,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Staff email',
+                    hintText: 'person@example.com',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Active'),
+                  value: isActive,
+                  onChanged: (v) => setLocal(() => isActive = v),
+                ),
+                const Divider(),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Permissions',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                for (final area in kAdminAreas)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(area.$2),
+                    value: selected.contains(area.$1),
+                    onChanged: (v) => setLocal(() {
+                      if (v == true) {
+                        selected.add(area.$1);
+                      } else {
+                        selected.remove(area.$1);
+                      }
+                    }),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (saved != true) return;
+  final e = emailCtrl.text.trim().toLowerCase();
+  if (e.isEmpty || !e.contains('@')) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Enter a valid email')),
+    );
+    return;
+  }
+  final permsMap = {for (final a in kAdminAreas) a.$1: selected.contains(a.$1)};
+  try {
+    await FirebaseFirestore.instance.collection('staff').doc(e).set({
+      'email': e,
+      'permissions': permsMap,
+      'active': isActive,
+      'addedBy': FirebaseAuth.instance.currentUser?.email ?? '',
+      'updatedAt': Timestamp.now(),
+    }, SetOptions(merge: true));
+    messenger.showSnackBar(SnackBar(content: Text('Saved staff: $e')));
+  } catch (err) {
+    messenger.showSnackBar(SnackBar(content: Text('Could not save: $err')));
+  }
+}
+
+/// Super-admin-only tab to manage staff and their permissions.
+class _AdminStaffTab extends StatelessWidget {
+  const _AdminStaffTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: ElevatedButton.icon(
+              onPressed: () => _editStaffDialog(context),
+              icon: const Icon(Icons.person_add_alt),
+              label: const Text('Add staff'),
+            ),
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('staff').snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('Error loading staff: ${snapshot.error}'));
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final docs = snapshot.data!.docs;
+              if (docs.isEmpty) {
+                return const EmptyState(
+                  icon: Icons.group_outlined,
+                  title: 'No staff yet',
+                  subtitle: 'Add staff and grant them admin permissions.',
+                );
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: docs.length,
+                itemBuilder: (context, i) {
+                  final d = docs[i].data() as Map<String, dynamic>;
+                  final email = d['email']?.toString() ?? docs[i].id;
+                  final active = d['active'] != false;
+                  final perms = (d['permissions'] as Map?) ?? const {};
+                  final granted = kAdminAreas
+                      .where((a) => perms[a.$1] == true)
+                      .map((a) => a.$2)
+                      .toList();
+                  return Card(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: (active ? kPakGreen : Colors.grey)
+                            .withValues(alpha: 0.15),
+                        child: Icon(
+                          Icons.badge,
+                          color: active ? kPakGreen : Colors.grey,
+                        ),
+                      ),
+                      title: Text(email),
+                      subtitle: Text(
+                        active
+                            ? (granted.isEmpty
+                                  ? 'No permissions granted'
+                                  : granted.join(', '))
+                            : 'Inactive · ${granted.length} permission(s)',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      isThreeLine: true,
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (v) {
+                          if (v == 'edit') {
+                            _editStaffDialog(
+                              context,
+                              email: email,
+                              perms: {
+                                for (final a in kAdminAreas)
+                                  a.$1: perms[a.$1] == true,
+                              },
+                              active: active,
+                            );
+                          } else if (v == 'remove') {
+                            docs[i].reference.delete();
+                          }
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Text('Edit permissions'),
+                          ),
+                          PopupMenuItem(
+                            value: 'remove',
+                            child: Text('Remove staff'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
         ),
       ],
     );

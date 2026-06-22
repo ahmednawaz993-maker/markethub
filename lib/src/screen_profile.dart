@@ -1229,7 +1229,7 @@ class ProfileScreen extends StatelessWidget {
                 const SizedBox(height: 12),
                 const _BusinessAccountTile(),
               ],
-              if (isAdminUser()) ...[
+              if (canOpenAdminPanel()) ...[
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
@@ -1240,7 +1240,9 @@ class ProfileScreen extends StatelessWidget {
                     MaterialPageRoute(builder: (_) => const AdminPanelScreen()),
                   ),
                   icon: const Icon(Icons.admin_panel_settings),
-                  label: Text(tr('profile.adminPanel')),
+                  label: Text(
+                    isSuperAdmin() ? tr('profile.adminPanel') : 'Staff Panel',
+                  ),
                 ),
               ],
               const SizedBox(height: 16),
