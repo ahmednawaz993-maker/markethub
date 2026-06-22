@@ -71,6 +71,31 @@ Future<void> loadPlatformBlockedUsers() async {
   } catch (_) {}
 }
 
+/// Auto-saves a user's location onto their profile from normal app activity —
+/// the city they browse, or the GPS attached to an ad they post — so admins can
+/// see where buyers and sellers are. Merges only the fields provided; never
+/// overwrites an existing value with null/empty.
+Future<void> saveUserLocation({String? city, double? lat, double? lng}) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return;
+  final data = <String, dynamic>{};
+  if (city != null && city.trim().isNotEmpty && city != 'All Pakistan') {
+    data['city'] = city.trim();
+  }
+  if (lat != null && lng != null) {
+    data['lat'] = lat;
+    data['lng'] = lng;
+  }
+  if (data.isEmpty) return;
+  data['locationUpdatedAt'] = Timestamp.now();
+  try {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .set(data, SetOptions(merge: true));
+  } catch (_) {}
+}
+
 bool isAdminUser() =>
     adminEmails.contains(FirebaseAuth.instance.currentUser?.email);
 

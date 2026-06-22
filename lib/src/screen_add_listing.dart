@@ -315,6 +315,13 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'isFeatured': false,
       });
 
+      // Mirror the seller's location onto their profile (for the admin panel).
+      await saveUserLocation(
+        city: selectedCity,
+        lat: latitude,
+        lng: longitude,
+      );
+
       // If this was resumed from a draft, remove the draft.
       if (widget.draftId != null) {
         final uid = FirebaseAuth.instance.currentUser?.uid;

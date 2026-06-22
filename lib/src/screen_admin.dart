@@ -1422,6 +1422,10 @@ class _AdminUsersTab extends StatelessWidget {
                 ? d['businessName'].toString()
                 : (d['email']?.toString() ?? '(guest)');
             final balance = (d['walletBalance'] as num?)?.toInt() ?? 0;
+            final city = d['city']?.toString() ?? '';
+            final lat = (d['lat'] as num?)?.toDouble();
+            final lng = (d['lng'] as num?)?.toDouble();
+            final hasGeo = lat != null && lng != null;
             return Card(
               child: ListTile(
                 dense: true,
@@ -1442,6 +1446,8 @@ class _AdminUsersTab extends StatelessWidget {
                 ),
                 subtitle: Text(
                   'Wallet ${formatPrice('$balance')}'
+                  '${city.isNotEmpty ? ' · 📍 $city' : ''}'
+                  '${hasGeo ? ' · 🛰️ GPS' : ''}'
                   '${isBusiness ? ' · Business' : ''}'
                   '${d['featuredBusiness'] == true ? ' · ★Featured' : ''}'
                   '${blocked ? ' · ⛔ BLOCKED' : ''}',
@@ -1453,6 +1459,15 @@ class _AdminUsersTab extends StatelessWidget {
                   icon: const Icon(Icons.more_vert),
                   onSelected: (v) {
                     switch (v) {
+                      case 'map':
+                        launchUrl(
+                          Uri.parse(
+                            'https://www.google.com/maps/search/?api=1'
+                            '&query=$lat,$lng',
+                          ),
+                          mode: LaunchMode.externalApplication,
+                        );
+                        break;
                       case 'message':
                         _sendUserNotice(
                           context,
@@ -1494,6 +1509,18 @@ class _AdminUsersTab extends StatelessWidget {
                     }
                   },
                   itemBuilder: (_) => [
+                    if (hasGeo)
+                      const PopupMenuItem(
+                        value: 'map',
+                        child: Row(
+                          children: [
+                            Icon(Icons.map_outlined,
+                                size: 20, color: kPakGreen),
+                            SizedBox(width: 10),
+                            Text('View on map'),
+                          ],
+                        ),
+                      ),
                     const PopupMenuItem(
                       value: 'message',
                       child: Row(

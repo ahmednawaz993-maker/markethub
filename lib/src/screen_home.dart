@@ -1499,7 +1499,10 @@ class _HomeScreenState extends State<HomeScreen> {
           final c = await showCityPicker(context, includeAll: true);
           if (!mounted) return;
           if (c != null) {
-            setState(() => homeCity = c == 'All' ? 'All Pakistan' : c);
+            final picked = c == 'All' ? 'All Pakistan' : c;
+            setState(() => homeCity = picked);
+            // Auto-save the chosen city to the profile for the admin panel.
+            saveUserLocation(city: picked);
           }
         },
         child: Row(
