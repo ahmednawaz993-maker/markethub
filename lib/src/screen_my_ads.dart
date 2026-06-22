@@ -253,12 +253,28 @@ class SalesDashboardScreen extends StatelessWidget {
   }
 }
 
-/// A single horizontal earnings bar for the 6-month trend.
+/// Short month label like "Jun 26" for trend charts.
+String monthShortLabel(DateTime m) {
+  const names = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  return '${names[m.month - 1]} ${m.year % 100}';
+}
+
+/// A single horizontal bar for a 6-month trend. [money] formats the value as a
+/// price; otherwise it shows a plain count.
 class _MonthBar extends StatelessWidget {
   final String label;
   final double value;
   final double max;
-  const _MonthBar({required this.label, required this.value, required this.max});
+  final bool money;
+  const _MonthBar({
+    required this.label,
+    required this.value,
+    required this.max,
+    this.money = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -298,7 +314,7 @@ class _MonthBar extends StatelessWidget {
           SizedBox(
             width: 72,
             child: Text(
-              formatPrice(value.toStringAsFixed(0)),
+              money ? formatPrice(value.toStringAsFixed(0)) : '${value.toInt()}',
               style: const TextStyle(fontSize: 11),
               textAlign: TextAlign.right,
             ),

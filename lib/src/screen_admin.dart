@@ -1249,6 +1249,68 @@ class _AdminOverviewTab extends StatelessWidget {
     );
   }
 
+  /// A 6-month trend card: buckets each doc's [valueOf] into the month of its
+  /// completedAt/createdAt and draws a bar per month.
+  Widget _trendCard(
+    String title,
+    Stream<QuerySnapshot> stream,
+    double Function(Map<String, dynamic>) valueOf, {
+    bool money = false,
+  }) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final now = DateTime.now();
+        final months = [
+          for (int i = 5; i >= 0; i--) DateTime(now.year, now.month - i, 1),
+        ];
+        final buckets = {for (final m in months) '${m.year}-${m.month}': 0.0};
+        if (snapshot.hasData) {
+          for (final d in snapshot.data!.docs) {
+            final m = d.data() as Map<String, dynamic>;
+            final v = valueOf(m);
+            if (v == 0) continue;
+            final ts = (m['completedAt'] ?? m['createdAt']) as Timestamp?;
+            if (ts == null) continue;
+            final dt = ts.toDate();
+            final key = '${dt.year}-${dt.month}';
+            if (buckets.containsKey(key)) buckets[key] = buckets[key]! + v;
+          }
+        }
+        final maxV = buckets.values.fold<double>(0, (a, b) => b > a ? b : a);
+        return Card(
+          margin: const EdgeInsets.only(bottom: 10),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                if (!snapshot.hasData)
+                  const Center(child: CircularProgressIndicator())
+                else
+                  for (final mth in months)
+                    _MonthBar(
+                      label: monthShortLabel(mth),
+                      value: buckets['${mth.year}-${mth.month}'] ?? 0,
+                      max: maxV,
+                      money: money,
+                    ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final fs = FirebaseFirestore.instance;
@@ -1317,6 +1379,48 @@ class _AdminOverviewTab extends StatelessWidget {
         ) {
           return [_Metric('${docs.length}', 'Total offers')];
         }),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(4, 10, 4, 6),
+          child: Text(
+            'Trends — last 6 months',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+        ),
+        _trendCard(
+          'GMV (sales value)',
+          fs.collection('orders').snapshots(),
+          (m) => (m['status'] == 'released' || m['status'] == 'completed')
+              ? (((m['amount'] as num?)?.toDouble()) ?? 0.0)
+              : 0.0,
+          money: true,
+        ),
+        _trendCard(
+          'Your earnings (2% commission)',
+          fs.collection('orders').snapshots(),
+          (m) {
+            if (m['status'] != 'released' && m['status'] != 'completed') {
+              return 0.0;
+            }
+            final amt = ((m['amount'] as num?)?.toDouble()) ?? 0.0;
+            return ((m['commission'] as num?)?.toDouble()) ?? amt * commissionRate;
+          },
+          money: true,
+        ),
+        _trendCard(
+          'New users',
+          fs.collection('users').snapshots(),
+          (m) => 1.0,
+        ),
+        _trendCard(
+          'New ads',
+          fs.collection('listings').snapshots(),
+          (m) => 1.0,
+        ),
+        _trendCard(
+          'Orders placed',
+          fs.collection('orders').snapshots(),
+          (m) => 1.0,
+        ),
       ],
     );
   }
