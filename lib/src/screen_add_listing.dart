@@ -113,6 +113,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
   @override
   void initState() {
     super.initState();
+    _prefillPhoneFromProfile();
     final d = widget.draft;
     if (d == null) return;
     titleController.text = d['title']?.toString() ?? '';
@@ -137,6 +138,23 @@ class _AddListingScreenState extends State<AddListingScreen> {
     if (pakistanCities.contains(d['city'])) selectedCity = d['city'].toString();
     final attrs = (d['attributes'] as Map?) ?? {};
     attrs.forEach((k, v) => _attrCtrl(k.toString()).text = v.toString());
+  }
+
+  /// Pre-fills the contact number from the seller's saved profile phone, unless
+  /// the field already has a value (e.g. restored from a draft).
+  Future<void> _prefillPhoneFromProfile() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      final phone = doc.data()?['phone']?.toString() ?? '';
+      if (phone.isNotEmpty && phoneController.text.trim().isEmpty && mounted) {
+        setState(() => phoneController.text = phone);
+      }
+    } catch (_) {}
   }
 
   Future<void> saveDraft() async {
