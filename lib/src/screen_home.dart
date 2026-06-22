@@ -789,6 +789,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!snap.exists) {
       await ref.set({
         'email': user.email ?? '',
+        'phone': user.phoneNumber ?? '',
         'isAnonymous': user.isAnonymous,
         'verified': user.emailVerified,
         'createdAt': Timestamp.now(),

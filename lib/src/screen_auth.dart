@@ -12,10 +12,86 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+  final phoneController = TextEditingController();
+  final otpController = TextEditingController();
 
   bool isLogin = true;
   bool isLoading = false;
   String? errorMessage;
+
+  // Phone / OTP login state.
+  bool usePhone = false;
+  bool otpSent = false;
+  ConfirmationResult? _confirmation;
+  String _sentTo = '';
+
+  String get _primaryLabel {
+    if (!usePhone) return isLogin ? 'Log In' : 'Sign Up';
+    return otpSent ? 'Verify & Log In' : 'Send Code';
+  }
+
+  void _primaryAction() {
+    if (!usePhone) {
+      submit();
+    } else if (otpSent) {
+      verifyOtp();
+    } else {
+      sendOtp();
+    }
+  }
+
+  /// Sends an SMS OTP to the entered Pakistani number. On web this triggers an
+  /// (invisible) reCAPTCHA handled by firebase_auth.
+  Future<void> sendOtp() async {
+    final raw = phoneController.text.trim();
+    if (raw.isEmpty) {
+      setState(() => errorMessage = 'Please enter your phone number');
+      return;
+    }
+    // normalizePhoneForWhatsApp -> e.g. '923001234567'; E.164 wants a leading +.
+    final phone = '+${normalizePhoneForWhatsApp(raw)}';
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+    try {
+      final confirmation = await FirebaseAuth.instance.signInWithPhoneNumber(
+        phone,
+      );
+      setState(() {
+        _confirmation = confirmation;
+        _sentTo = phone;
+        otpSent = true;
+      });
+    } on FirebaseAuthException catch (e) {
+      setState(() => errorMessage = e.message ?? 'Could not send the code');
+    } catch (e) {
+      setState(() => errorMessage = 'Could not send the code: $e');
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  /// Confirms the 6-digit code and signs the user in.
+  Future<void> verifyOtp() async {
+    final code = otpController.text.trim();
+    if (code.isEmpty || _confirmation == null) {
+      setState(() => errorMessage = 'Please enter the code we sent you');
+      return;
+    }
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+    try {
+      await _confirmation!.confirm(code);
+      // AuthGate listens to authStateChanges and navigates automatically.
+    } on FirebaseAuthException catch (e) {
+      setState(() => errorMessage = e.message ?? 'Invalid or expired code');
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
 
   Future<void> submit() async {
     final email = emailController.text.trim();
@@ -74,6 +150,8 @@ class _AuthScreenState extends State<AuthScreen> {
   void dispose() {
     emailController.dispose();
     passwordController.dispose();
+    phoneController.dispose();
+    otpController.dispose();
     super.dispose();
   }
 
@@ -121,34 +199,107 @@ class _AuthScreenState extends State<AuthScreen> {
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                const SizedBox(height: 8),
-                Text(
-                  isLogin ? 'Log in to your account' : 'Create a new account',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.grey),
-                ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: emailController,
-                  enabled: !isLoading,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email),
+                const SizedBox(height: 16),
+                // Choose how to sign in: email/password or phone + OTP.
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF1F2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _AuthMethodTab(
+                          label: 'Email',
+                          icon: Icons.email,
+                          selected: !usePhone,
+                          onTap: isLoading
+                              ? null
+                              : () => setState(() {
+                                  usePhone = false;
+                                  errorMessage = null;
+                                }),
+                        ),
+                      ),
+                      Expanded(
+                        child: _AuthMethodTab(
+                          label: 'Phone',
+                          icon: Icons.phone_android,
+                          selected: usePhone,
+                          onTap: isLoading
+                              ? null
+                              : () => setState(() {
+                                  usePhone = true;
+                                  errorMessage = null;
+                                }),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: passwordController,
-                  enabled: !isLoading,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock),
+                const SizedBox(height: 16),
+                if (!usePhone) ...[
+                  TextField(
+                    controller: emailController,
+                    enabled: !isLoading,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.email),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: passwordController,
+                    enabled: !isLoading,
+                    obscureText: true,
+                    onSubmitted: (_) => isLoading ? null : submit(),
+                    decoration: const InputDecoration(
+                      labelText: 'Password',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.lock),
+                    ),
+                  ),
+                ] else if (!otpSent) ...[
+                  TextField(
+                    controller: phoneController,
+                    enabled: !isLoading,
+                    keyboardType: TextInputType.phone,
+                    onSubmitted: (_) => isLoading ? null : sendOtp(),
+                    decoration: const InputDecoration(
+                      labelText: 'Phone number',
+                      hintText: '03xx xxxxxxx',
+                      prefixText: '+92 ',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.phone),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'We\'ll text you a one-time code to verify your number.',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ] else ...[
+                  Text(
+                    'Enter the 6-digit code sent to $_sentTo',
+                    style: const TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: otpController,
+                    enabled: !isLoading,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    onSubmitted: (_) => isLoading ? null : verifyOtp(),
+                    decoration: const InputDecoration(
+                      labelText: 'OTP code',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.sms),
+                      counterText: '',
+                    ),
+                  ),
+                ],
                 if (errorMessage != null) ...[
                   const SizedBox(height: 12),
                   Text(
@@ -158,31 +309,46 @@ class _AuthScreenState extends State<AuthScreen> {
                 ],
                 const SizedBox(height: 20),
                 ElevatedButton(
-                  onPressed: isLoading ? null : submit,
+                  onPressed: isLoading ? null : _primaryAction,
                   child: isLoading
                       ? const SizedBox(
                           height: 22,
                           width: 22,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : Text(isLogin ? 'Log In' : 'Sign Up'),
+                      : Text(_primaryLabel),
                 ),
                 const SizedBox(height: 8),
-                TextButton(
-                  onPressed: isLoading
-                      ? null
-                      : () {
-                          setState(() {
-                            isLogin = !isLogin;
-                            errorMessage = null;
-                          });
-                        },
-                  child: Text(
-                    isLogin
-                        ? "Don't have an account? Sign up"
-                        : 'Already have an account? Log in',
+                if (!usePhone)
+                  TextButton(
+                    onPressed: isLoading
+                        ? null
+                        : () {
+                            setState(() {
+                              isLogin = !isLogin;
+                              errorMessage = null;
+                            });
+                          },
+                    child: Text(
+                      isLogin
+                          ? "Don't have an account? Sign up"
+                          : 'Already have an account? Log in',
+                    ),
+                  )
+                else if (otpSent)
+                  TextButton(
+                    onPressed: isLoading
+                        ? null
+                        : () {
+                            setState(() {
+                              otpSent = false;
+                              _confirmation = null;
+                              otpController.clear();
+                              errorMessage = null;
+                            });
+                          },
+                    child: const Text('Change number'),
                   ),
-                ),
                 const Divider(height: 32),
                     OutlinedButton.icon(
                       onPressed: isLoading ? null : continueAsGuest,
@@ -195,6 +361,53 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One segment of the Email/Phone sign-in selector.
+class _AuthMethodTab extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback? onTap;
+  const _AuthMethodTab({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.all(4),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? kPakGreen : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: selected ? Colors.white : kPakGreen,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : kPakGreen,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
       ),
     );
