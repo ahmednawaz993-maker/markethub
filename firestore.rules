@@ -58,10 +58,19 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // True if the signed-in user has passed identity verification (admin bypass).
-    // Used to require ID verification before posting ads.
+    // Demo / Play-review accounts bypass ID verification (keep in sync with
+    // demoEmails in the app).
+    function isDemo() {
+      return isSignedIn()
+             && request.auth.token.email != null
+             && request.auth.token.email.lower() in ['demo@pakbazar24.com'];
+    }
+
+    // True if the signed-in user has passed identity verification (admin/demo
+    // bypass). Used to require ID verification before posting ads.
     function isVerifiedUser() {
       return isAdmin()
+             || isDemo()
              || (isSignedIn()
                  && get(/databases/$(database)/documents/users/$(request.auth.uid))
                       .data.get('idVerified', false) == true);

@@ -99,6 +99,15 @@ Future<void> saveUserLocation({String? city, double? lat, double? lng}) async {
 bool isAdminUser() =>
     adminEmails.contains(FirebaseAuth.instance.currentUser?.email);
 
+/// Demo / review accounts that bypass ID verification so Google Play reviewers
+/// (and demos) can use post/buy/offer/chat immediately, without waiting for
+/// admin approval. Keep in sync with isDemo() in firestore.rules.
+const List<String> demoEmails = ['demo@pakbazar24.com'];
+
+bool isDemoUser() => demoEmails.contains(
+  FirebaseAuth.instance.currentUser?.email?.toLowerCase(),
+);
+
 /// The super admin (full access). Staff are everyone else granted permissions.
 bool isSuperAdmin() => isAdminUser();
 
@@ -183,7 +192,7 @@ String friendlyName(Map<String, dynamic>? d, {String? email}) {
 Future<bool> ensureVerified(BuildContext context) async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) return false;
-  if (isAdminUser()) return true;
+  if (isAdminUser() || isDemoUser()) return true;
   bool verified = false;
   try {
     final doc = await FirebaseFirestore.instance
