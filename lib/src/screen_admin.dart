@@ -2734,6 +2734,61 @@ class _AppealActionsState extends State<_AppealActions> {
   }
 }
 
+/// One-time migration: stamp every pre-existing ad that has no moderation
+/// status with `approvalStatus: 'approved'` so it keeps showing once read-level
+/// hiding (which filters queries by approvalStatus) is enabled. Safe to re-run —
+/// it skips ads already marked approved/pending/rejected.
+Future<void> _backfillApprovals(BuildContext context) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final go = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Approve existing ads?'),
+      content: const Text(
+        'This marks every ad that predates moderation as "approved" so it stays '
+        'visible. Run this once. Ads already pending/rejected are left as-is.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Run'),
+        ),
+      ],
+    ),
+  );
+  if (go != true) return;
+  try {
+    final fs = FirebaseFirestore.instance;
+    final snap = await fs.collection('listings').get();
+    var updated = 0;
+    var batch = fs.batch();
+    var inBatch = 0;
+    for (final d in snap.docs) {
+      final s = (d.data())['approvalStatus'];
+      if (s != 'approved' && s != 'pending' && s != 'rejected') {
+        batch.update(d.reference, {'approvalStatus': 'approved'});
+        updated++;
+        inBatch++;
+        if (inBatch == 400) {
+          await batch.commit();
+          batch = fs.batch();
+          inBatch = 0;
+        }
+      }
+    }
+    if (inBatch > 0) await batch.commit();
+    messenger.showSnackBar(
+      SnackBar(content: Text('Backfill done: $updated ad(s) marked approved')),
+    );
+  } catch (e) {
+    messenger.showSnackBar(SnackBar(content: Text('Backfill failed: $e')));
+  }
+}
+
 /// Admin → moderation queue. Lists ads awaiting approval (approvalStatus ==
 /// 'pending'); tap to view the full ad, then Approve (goes live) or Reject
 /// (stays hidden). The seller is notified of the decision.
@@ -2742,6 +2797,25 @@ class _AdminApprovalsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: TextButton.icon(
+              onPressed: () => _backfillApprovals(context),
+              icon: const Icon(Icons.cloud_done_outlined, size: 18),
+              label: const Text('Approve existing ads (one-time)'),
+            ),
+          ),
+        ),
+        Expanded(child: _buildQueue(context)),
+      ],
+    );
+  }
+
+  Widget _buildQueue(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('listings')
