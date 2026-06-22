@@ -621,10 +621,13 @@ class VerificationScreen extends StatefulWidget {
 
 class _VerificationScreenState extends State<VerificationScreen> {
   final picker = ImagePicker();
+  final addressController = TextEditingController();
   String? selfieUrl;
   String? cnicUrl;
+  String? addressProofUrl;
   bool uploadingSelfie = false;
   bool uploadingCnic = false;
+  bool uploadingProof = false;
   bool submitting = false;
   bool loaded = false;
   String status = '';
@@ -634,6 +637,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    addressController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -648,9 +657,45 @@ class _VerificationScreenState extends State<VerificationScreen> {
       status = v?['status']?.toString() ?? '';
       selfieUrl = v?['selfieUrl']?.toString();
       cnicUrl = v?['cnicUrl']?.toString();
+      addressProofUrl = v?['addressProofUrl']?.toString();
+      addressController.text =
+          v?['address']?.toString() ?? uDoc.data()?['address']?.toString() ?? '';
       idVerified = uDoc.data()?['idVerified'] == true;
       loaded = true;
     });
+  }
+
+  /// Address proof (utility bill, bank letter, etc.) — a document, so gallery
+  /// upload is allowed here (unlike the live-camera-only selfie/CNIC).
+  Future<void> _uploadProof() async {
+    final img = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+    );
+    if (img == null) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    setState(() => uploadingProof = true);
+    try {
+      final bytes = await img.readAsBytes();
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('verifications')
+          .child(uid)
+          .child('address_proof.jpg');
+      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      final url = await ref.getDownloadURL();
+      if (!mounted) return;
+      setState(() => addressProofUrl = url);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => uploadingProof = false);
+    }
   }
 
   Future<void> _upload(bool selfie) async {
@@ -713,6 +758,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
       );
       return;
     }
+    if (addressController.text.trim().length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your full address')),
+      );
+      return;
+    }
     setState(() => submitting = true);
     await FirebaseFirestore.instance
         .collection('verifications')
@@ -722,6 +773,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
           'email': user.email ?? '',
           'selfieUrl': selfieUrl,
           'cnicUrl': cnicUrl,
+          'address': addressController.text.trim(),
+          'addressProofUrl': addressProofUrl,
           'status': 'pending',
           'submittedAt': Timestamp.now(),
         }, SetOptions(merge: true));
@@ -767,7 +820,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Identity Verification')),
+      appBar: AppBar(title: const Text('Identity & Address Verification')),
       body: !loaded
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -823,6 +876,32 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   cnicUrl,
                   uploadingCnic,
                   () => _upload(false),
+                ),
+                const SizedBox(height: 8),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(4, 4, 4, 6),
+                  child: Text(
+                    'Your residential address',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                TextField(
+                  controller: addressController,
+                  enabled: !idVerified,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Full address',
+                    hintText: 'House/Street, Area, City',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.home_outlined),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _uploadTile(
+                  'Proof of address (bill/letter) — optional',
+                  addressProofUrl,
+                  uploadingProof,
+                  _uploadProof,
                 ),
                 const SizedBox(height: 12),
                 if (!idVerified)

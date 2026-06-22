@@ -972,6 +972,8 @@ class _AdminVerificationsTab extends StatelessWidget {
             final uid = d['userId']?.toString() ?? docs[i].id;
             final selfie = d['selfieUrl']?.toString() ?? '';
             final cnic = d['cnicUrl']?.toString() ?? '';
+            final address = d['address']?.toString() ?? '';
+            final proof = d['addressProofUrl']?.toString() ?? '';
             Widget img(String url) => Expanded(
               child: GestureDetector(
                 onTap: url.isEmpty
@@ -1030,8 +1032,55 @@ class _AdminVerificationsTab extends StatelessWidget {
                         style: TextStyle(fontSize: 11, color: Colors.grey),
                       ),
                     ),
+                    const SizedBox(height: 6),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.home_outlined,
+                            size: 16, color: kPakGreen),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            address.isEmpty ? '(no address provided)' : address,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (proof.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      GestureDetector(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => FullScreenGallery(images: [proof]),
+                          ),
+                        ),
+                        child: Container(
+                          height: 90,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            image: DecorationImage(
+                              image: NetworkImage(proof),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 2),
+                        child: Text(
+                          'Address proof (tap to enlarge)',
+                          style: TextStyle(fontSize: 11, color: Colors.grey),
+                        ),
+                      ),
+                    ],
                     if (pending)
-                      _VerificationActions(uid: uid, ref: docs[i].reference),
+                      _VerificationActions(
+                        uid: uid,
+                        ref: docs[i].reference,
+                        address: address,
+                      ),
                   ],
                 ),
               ),
@@ -1047,10 +1096,15 @@ class _AdminVerificationsTab extends StatelessWidget {
 /// buttons disable while the decision is being written — avoids a double-tap
 /// applying the change twice and sending duplicate notifications.
 class _VerificationActions extends StatefulWidget {
-  const _VerificationActions({required this.uid, required this.ref});
+  const _VerificationActions({
+    required this.uid,
+    required this.ref,
+    this.address = '',
+  });
 
   final String uid;
   final DocumentReference ref;
+  final String address;
 
   @override
   State<_VerificationActions> createState() => _VerificationActionsState();
@@ -1066,11 +1120,14 @@ class _VerificationActionsState extends State<_VerificationActions> {
       final users = FirebaseFirestore.instance.collection('users');
       await users.doc(widget.uid).set({
         'idVerified': approve,
+        'addressVerified': approve,
+        // Store the approved address on the profile (visible to admins).
+        if (approve && widget.address.isNotEmpty) 'address': widget.address,
       }, SetOptions(merge: true));
       await users.doc(widget.uid).collection('notifications').add(
         approve
             ? {
-                'title': 'Identity verified ✓',
+                'title': 'Identity & address verified ✓',
                 'body':
                     'You can now post ads, buy, make offers and chat on '
                     'PakBazar.',
