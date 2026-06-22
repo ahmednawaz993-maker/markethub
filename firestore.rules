@@ -30,6 +30,16 @@ service cloud.firestore {
                       .data.get('idVerified', false) == true);
     }
 
+    // True unless an admin has suspended this account (admin bypass). Gates all
+    // create actions (posting, buying, offering, chatting) so a blocked user
+    // can still read/sign in (to see the suspension notice) but cannot act.
+    function isNotBlocked() {
+      return isAdmin()
+             || !(isSignedIn()
+                  && get(/databases/$(database)/documents/users/$(request.auth.uid))
+                       .data.get('blocked', false) == true);
+    }
+
     // ---------------------------------------------------------------------
     // Listings
     // ---------------------------------------------------------------------
@@ -41,7 +51,8 @@ service cloud.firestore {
       // Posting an ad requires identity verification (admins bypass).
       allow create: if isSignedIn()
                     && request.resource.data.userId == request.auth.uid
-                    && isVerifiedUser();
+                    && isVerifiedUser()
+                    && isNotBlocked();
 
       // Owners can edit/delete their ad. Anyone signed in may bump the view
       // counter, but ONLY the `views` field and nothing else.
@@ -77,13 +88,15 @@ service cloud.firestore {
                     );
       allow delete: if false;
 
-      // walletBalance is money and idVerified is an identity decision — only
-      // admins / Cloud Functions may change these. The owner may edit every
-      // other profile field freely (an update is allowed as long as it does
-      // not touch either protected field).
+      // walletBalance is money, idVerified is an identity decision, and blocked
+      // is an admin suspension — only admins / Cloud Functions may change these.
+      // The owner may edit every other profile field freely (an update is
+      // allowed as long as it does not touch any protected field); critically a
+      // suspended user cannot clear their own `blocked` flag.
       function walletUnchanged() {
         return !request.resource.data.diff(resource.data)
-                 .affectedKeys().hasAny(['walletBalance', 'idVerified']);
+                 .affectedKeys().hasAny(['walletBalance', 'idVerified',
+                                         'blocked']);
       }
 
       function onlyRatingChange() {
@@ -203,6 +216,7 @@ service cloud.firestore {
       allow create: if isSignedIn()
                     && request.resource.data.buyerId == request.auth.uid
                     && isVerifiedUser()
+                    && isNotBlocked()
                     && (request.resource.data.status == 'pending_payment'
                         || request.resource.data.status == 'cod_pending');
       allow read: if isSignedIn() && (
@@ -365,7 +379,8 @@ service cloud.firestore {
     match /offers/{offerId} {
       allow create: if isSignedIn()
                     && request.resource.data.buyerId == request.auth.uid
-                    && isVerifiedUser();
+                    && isVerifiedUser()
+                    && isNotBlocked();
       allow read, update: if isSignedIn() && (
                       resource.data.buyerId == request.auth.uid
                       || resource.data.sellerId == request.auth.uid
@@ -385,7 +400,8 @@ service cloud.firestore {
       allow create: if isSignedIn()
                     && request.auth.uid in request.resource.data.participants
                     && request.resource.data.participants.size() == 2
-                    && isVerifiedUser();
+                    && isVerifiedUser()
+                    && isNotBlocked();
 
       // Updating lastMessage/lastTime — caller must already be a participant
       // and must not remove themselves from the thread.
@@ -399,6 +415,7 @@ service cloud.firestore {
         allow read: if isSignedIn() && (isParticipant() || isAdmin());
         allow create: if isSignedIn()
                       && isParticipant()
+                      && isNotBlocked()
                       && request.resource.data.senderId == request.auth.uid;
         allow update, delete: if false;
 

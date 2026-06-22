@@ -1244,6 +1244,148 @@ class _AdminOverviewTab extends StatelessWidget {
   }
 }
 
+/// Admin → send a free-text instruction (type 'admin') or a rule-violation
+/// warning (type 'warning') to a user; it lands in their notifications feed.
+Future<void> _sendUserNotice(
+  BuildContext context,
+  String uid,
+  String name, {
+  required bool warning,
+}) async {
+  final controller = TextEditingController();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(warning ? 'Issue a warning to $name' : 'Message $name'),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        maxLines: 4,
+        decoration: InputDecoration(
+          hintText: warning
+              ? 'Describe the rule violation and what they must do…'
+              : 'Type your instruction or message…',
+          border: const OutlineInputBorder(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(warning ? 'Send warning' : 'Send'),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  final text = controller.text.trim();
+  if (text.isEmpty) return;
+  await FirebaseFirestore.instance
+      .collection('users')
+      .doc(uid)
+      .collection('notifications')
+      .add({
+        'title': warning
+            ? '⚠️ Warning from PakBazar'
+            : '📢 Message from PakBazar admin',
+        'body': text,
+        'type': warning ? 'warning' : 'admin',
+        'read': false,
+        'createdAt': Timestamp.now(),
+      });
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          warning ? 'Warning sent to $name' : 'Message sent to $name',
+        ),
+      ),
+    );
+  }
+}
+
+/// Admin → suspend (block) or reinstate (unblock) a user platform-wide. Sets
+/// the `blocked` flag on their profile (enforced by Firestore rules + AuthGate)
+/// and notifies them of the decision.
+Future<void> _toggleUserBlock(
+  BuildContext context,
+  DocumentReference ref,
+  String name,
+  bool currentlyBlocked,
+) async {
+  final block = !currentlyBlocked;
+  final controller = TextEditingController();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(block ? 'Block $name?' : 'Unblock $name?'),
+      content: block
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'They will be signed out and cannot post, buy, make offers '
+                  'or chat until unblocked.',
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    hintText: 'Reason (shown to the user)…',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            )
+          : const Text('They will regain full access to the platform.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: block ? Colors.red : null,
+          ),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(block ? 'Block' : 'Unblock'),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  await ref.update({
+    'blocked': block,
+    'blockedAt': block ? Timestamp.now() : FieldValue.delete(),
+  });
+  final reason = controller.text.trim();
+  await ref.collection('notifications').add({
+    'title': block
+        ? '⛔ Your account has been suspended'
+        : '✅ Your account has been restored',
+    'body': block
+        ? (reason.isEmpty
+              ? 'An administrator has suspended your account for violating '
+                    'PakBazar rules.'
+              : 'Suspended for: $reason')
+        : 'Your account has been reinstated. Welcome back!',
+    'type': block ? 'warning' : 'admin',
+    'read': false,
+    'createdAt': Timestamp.now(),
+  });
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(block ? '$name has been blocked' : '$name has been unblocked'),
+      ),
+    );
+  }
+}
+
 class _AdminUsersTab extends StatelessWidget {
   const _AdminUsersTab();
 
@@ -1273,6 +1415,7 @@ class _AdminUsersTab extends StatelessWidget {
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
             final isBusiness = d['isBusiness'] == true;
+            final blocked = d['blocked'] == true;
             final name = isBusiness && (d['businessName']?.toString() ?? '').isNotEmpty
                 ? d['businessName'].toString()
                 : (d['email']?.toString() ?? '(guest)');
@@ -1281,10 +1424,13 @@ class _AdminUsersTab extends StatelessWidget {
               child: ListTile(
                 dense: true,
                 leading: CircleAvatar(
-                  backgroundColor: kPakGreen.withValues(alpha: 0.12),
+                  backgroundColor: (blocked ? Colors.red : kPakGreen)
+                      .withValues(alpha: 0.12),
                   child: Icon(
-                    isBusiness ? Icons.storefront : Icons.person,
-                    color: kPakGreen,
+                    blocked
+                        ? Icons.block
+                        : (isBusiness ? Icons.storefront : Icons.person),
+                    color: blocked ? Colors.red : kPakGreen,
                   ),
                 ),
                 title: Text(
@@ -1295,20 +1441,42 @@ class _AdminUsersTab extends StatelessWidget {
                 subtitle: Text(
                   'Wallet ${formatPrice('$balance')}'
                   '${isBusiness ? ' · Business' : ''}'
-                  '${d['featuredBusiness'] == true ? ' · ★Featured' : ''}',
+                  '${d['featuredBusiness'] == true ? ' · ★Featured' : ''}'
+                  '${blocked ? ' · ⛔ BLOCKED' : ''}',
+                  style: blocked
+                      ? const TextStyle(color: Colors.red)
+                      : null,
                 ),
-                trailing: isBusiness
-                    ? IconButton(
-                        tooltip: d['featuredBusiness'] == true
-                            ? 'Unfeature business'
-                            : 'Feature business (3 months)',
-                        icon: Icon(
-                          d['featuredBusiness'] == true
-                              ? Icons.star
-                              : Icons.star_border,
-                          color: kGold,
-                        ),
-                        onPressed: () => docs[i].reference.update(
+                trailing: PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (v) {
+                    switch (v) {
+                      case 'message':
+                        _sendUserNotice(
+                          context,
+                          docs[i].id,
+                          name,
+                          warning: false,
+                        );
+                        break;
+                      case 'warn':
+                        _sendUserNotice(
+                          context,
+                          docs[i].id,
+                          name,
+                          warning: true,
+                        );
+                        break;
+                      case 'block':
+                        _toggleUserBlock(
+                          context,
+                          docs[i].reference,
+                          name,
+                          blocked,
+                        );
+                        break;
+                      case 'feature':
+                        docs[i].reference.update(
                           d['featuredBusiness'] == true
                               ? {'featuredBusiness': false}
                               : {
@@ -1319,9 +1487,60 @@ class _AdminUsersTab extends StatelessWidget {
                                     ),
                                   ),
                                 },
+                        );
+                        break;
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: 'message',
+                      child: Row(
+                        children: [
+                          Icon(Icons.campaign_outlined,
+                              size: 20, color: kPakGreen),
+                          SizedBox(width: 10),
+                          Text('Send message'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'warn',
+                      child: Row(
+                        children: [
+                          Icon(Icons.warning_amber_rounded,
+                              size: 20, color: Colors.red),
+                          SizedBox(width: 10),
+                          Text('Issue warning'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'block',
+                      child: Row(
+                        children: [
+                          Icon(blocked ? Icons.lock_open : Icons.block,
+                              size: 20,
+                              color: blocked ? Colors.green : Colors.red),
+                          const SizedBox(width: 10),
+                          Text(blocked ? 'Unblock user' : 'Block user'),
+                        ],
+                      ),
+                    ),
+                    if (isBusiness)
+                      PopupMenuItem(
+                        value: 'feature',
+                        child: Row(
+                          children: [
+                            const Icon(Icons.star, size: 20, color: kGold),
+                            const SizedBox(width: 10),
+                            Text(d['featuredBusiness'] == true
+                                ? 'Unfeature business'
+                                : 'Feature business'),
+                          ],
                         ),
-                      )
-                    : const Icon(Icons.chevron_right),
+                      ),
+                  ],
+                ),
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(

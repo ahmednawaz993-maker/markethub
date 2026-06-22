@@ -16,8 +16,25 @@ IconData _notificationIcon(String type) {
       return Icons.person_add_alt;
     case 'priceDrop':
       return Icons.local_fire_department;
+    case 'warning':
+      return Icons.warning_amber_rounded;
+    case 'admin':
+      return Icons.campaign_outlined;
     default:
       return Icons.notifications;
+  }
+}
+
+/// Accent colour for a notification by type — warnings stand out in red, admin
+/// notices in gold, everything else in the brand navy.
+Color _notificationColor(String type) {
+  switch (type) {
+    case 'warning':
+      return Colors.red.shade700;
+    case 'admin':
+      return kGold;
+    default:
+      return kPakGreen;
   }
 }
 
@@ -121,11 +138,12 @@ class NotificationsScreen extends StatelessWidget {
                     final d = docs[i].data() as Map<String, dynamic>;
                     final read = d['read'] == true;
                     final type = d['type']?.toString() ?? '';
+                    final accent = _notificationColor(type);
                     return ListTile(
-                      tileColor: read ? null : kPakGreen.withValues(alpha: 0.06),
+                      tileColor: read ? null : accent.withValues(alpha: 0.06),
                       leading: CircleAvatar(
-                        backgroundColor: kPakGreen.withValues(alpha: 0.12),
-                        child: Icon(_notificationIcon(type), color: kPakGreen),
+                        backgroundColor: accent.withValues(alpha: 0.12),
+                        child: Icon(_notificationIcon(type), color: accent),
                       ),
                       title: Text(
                         d['title']?.toString() ?? '',
