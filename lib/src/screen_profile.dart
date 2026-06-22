@@ -1632,6 +1632,17 @@ class ProfileScreen extends StatelessWidget {
                     OutlinedButton.icon(
                       onPressed: () => Navigator.push(
                         context,
+                        MaterialPageRoute(
+                          builder: (_) => const SalesDashboardScreen(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.insights),
+                      label: const Text('Sales & Earnings'),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
                         MaterialPageRoute(builder: (_) => const OffersScreen()),
                       ),
                       icon: const Icon(Icons.local_offer),

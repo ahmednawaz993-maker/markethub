@@ -22,6 +22,293 @@ Widget _statusChip(String label, Color color) {
   );
 }
 
+/// Seller-facing sales & earnings dashboard: realized earnings, gross sales,
+/// commission paid, money held in escrow, pending COD, wallet balance, and a
+/// 6-month earnings trend. All figures are the signed-in seller's own.
+class SalesDashboardScreen extends StatelessWidget {
+  const SalesDashboardScreen({super.key});
+
+  static const _realized = {'released', 'completed'};
+
+  Widget _metric(String label, String value, IconData icon, Color color) {
+    return Container(
+      width: 150,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Sales & Earnings')),
+        body: const Center(child: Text('Please log in')),
+      );
+    }
+    return Scaffold(
+      appBar: AppBar(title: const Text('Sales & Earnings')),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('orders')
+            .where('sellerId', isEqualTo: uid)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final orders = snapshot.data!.docs
+              .map((d) => d.data() as Map<String, dynamic>)
+              .toList();
+
+          double earnings = 0, gross = 0, commissionPaid = 0, inEscrow = 0;
+          double codPending = 0;
+          int sold = 0, escrowCount = 0, codCount = 0;
+
+          // Last 6 months earnings buckets (oldest -> newest).
+          final now = DateTime.now();
+          final months = [
+            for (int i = 5; i >= 0; i--) DateTime(now.year, now.month - i, 1),
+          ];
+          final monthEarn = {for (final m in months) '${m.year}-${m.month}': 0.0};
+
+          for (final o in orders) {
+            final status = o['status']?.toString() ?? '';
+            final amount = (o['amount'] as num?)?.toDouble() ?? 0;
+            final payout = (o['sellerPayout'] as num?)?.toDouble() ?? amount;
+            final comm = (o['commission'] as num?)?.toDouble() ?? 0;
+            if (_realized.contains(status)) {
+              earnings += payout;
+              gross += amount;
+              commissionPaid += comm;
+              sold++;
+              final ts =
+                  (o['completedAt'] ?? o['createdAt']) as Timestamp?;
+              if (ts != null) {
+                final d = ts.toDate();
+                final key = '${d.year}-${d.month}';
+                if (monthEarn.containsKey(key)) {
+                  monthEarn[key] = monthEarn[key]! + payout;
+                }
+              }
+            } else if (status == 'in_escrow') {
+              inEscrow += payout;
+              escrowCount++;
+            } else if (status == 'cod_pending') {
+              codPending += amount;
+              codCount++;
+            }
+          }
+
+          final maxMonth = monthEarn.values.fold<double>(
+            0,
+            (a, b) => b > a ? b : a,
+          );
+
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // Headline earnings.
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [kPakGreen, kPakGreenLight],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Total earnings',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      formatPrice(earnings.toStringAsFixed(0)),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 30,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$sold item(s) sold · after 2% commission',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _metric('Gross sales', formatPrice(gross.toStringAsFixed(0)),
+                      Icons.point_of_sale, kPakGreen),
+                  _metric('Commission paid',
+                      formatPrice(commissionPaid.toStringAsFixed(0)),
+                      Icons.percent, Colors.deepOrange),
+                  _metric('In escrow ($escrowCount)',
+                      formatPrice(inEscrow.toStringAsFixed(0)),
+                      Icons.lock_clock, Colors.blue),
+                  _metric('COD pending ($codCount)',
+                      formatPrice(codPending.toStringAsFixed(0)),
+                      Icons.local_shipping, Colors.purple),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Wallet balance (separate stream on the user doc).
+              StreamBuilder<DocumentSnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(uid)
+                    .snapshots(),
+                builder: (context, us) {
+                  final bal = ((us.data?.data()
+                          as Map<String, dynamic>?)?['walletBalance'] as num?)
+                      ?.toInt() ??
+                      0;
+                  return Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.account_balance_wallet,
+                          color: kPakGreen),
+                      title: const Text('Available wallet balance'),
+                      subtitle: Text(formatPrice('$bal')),
+                      trailing: TextButton(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const WalletScreen()),
+                        ),
+                        child: const Text('Wallet'),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Earnings — last 6 months',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              const SizedBox(height: 10),
+              if (sold == 0)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(
+                    child: Text(
+                      'No completed sales yet. Your earnings will show here.',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                )
+              else
+                for (final m in months)
+                  _MonthBar(
+                    label: _monthLabel(m),
+                    value: monthEarn['${m.year}-${m.month}'] ?? 0,
+                    max: maxMonth,
+                  ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  static String _monthLabel(DateTime m) {
+    const names = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${names[m.month - 1]} ${m.year % 100}';
+  }
+}
+
+/// A single horizontal earnings bar for the 6-month trend.
+class _MonthBar extends StatelessWidget {
+  final String label;
+  final double value;
+  final double max;
+  const _MonthBar({required this.label, required this.value, required this.max});
+
+  @override
+  Widget build(BuildContext context) {
+    final frac = max <= 0 ? 0.0 : (value / max).clamp(0.0, 1.0);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 56,
+            child: Text(label, style: const TextStyle(fontSize: 12)),
+          ),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, c) => Stack(
+                children: [
+                  Container(
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                  Container(
+                    height: 22,
+                    width: c.maxWidth * frac,
+                    decoration: BoxDecoration(
+                      color: kPakGreen,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 72,
+            child: Text(
+              formatPrice(value.toStringAsFixed(0)),
+              style: const TextStyle(fontSize: 11),
+              textAlign: TextAlign.right,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class SellerAnalyticsScreen extends StatelessWidget {
   const SellerAnalyticsScreen({super.key});
 
