@@ -113,7 +113,8 @@ service cloud.firestore {
                         && noSelfApproval())
                       || onlyBumpsStats()
                       || can('approvals') || can('listings')
-                      || can('featured') || can('promotions')
+                      || ((can('featured') || can('promotions'))
+                          && onlyFeatureFields())
                     );
       allow delete: if isSignedIn()
                     && (resource.data.userId == request.auth.uid
@@ -132,6 +133,13 @@ service cloud.firestore {
         return !request.resource.data.diff(resource.data)
                  .affectedKeys().hasAny(['approvalStatus'])
                || request.resource.data.approvalStatus == 'pending';
+      }
+
+      // Featured/promotions staff may only flip the feature flags on an ad —
+      // not edit its content or approval status (least privilege).
+      function onlyFeatureFields() {
+        return request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(['isFeatured', 'featuredUntil']);
       }
     }
 
@@ -431,7 +439,12 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
     match /config/{docId} {
       allow read: if isSignedIn();
-      allow write: if can('featured') || can('paymentAccount');
+      // The receiving account is money-critical → paymentAccount staff only.
+      // The featuring master switch → featured staff. Anything else → super
+      // admin. (A featured/marketing role must NOT change the payout account.)
+      allow write: if (docId == 'paymentAccount' && can('paymentAccount'))
+                   || (docId == 'featuring' && can('featured'))
+                   || isAdmin();
     }
 
     // ---------------------------------------------------------------------

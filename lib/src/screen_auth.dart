@@ -45,8 +45,8 @@ class _AuthScreenState extends State<AuthScreen> {
   /// (invisible) reCAPTCHA handled by firebase_auth.
   Future<void> sendOtp() async {
     final raw = phoneController.text.trim();
-    if (raw.isEmpty) {
-      setState(() => errorMessage = 'Please enter your phone number');
+    if (normalizePhoneForWhatsApp(raw).length < 11) {
+      setState(() => errorMessage = 'Please enter a valid phone number');
       return;
     }
     // normalizePhoneForWhatsApp -> e.g. '923001234567'; E.164 wants a leading +.
@@ -98,6 +98,9 @@ class _AuthScreenState extends State<AuthScreen> {
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
     final phoneRaw = signupPhoneController.text.trim();
+    // Clear any stale value from an abandoned earlier attempt so it can't
+    // attach to this account.
+    pendingSignupPhone = null;
 
     if (email.isEmpty || password.isEmpty) {
       setState(() => errorMessage = 'Please enter email and password');

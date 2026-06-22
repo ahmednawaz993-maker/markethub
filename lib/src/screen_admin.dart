@@ -7,6 +7,24 @@ class AdminPanelScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Refresh permissions each time the panel opens so a staff member's tabs
+    // reflect the latest grants (and aren't empty due to a cold-start race
+    // where the panel is opened before the startup load finishes).
+    return FutureBuilder<void>(
+      future: loadStaffPermissions(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Admin Panel')),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        return _buildPanel(context);
+      },
+    );
+  }
+
+  Widget _buildPanel(BuildContext context) {
     // Each entry: (permission code | '__super' for super-admin-only, title, tab).
     // Staff see only the tabs they've been granted; the super admin sees all.
     const entries = <(String, String, Widget)>[
