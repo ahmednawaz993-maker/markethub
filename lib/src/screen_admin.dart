@@ -8,7 +8,7 @@ class AdminPanelScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 18,
+      length: 19,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Panel'),
@@ -18,6 +18,7 @@ class AdminPanelScreen extends StatelessWidget {
             isScrollable: true,
             tabs: [
               Tab(text: 'Overview'),
+              Tab(text: 'Approvals'),
               Tab(text: 'Verify ID'),
               Tab(text: 'Payments'),
               Tab(text: 'Escrow'),
@@ -41,6 +42,7 @@ class AdminPanelScreen extends StatelessWidget {
         body: const TabBarView(
           children: [
             _AdminOverviewTab(),
+            _AdminApprovalsTab(),
             _AdminVerificationsTab(),
             _AdminPaymentsTab(),
             _AdminEscrowTab(),
@@ -2726,6 +2728,248 @@ class _AppealActionsState extends State<_AppealActions> {
           onPressed: () => _resolve(approve: true),
           icon: const Icon(Icons.check, size: 18),
           label: const Text('Approve & unblock'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Admin → moderation queue. Lists ads awaiting approval (approvalStatus ==
+/// 'pending'); tap to view the full ad, then Approve (goes live) or Reject
+/// (stays hidden). The seller is notified of the decision.
+class _AdminApprovalsTab extends StatelessWidget {
+  const _AdminApprovalsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('listings')
+          .where('approvalStatus', isEqualTo: 'pending')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Error loading queue: ${snapshot.error}'));
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final at = ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ?? 0;
+            final bt = ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ?? 0;
+            return at.compareTo(bt); // oldest first — clear the queue in order
+          });
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.fact_check_outlined,
+            title: 'No ads awaiting approval',
+            subtitle: 'New ads will appear here for review before going live.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final listing = Listing.fromDoc(docs[i]);
+            final images = listing.galleryImages;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: images.isEmpty
+                          ? const CircleAvatar(child: Icon(Icons.image))
+                          : CircleAvatar(
+                              backgroundImage: NetworkImage(images.first),
+                            ),
+                      title: Text(
+                        listing.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        '${formatPrice(listing.price)}'
+                        '${listing.city.isNotEmpty ? ' · ${listing.city}' : ''}'
+                        '${listing.sellerName.isNotEmpty ? ' · ${listing.sellerName}' : ''}'
+                        '\nPosted ${timeAgo(listing.createdAt)}',
+                      ),
+                      isThreeLine: true,
+                      trailing: TextButton(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                AdDetailsScreen(listing: listing),
+                          ),
+                        ),
+                        child: const Text('View'),
+                      ),
+                    ),
+                    _ListingApprovalActions(
+                      listingRef: docs[i].reference,
+                      sellerId: listing.userId,
+                      title: listing.title,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _ListingApprovalActions extends StatefulWidget {
+  final DocumentReference listingRef;
+  final String sellerId;
+  final String title;
+  const _ListingApprovalActions({
+    required this.listingRef,
+    required this.sellerId,
+    required this.title,
+  });
+
+  @override
+  State<_ListingApprovalActions> createState() =>
+      _ListingApprovalActionsState();
+}
+
+class _ListingApprovalActionsState extends State<_ListingApprovalActions> {
+  bool _busy = false;
+
+  Future<void> _notifySeller(String title, String body, String type) async {
+    if (widget.sellerId.isEmpty) return;
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.sellerId)
+        .collection('notifications')
+        .add({
+          'title': title,
+          'body': body,
+          'type': type,
+          'read': false,
+          'createdAt': Timestamp.now(),
+        });
+  }
+
+  Future<void> _approve() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await widget.listingRef.update({'approvalStatus': 'approved'});
+      await _notifySeller(
+        '✅ Your ad is now live',
+        'Your ad "${widget.title}" was approved and is now visible on PakBazar.',
+        'admin',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ad approved — now live')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not approve: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _reject() async {
+    if (_busy) return;
+    final controller = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reject this ad?'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: 'Reason (shown to the seller)…',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _busy = true);
+    try {
+      await widget.listingRef.update({'approvalStatus': 'rejected'});
+      final reason = controller.text.trim();
+      await _notifySeller(
+        '⚠️ Your ad was not approved',
+        reason.isEmpty
+            ? 'Your ad "${widget.title}" was rejected and is not visible. '
+                  'Please review our rules and post again.'
+            : 'Your ad "${widget.title}" was rejected: $reason',
+        'warning',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ad rejected')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not reject: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_busy) {
+      return const Padding(
+        padding: EdgeInsets.all(6),
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        OutlinedButton.icon(
+          onPressed: _reject,
+          icon: const Icon(Icons.close, color: Colors.red, size: 18),
+          label: const Text('Reject', style: TextStyle(color: Colors.red)),
+        ),
+        const SizedBox(width: 8),
+        ElevatedButton.icon(
+          onPressed: _approve,
+          icon: const Icon(Icons.check, size: 18),
+          label: const Text('Approve'),
         ),
       ],
     );

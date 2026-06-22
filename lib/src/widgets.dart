@@ -489,8 +489,10 @@ class AdsRail extends StatelessWidget {
       stream: stream,
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
-        final listings =
-            snapshot.data!.docs.map((d) => Listing.fromDoc(d)).toList();
+        final listings = snapshot.data!.docs
+            .map((d) => Listing.fromDoc(d))
+            .where((l) => l.isApproved)
+            .toList();
         if (listings.isEmpty) return const SizedBox.shrink();
         final phone = isPhone(context);
 

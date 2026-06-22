@@ -395,6 +395,7 @@ class RecentlyViewedRail extends StatelessWidget {
         if (!snapshot.hasData) return const SizedBox.shrink();
         final items = snapshot.data!.docs
             .map((d) => Listing.fromDoc(d))
+            .where((l) => l.isApproved)
             .toList();
         if (items.length < 2) return const SizedBox.shrink();
         return Column(
@@ -465,7 +466,10 @@ class FollowingRail extends StatelessWidget {
           builder: (context, snapshot) {
             if (!snapshot.hasData) return const SizedBox.shrink();
             final items =
-                snapshot.data!.docs.map((d) => Listing.fromDoc(d)).toList()
+                snapshot.data!.docs
+                    .map((d) => Listing.fromDoc(d))
+                    .where((l) => l.isApproved)
+                    .toList()
                   ..sort((a, b) {
                     final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
                     final bt = b.createdAt?.millisecondsSinceEpoch ?? 0;
@@ -550,7 +554,7 @@ class DealsRail extends StatelessWidget {
         if (!snapshot.hasData) return const SizedBox.shrink();
         final items = snapshot.data!.docs
             .map((d) => Listing.fromDoc(d))
-            .where((l) => !l.isSold && !isHiddenSeller(l.userId))
+            .where((l) => !l.isSold && l.isApproved && !isHiddenSeller(l.userId))
             .toList();
         if (items.length < 2) return const SizedBox.shrink();
         return Column(
@@ -913,6 +917,7 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context, snapshot) {
           var listings = (snapshot.data?.docs ?? [])
               .map((d) => Listing.fromDoc(d))
+              .where((l) => l.isApproved)
               .toList()
             ..sort((a, b) {
               // Available items first, then featured, then the chosen sort.

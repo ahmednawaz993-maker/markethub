@@ -49,15 +49,22 @@ service cloud.firestore {
       allow read: if isSignedIn();
 
       // Posting an ad requires identity verification (admins bypass).
+      // Posting requires verification; new ads MUST start as 'pending' so they
+      // go through admin moderation — only an admin may create a pre-approved ad.
       allow create: if isSignedIn()
                     && request.resource.data.userId == request.auth.uid
                     && isVerifiedUser()
-                    && isNotBlocked();
+                    && isNotBlocked()
+                    && (isAdmin()
+                        || request.resource.data.approvalStatus == 'pending');
 
-      // Owners can edit/delete their ad. Anyone signed in may bump the view
-      // counter, but ONLY the `views` field and nothing else.
+      // Owners can edit/delete their ad, but may never self-approve: an owner
+      // edit must either leave the moderation status untouched or reset it to
+      // 'pending' (re-review). Only an admin can set 'approved'/'rejected'.
+      // Anyone signed in may bump the view/lead counters, but ONLY those.
       allow update: if isSignedIn() && (
-                      resource.data.userId == request.auth.uid
+                      (resource.data.userId == request.auth.uid
+                        && noSelfApproval())
                       || onlyBumpsStats()
                       || isAdmin()
                     );
@@ -69,6 +76,14 @@ service cloud.firestore {
         return request.resource.data.diff(resource.data)
                  .affectedKeys()
                  .hasOnly(['views', 'calls', 'whatsapps', 'chats']);
+      }
+
+      // An owner edit may not move the ad into a live state itself: either the
+      // status is untouched, or it is (re)set to 'pending' for admin review.
+      function noSelfApproval() {
+        return !request.resource.data.diff(resource.data)
+                 .affectedKeys().hasAny(['approvalStatus'])
+               || request.resource.data.approvalStatus == 'pending';
       }
     }
 

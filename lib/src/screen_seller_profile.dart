@@ -325,6 +325,7 @@ class SellerProfileScreen extends StatelessWidget {
 
                 final listings = snapshot.data!.docs
                     .map((d) => Listing.fromDoc(d))
+                    .where((l) => l.isApproved)
                     .toList()
                   ..sort((a, b) {
                     final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
@@ -561,7 +562,10 @@ class FollowingScreen extends StatelessWidget {
                       return const Center(child: CircularProgressIndicator());
                     }
                     final listings =
-                        ls.data!.docs.map((d) => Listing.fromDoc(d)).toList()
+                        ls.data!.docs
+                            .map((d) => Listing.fromDoc(d))
+                            .where((l) => l.isApproved)
+                            .toList()
                           ..sort((a, b) {
                             final at =
                                 a.createdAt?.millisecondsSinceEpoch ?? 0;

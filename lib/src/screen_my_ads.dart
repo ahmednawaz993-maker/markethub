@@ -2,6 +2,26 @@ part of '../main.dart';
 
 // My ads, seller analytics and editing.
 
+/// Small coloured pill used on My Ads to show an ad's moderation status.
+Widget _statusChip(String label, Color color) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.15),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: color),
+    ),
+    child: Text(
+      label,
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        color: color,
+      ),
+    ),
+  );
+}
+
 class SellerAnalyticsScreen extends StatelessWidget {
   const SellerAnalyticsScreen({super.key});
 
@@ -322,6 +342,13 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                         const SizedBox(width: 6),
                         const Icon(Icons.star, size: 16, color: kGold),
                       ],
+                      if (listing.approvalStatus == 'pending') ...[
+                        const SizedBox(width: 6),
+                        _statusChip('Pending review', Colors.orange),
+                      ] else if (listing.approvalStatus == 'rejected') ...[
+                        const SizedBox(width: 6),
+                        _statusChip('Rejected', Colors.red),
+                      ],
                     ],
                   ),
                   subtitle: Text(
@@ -640,11 +667,19 @@ class _EditListingScreenState extends State<EditListingScreen> {
         data['previousPrice'] = '';
         data['priceDropAt'] = FieldValue.delete();
       }
+      // Any edit re-enters the moderation queue so changes are reviewed before
+      // going live again (also lets a rejected ad be resubmitted by editing).
+      data['approvalStatus'] = 'pending';
       await FirebaseFirestore.instance
           .collection('listings')
           .doc(widget.listing.id)
           .update(data);
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Saved — your ad will be reviewed before going live'),
+        ),
+      );
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;

@@ -481,7 +481,8 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
           matchesSold &&
           matchesCondition &&
           matchesNegotiable &&
-          notBlocked;
+          notBlocked &&
+          listing.isApproved;
     }).toList();
 
     result.sort((a, b) {

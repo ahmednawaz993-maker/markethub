@@ -35,6 +35,7 @@ class Listing {
   Timestamp? createdAt;
   String previousPrice; // the price before the most recent reduction (optional)
   Timestamp? priceDropAt; // when the price was last reduced (optional)
+  String approvalStatus; // '', 'pending', 'approved', or 'rejected'
 
   Listing({
     required this.id,
@@ -69,9 +70,16 @@ class Listing {
     this.createdAt,
     this.previousPrice = '',
     this.priceDropAt,
+    this.approvalStatus = '',
   });
 
   bool get hasCoordinates => latitude != null && longitude != null;
+
+  /// Whether an ad is cleared for public display. New ads await admin approval
+  /// (`approvalStatus == 'pending'`) and rejected ads stay hidden. Ads created
+  /// before moderation existed have no status and are treated as approved.
+  bool get isApproved =>
+      approvalStatus != 'pending' && approvalStatus != 'rejected';
 
   /// True if the price was reduced within the last 30 days — drives the
   /// "Price dropped" badge and the struck-through old price on cards.
@@ -174,6 +182,7 @@ class Listing {
       priceDropAt: data['priceDropAt'] is Timestamp
           ? data['priceDropAt'] as Timestamp
           : null,
+      approvalStatus: data['approvalStatus']?.toString() ?? '',
     );
   }
 }

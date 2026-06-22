@@ -843,6 +843,7 @@ class _PriceInsight extends StatelessWidget {
                   (l) =>
                       l.id != listing.id &&
                       !l.isSold &&
+                      l.isApproved &&
                       (!sameSub || l.subcategory == listing.subcategory),
                 )
                 .map((l) => parsePrice(l.price))
@@ -941,7 +942,7 @@ class _SimilarAds extends StatelessWidget {
 
         final items = snapshot.data!.docs
             .map((d) => Listing.fromDoc(d))
-            .where((l) => l.id != listing.id)
+            .where((l) => l.id != listing.id && l.isApproved)
             .toList()
           ..sort((a, b) {
             final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
