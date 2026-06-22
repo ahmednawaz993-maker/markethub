@@ -1179,6 +1179,40 @@ class _VerificationActionsState extends State<_VerificationActions> {
   }
 }
 
+/// Test helper (super admin): seeds one completed sample order so the GMV /
+/// earnings trend charts and dashboards have data to display. Creates the order
+/// as 'pending_payment' (allowed for the signed-in buyer) then flips it to
+/// 'released' (allowed for admin). Safe to remove once you have real data.
+Future<void> _seedSampleOrder(BuildContext context) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return;
+  try {
+    final fs = FirebaseFirestore.instance;
+    const amount = 5000.0;
+    final commission = amount * commissionRate;
+    final ref = await fs.collection('orders').add({
+      'listingTitle': 'TEST ORDER (sample)',
+      'listingImage': '',
+      'sellerId': uid,
+      'sellerName': 'Test seller',
+      'buyerId': uid,
+      'buyerName': 'Test buyer',
+      'amount': amount,
+      'commission': commission,
+      'sellerPayout': amount - commission,
+      'status': 'pending_payment',
+      'createdAt': Timestamp.now(),
+    });
+    await ref.update({'status': 'released', 'completedAt': Timestamp.now()});
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Seeded a sample released order ✓')),
+    );
+  } catch (e) {
+    messenger.showSnackBar(SnackBar(content: Text('Seed failed: $e')));
+  }
+}
+
 /// Platform-wide inspection dashboard: live counts and money across the app.
 class _AdminOverviewTab extends StatelessWidget {
   const _AdminOverviewTab();
@@ -1317,6 +1351,14 @@ class _AdminOverviewTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: () => _seedSampleOrder(context),
+            icon: const Icon(Icons.science_outlined, size: 18),
+            label: const Text('Seed sample order (test)'),
+          ),
+        ),
         _section('Users', fs.collection('users').snapshots(), (docs) {
           int business = 0;
           num float = 0;
