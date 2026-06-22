@@ -8,7 +8,7 @@ class AdminPanelScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 16,
+      length: 17,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Panel'),
@@ -33,6 +33,7 @@ class AdminPanelScreen extends StatelessWidget {
               Tab(text: 'Offers'),
               Tab(text: 'Purchases'),
               Tab(text: 'Listings'),
+              Tab(text: 'Chats'),
             ],
           ),
         ),
@@ -54,6 +55,7 @@ class AdminPanelScreen extends StatelessWidget {
             _AdminOffersTab(),
             _AdminPurchasesTab(),
             _AdminListingsTab(),
+            _AdminChatsTab(),
           ],
         ),
       ),
@@ -2151,6 +2153,145 @@ class _AdminListingsTab extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+/// Admin chat monitoring: lists every buyer↔seller conversation on the
+/// platform (most recent first), searchable by participant or ad. Tapping a
+/// row opens the full thread read-only (ChatScreen in adminView mode).
+class _AdminChatsTab extends StatefulWidget {
+  const _AdminChatsTab();
+
+  @override
+  State<_AdminChatsTab> createState() => _AdminChatsTabState();
+}
+
+class _AdminChatsTabState extends State<_AdminChatsTab> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+          child: TextField(
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              hintText: 'Search by buyer, seller or ad…',
+              isDense: true,
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('chats')
+                .orderBy('lastTime', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('Error loading chats: ${snapshot.error}'));
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              var docs = snapshot.data!.docs;
+              if (_query.isNotEmpty) {
+                docs = docs.where((d) {
+                  final m = d.data() as Map<String, dynamic>;
+                  final hay = [
+                    m['buyerName'],
+                    m['sellerName'],
+                    m['listingTitle'],
+                    m['lastMessage'],
+                  ].map((e) => e?.toString().toLowerCase() ?? '').join(' ');
+                  return hay.contains(_query);
+                }).toList();
+              }
+
+              if (docs.isEmpty) {
+                return const EmptyState(
+                  icon: Icons.forum_outlined,
+                  title: 'No chats',
+                  subtitle: 'Buyer–seller conversations will appear here.',
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: docs.length,
+                itemBuilder: (context, i) {
+                  final data = docs[i].data() as Map<String, dynamic>;
+                  final buyerName = data['buyerName']?.toString() ?? 'Buyer';
+                  final sellerName = data['sellerName']?.toString() ?? 'Seller';
+                  final listingImage = data['listingImage']?.toString() ?? '';
+                  final lastTime = data['lastTime'] as Timestamp?;
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: ListTile(
+                      leading: listingImage.isEmpty
+                          ? const CircleAvatar(child: Icon(Icons.forum))
+                          : CircleAvatar(
+                              backgroundImage: NetworkImage(listingImage),
+                            ),
+                      title: Text('$buyerName  ↔  $sellerName'),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            data['listingTitle']?.toString() ?? '',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          Text(
+                            data['lastMessage']?.toString() ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (lastTime != null)
+                            Text(
+                              timeAgo(lastTime),
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey,
+                              ),
+                            ),
+                        ],
+                      ),
+                      isThreeLine: true,
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ChatScreen(
+                            chatId: data['chatId']?.toString() ?? docs[i].id,
+                            listingId: data['listingId']?.toString() ?? '',
+                            listingTitle: data['listingTitle']?.toString() ?? '',
+                            listingImage: listingImage,
+                            buyerId: data['buyerId']?.toString() ?? '',
+                            sellerId: data['sellerId']?.toString() ?? '',
+                            buyerName: buyerName,
+                            sellerName: sellerName,
+                            adminView: true,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

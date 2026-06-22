@@ -198,6 +198,10 @@ class ChatScreen extends StatefulWidget {
   final String buyerName;
   final String sellerName;
 
+  /// Read-only monitoring mode for admins: shows the whole thread (both sides)
+  /// but hides the composer so the admin cannot post into the conversation.
+  final bool adminView;
+
   const ChatScreen({
     super.key,
     required this.chatId,
@@ -208,6 +212,7 @@ class ChatScreen extends StatefulWidget {
     required this.sellerId,
     required this.buyerName,
     required this.sellerName,
+    this.adminView = false,
   });
 
   @override
@@ -306,9 +311,9 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    final otherName = widget.buyerId == uid
-        ? widget.sellerName
-        : widget.buyerName;
+    final otherName = widget.adminView
+        ? '${widget.buyerName} ↔ ${widget.sellerName}'
+        : (widget.buyerId == uid ? widget.sellerName : widget.buyerName);
 
     return Scaffold(
       appBar: AppBar(
@@ -325,6 +330,24 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
+          if (widget.adminView)
+            Container(
+              width: double.infinity,
+              color: kGold.withValues(alpha: 0.18),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: const [
+                  Icon(Icons.visibility_outlined, size: 18, color: kPakGreen),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Admin monitoring — read only. You cannot send messages here.',
+                      style: TextStyle(fontSize: 12, color: kPakGreen),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: chatRef
@@ -363,7 +386,17 @@ class _ChatScreenState extends State<ChatScreen> {
                   itemBuilder: (context, index) {
                     final data =
                         messages[index].data() as Map<String, dynamic>;
-                    final isMine = data['senderId'] == uid;
+                    // In admin (monitoring) mode the viewer is neither party, so
+                    // anchor the seller's messages right and the buyer's left and
+                    // label who said what; otherwise it's the usual "me vs them".
+                    final isMine = widget.adminView
+                        ? data['senderId'] == widget.sellerId
+                        : data['senderId'] == uid;
+                    final senderLabel = widget.adminView
+                        ? (data['senderId'] == widget.sellerId
+                            ? widget.sellerName
+                            : widget.buyerName)
+                        : null;
 
                     return Align(
                       alignment: isMine
@@ -392,6 +425,20 @@ class _ChatScreenState extends State<ChatScreen> {
                               ? CrossAxisAlignment.end
                               : CrossAxisAlignment.start,
                           children: [
+                            if (senderLabel != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 3),
+                                child: Text(
+                                  senderLabel,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: isMine
+                                        ? Colors.white70
+                                        : Colors.black54,
+                                  ),
+                                ),
+                              ),
                             if ((data['imageUrl']?.toString() ?? '').isNotEmpty)
                               GestureDetector(
                                 onTap: () => Navigator.push(
@@ -442,6 +489,7 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
+          if (!widget.adminView)
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(8),
