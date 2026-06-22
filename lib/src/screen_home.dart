@@ -754,7 +754,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    ensureUserDoc();
+    // Ensure the profile exists first, then run the one-time location prompt so
+    // the two writes don't race (ensureUserDoc does a non-merge set on create).
+    ensureUserDoc().then((_) => maybePromptLocation());
     loadFavorites();
     loadBlocked();
     loadPlatformBlockedUsers().then((_) {
@@ -789,6 +791,57 @@ class _HomeScreenState extends State<HomeScreen> {
       // Keep the public "Verified" badge in sync with email verification.
       await ref.set({'verified': user.emailVerified}, SetOptions(merge: true));
     }
+  }
+
+  /// One-time, post-login prompt asking the user to share their location. We
+  /// remember that we asked (`locationAsked`) so it never shows again, whether
+  /// they accept or decline. On accept we capture GPS and save it to the
+  /// profile (visible to admins).
+  Future<void> maybePromptLocation() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final ref = FirebaseFirestore.instance.collection('users').doc(uid);
+      final snap = await ref.get();
+      if (snap.data()?['locationAsked'] == true) return;
+      if (!mounted) return;
+      final share = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.location_on, color: kPakGreen, size: 44),
+          title: const Text('Share your location?'),
+          content: const Text(
+            'Allow PakBazar to use your location to show nearby ads and help '
+            'keep the marketplace safe. You can turn this off anytime in your '
+            'browser settings.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Not now'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Share location'),
+            ),
+          ],
+        ),
+      );
+      // Mark as asked regardless of the choice so this stays a one-time prompt.
+      await ref.set({'locationAsked': true}, SetOptions(merge: true));
+      if (share == true) {
+        try {
+          final pos = await determineCurrentPosition();
+          await saveUserLocation(lat: pos.latitude, lng: pos.longitude);
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Could not get your location: $e')),
+            );
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> loadFavorites() async {
