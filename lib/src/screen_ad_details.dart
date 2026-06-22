@@ -831,6 +831,7 @@ class _PriceInsight extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('listings')
           .where('category', isEqualTo: listing.category)
+          .where('approvalStatus', isEqualTo: 'approved')
           .limit(50)
           .snapshots(),
       builder: (context, snapshot) {
@@ -935,6 +936,7 @@ class _SimilarAds extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('listings')
           .where('category', isEqualTo: listing.category)
+          .where('approvalStatus', isEqualTo: 'approved')
           .limit(12)
           .snapshots(),
       builder: (context, snapshot) {

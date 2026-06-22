@@ -462,6 +462,7 @@ class FollowingRail extends StatelessWidget {
           stream: FirebaseFirestore.instance
               .collection('listings')
               .where('userId', whereIn: ids)
+              .where('approvalStatus', isEqualTo: 'approved')
               .snapshots(),
           builder: (context, snapshot) {
             if (!snapshot.hasData) return const SizedBox.shrink();
@@ -546,6 +547,7 @@ class DealsRail extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('listings')
+          .where('approvalStatus', isEqualTo: 'approved')
           .where('priceDropAt', isGreaterThan: cutoff)
           .orderBy('priceDropAt', descending: true)
           .limit(15)
@@ -911,6 +913,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('listings')
+            .where('approvalStatus', isEqualTo: 'approved')
             .orderBy('createdAt', descending: true)
             .limit(60)
             .snapshots(),
@@ -1481,6 +1484,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       stream: FirebaseFirestore.instance
                           .collection('listings')
                           .where('isFeatured', isEqualTo: true)
+                          .where('approvalStatus', isEqualTo: 'approved')
                           .limit(10)
                           .snapshots(),
                     ),
@@ -1489,6 +1493,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: Icons.local_fire_department,
                     stream: FirebaseFirestore.instance
                         .collection('listings')
+                        .where('approvalStatus', isEqualTo: 'approved')
                         .where(
                           'priceDropAt',
                           isGreaterThan: Timestamp.fromDate(
@@ -1503,6 +1508,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     title: 'Latest Ads',
                     stream: FirebaseFirestore.instance
                         .collection('listings')
+                        .where('approvalStatus', isEqualTo: 'approved')
                         .orderBy('createdAt', descending: true)
                         .limit(10)
                         .snapshots(),
@@ -1512,6 +1518,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: Icons.trending_up,
                     stream: FirebaseFirestore.instance
                         .collection('listings')
+                        .where('approvalStatus', isEqualTo: 'approved')
                         .orderBy('views', descending: true)
                         .limit(10)
                         .snapshots(),

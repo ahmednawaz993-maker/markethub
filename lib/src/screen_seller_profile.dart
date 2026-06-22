@@ -317,6 +317,7 @@ class SellerProfileScreen extends StatelessWidget {
               stream: FirebaseFirestore.instance
                   .collection('listings')
                   .where('userId', isEqualTo: sellerId)
+                  .where('approvalStatus', isEqualTo: 'approved')
                   .snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
@@ -556,6 +557,7 @@ class FollowingScreen extends StatelessWidget {
                   stream: FirebaseFirestore.instance
                       .collection('listings')
                       .where('userId', whereIn: ids)
+                      .where('approvalStatus', isEqualTo: 'approved')
                       .snapshots(),
                   builder: (context, ls) {
                     if (!ls.hasData) {

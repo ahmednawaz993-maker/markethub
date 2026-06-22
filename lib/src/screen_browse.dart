@@ -200,6 +200,8 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     if (widget.category != null && widget.category != 'All') {
       q = q.where('category', isEqualTo: widget.category);
     }
+    // Read-level moderation: only approved ads are fetched for public browsing.
+    q = q.where('approvalStatus', isEqualTo: 'approved');
     _listingsStream = q
         .orderBy('createdAt', descending: true)
         .limit(100)

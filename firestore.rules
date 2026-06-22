@@ -44,9 +44,15 @@ service cloud.firestore {
     // Listings
     // ---------------------------------------------------------------------
     match /listings/{listingId} {
-      // The app gates all browsing behind auth (guest or email), so require a
-      // signed-in user. Relax to `if true;` if you later want public/SEO reads.
-      allow read: if isSignedIn();
+      // Read-level moderation: a signed-in user may read an ad only if it is
+      // approved, it is their own (owner sees their pending/rejected ads in My
+      // Ads), or they are an admin. Public list queries MUST filter by
+      // `approvalStatus == 'approved'`; owner queries filter by `userId`.
+      allow read: if isSignedIn() && (
+                    isAdmin()
+                    || resource.data.userId == request.auth.uid
+                    || resource.data.approvalStatus == 'approved'
+                  );
 
       // Posting an ad requires identity verification (admins bypass).
       // Posting requires verification; new ads MUST start as 'pending' so they
