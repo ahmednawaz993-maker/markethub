@@ -29,6 +29,7 @@ class AdminPanelScreen extends StatelessWidget {
     // Staff see only the tabs they've been granted; the super admin sees all.
     const entries = <(String, String, Widget)>[
       ('__super', 'Overview', _AdminOverviewTab()),
+      ('__super', 'Staff', _AdminStaffTab()),
       ('approvals', 'Approvals', _AdminApprovalsTab()),
       ('verifyId', 'Verify ID', _AdminVerificationsTab()),
       ('payments', 'Payments', _AdminPaymentsTab()),
@@ -47,7 +48,6 @@ class AdminPanelScreen extends StatelessWidget {
       ('listings', 'Listings', _AdminListingsTab()),
       ('chats', 'Chats', _AdminChatsTab()),
       ('appeals', 'Appeals', _AdminAppealsTab()),
-      ('__super', 'Staff', _AdminStaffTab()),
     ];
     final visible = entries.where((e) {
       return e.$1 == '__super' ? isSuperAdmin() : hasAdminPerm(e.$1);
@@ -3171,22 +3171,37 @@ Future<void> _editStaffDialog(
                   onChanged: (v) => setLocal(() => isActive = v),
                 ),
                 const Divider(),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Permissions',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                Row(
+                  children: [
+                    const Text(
+                      'Permissions',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => setLocal(
+                        () => selected.addAll(kAdminAreas.map((a) => a.$1)),
+                      ),
+                      child: const Text('Enable all'),
+                    ),
+                    TextButton(
+                      onPressed: () => setLocal(selected.clear),
+                      child: const Text('Clear'),
+                    ),
+                  ],
+                ),
+                const Text(
+                  'Turn on only what this staff member should manage.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 for (final area in kAdminAreas)
-                  CheckboxListTile(
+                  SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     dense: true,
-                    controlAffinity: ListTileControlAffinity.leading,
                     title: Text(area.$2),
                     value: selected.contains(area.$1),
                     onChanged: (v) => setLocal(() {
-                      if (v == true) {
+                      if (v) {
                         selected.add(area.$1);
                       } else {
                         selected.remove(area.$1);
