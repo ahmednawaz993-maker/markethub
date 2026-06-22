@@ -550,7 +550,7 @@ class DealsRail extends StatelessWidget {
         if (!snapshot.hasData) return const SizedBox.shrink();
         final items = snapshot.data!.docs
             .map((d) => Listing.fromDoc(d))
-            .where((l) => !l.isSold && !blockedUserIds.contains(l.userId))
+            .where((l) => !l.isSold && !isHiddenSeller(l.userId))
             .toList();
         if (items.length < 2) return const SizedBox.shrink();
         return Column(
@@ -757,6 +757,9 @@ class _HomeScreenState extends State<HomeScreen> {
     ensureUserDoc();
     loadFavorites();
     loadBlocked();
+    loadPlatformBlockedUsers().then((_) {
+      if (mounted) setState(() {});
+    });
     setupPushNotifications();
   }
 
@@ -880,9 +883,9 @@ class _HomeScreenState extends State<HomeScreen> {
             listings =
                 listings.where((l) => l.city == homeCity).toList();
           }
-          if (blockedUserIds.isNotEmpty) {
+          if (blockedUserIds.isNotEmpty || platformBlockedUserIds.isNotEmpty) {
             listings = listings
-                .where((l) => !blockedUserIds.contains(l.userId))
+                .where((l) => !isHiddenSeller(l.userId))
                 .toList();
           }
           final featured = listings.where((l) => l.isCurrentlyFeatured).toList();

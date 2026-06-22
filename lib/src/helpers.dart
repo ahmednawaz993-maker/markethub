@@ -56,6 +56,21 @@ Future<void> loadFeaturingFlag() async {
   } catch (_) {}
 }
 
+/// Loads the set of admin-suspended (platform-blocked) users so their listings
+/// can be hidden from everyone's feeds and search results. Refreshed at startup.
+Future<void> loadPlatformBlockedUsers() async {
+  try {
+    final snap = await FirebaseFirestore.instance
+        .collection('users')
+        .where('blocked', isEqualTo: true)
+        .limit(1000)
+        .get();
+    platformBlockedUserIds
+      ..clear()
+      ..addAll(snap.docs.map((d) => d.id));
+  } catch (_) {}
+}
+
 bool isAdminUser() =>
     adminEmails.contains(FirebaseAuth.instance.currentUser?.email);
 

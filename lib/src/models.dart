@@ -183,3 +183,13 @@ final List<Listing> favoriteListings = [];
 /// Users the current user has blocked — their ads/chats are hidden. Loaded at
 /// startup (loadBlocked) and kept in sync by blockUser/unblockUser.
 final Set<String> blockedUserIds = <String>{};
+
+/// Users an admin has suspended platform-wide (profile `blocked: true`). Their
+/// listings are hidden from everyone's feeds/search. Loaded at startup
+/// (loadPlatformBlockedUsers); separate from the personal [blockedUserIds].
+final Set<String> platformBlockedUserIds = <String>{};
+
+/// True if a listing's seller is hidden for the current viewer — either the
+/// viewer personally blocked them, or an admin suspended them platform-wide.
+bool isHiddenSeller(String? userId) =>
+    blockedUserIds.contains(userId) || platformBlockedUserIds.contains(userId);

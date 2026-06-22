@@ -470,7 +470,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
       final matchesCondition =
           conditionFilter == 'Any' || listing.condition == conditionFilter;
       final matchesNegotiable = !negotiableOnly || listing.negotiable;
-      final notBlocked = !blockedUserIds.contains(listing.userId);
+      final notBlocked = !isHiddenSeller(listing.userId);
 
       return matchesSearch &&
           matchesSub &&
