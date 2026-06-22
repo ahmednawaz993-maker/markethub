@@ -983,38 +983,76 @@ class TrustSafetyScreen extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.fromLTRB(4, 4, 4, 12),
             child: Text(
-              'PakBazar is a safer marketplace when everyone follows a few simple '
-              'rules. These protect both buyers and sellers.',
+              'These are the rules every PakBazar member agrees to. Buyers and '
+              'sellers each have matching responsibilities at every step of a '
+              'deal — follow them to keep the marketplace safe and fair.',
               style: TextStyle(color: Colors.grey),
             ),
           ),
           _card(Icons.verified_user, 'For everyone', kPakGreen, const [
+            'Be honest and respectful — no harassment, threats, hate speech, '
+                'or discrimination.',
+            'Keep every chat, offer, and payment on PakBazar so there is a '
+                'record — never move a deal off the app.',
+            'Never share OTPs, passwords, CNIC numbers, or card PINs with '
+                'anyone, for any reason.',
+            'Verify your identity and address to build trust and unlock '
+                'posting, buying, offers, and chat.',
+            'Check the other person\'s ratings and reviews before you deal.',
             'Meet in public, busy places for in-person handovers.',
-            'Keep your chat and deal on PakBazar so there is a record.',
-            'Never share OTPs, passwords, or card PINs with anyone.',
-            'Check the other person\'s ratings and reviews first.',
           ]),
+          // Buyer and seller duties are deliberately written as matching
+          // pairs (honesty, fair price, on-platform payment, prompt handover,
+          // fair confirmation/review) so both sides know what to expect.
           _card(Icons.shopping_cart, 'For buyers', Colors.blue, const [
             'Inspect the item and confirm it matches the ad before you pay.',
+            'Pay through PakBazar (escrow or Cash on Delivery) — never pay the '
+                'full amount in advance to an unknown seller.',
             'Be cautious of prices that look too good to be true.',
-            'Avoid paying the full amount in advance to unknown sellers — '
-                'prefer cash on inspection or delivery.',
-            'Use "Make an Offer" to negotiate openly and on the record.',
+            'Negotiate openly with "Make an Offer" — don\'t ask to deal '
+                'outside the app.',
+            'Confirm receipt honestly so the seller\'s payment is released '
+                'fairly.',
+            'Leave an honest rating and review after the deal.',
           ]),
           _card(Icons.sell, 'For sellers', Colors.deepOrange, const [
-            'Describe items honestly and use your own real photos.',
-            'Confirm payment is fully received before handing over the item.',
-            'Do not ship or release goods before payment clears.',
-            'Reply quickly and complete deals smoothly to grow your rating.',
+            'Describe items honestly and use your own real photos — no '
+                'misleading or fake listings.',
+            'Only list items you actually own and are legally allowed to sell.',
+            'Honour the price and details you advertised — no bait-and-switch.',
+            'Confirm payment is fully received or escrow is funded before you '
+                'hand over the item.',
+            'Hand over or ship promptly once paid; never release goods before '
+                'payment clears.',
+            'Reply quickly and resolve issues fairly to grow your rating.',
+          ]),
+          _card(Icons.block, 'Prohibited items & conduct', Colors.red, const [
+            'No weapons, drugs, alcohol, or other illegal or restricted goods.',
+            'No counterfeit, replica, stolen, or recalled/unsafe products.',
+            'No adult content, and no items banned under Pakistani law.',
+            'No fraud, fake listings, advance-fee scams, or requests to pay '
+                'outside PakBazar.',
+            'No spam, duplicate ads, or misleading prices.',
+            'Breaking these rules can lead to ad removal, a warning, or account '
+                'suspension — you can appeal a suspension from the app.',
+          ]),
+          _card(Icons.shield_moon, 'How PakBazar protects you', kPakGreen, const [
+            'Identity & address verification before members can post, buy, '
+                'make offers, or chat.',
+            'Every ad is reviewed and approved by our team before it goes live.',
+            'In-app escrow holds the payment until the buyer confirms receipt.',
+            'Scam detection warns you about risky messages in chat.',
+            'Admin moderation can warn, block, or suspend rule-breakers.',
           ]),
           _card(
             Icons.report_gmailerrorred,
             'Spotted something wrong?',
-            Colors.red,
+            Colors.deepOrange,
             const [
               'Use the Report button on any suspicious ad or user.',
               'Our team reviews reports and removes bad actors.',
-              'Block and stop dealing with anyone who pressures or threatens you.',
+              'Block and stop dealing with anyone who pressures or threatens '
+                  'you.',
             ],
           ),
         ],
