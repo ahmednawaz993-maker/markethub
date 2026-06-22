@@ -332,6 +332,21 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // Appeals — a suspended user asks to be reinstated, committing to fix the
+    // violation. Creation is deliberately NOT gated by isNotBlocked() (a
+    // blocked user must be able to appeal); the owner reads their own appeals,
+    // admins read all and resolve (approve -> unblock, or reject).
+    // ---------------------------------------------------------------------
+    match /appeals/{appealId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.status == 'pending';
+      allow read: if isSignedIn()
+                  && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
     // App config — e.g. the platform's receiving account shown on the top-up
     // sheet. Readable by any signed-in user; only admins can change it.
     // ---------------------------------------------------------------------

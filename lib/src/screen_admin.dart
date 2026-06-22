@@ -8,7 +8,7 @@ class AdminPanelScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 17,
+      length: 18,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Panel'),
@@ -34,6 +34,7 @@ class AdminPanelScreen extends StatelessWidget {
               Tab(text: 'Purchases'),
               Tab(text: 'Listings'),
               Tab(text: 'Chats'),
+              Tab(text: 'Appeals'),
             ],
           ),
         ),
@@ -56,6 +57,7 @@ class AdminPanelScreen extends StatelessWidget {
             _AdminPurchasesTab(),
             _AdminListingsTab(),
             _AdminChatsTab(),
+            _AdminAppealsTab(),
           ],
         ),
       ),
@@ -2509,6 +2511,194 @@ class _AdminChatsTabState extends State<_AdminChatsTab> {
               );
             },
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Admin → review suspension appeals. Lists pending appeals (newest first);
+/// Approve reinstates the user (clears their `blocked` flag), Reject keeps them
+/// suspended. Either way the user is notified of the decision.
+class _AdminAppealsTab extends StatelessWidget {
+  const _AdminAppealsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('appeals')
+          .where('status', isEqualTo: 'pending')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Error loading appeals: ${snapshot.error}'));
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final at = ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ?? 0;
+            final bt = ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ?? 0;
+            return bt.compareTo(at);
+          });
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.gavel,
+            title: 'No appeals',
+            subtitle: 'Suspension appeals from users will appear here.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) {
+            final d = docs[i].data() as Map<String, dynamic>;
+            final email = d['userEmail']?.toString() ?? '';
+            final who = email.isNotEmpty ? email.split('@').first : 'User';
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.gavel, size: 18, color: kPakGreen),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            who,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          timeAgo(d['createdAt'] as Timestamp?),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(d['message']?.toString() ?? ''),
+                    const SizedBox(height: 10),
+                    _AppealActions(
+                      appealRef: docs[i].reference,
+                      userId: d['userId']?.toString() ?? '',
+                      who: who,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _AppealActions extends StatefulWidget {
+  final DocumentReference appealRef;
+  final String userId;
+  final String who;
+  const _AppealActions({
+    required this.appealRef,
+    required this.userId,
+    required this.who,
+  });
+
+  @override
+  State<_AppealActions> createState() => _AppealActionsState();
+}
+
+class _AppealActionsState extends State<_AppealActions> {
+  bool _busy = false;
+
+  Future<void> _resolve({required bool approve}) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final fs = FirebaseFirestore.instance;
+      await widget.appealRef.update({
+        'status': approve ? 'approved' : 'rejected',
+        'resolvedAt': Timestamp.now(),
+      });
+      final userRef = fs.collection('users').doc(widget.userId);
+      if (approve) {
+        await userRef.update({
+          'blocked': false,
+          'blockedAt': FieldValue.delete(),
+        });
+      }
+      await userRef.collection('notifications').add({
+        'title': approve
+            ? '✅ Appeal approved — account restored'
+            : '⚠️ Appeal declined',
+        'body': approve
+            ? 'Your appeal was approved and your account has been reinstated. '
+                  'Please follow PakBazar rules.'
+            : 'Your appeal was reviewed and declined. Your account remains '
+                  'suspended. You may submit another appeal.',
+        'type': approve ? 'admin' : 'warning',
+        'read': false,
+        'createdAt': Timestamp.now(),
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              approve
+                  ? '${widget.who} reinstated'
+                  : '${widget.who}\'s appeal rejected',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not resolve appeal: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_busy) {
+      return const Padding(
+        padding: EdgeInsets.all(6),
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        OutlinedButton.icon(
+          onPressed: () => _resolve(approve: false),
+          icon: const Icon(Icons.close, color: Colors.red, size: 18),
+          label: const Text('Reject', style: TextStyle(color: Colors.red)),
+        ),
+        const SizedBox(width: 8),
+        ElevatedButton.icon(
+          onPressed: () => _resolve(approve: true),
+          icon: const Icon(Icons.check, size: 18),
+          label: const Text('Approve & unblock'),
         ),
       ],
     );
