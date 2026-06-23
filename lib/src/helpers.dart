@@ -133,6 +133,7 @@ const List<(String, String)> kAdminAreas = [
   ('listings', 'Listings'),
   ('chats', 'Chats'),
   ('appeals', 'Appeals'),
+  ('deletions', 'Deletions'),
 ];
 
 /// Permission codes granted to the current staff member (empty for the super

@@ -612,6 +612,77 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
 
 /// Identity verification: user uploads a selfie + CNIC for admin face-match
 /// review. On approval the admin sets `idVerified` on the user doc.
+/// Lets a user request deletion of their account and data. The request is
+/// queued for the admin (Admin Panel → Deletions) to action — satisfies the
+/// app stores' account-deletion requirement.
+Future<void> _requestAccountDeletion(BuildContext context) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+  final reasonCtrl = TextEditingController();
+  final messenger = ScaffoldMessenger.of(context);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      icon: const Icon(Icons.delete_forever, color: Colors.red, size: 40),
+      title: const Text('Delete my account'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'This requests permanent deletion of your PakBazar account and data '
+            '(profile, ads, and related records). Our team will process it. '
+            'This cannot be undone.',
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: reasonCtrl,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              hintText: 'Reason (optional)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Request deletion'),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  try {
+    await FirebaseFirestore.instance
+        .collection('deletionRequests')
+        .doc(user.uid)
+        .set({
+          'userId': user.uid,
+          'email': user.email ?? '',
+          'reason': reasonCtrl.text.trim(),
+          'status': 'pending',
+          'createdAt': Timestamp.now(),
+        });
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Account deletion requested. Our team will process it shortly.',
+        ),
+      ),
+    );
+  } catch (e) {
+    messenger.showSnackBar(
+      SnackBar(content: Text('Could not submit request: $e')),
+    );
+  }
+}
+
 class VerificationScreen extends StatefulWidget {
   const VerificationScreen({super.key});
 
@@ -1194,8 +1265,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
           '• You can edit your profile information in the app at any time.',
           '• You can turn location and notification permissions on or off in '
               'your device/browser settings.',
-          '• You can request deletion of your account and data by contacting '
-              'us at ahmednawaz993@gmail.com.',
+          '• You can delete your account and data with "Delete my account" in '
+              'your Profile, or by contacting us at ahmednawaz993@gmail.com.',
         ]),
         ('Children', [
           'PakBazar is intended for users aged 18 and over. We do not '
@@ -1403,6 +1474,16 @@ class AboutScreen extends StatelessWidget {
                       );
                     }
                   },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.delete_forever, color: Colors.red),
+                  title: const Text(
+                    'Delete my account',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.red),
+                  onTap: () => _requestAccountDeletion(context),
                 ),
               ],
             ),

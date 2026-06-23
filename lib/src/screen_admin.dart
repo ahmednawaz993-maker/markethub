@@ -48,6 +48,7 @@ class AdminPanelScreen extends StatelessWidget {
       ('listings', 'Listings', _AdminListingsTab()),
       ('chats', 'Chats', _AdminChatsTab()),
       ('appeals', 'Appeals', _AdminAppealsTab()),
+      ('deletions', 'Deletions', _AdminDeletionsTab()),
     ];
     final visible = entries.where((e) {
       return e.$1 == '__super' ? isSuperAdmin() : hasAdminPerm(e.$1);
@@ -3491,6 +3492,219 @@ class _AdminStaffTab extends StatelessWidget {
               );
             },
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Admin → account-deletion requests queue. Lists pending requests; an admin
+/// can delete the user's data (their listings + profile doc) and mark it
+/// resolved. The Firebase Auth login itself is removed in the Firebase Console.
+class _AdminDeletionsTab extends StatelessWidget {
+  const _AdminDeletionsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('deletionRequests')
+          .where('status', isEqualTo: 'pending')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final at = ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ?? 0;
+            final bt = ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ?? 0;
+            return at.compareTo(bt);
+          });
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.delete_outline,
+            title: 'No deletion requests',
+            subtitle: 'Account-deletion requests from users appear here.',
+          );
+        }
+        return Column(
+          children: [
+            Container(
+              width: double.infinity,
+              color: const Color(0xFFFFF3CD),
+              padding: const EdgeInsets.all(10),
+              child: const Text(
+                'After deleting a user\'s data here, also remove their login in '
+                'Firebase Console → Authentication to fully delete the account.',
+                style: TextStyle(fontSize: 12, color: Colors.black87),
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: docs.length,
+                itemBuilder: (context, i) {
+                  final d = docs[i].data() as Map<String, dynamic>;
+                  final uid = d['userId']?.toString() ?? docs[i].id;
+                  final reason = d['reason']?.toString() ?? '';
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            d['email']?.toString() ?? uid,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            'UID: $uid',
+                            style: const TextStyle(
+                                fontSize: 11, color: Colors.grey),
+                          ),
+                          Text(
+                            'Requested ${timeAgo(d['createdAt'] as Timestamp?)}',
+                            style: const TextStyle(
+                                fontSize: 11, color: Colors.grey),
+                          ),
+                          if (reason.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text('Reason: $reason'),
+                          ],
+                          const SizedBox(height: 8),
+                          _DeletionActions(uid: uid, ref: docs[i].reference),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _DeletionActions extends StatefulWidget {
+  final String uid;
+  final DocumentReference ref;
+  const _DeletionActions({required this.uid, required this.ref});
+
+  @override
+  State<_DeletionActions> createState() => _DeletionActionsState();
+}
+
+class _DeletionActionsState extends State<_DeletionActions> {
+  bool _busy = false;
+
+  Future<void> _deleteAndResolve() async {
+    if (_busy) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete this user\'s data?'),
+        content: const Text(
+          'This permanently deletes the user\'s ads and profile document. '
+          'Remember to also remove their login in Firebase Console.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete data'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _busy = true);
+    try {
+      final fs = FirebaseFirestore.instance;
+      // Delete the user's listings.
+      final listings = await fs
+          .collection('listings')
+          .where('userId', isEqualTo: widget.uid)
+          .get();
+      var batch = fs.batch();
+      var n = 0;
+      for (final l in listings.docs) {
+        batch.delete(l.reference);
+        n++;
+        if (n % 400 == 0) {
+          await batch.commit();
+          batch = fs.batch();
+        }
+      }
+      await batch.commit();
+      // Delete the profile document.
+      await fs.collection('users').doc(widget.uid).delete();
+      // Mark the request resolved.
+      await widget.ref.update({
+        'status': 'resolved',
+        'resolvedAt': Timestamp.now(),
+      });
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Data deleted. Now remove the login in Firebase Console.',
+          ),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Failed: $e')));
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _dismiss() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await widget.ref.update({
+        'status': 'dismissed',
+        'resolvedAt': Timestamp.now(),
+      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_busy) {
+      return const Padding(
+        padding: EdgeInsets.all(6),
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        TextButton(onPressed: _dismiss, child: const Text('Dismiss')),
+        const SizedBox(width: 8),
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          onPressed: _deleteAndResolve,
+          icon: const Icon(Icons.delete_forever, size: 18),
+          label: const Text('Delete data & resolve'),
         ),
       ],
     );

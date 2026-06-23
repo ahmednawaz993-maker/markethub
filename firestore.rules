@@ -128,7 +128,8 @@ service cloud.firestore {
                     );
       allow delete: if isSignedIn()
                     && (resource.data.userId == request.auth.uid
-                        || can('listings') || can('reports'));
+                        || can('listings') || can('reports')
+                        || can('deletions'));
 
       // Non-owners may only increment view/lead counters, nothing else.
       function onlyBumpsStats() {
@@ -169,7 +170,7 @@ service cloud.firestore {
                       || ((can('users') || can('verifyId') || can('appeals'))
                           && noWalletChange())
                     );
-      allow delete: if false;
+      allow delete: if can('deletions');
 
       // Staff may moderate a profile (block, verify, feature) but never touch
       // the money field — walletBalance stays super-admin / Cloud Function only.
@@ -441,6 +442,25 @@ service cloud.firestore {
                   && (resource.data.userId == request.auth.uid
                       || can('appeals'));
       allow update, delete: if can('appeals');
+    }
+
+    // ---------------------------------------------------------------------
+    // Account-deletion requests — a user asks the admin to delete their
+    // account and data (doc id == uid). The owner files/updates their own
+    // pending request; staff with the 'deletions' permission read and resolve.
+    // ---------------------------------------------------------------------
+    match /deletionRequests/{reqId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.status == 'pending';
+      allow read: if isSignedIn()
+                  && (resource.data.userId == request.auth.uid
+                      || can('deletions'));
+      allow update: if (isSignedIn()
+                        && resource.data.userId == request.auth.uid
+                        && request.resource.data.status == 'pending')
+                    || can('deletions');
+      allow delete: if can('deletions');
     }
 
     // ---------------------------------------------------------------------
