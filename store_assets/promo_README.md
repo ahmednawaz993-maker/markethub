@@ -27,6 +27,12 @@ video by screen-recording it.
 - **Website hero** (pakbazar24.com), **Facebook/Instagram/TikTok reels**,
   **WhatsApp status** — great for a Pakistan audience.
 
+## Rendered video
+`promo.mp4` (1920×1080, H.264, 25fps, 20s) is the ready-to-use video. It now
+includes a **synthesized royalty-free background track** (a soft C–G–Am–F chord
+pad generated with ffmpeg — no licensing needed). To change the music, re-run
+the ffmpeg synth/mux steps (or drop in your own audio file and mux it).
+
 ## Notes
 - Current size is **landscape 1920×1080** (best for YouTube/Play/website). Ask
   and I'll add a **vertical 1080×1920** version for reels/stories.
