@@ -171,12 +171,14 @@ service cloud.firestore {
       // Profiles are readable so seller pages can show rating / "Member since".
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.auth.uid == userId;
-      // Owner may edit their profile; anyone signed in may only adjust the
-      // aggregate rating fields (when leaving a review).
+      // Owner may edit their own profile (except protected fields); back-office
+      // staff may moderate. The rating aggregate (ratingSum/ratingCount) is NOT
+      // client-writable — it is recomputed server-side by the onReviewWrite
+      // Cloud Function from the per-user reviews subcollection, so nobody can
+      // forge a seller's rating.
       allow update: if isSignedIn() && (
                       isAdmin()
                       || (request.auth.uid == userId && walletUnchanged())
-                      || onlyRatingChange()
                       || ((can('users') || can('verifyId') || can('appeals'))
                           && noWalletChange())
                     );
@@ -187,26 +189,25 @@ service cloud.firestore {
                         && exists(/databases/$(database)/documents/deletionRequests/$(userId)));
 
       // Staff may moderate a profile (block, verify, feature) but never touch
-      // the money field — walletBalance stays super-admin / Cloud Function only.
+      // the money field or the rating aggregate — walletBalance / ratingSum /
+      // ratingCount stay super-admin / Cloud Function only.
       function noWalletChange() {
         return !request.resource.data.diff(resource.data)
-                 .affectedKeys().hasAny(['walletBalance']);
+                 .affectedKeys().hasAny(['walletBalance', 'ratingSum',
+                                         'ratingCount']);
       }
 
-      // walletBalance is money, idVerified is an identity decision, and blocked
-      // is an admin suspension — only admins / Cloud Functions may change these.
-      // The owner may edit every other profile field freely (an update is
-      // allowed as long as it does not touch any protected field); critically a
+      // walletBalance is money, idVerified is an identity decision, blocked is
+      // an admin suspension, and ratingSum/ratingCount are the server-computed
+      // rating aggregate — only admins / Cloud Functions may change these. The
+      // owner may edit every other profile field freely (an update is allowed
+      // as long as it does not touch any protected field); critically a
       // suspended user cannot clear their own `blocked` flag.
       function walletUnchanged() {
         return !request.resource.data.diff(resource.data)
                  .affectedKeys().hasAny(['walletBalance', 'idVerified',
-                                         'blocked']);
-      }
-
-      function onlyRatingChange() {
-        return request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['ratingSum', 'ratingCount']);
+                                         'blocked', 'ratingSum',
+                                         'ratingCount']);
       }
 
       match /favorites/{favoriteId} {
@@ -537,12 +538,45 @@ service cloud.firestore {
                     && request.resource.data.buyerId == request.auth.uid
                     && isVerifiedUser()
                     && isNotBlocked();
-      allow read, update: if isSignedIn() && (
+      allow read: if isSignedIn() && (
                       resource.data.buyerId == request.auth.uid
                       || resource.data.sellerId == request.auth.uid
                       || can('offers')
                     );
+      // A participant may only advance the negotiation status and set the
+      // counter/agreed amount — never rewrite offerAmount, the parties, or the
+      // listing. Without this a buyer could lower offerAmount after the seller
+      // accepts and buy the item for almost nothing (the order copies this
+      // amount). Admins (can('offers')) are unrestricted.
+      allow update: if isSignedIn() && (
+                      can('offers')
+                      || ((resource.data.buyerId == request.auth.uid
+                           || resource.data.sellerId == request.auth.uid)
+                          && onlySafeOfferChange()
+                          && validOfferTransition())
+                    );
       allow delete: if can('offers');
+
+      // Only status and the counter/agreed amounts may change; offerAmount, the
+      // parties and the listing stay exactly as created.
+      function onlySafeOfferChange() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'counterAmount', 'agreedAmount']);
+      }
+
+      // Legal status transitions (or an idempotent write that leaves status
+      // unchanged) — blocks re-actioning a finished offer.
+      function validOfferTransition() {
+        return request.resource.data.status == resource.data.status
+               || (resource.data.status == 'pending'
+                   && request.resource.data.status in
+                      ['accepted', 'countered', 'declined', 'cancelled'])
+               || (resource.data.status == 'countered'
+                   && request.resource.data.status in
+                      ['ordered', 'declined', 'cancelled'])
+               || (resource.data.status == 'accepted'
+                   && request.resource.data.status in ['ordered', 'cancelled']);
+      }
     }
 
     // ---------------------------------------------------------------------
@@ -559,11 +593,12 @@ service cloud.firestore {
                     && isVerifiedUser()
                     && isNotBlocked();
 
-      // Updating lastMessage/lastTime — caller must already be a participant
-      // and must not remove themselves from the thread.
+      // Updating lastMessage/lastTime — caller must already be a participant,
+      // and the participant list is immutable (a participant must not be able to
+      // swap in a different party and hijack / expose the thread).
       allow update: if isSignedIn()
                     && request.auth.uid in resource.data.participants
-                    && request.auth.uid in request.resource.data.participants;
+                    && request.resource.data.participants == resource.data.participants;
 
       allow delete: if false;
 

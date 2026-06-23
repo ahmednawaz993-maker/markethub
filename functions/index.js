@@ -8,6 +8,7 @@
 const {
   onDocumentCreated,
   onDocumentUpdated,
+  onDocumentWritten,
 } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onRequest } = require("firebase-functions/v2/https");
@@ -99,6 +100,40 @@ exports.notifyOnNewMessage = onDocumentCreated(
     });
 
     await pruneInvalidTokens(db, recipientId, tokens, response);
+  }
+);
+
+// Recompute a seller's aggregate rating whenever one of their reviews is
+// created, edited or deleted. This is the AUTHORITATIVE source of
+// ratingSum/ratingCount on the user doc — clients can no longer write those
+// fields (Firestore rules block it), so a rating cannot be forged. We re-sum
+// the reviews subcollection (one doc per reviewer, each a validated 1-5 stars).
+// Writes the parent user doc only, so it never re-triggers itself.
+exports.onReviewWrite = onDocumentWritten(
+  "users/{sellerId}/reviews/{reviewerId}",
+  async (event) => {
+    const sellerId = event.params.sellerId;
+    const db = getFirestore();
+    const snap = await db
+      .collection("users")
+      .doc(sellerId)
+      .collection("reviews")
+      .get();
+
+    let sum = 0;
+    let count = 0;
+    snap.forEach((d) => {
+      const r = d.data().rating;
+      if (typeof r === "number" && r >= 1 && r <= 5) {
+        sum += r;
+        count += 1;
+      }
+    });
+
+    await db
+      .collection("users")
+      .doc(sellerId)
+      .set({ ratingSum: sum, ratingCount: count }, { merge: true });
   }
 );
 

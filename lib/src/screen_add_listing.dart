@@ -255,6 +255,10 @@ class _AddListingScreenState extends State<AddListingScreen> {
   }
 
   Future<void> submitListing() async {
+    // Guard against a double-tap re-entering during the async gaps below
+    // (ensureVerified can await a dialog) — isSubmitting is only set true after
+    // those awaits, so without this the same ad could be posted twice.
+    if (isSubmitting) return;
     if (!await ensureVerified(context)) return;
     if (!mounted) return;
     if (titleController.text.trim().isEmpty ||

@@ -366,34 +366,18 @@ Future<void> submitSellerReview({
   final fs = FirebaseFirestore.instance;
   final reviewRef =
       fs.collection('users').doc(sellerId).collection('reviews').doc(me.uid);
-  final userRef = fs.collection('users').doc(sellerId);
 
-  await fs.runTransaction((tx) async {
-    final reviewSnap = await tx.get(reviewRef);
-    final userSnap = await tx.get(userRef);
-
-    final existed = reviewSnap.exists;
-    final oldRating =
-        existed ? (reviewSnap.data()?['rating'] as num?)?.toInt() ?? 0 : 0;
-
-    final userData = userSnap.data() ?? {};
-    num sum = (userData['ratingSum'] as num?) ?? 0;
-    int count = (userData['ratingCount'] as num?)?.toInt() ?? 0;
-
-    sum = sum - oldRating + rating;
-    if (!existed) count += 1;
-
-    tx.set(reviewRef, {
-      'reviewerId': me.uid,
-      'reviewerName': me.email ?? 'User',
-      'rating': rating,
-      'text': text.trim(),
-      'createdAt': Timestamp.now(),
-    });
-    tx.set(userRef, {
-      'ratingSum': sum,
-      'ratingCount': count,
-    }, SetOptions(merge: true));
+  // Write only the reviewer's own review doc (one per user, doc id == uid,
+  // a validated 1-5 stars). The seller's aggregate ratingSum/ratingCount is
+  // recomputed server-side by the onReviewWrite Cloud Function from this
+  // subcollection — clients can no longer write those fields directly, so a
+  // rating cannot be forged.
+  await reviewRef.set({
+    'reviewerId': me.uid,
+    'reviewerName': me.email ?? 'User',
+    'rating': rating,
+    'text': text.trim(),
+    'createdAt': Timestamp.now(),
   });
 }
 
