@@ -129,7 +129,8 @@ service cloud.firestore {
       allow delete: if isSignedIn()
                     && (resource.data.userId == request.auth.uid
                         || can('listings') || can('reports')
-                        || can('deletions'));
+                        || (can('deletions')
+                            && exists(/databases/$(database)/documents/deletionRequests/$(resource.data.userId))));
 
       // Non-owners may only increment view/lead counters, nothing else.
       function onlyBumpsStats() {
@@ -170,7 +171,11 @@ service cloud.firestore {
                       || ((can('users') || can('verifyId') || can('appeals'))
                           && noWalletChange())
                     );
-      allow delete: if can('deletions');
+      // Deletion staff may delete a profile only when that user actually filed
+      // a deletion request (super admin may delete any).
+      allow delete: if isAdmin()
+                    || (can('deletions')
+                        && exists(/databases/$(database)/documents/deletionRequests/$(userId)));
 
       // Staff may moderate a profile (block, verify, feature) but never touch
       // the money field — walletBalance stays super-admin / Cloud Function only.
@@ -458,6 +463,7 @@ service cloud.firestore {
                       || can('deletions'));
       allow update: if (isSignedIn()
                         && resource.data.userId == request.auth.uid
+                        && resource.data.status == 'pending'
                         && request.resource.data.status == 'pending')
                     || can('deletions');
       allow delete: if can('deletions');

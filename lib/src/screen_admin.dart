@@ -2302,8 +2302,10 @@ class _AdminOrdersTab extends StatelessWidget {
         int completed = 0;
         for (final d in docs) {
           final m = d.data() as Map;
-          if (m['status'] == 'completed') {
-            revenue += (m['commission'] as num?)?.toDouble() ?? 0;
+          // A finished deal is 'released' (escrow) or 'completed' (legacy/COD).
+          if (m['status'] == 'released' || m['status'] == 'completed') {
+            final amt = (m['amount'] as num?)?.toDouble() ?? 0;
+            revenue += (m['commission'] as num?)?.toDouble() ?? amt * commissionRate;
             completed++;
           }
         }
