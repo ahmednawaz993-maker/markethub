@@ -1,0 +1,68 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;}
+  html,body{width:1920px;height:1080px;background:#eff1f2;overflow:hidden;}
+  .top{height:84px;background:linear-gradient(135deg,#0A1A33,#173A6B);display:flex;align-items:center;gap:24px;padding:0 40px;color:#fff;}
+  .logo{display:flex;align-items:center;gap:14px;font-size:34px;font-weight:bold;}
+  .logo .bag{width:54px;height:54px;border-radius:14px;background:#C9A227;display:flex;align-items:center;justify-content:center;font-size:30px;}
+  .logo .gold{color:#C9A227;}
+  .search{flex:1;background:#fff;border-radius:40px;padding:18px 28px;color:#888;font-size:24px;display:flex;align-items:center;gap:12px;max-width:760px;}
+  .top .loc{font-size:24px;display:flex;align-items:center;gap:8px;}
+  .top .acts{margin-left:auto;display:flex;gap:26px;font-size:30px;align-items:center;}
+  .top .sell{background:#C9A227;color:#173A6B;font-weight:bold;font-size:24px;padding:14px 28px;border-radius:30px;}
+  .wrap{display:flex;height:996px;}
+  .side{width:300px;background:#fff;padding:26px 0;border-right:1px solid #e6e8ea;}
+  .side .h{font-size:22px;color:#999;padding:0 28px 14px;letter-spacing:1px;}
+  .side .it{display:flex;align-items:center;gap:16px;padding:16px 28px;font-size:26px;color:#333;}
+  .side .it.on{background:#eef3fb;color:#173A6B;font-weight:bold;border-left:5px solid #173A6B;}
+  .side .it .e{font-size:30px;}
+  .main{flex:1;padding:30px 36px;overflow:hidden;}
+  .promo{height:240px;border-radius:24px;background:linear-gradient(120deg,#173A6B,#2E5AA0);color:#fff;padding:44px;position:relative;overflow:hidden;}
+  .promo h2{font-size:50px;}.promo p{font-size:26px;margin-top:10px;color:#dbe6f7;}
+  .promo .pill{display:inline-block;margin-top:24px;background:#C9A227;color:#173A6B;padding:12px 28px;border-radius:30px;font-weight:bold;font-size:24px;}
+  .promo .star{position:absolute;right:90px;top:60px;font-size:120px;color:rgba(201,162,39,.35);}
+  .sec{font-size:34px;font-weight:bold;color:#111;margin:30px 4px 18px;}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;}
+  .card{background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 6px 16px rgba(0,0,0,.08);}
+  .card .img{height:200px;display:flex;align-items:center;justify-content:center;font-size:80px;position:relative;}
+  .card .feat{position:absolute;top:12px;left:12px;background:#C9A227;color:#173A6B;font-size:16px;font-weight:bold;padding:6px 12px;border-radius:7px;}
+  .card .v{position:absolute;top:12px;right:12px;background:#fff;color:#173A6B;font-size:18px;padding:6px 10px;border-radius:7px;font-weight:bold;}
+  .card .body{padding:16px 18px;}
+  .card .price{font-size:30px;font-weight:bold;color:#111;}
+  .card .ttl{font-size:24px;color:#444;margin:5px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .card .loc{font-size:20px;color:#888;}
+</style></head><body>
+  <div class="top">
+    <div class="logo"><span class="bag">&#128717;</span>Pak<span class="gold">Bazar</span></div>
+    <div class="loc">&#128205; Karachi &#9662;</div>
+    <div class="search">&#128269; Find cars, mobiles, property and more&hellip;</div>
+    <div class="acts"><span>&#9825;</span><span>&#128276;</span><span class="sell">+ SELL</span></div>
+  </div>
+  <div class="wrap">
+    <div class="side">
+      <div class="h">CATEGORIES</div>
+      <div class="it on"><span class="e">&#128663;</span>Motors</div>
+      <div class="it"><span class="e">&#127968;</span>Property</div>
+      <div class="it"><span class="e">&#128241;</span>Mobiles &amp; Tablets</div>
+      <div class="it"><span class="e">&#128421;</span>Electronics</div>
+      <div class="it"><span class="e">&#129681;</span>Home &amp; Furniture</div>
+      <div class="it"><span class="e">&#128188;</span>Jobs</div>
+      <div class="it"><span class="e">&#128054;</span>Pets</div>
+      <div class="it"><span class="e">&#9917;</span>Sports &amp; Hobbies</div>
+    </div>
+    <div class="main">
+      <div class="promo"><span class="star">&#9733;</span><h2>Pakistan ka apna online bazaar</h2><p>Buy &amp; sell across 280+ cities &mdash; safely, with escrow &amp; verified members.</p><span class="pill">Explore deals</span></div>
+      <div class="sec">Fresh recommendations</div>
+      <div class="grid">
+        <div class="card"><div class="img" style="background:linear-gradient(135deg,#dbeafe,#bfdbfe)">&#128663;<span class="feat">FEATURED</span><span class="v">&#10003; Verified</span></div><div class="body"><div class="price">Rs 4,250,000</div><div class="ttl">Honda Civic 2021</div><div class="loc">&#128205; Karachi &middot; 2d ago</div></div></div>
+        <div class="card"><div class="img" style="background:linear-gradient(135deg,#e0e7ff,#c7d2fe)">&#128241;</div><div class="body"><div class="price">Rs 185,000</div><div class="ttl">iPhone 13 Pro</div><div class="loc">&#128205; Lahore &middot; 5h ago</div></div></div>
+        <div class="card"><div class="img" style="background:linear-gradient(135deg,#dcfce7,#bbf7d0)">&#127968;</div><div class="body"><div class="price">Rs 32,000/mo</div><div class="ttl">2 Bed Apartment</div><div class="loc">&#128205; Islamabad &middot; 1d ago</div></div></div>
+        <div class="card"><div class="img" style="background:linear-gradient(135deg,#fef3c7,#fde68a)">&#128095;<span class="v">&#10003; Verified</span></div><div class="body"><div class="price">Rs 12,500</div><div class="ttl">Nike Air Max</div><div class="loc">&#128205; Faisalabad &middot; 3h ago</div></div></div>
+        <div class="card"><div class="img" style="background:linear-gradient(135deg,#ede9fe,#ddd6fe)">&#128187;</div><div class="body"><div class="price">Rs 95,000</div><div class="ttl">Dell XPS Laptop</div><div class="loc">&#128205; Rawalpindi &middot; 6h ago</div></div></div>
+        <div class="card"><div class="img" style="background:linear-gradient(135deg,#ffe4e6,#fecdd3)">&#128719;</div><div class="body"><div class="price">Rs 28,000</div><div class="ttl">Wooden Sofa Set</div><div class="loc">&#128205; Multan &middot; 1d ago</div></div></div>
+        <div class="card"><div class="img" style="background:linear-gradient(135deg,#cffafe,#a5f3fc)">&#128247;</div><div class="body"><div class="price">Rs 65,000</div><div class="ttl">Canon DSLR Camera</div><div class="loc">&#128205; Karachi &middot; 4h ago</div></div></div>
+        <div class="card"><div class="img" style="background:linear-gradient(135deg,#fae8ff,#f5d0fe)">&#127947;</div><div class="body"><div class="price">Rs 18,000</div><div class="ttl">Treadmill (used)</div><div class="loc">&#128205; Lahore &middot; 2d ago</div></div></div>
+      </div>
+    </div>
+  </div>
+</body></html>
