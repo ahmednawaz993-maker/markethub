@@ -33,9 +33,13 @@ includes a **synthesized royalty-free background track** (a soft C–G–Am–F 
 pad generated with ffmpeg — no licensing needed). To change the music, re-run
 the ffmpeg synth/mux steps (or drop in your own audio file and mux it).
 
+## Two ready videos
+- `promo.mp4` — **landscape 1920×1080** (YouTube / Play promo / website).
+- `promo_vertical.mp4` — **vertical 1080×1920** (Reels / Stories / TikTok / WhatsApp status).
+Both 20s, H.264 + AAC, with the synthesized background music. Re-render with
+`node render/capture.js <html> <w> <h> <outdir>` then the ffmpeg encode/mux steps.
+
 ## Notes
-- Current size is **landscape 1920×1080** (best for YouTube/Play/website). Ask
-  and I'll add a **vertical 1080×1920** version for reels/stories.
 - Want different copy, products, music cues, or a voiceover script? Tell me and
   I'll adjust the scenes.
 - For a fully-rendered MP4 directly (no screen recording), I'd need `ffmpeg`

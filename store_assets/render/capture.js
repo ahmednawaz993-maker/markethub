@@ -6,8 +6,12 @@ const fs = require('fs');
 const path = require('path');
 
 const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-const PROMO = 'file:///C:/MarketHubNew/markethub/store_assets/promo.html';
-const OUT = path.join(__dirname, 'frames');
+// Args: [htmlFile] [width] [height] [outDir]
+const HTML = process.argv[2] || 'promo.html';
+const W = parseInt(process.argv[3] || '1920', 10);
+const H = parseInt(process.argv[4] || '1080', 10);
+const PROMO = 'file:///C:/MarketHubNew/markethub/store_assets/' + HTML;
+const OUT = path.join(__dirname, process.argv[5] || 'frames');
 const FPS = 25;
 const DURATION_MS = 20000; // one full loop
 const FRAMES = Math.round((DURATION_MS / 1000) * FPS);
@@ -20,7 +24,7 @@ const FRAMES = Math.round((DURATION_MS / 1000) * FPS);
     executablePath: CHROME,
     headless: 'new',
     args: ['--no-sandbox', '--hide-scrollbars', '--force-device-scale-factor=1'],
-    defaultViewport: { width: 1920, height: 1080, deviceScaleFactor: 1 },
+    defaultViewport: { width: W, height: H, deviceScaleFactor: 1 },
   });
   const page = await browser.newPage();
   await page.goto(PROMO, { waitUntil: 'load' });

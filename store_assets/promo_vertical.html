@@ -1,0 +1,118 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>PakBazar — Promo (vertical)</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;font-family:"Segoe UI",Arial,Helvetica,sans-serif;}
+  html,body{width:1080px;height:1920px;overflow:hidden;background:#0A1A33;}
+  .stage{position:relative;width:1080px;height:1920px;
+    background:radial-gradient(120% 90% at 50% 0%,#173A6B 0%,#0A1A33 70%);color:#fff;overflow:hidden;}
+  .sheen{position:absolute;inset:-40%;background:
+    conic-gradient(from 0deg,transparent 0 40%,rgba(201,162,39,.10) 50%,transparent 60% 100%);
+    animation:spin 16s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .watermark{position:absolute;right:-80px;top:-60px;font-size:420px;color:rgba(201,162,39,.06);}
+
+  .scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;opacity:0;padding:0 60px;}
+  .scene .inner{transform:translateY(28px);opacity:0;width:100%;display:flex;flex-direction:column;align-items:center;}
+
+  .s1{animation:sc1 20s infinite;}.s2{animation:sc2 20s infinite;}.s3{animation:sc3 20s infinite;}
+  .s4{animation:sc4 20s infinite;}.s5{animation:sc5 20s infinite;}
+  .s1 .inner{animation:rise 20s infinite;}.s2 .inner{animation:rise2 20s infinite;}
+  .s3 .inner{animation:rise3 20s infinite;}.s4 .inner{animation:rise4 20s infinite;}.s5 .inner{animation:rise5 20s infinite;}
+  @keyframes sc1{0%{opacity:0}2%{opacity:1}18%{opacity:1}20%{opacity:0}100%{opacity:0}}
+  @keyframes sc2{0%,20%{opacity:0}22%{opacity:1}38%{opacity:1}40%{opacity:0}100%{opacity:0}}
+  @keyframes sc3{0%,40%{opacity:0}42%{opacity:1}58%{opacity:1}60%{opacity:0}100%{opacity:0}}
+  @keyframes sc4{0%,60%{opacity:0}62%{opacity:1}78%{opacity:1}80%{opacity:0}100%{opacity:0}}
+  @keyframes sc5{0%,80%{opacity:0}82%{opacity:1}98%{opacity:1}100%{opacity:0}}
+  @keyframes rise{0%,1%{opacity:0;transform:translateY(28px)}4%{opacity:1;transform:translateY(0)}18%{opacity:1}20%{opacity:0}100%{opacity:0}}
+  @keyframes rise2{0%,21%{opacity:0;transform:translateY(28px)}24%{opacity:1;transform:translateY(0)}38%{opacity:1}40%{opacity:0}100%{opacity:0}}
+  @keyframes rise3{0%,41%{opacity:0;transform:translateY(28px)}44%{opacity:1;transform:translateY(0)}58%{opacity:1}60%{opacity:0}100%{opacity:0}}
+  @keyframes rise4{0%,61%{opacity:0;transform:translateY(28px)}64%{opacity:1;transform:translateY(0)}78%{opacity:1}80%{opacity:0}100%{opacity:0}}
+  @keyframes rise5{0%,81%{opacity:0;transform:translateY(28px)}84%{opacity:1;transform:translateY(0)}98%{opacity:1}100%{opacity:0}}
+
+  .bag{width:170px;height:170px;border-radius:42px;background:#C9A227;display:flex;align-items:center;
+    justify-content:center;font-size:96px;margin:0 auto 36px;box-shadow:0 20px 50px rgba(0,0,0,.4);}
+  .name{font-size:120px;font-weight:800;letter-spacing:1px;}.name b{color:#C9A227;}
+  .tag{font-size:46px;color:#dbe6f7;margin-top:14px;}
+  .big{font-size:80px;font-weight:800;max-width:920px;line-height:1.12;}.big .g{color:#C9A227;}
+  .pills{display:flex;flex-wrap:wrap;gap:24px;justify-content:center;max-width:920px;margin-top:54px;}
+  .pill{background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.2);border-radius:60px;
+    padding:24px 42px;font-size:42px;display:flex;align-items:center;gap:18px;}
+  .feats{display:flex;flex-direction:column;gap:34px;margin-top:60px;width:100%;}
+  .feat{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:30px;
+    width:100%;padding:44px 40px;display:flex;align-items:center;gap:36px;text-align:left;}
+  .feat .e{font-size:90px;}.feat .tx .t{font-size:46px;font-weight:bold;}
+  .feat .tx .d{font-size:32px;color:#cdddf2;margin-top:8px;line-height:1.35;}
+  .phone{width:520px;height:980px;border-radius:64px;background:#0A1A33;border:14px solid #203a63;
+    box-shadow:0 30px 80px rgba(0,0,0,.5);overflow:hidden;position:relative;}
+  .phone .pbar{height:110px;background:linear-gradient(135deg,#0A1A33,#173A6B);display:flex;align-items:center;
+    padding:0 32px;font-size:38px;font-weight:bold;gap:14px;}
+  .phone .card{margin:32px;background:#fff;border-radius:28px;overflow:hidden;color:#111;}
+  .phone .card .im{height:380px;background:linear-gradient(135deg,#dbeafe,#93c5fd);display:flex;
+    align-items:center;justify-content:center;font-size:190px;position:relative;}
+  .phone .card .ft{position:absolute;top:22px;left:22px;background:#C9A227;color:#173A6B;font-weight:bold;
+    font-size:28px;padding:10px 20px;border-radius:12px;}
+  .phone .card .bd{padding:30px;}.phone .card .pr{font-size:58px;font-weight:bold;}
+  .phone .card .tt{font-size:40px;color:#444;margin-top:8px;}
+  .scene4txt{margin-top:56px;}
+  .scene4txt .h{font-size:80px;font-weight:800;}
+  .scene4txt .p{font-size:42px;color:#dbe6f7;margin-top:22px;line-height:1.4;max-width:880px;}
+  .cta{font-size:92px;font-weight:800;line-height:1.1;}
+  .url{display:inline-block;margin-top:40px;background:#C9A227;color:#0A1A33;font-size:58px;font-weight:800;
+    padding:28px 60px;border-radius:70px;}
+  .sub{font-size:42px;color:#dbe6f7;margin-top:46px;line-height:1.4;}
+  .foot{position:absolute;bottom:60px;width:100%;text-align:center;font-size:34px;color:rgba(255,255,255,.5);}
+</style></head>
+<body>
+  <div class="stage">
+    <div class="sheen"></div>
+    <div class="watermark">&#9733;</div>
+
+    <div class="scene s1"><div class="inner">
+      <div class="bag">&#128717;</div>
+      <div class="name">Pak<b>Bazar</b></div>
+      <div class="tag">Pakistan ka apna online bazaar</div>
+    </div></div>
+
+    <div class="scene s2"><div class="inner">
+      <div class="big">Buy &amp; sell <span class="g">almost anything</span></div>
+      <div class="pills">
+        <span class="pill">&#128663; Motors</span>
+        <span class="pill">&#127968; Property</span>
+        <span class="pill">&#128241; Mobiles</span>
+        <span class="pill">&#128421; Electronics</span>
+        <span class="pill">&#128188; Jobs</span>
+        <span class="pill">&#129681; Furniture</span>
+      </div>
+    </div></div>
+
+    <div class="scene s3"><div class="inner">
+      <div class="big">Shop &amp; sell <span class="g">safely</span></div>
+      <div class="feats">
+        <div class="feat"><div class="e">&#128274;</div><div class="tx"><div class="t">Secure Escrow</div><div class="d">Pay only when you confirm you got the item.</div></div></div>
+        <div class="feat"><div class="e">&#10003;</div><div class="tx"><div class="t">Verified Members</div><div class="d">ID &amp; address checks build real trust.</div></div></div>
+        <div class="feat"><div class="e">&#128172;</div><div class="tx"><div class="t">In-app Chat</div><div class="d">Talk to buyers &amp; sellers, with scam alerts.</div></div></div>
+      </div>
+    </div></div>
+
+    <div class="scene s4"><div class="inner">
+      <div class="phone">
+        <div class="pbar"><span>&#128717;</span> Pak<span style="color:#C9A227">Bazar</span></div>
+        <div class="card"><div class="im">&#128663;<span class="ft">&#9733; FEATURED</span></div>
+          <div class="bd"><div class="pr">Rs 4,250,000</div><div class="tt">Honda Civic 2021</div></div></div>
+      </div>
+      <div class="scene4txt">
+        <div class="h">Sell in minutes</div>
+        <div class="p">Snap a few photos, set your price, and reach buyers across 280+ cities.</div>
+      </div>
+    </div></div>
+
+    <div class="scene s5"><div class="inner">
+      <div class="cta">Download <span style="color:#C9A227">PakBazar</span> today</div>
+      <div><span class="url">pakbazar24.com</span></div>
+      <div class="sub">Buy &nbsp;&bull;&nbsp; Sell &nbsp;&bull;&nbsp; across 280+ cities in Pakistan</div>
+    </div></div>
+
+    <div class="foot">pakbazar24.com</div>
+  </div>
+</body></html>
