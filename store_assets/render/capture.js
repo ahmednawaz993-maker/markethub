@@ -13,7 +13,7 @@ const H = parseInt(process.argv[4] || '1080', 10);
 const PROMO = 'file:///C:/MarketHubNew/markethub/store_assets/' + HTML;
 const OUT = path.join(__dirname, process.argv[5] || 'frames');
 const FPS = 25;
-const DURATION_MS = 20000; // one full loop
+const DURATION_MS = parseInt(process.argv[6] || '20000', 10); // one full loop
 const FRAMES = Math.round((DURATION_MS / 1000) * FPS);
 
 (async () => {

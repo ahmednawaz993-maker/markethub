@@ -33,10 +33,11 @@ includes a **synthesized royalty-free background track** (a soft C–G–Am–F 
 pad generated with ffmpeg — no licensing needed). To change the music, re-run
 the ffmpeg synth/mux steps (or drop in your own audio file and mux it).
 
-## Two ready videos
-- `promo.mp4` — **landscape 1920×1080** (YouTube / Play promo / website).
-- `promo_vertical.mp4` — **vertical 1080×1920** (Reels / Stories / TikTok / WhatsApp status).
-Both 20s, H.264 + AAC, with the synthesized background music. Re-render with
+## Ready videos
+- `promo.mp4` — **landscape 1920×1080**, 20s, English text + music (YouTube / Play / website).
+- `promo_vertical.mp4` — **vertical 1080×1920**, 20s, English text + music (Reels / Stories / TikTok / WhatsApp).
+- `promo_urdu.mp4` — **landscape 1920×1080**, 30s, **Urdu on-screen text + female Urdu voiceover** (ur-PK-UzmaNeural via node-edge-tts) over soft music.
+All H.264 + AAC. The Urdu voiceover lines are in `render/gen_tts.js`. Re-render with
 `node render/capture.js <html> <w> <h> <outdir>` then the ffmpeg encode/mux steps.
 
 ## Notes

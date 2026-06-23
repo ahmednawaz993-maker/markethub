@@ -1,0 +1,122 @@
+<!DOCTYPE html><html lang="ur" dir="rtl"><head><meta charset="UTF-8">
+<title>PakBazar — Promo (Urdu)</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;
+    font-family:'Noto Nastaliq Urdu','Jameel Noori Nastaleeq','Urdu Typesetting','Segoe UI',Tahoma,Arial,sans-serif;}
+  html,body{width:1920px;height:1080px;overflow:hidden;background:#0A1A33;}
+  .stage{position:relative;width:1920px;height:1080px;
+    background:radial-gradient(120% 120% at 50% 0%,#173A6B 0%,#0A1A33 70%);color:#fff;overflow:hidden;}
+  .sheen{position:absolute;inset:-40%;background:
+    conic-gradient(from 0deg,transparent 0 40%,rgba(201,162,39,.10) 50%,transparent 60% 100%);
+    animation:spin 18s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .watermark{position:absolute;right:-120px;top:-120px;font-size:520px;color:rgba(201,162,39,.06);}
+
+  .scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;opacity:0;}
+  .scene .inner{transform:translateY(28px);opacity:0;}
+  .s1{animation:sc1 30s infinite;}.s2{animation:sc2 30s infinite;}.s3{animation:sc3 30s infinite;}
+  .s4{animation:sc4 30s infinite;}.s5{animation:sc5 30s infinite;}
+  .s1 .inner{animation:rise 30s infinite;}.s2 .inner{animation:rise2 30s infinite;}
+  .s3 .inner{animation:rise3 30s infinite;}.s4 .inner{animation:rise4 30s infinite;}.s5 .inner{animation:rise5 30s infinite;}
+  @keyframes sc1{0%{opacity:0}2%{opacity:1}18%{opacity:1}20%{opacity:0}100%{opacity:0}}
+  @keyframes sc2{0%,20%{opacity:0}22%{opacity:1}38%{opacity:1}40%{opacity:0}100%{opacity:0}}
+  @keyframes sc3{0%,40%{opacity:0}42%{opacity:1}58%{opacity:1}60%{opacity:0}100%{opacity:0}}
+  @keyframes sc4{0%,60%{opacity:0}62%{opacity:1}78%{opacity:1}80%{opacity:0}100%{opacity:0}}
+  @keyframes sc5{0%,80%{opacity:0}82%{opacity:1}98%{opacity:1}100%{opacity:0}}
+  @keyframes rise{0%,1%{opacity:0;transform:translateY(28px)}4%{opacity:1;transform:translateY(0)}18%{opacity:1}20%{opacity:0}100%{opacity:0}}
+  @keyframes rise2{0%,21%{opacity:0;transform:translateY(28px)}24%{opacity:1;transform:translateY(0)}38%{opacity:1}40%{opacity:0}100%{opacity:0}}
+  @keyframes rise3{0%,41%{opacity:0;transform:translateY(28px)}44%{opacity:1;transform:translateY(0)}58%{opacity:1}60%{opacity:0}100%{opacity:0}}
+  @keyframes rise4{0%,61%{opacity:0;transform:translateY(28px)}64%{opacity:1;transform:translateY(0)}78%{opacity:1}80%{opacity:0}100%{opacity:0}}
+  @keyframes rise5{0%,81%{opacity:0;transform:translateY(28px)}84%{opacity:1;transform:translateY(0)}98%{opacity:1}100%{opacity:0}}
+
+  .bag{width:150px;height:150px;border-radius:38px;background:#C9A227;display:flex;align-items:center;
+    justify-content:center;font-size:86px;margin:0 auto 30px;box-shadow:0 20px 50px rgba(0,0,0,.4);}
+  .name{font-size:110px;font-weight:800;}.name b{color:#C9A227;}
+  .tag{font-size:50px;color:#dbe6f7;margin-top:18px;}
+  .big{font-size:90px;font-weight:800;max-width:1500px;line-height:1.25;}.big .g{color:#C9A227;}
+  .pills{display:flex;flex-wrap:wrap;gap:22px;justify-content:center;max-width:1500px;margin-top:50px;}
+  .pill{background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.2);border-radius:60px;
+    padding:22px 44px;font-size:44px;display:flex;align-items:center;gap:16px;}
+  .feats{display:flex;gap:40px;margin-top:54px;direction:rtl;}
+  .feat{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:28px;
+    width:420px;padding:46px 32px;}
+  .feat .e{font-size:96px;}.feat .t{font-size:46px;font-weight:bold;margin-top:18px;}
+  .feat .d{font-size:32px;color:#cdddf2;margin-top:12px;line-height:1.5;}
+  .row{display:flex;align-items:center;gap:90px;direction:ltr;}
+  .phone{width:420px;height:780px;border-radius:54px;background:#0A1A33;border:12px solid #203a63;
+    box-shadow:0 30px 80px rgba(0,0,0,.5);overflow:hidden;position:relative;}
+  .phone .pbar{height:90px;background:linear-gradient(135deg,#0A1A33,#173A6B);display:flex;align-items:center;
+    padding:0 26px;font-size:30px;font-weight:bold;gap:12px;font-family:'Segoe UI',Arial;}
+  .phone .card{margin:26px;background:#fff;border-radius:22px;overflow:hidden;color:#111;}
+  .phone .card .im{height:300px;background:linear-gradient(135deg,#dbeafe,#93c5fd);display:flex;
+    align-items:center;justify-content:center;font-size:150px;position:relative;}
+  .phone .card .ft{position:absolute;top:18px;right:18px;background:#C9A227;color:#173A6B;font-weight:bold;
+    font-size:26px;padding:8px 16px;border-radius:10px;}
+  .phone .card .bd{padding:24px;text-align:right;}
+  .phone .card .pr{font-size:46px;font-weight:bold;font-family:'Segoe UI',Arial;}
+  .phone .card .tt{font-size:34px;color:#444;margin-top:6px;}
+  .rtxt{text-align:right;max-width:780px;}
+  .rtxt .h{font-size:84px;font-weight:800;}
+  .rtxt .p{font-size:44px;color:#dbe6f7;margin-top:20px;line-height:1.55;}
+  .cta{font-size:104px;font-weight:800;line-height:1.3;}
+  .url{display:inline-block;margin-top:34px;background:#C9A227;color:#0A1A33;font-size:56px;font-weight:800;
+    padding:24px 60px;border-radius:60px;font-family:'Segoe UI',Arial;direction:ltr;}
+  .sub{font-size:46px;color:#dbe6f7;margin-top:40px;}
+  .foot{position:absolute;bottom:40px;width:100%;text-align:center;font-size:30px;color:rgba(255,255,255,.5);font-family:'Segoe UI',Arial;}
+</style></head>
+<body>
+  <div class="stage">
+    <div class="sheen"></div>
+    <div class="watermark">&#9733;</div>
+
+    <div class="scene s1"><div class="inner">
+      <div class="bag">&#128717;</div>
+      <div class="name">پاک <b>بازار</b></div>
+      <div class="tag">پاکستان کا اپنا آن لائن بازار</div>
+    </div></div>
+
+    <div class="scene s2"><div class="inner">
+      <div class="big">ہر چیز <span class="g">خریدیں اور بیچیں</span></div>
+      <div class="pills">
+        <span class="pill">&#128663; گاڑیاں</span>
+        <span class="pill">&#127968; پراپرٹی</span>
+        <span class="pill">&#128241; موبائل</span>
+        <span class="pill">&#128421; الیکٹرانکس</span>
+        <span class="pill">&#128188; نوکریاں</span>
+        <span class="pill">&#129681; فرنیچر</span>
+      </div>
+    </div></div>
+
+    <div class="scene s3"><div class="inner">
+      <div class="big"><span class="g">محفوظ</span> خرید و فروخت</div>
+      <div class="feats">
+        <div class="feat"><div class="e">&#128274;</div><div class="t">محفوظ ایسکرو</div><div class="d">تصدیق کے بعد ہی رقم وصول ہوتی ہے۔</div></div>
+        <div class="feat"><div class="e">&#10003;</div><div class="t">تصدیق شدہ صارفین</div><div class="d">شناخت اور پتے کی تصدیق سے بھروسا۔</div></div>
+        <div class="feat"><div class="e">&#128172;</div><div class="t">اِن ایپ چیٹ</div><div class="d">سکام الرٹ کے ساتھ محفوظ گفتگو۔</div></div>
+      </div>
+    </div></div>
+
+    <div class="scene s4"><div class="inner">
+      <div class="row">
+        <div class="phone">
+          <div class="pbar"><span>&#128717;</span> Pak<span style="color:#C9A227">Bazar</span></div>
+          <div class="card"><div class="im">&#128663;<span class="ft">&#9733; نمایاں</span></div>
+            <div class="bd"><div class="pr">Rs 4,250,000</div><div class="tt">ہونڈا سِوک 2021</div></div></div>
+        </div>
+        <div class="rtxt">
+          <div class="h">چند منٹ میں بیچیں</div>
+          <div class="p">تصویریں لگائیں، قیمت مقرر کریں، اور پورے پاکستان کے خریداروں تک پہنچیں۔</div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="scene s5"><div class="inner">
+      <div class="cta">آج ہی <span style="color:#C9A227">پاک بازار</span> ڈاؤن لوڈ کریں</div>
+      <div><span class="url">pakbazar24.com</span></div>
+      <div class="sub">خریدیں &nbsp;&bull;&nbsp; بیچیں &nbsp;&bull;&nbsp; 280+ شہروں میں</div>
+    </div></div>
+
+    <div class="foot">pakbazar24.com</div>
+  </div>
+</body></html>

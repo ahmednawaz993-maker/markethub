@@ -11,6 +11,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "msedge-tts": "^2.0.6",
+    "node-edge-tts": "^1.2.10",
     "puppeteer-core": "^25.2.0"
   }
 }
