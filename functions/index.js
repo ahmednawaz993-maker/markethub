@@ -38,6 +38,19 @@ const SUPPORT_FROM = "ahmednawaz993@gmail.com";
 // commissionRate in the app (lib/src/commerce.dart).
 const COMMISSION_RATE = 0.02;
 
+// Numeric value of a listing's price string. Mirrors parsePrice() in the app
+// (lib/src/helpers.dart): strip everything except digits and dots, then parse.
+function parsePrice(price) {
+  const cleaned = String(price == null ? "" : price).replace(/[^0-9.]/g, "");
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
+
+// Round to 2 decimals (paisa) the same way the escrow release does.
+function round2(n) {
+  return Math.round(n * 100) / 100;
+}
+
 // PayFast (gopayfast, Pakistan) credentials — read from process.env so the
 // (default) manual payment flow deploys without them. When you activate the
 // gateway, set them: firebase functions:secrets:set PAYFAST_MERCHANT_ID /
@@ -323,22 +336,79 @@ async function pruneInvalidTokens(db, uid, tokens, response) {
 exports.notifyOnNewOrder = onDocumentCreated(
   "orders/{orderId}",
   async (event) => {
-    const order = event.data && event.data.data();
-    if (!order || !order.sellerId) return;
+    const snap = event.data;
+    if (!snap) return;
+    const order = snap.data();
+    if (!order) return;
 
     const db = getFirestore();
+
+    // Normalize money fields against the authoritative listing. The buyer
+    // creates the order client-side, so without this they could set their own
+    // amount/sellerPayout and place a COD (or direct-buy) order for Rs 1 on an
+    // expensive item. Recompute amount/commission/sellerPayout/sellerId from
+    // the listing the order points at, and notify with the corrected figure.
+    // Negotiated orders (fromOffer) keep their agreed price — that amount is
+    // protected by the offers rules.
+    let amount = order.amount;
+    let sellerId = order.sellerId;
+    if (
+      order.fromOffer !== true &&
+      (order.status === "cod_pending" || order.status === "pending_payment") &&
+      order.listingId
+    ) {
+      const listingSnap = await db
+        .collection("listings")
+        .doc(order.listingId)
+        .get();
+
+      // The ad is gone — void rather than leave a buyer-controlled amount
+      // standing, and skip the "new order" notification.
+      if (!listingSnap.exists) {
+        await snap.ref.set(
+          { status: "cancelled", voidReason: "listing_unavailable" },
+          { merge: true }
+        );
+        return;
+      }
+
+      const listing = listingSnap.data();
+      amount = parsePrice(listing.price);
+      const isCod = order.status === "cod_pending";
+      const commission = isCod ? 0 : round2(amount * COMMISSION_RATE);
+      const sellerPayout = round2(amount - commission);
+      sellerId = listing.userId || order.sellerId || "";
+
+      if (
+        order.amount !== amount ||
+        order.commission !== commission ||
+        order.sellerPayout !== sellerPayout ||
+        order.sellerId !== sellerId
+      ) {
+        await snap.ref.set(
+          { amount, commission, sellerPayout, sellerId },
+          { merge: true }
+        );
+      }
+    }
+
+    if (!sellerId) return;
+
+    const body =
+      `${order.buyerName || "A buyer"} ordered ` +
+      `"${order.listingTitle}" for Rs ${amount}`;
     await recordNotification(
       db,
-      order.sellerId,
+      sellerId,
       "New order received",
-      `${order.buyerName || "A buyer"} ordered "${order.listingTitle}" for Rs ${order.amount}`,
+      body,
       "order",
       event.params.orderId
     );
 
     const tokensSnap = await db
       .collection("users")
-      .doc(order.sellerId)
+      .doc(sellerId)
       .collection("fcmTokens")
       .get();
     const tokens = tokensSnap.docs.map((d) => d.id);
@@ -346,10 +416,7 @@ exports.notifyOnNewOrder = onDocumentCreated(
 
     const response = await getMessaging().sendEachForMulticast({
       tokens,
-      notification: {
-        title: "New order received",
-        body: `${order.buyerName || "A buyer"} ordered "${order.listingTitle}" for Rs ${order.amount}`,
-      },
+      notification: { title: "New order received", body },
       data: { type: "order", orderId: event.params.orderId },
       webpush: {
         notification: { icon: "/icons/Icon-192.png" },
@@ -357,7 +424,7 @@ exports.notifyOnNewOrder = onDocumentCreated(
       },
     });
 
-    await pruneInvalidTokens(db, order.sellerId, tokens, response);
+    await pruneInvalidTokens(db, sellerId, tokens, response);
   }
 );
 
