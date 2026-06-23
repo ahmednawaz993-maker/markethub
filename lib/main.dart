@@ -50,6 +50,7 @@ Future<void> main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await loadSavedLocale();
   await loadFeaturingFlag();
+  await loadVerificationFlag();
 
   runApp(const PakBazarApp());
 }

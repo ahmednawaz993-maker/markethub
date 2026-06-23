@@ -66,11 +66,20 @@ service cloud.firestore {
              && request.auth.token.email.lower() in ['demo@pakbazar24.com'];
     }
 
-    // True if the signed-in user has passed identity verification (admin/demo
-    // bypass). Used to require ID verification before posting ads.
+    // Whether ID verification is currently required platform-wide (admin can
+    // switch it off via config/verification). Missing doc/field => not required.
+    function verifyRequired() {
+      return exists(/databases/$(database)/documents/config/verification)
+             && get(/databases/$(database)/documents/config/verification)
+                  .data.get('required', false) == true;
+    }
+
+    // True if the signed-in user has passed identity verification, OR
+    // verification is switched off, OR they are admin/demo. Gates posting etc.
     function isVerifiedUser() {
       return isAdmin()
              || isDemo()
+             || !verifyRequired()
              || (isSignedIn()
                  && get(/databases/$(database)/documents/users/$(request.auth.uid))
                       .data.get('idVerified', false) == true);
@@ -480,6 +489,7 @@ service cloud.firestore {
       // admin. (A featured/marketing role must NOT change the payout account.)
       allow write: if (docId == 'paymentAccount' && can('paymentAccount'))
                    || (docId == 'featuring' && can('featured'))
+                   || (docId == 'verification' && can('verifyId'))
                    || isAdmin();
     }
 

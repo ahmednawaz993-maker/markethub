@@ -56,6 +56,22 @@ Future<void> loadFeaturingFlag() async {
   } catch (_) {}
 }
 
+/// Whether ID / face verification is REQUIRED before a user can post, buy,
+/// make offers, or chat. Controlled by the admin (config/verification) and
+/// loaded at startup. Defaults OFF — the admin turns it on from the Verify ID
+/// tab when needed. Mirrored in firestore.rules (isVerifiedUser).
+final ValueNotifier<bool> verificationRequired = ValueNotifier<bool>(false);
+
+Future<void> loadVerificationFlag() async {
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('config')
+        .doc('verification')
+        .get();
+    verificationRequired.value = doc.data()?['required'] == true;
+  } catch (_) {}
+}
+
 /// Loads the set of admin-suspended (platform-blocked) users so their listings
 /// can be hidden from everyone's feeds and search results. Refreshed at startup.
 Future<void> loadPlatformBlockedUsers() async {
@@ -194,6 +210,8 @@ Future<bool> ensureVerified(BuildContext context) async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) return false;
   if (isAdminUser() || isDemoUser()) return true;
+  // Admin can switch verification off platform-wide.
+  if (!verificationRequired.value) return true;
   bool verified = false;
   try {
     final doc = await FirebaseFirestore.instance

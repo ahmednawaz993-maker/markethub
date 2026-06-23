@@ -937,7 +937,11 @@ class _AdminVerificationsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
+    return Column(
+      children: [
+        const _VerificationToggle(),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('verifications').snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
@@ -1087,6 +1091,47 @@ class _AdminVerificationsTab extends StatelessWidget {
               ),
             );
           },
+        );
+      },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Admin switch for whether ID/face verification is required platform-wide.
+/// Writes config/verification {required: bool}; the app gates posting/buying/
+/// chatting on it (see verificationRequired / firestore.rules isVerifiedUser).
+class _VerificationToggle extends StatelessWidget {
+  const _VerificationToggle();
+
+  @override
+  Widget build(BuildContext context) {
+    final ref =
+        FirebaseFirestore.instance.collection('config').doc('verification');
+    return StreamBuilder<DocumentSnapshot>(
+      stream: ref.snapshots(),
+      builder: (context, snap) {
+        final on =
+            (snap.data?.data() as Map<String, dynamic>?)?['required'] == true;
+        return Card(
+          margin: const EdgeInsets.all(12),
+          color: on ? null : const Color(0xFFFFF3CD),
+          child: SwitchListTile(
+            secondary: Icon(
+              on ? Icons.verified_user : Icons.lock_open,
+              color: on ? kPakGreen : Colors.orange,
+            ),
+            title: const Text('Require ID & face verification'),
+            subtitle: Text(
+              on
+                  ? 'ON — users must verify before posting, buying, offers or chat.'
+                  : 'OFF — anyone can post, buy, make offers and chat without verifying.',
+            ),
+            value: on,
+            onChanged: (v) => ref.set({'required': v}, SetOptions(merge: true)),
+          ),
         );
       },
     );
