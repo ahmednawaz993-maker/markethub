@@ -1363,6 +1363,7 @@ class _AdminOverviewTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
+        const _VerificationToggle(),
         _section('Users', fs.collection('users').snapshots(), (docs) {
           int business = 0;
           num float = 0;
