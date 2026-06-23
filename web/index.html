@@ -64,22 +64,11 @@
     });
   </script>
 
-  <!-- Purge any service worker + caches left by earlier builds. A stale SW
-       serves cached code (even index.html) and ignores server cache headers,
-       which made deployed changes not appear on the live site. Unregistering
-       it makes the app always load the freshly deployed bundle. -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function (regs) {
-        for (var i = 0; i < regs.length; i++) { regs[i].unregister(); }
-      });
-    }
-    if (window.caches && caches.keys) {
-      caches.keys().then(function (keys) {
-        for (var i = 0; i < keys.length; i++) { caches.delete(keys[i]); }
-      });
-    }
-  </script>
+  <!-- Flutter's service worker caches CanvasKit, the app bundle and fonts so
+       repeat visits load fast (important on mobile). Freshness on deploy is
+       handled by no-cache headers on index.html + flutter_service_worker.js
+       (see firebase.json), so the SW always picks up new builds. Do NOT purge
+       the SW here — that forces a full re-download on every visit. -->
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
