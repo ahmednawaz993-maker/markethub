@@ -560,11 +560,37 @@ class HorizontalAdCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      listing.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    Row(
+                      children: [
+                        if (productColorByName(
+                              listing.attributes['Color'] ?? '',
+                            ) !=
+                            null) ...[
+                          Container(
+                            width: 11,
+                            height: 11,
+                            decoration: BoxDecoration(
+                              color: productColorByName(
+                                listing.attributes['Color'] ?? '',
+                              ),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.grey.shade400,
+                                width: 0.5,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                        ],
+                        Expanded(
+                          child: Text(
+                            listing.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
                     ),
                     Text(
                       priceLabel(listing),
