@@ -450,74 +450,168 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
   final _controller = TextEditingController();
   bool _sending = false;
 
+  // Voice recording state.
+  final AudioRecorder _recorder = AudioRecorder();
+  bool _recording = false;
+  bool _uploadingVoice = false;
+  Timer? _recTimer;
+  int _recSeconds = 0;
+
   DocumentReference<Map<String, dynamic>> get _ticketRef =>
       _supportTicketsCol.doc(widget.ticketId);
 
   @override
   void dispose() {
     _controller.dispose();
+    _recTimer?.cancel();
+    _recorder.dispose();
     super.dispose();
+  }
+
+  void _snack(String m) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+    }
+  }
+
+  /// Shared writer for text and voice messages: appends the message, advances
+  /// the ticket status the same way, and notifies the owner on a support reply.
+  Future<void> _postMessage(
+    Map<String, dynamic> messageFields,
+    String lastLabel,
+  ) async {
+    final me = FirebaseAuth.instance.currentUser;
+    if (me == null) return;
+    final role = widget.adminView ? 'support' : 'user';
+    final snap = await _ticketRef.get();
+    final status = snap.data()?['status']?.toString() ?? 'open';
+    await _ticketRef.collection('messages').add({
+      'senderId': me.uid,
+      'senderRole': role,
+      'senderName': widget.adminView
+          ? 'PakBazar Support'
+          : (me.email?.split('@').first ?? 'You'),
+      'createdAt': Timestamp.now(),
+      ...messageFields,
+    });
+    final update = <String, dynamic>{
+      'lastMessage': lastLabel,
+      'lastSenderRole': role,
+      'updatedAt': Timestamp.now(),
+    };
+    if (widget.adminView) {
+      if (status != 'resolved') update['status'] = 'in_progress';
+    } else if (status == 'resolved') {
+      update['status'] = 'open';
+    }
+    await _ticketRef.update(update);
+    if (widget.adminView && widget.ownerId.isNotEmpty) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.ownerId)
+          .collection('notifications')
+          .add({
+            'title': 'Customer Care replied',
+            'body': lastLabel.length > 120
+                ? '${lastLabel.substring(0, 120)}…'
+                : lastLabel,
+            'type': 'support',
+            'read': false,
+            'createdAt': Timestamp.now(),
+          });
+    }
   }
 
   Future<void> _send() async {
     final text = _controller.text.trim();
-    final me = FirebaseAuth.instance.currentUser;
-    if (text.isEmpty || me == null || _sending) return;
+    if (text.isEmpty || _sending) return;
     setState(() => _sending = true);
     _controller.clear();
-    final role = widget.adminView ? 'support' : 'user';
     try {
-      // Read the current status to decide the resulting status transition.
-      final snap = await _ticketRef.get();
-      final status = snap.data()?['status']?.toString() ?? 'open';
-
-      await _ticketRef.collection('messages').add({
-        'senderId': me.uid,
-        'senderRole': role,
-        'senderName': widget.adminView
-            ? 'PakBazar Support'
-            : (me.email?.split('@').first ?? 'You'),
-        'text': text,
-        'createdAt': Timestamp.now(),
-      });
-
-      final update = <String, dynamic>{
-        'lastMessage': text,
-        'lastSenderRole': role,
-        'updatedAt': Timestamp.now(),
-      };
-      if (widget.adminView) {
-        // A support reply means the ticket is being handled.
-        if (status != 'resolved') update['status'] = 'in_progress';
-      } else if (status == 'resolved') {
-        // A user follow-up reopens a resolved ticket.
-        update['status'] = 'open';
-      }
-      await _ticketRef.update(update);
-
-      // Tell the ticket owner support has replied (staff are back-office, so
-      // the notifications rule permits writing to the owner's inbox).
-      if (widget.adminView && widget.ownerId.isNotEmpty) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(widget.ownerId)
-            .collection('notifications')
-            .add({
-              'title': 'Customer Care replied',
-              'body': text.length > 120 ? '${text.substring(0, 120)}…' : text,
-              'type': 'support',
-              'read': false,
-              'createdAt': Timestamp.now(),
-            });
-      }
+      await _postMessage({'text': text}, text);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Could not send: $e')));
-      }
+      _snack('Could not send: $e');
     } finally {
       if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _startRecording() async {
+    if (FirebaseAuth.instance.currentUser == null ||
+        _recording ||
+        _uploadingVoice) {
+      return;
+    }
+    try {
+      if (!await _recorder.hasPermission()) {
+        _snack('Microphone permission is needed for voice messages.');
+        return;
+      }
+      // On web the path is ignored (records to a blob); on mobile we need a
+      // real temp file path.
+      String path = 'voice.webm';
+      if (!kIsWeb) {
+        final dir = await getTemporaryDirectory();
+        path = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      }
+      await _recorder.start(const RecordConfig(), path: path);
+      setState(() {
+        _recording = true;
+        _recSeconds = 0;
+      });
+      _recTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() => _recSeconds++);
+        if (_recSeconds >= 120) _stopAndSendVoice(); // cap at 2 minutes
+      });
+    } catch (e) {
+      _snack('Could not start recording: $e');
+    }
+  }
+
+  Future<void> _cancelRecording() async {
+    _recTimer?.cancel();
+    try {
+      await _recorder.stop();
+    } catch (_) {}
+    if (mounted) setState(() => _recording = false);
+  }
+
+  Future<void> _stopAndSendVoice() async {
+    if (!_recording) return;
+    _recTimer?.cancel();
+    final secs = _recSeconds;
+    String? path;
+    try {
+      path = await _recorder.stop();
+    } catch (_) {}
+    if (mounted) setState(() => _recording = false);
+    if (path == null) return;
+    if (secs < 1) {
+      _snack('Voice message too short.');
+      return;
+    }
+    setState(() => _uploadingVoice = true);
+    try {
+      final bytes = await XFile(path).readAsBytes();
+      final ext = kIsWeb ? 'webm' : 'm4a';
+      final ctype = kIsWeb ? 'audio/webm' : 'audio/mp4';
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('support_voice')
+          .child(
+            '${widget.ticketId}_${DateTime.now().millisecondsSinceEpoch}.$ext',
+          );
+      await ref.putData(bytes, SettableMetadata(contentType: ctype));
+      final url = await ref.getDownloadURL();
+      await _postMessage(
+        {'type': 'voice', 'audioUrl': url, 'durationSec': secs, 'text': ''},
+        '🎤 Voice message',
+      );
+    } catch (e) {
+      _snack('Could not send voice: $e');
+    } finally {
+      if (mounted) setState(() => _uploadingVoice = false);
     }
   }
 
@@ -643,7 +737,15 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                               ),
                             ),
                             const SizedBox(height: 2),
-                            Text(m['text']?.toString() ?? ''),
+                            if ((m['type']?.toString() ?? '') == 'voice')
+                              _VoiceBubble(
+                                url: m['audioUrl']?.toString() ?? '',
+                                durationSec:
+                                    (m['durationSec'] as num?)?.toInt() ?? 0,
+                                mine: mine,
+                              )
+                            else
+                              Text(m['text']?.toString() ?? ''),
                             const SizedBox(height: 2),
                             Text(
                               timeAgo(m['createdAt'] as Timestamp?),
@@ -663,31 +765,72 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      textCapitalization: TextCapitalization.sentences,
-                      minLines: 1,
-                      maxLines: 4,
-                      decoration: InputDecoration(
-                        hintText: widget.adminView
-                            ? 'Reply to the customer…'
-                            : 'Type your message…',
-                        border: const OutlineInputBorder(),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                      ),
+              child: _recording
+                  ? Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'Cancel',
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: _cancelRecording,
+                        ),
+                        const _RecordingDot(),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Recording…  ${_fmtClock(_recSeconds)}',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        IconButton.filled(
+                          tooltip: 'Send voice',
+                          onPressed: _stopAndSendVoice,
+                          icon: const Icon(Icons.send),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            textCapitalization: TextCapitalization.sentences,
+                            minLines: 1,
+                            maxLines: 4,
+                            decoration: InputDecoration(
+                              hintText: widget.adminView
+                                  ? 'Reply to the customer…'
+                                  : 'Type your message…',
+                              border: const OutlineInputBorder(),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        _uploadingVoice
+                            ? const Padding(
+                                padding: EdgeInsets.all(10),
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                            : IconButton(
+                                tooltip: 'Record voice message',
+                                icon: const Icon(Icons.mic, color: kPakGreen),
+                                onPressed: _startRecording,
+                              ),
+                        IconButton.filled(
+                          onPressed: _sending ? null : _send,
+                          icon: const Icon(Icons.send),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  IconButton.filled(
-                    onPressed: _sending ? null : _send,
-                    icon: const Icon(Icons.send),
-                  ),
-                ],
-              ),
             ),
           ),
         ],
@@ -1138,6 +1281,149 @@ class _AdminSupportTabState extends State<_AdminSupportTab> {
               );
             },
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// m:ss clock from a seconds count.
+String _fmtClock(int seconds) {
+  final m = seconds ~/ 60;
+  final s = seconds % 60;
+  return '$m:${s.toString().padLeft(2, '0')}';
+}
+
+/// Pulsing red dot shown while recording a voice message.
+class _RecordingDot extends StatefulWidget {
+  const _RecordingDot();
+
+  @override
+  State<_RecordingDot> createState() => _RecordingDotState();
+}
+
+class _RecordingDotState extends State<_RecordingDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween(begin: 0.3, end: 1.0).animate(_c),
+      child: Container(
+        width: 12,
+        height: 12,
+        decoration: const BoxDecoration(
+          color: Colors.red,
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
+  }
+}
+
+/// A voice message bubble: tap to play/pause the audio from its URL, with a
+/// duration label. Used for both user and support voice messages.
+class _VoiceBubble extends StatefulWidget {
+  final String url;
+  final int durationSec;
+  final bool mine;
+  const _VoiceBubble({
+    required this.url,
+    required this.durationSec,
+    required this.mine,
+  });
+
+  @override
+  State<_VoiceBubble> createState() => _VoiceBubbleState();
+}
+
+class _VoiceBubbleState extends State<_VoiceBubble> {
+  final AudioPlayer _player = AudioPlayer();
+  bool _playing = false;
+  bool _loading = false;
+  StreamSubscription<PlayerState>? _stateSub;
+  StreamSubscription<void>? _completeSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _stateSub = _player.onPlayerStateChanged.listen((s) {
+      if (mounted) setState(() => _playing = s == PlayerState.playing);
+    });
+    _completeSub = _player.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _playing = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _stateSub?.cancel();
+    _completeSub?.cancel();
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggle() async {
+    if (widget.url.isEmpty) return;
+    try {
+      if (_playing) {
+        await _player.pause();
+      } else {
+        setState(() => _loading = true);
+        await _player.play(UrlSource(widget.url));
+        if (mounted) setState(() => _loading = false);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not play voice message')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.mine ? kPakGreen : kGold;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _loading
+            ? SizedBox(
+                width: 34,
+                height: 34,
+                child: Padding(
+                  padding: const EdgeInsets.all(7),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: color),
+                ),
+              )
+            : InkWell(
+                onTap: _toggle,
+                child: Icon(
+                  _playing
+                      ? Icons.pause_circle_filled
+                      : Icons.play_circle_filled,
+                  size: 34,
+                  color: color,
+                ),
+              ),
+        const SizedBox(width: 8),
+        Icon(Icons.graphic_eq, size: 20, color: color.withValues(alpha: 0.7)),
+        const SizedBox(width: 8),
+        Text(
+          widget.durationSec > 0 ? _fmtClock(widget.durationSec) : 'Voice',
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         ),
       ],
     );
