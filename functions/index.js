@@ -714,6 +714,64 @@ exports.emailFeedbackToAdmin = onDocumentCreated(
   }
 );
 
+// Email the support team when a new Customer Care ticket is opened. Recipients
+// are the super admin plus every active staff member granted the 'support'
+// permission (staff/{lowercased-email} with permissions.support == true).
+// Like emailFeedbackToAdmin, this needs a real SENDGRID_API_KEY + verified
+// sender to actually deliver.
+exports.emailStaffOnNewTicket = onDocumentCreated(
+  { document: "supportTickets/{ticketId}", secrets: [SENDGRID_API_KEY] },
+  async (event) => {
+    const t = event.data && event.data.data();
+    if (!t) return;
+
+    const db = getFirestore();
+    // De-duped recipient list: super admin + active 'support' staff.
+    const recipients = new Set([SUPPORT_TO]);
+    try {
+      const staffSnap = await db.collection("staff").get();
+      staffSnap.forEach((doc) => {
+        const s = doc.data() || {};
+        const active = s.active !== false;
+        const canSupport = !!(s.permissions && s.permissions.support === true);
+        const email = (s.email || doc.id || "").trim();
+        if (active && canSupport && email) recipients.add(email);
+      });
+    } catch (err) {
+      console.error("staff lookup failed:", (err && err.message) || err);
+    }
+
+    const subject =
+      `New Customer Care ticket — ${t.subject || "(no subject)"}`;
+    const body =
+      "A new support ticket was opened on PakBazar.\n\n" +
+      `Subject: ${t.subject || "(none)"}\n` +
+      `Category: ${t.category || "(none)"}\n` +
+      `From: ${t.userEmail || "(not provided)"}\n` +
+      `User ID: ${t.userId || "(none)"}\n` +
+      `Ticket ID: ${event.params.ticketId}\n\n` +
+      `Message:\n${String(t.lastMessage || "")}\n\n` +
+      "Target resolution: within 24 hours.\n" +
+      "Open Admin Panel → Customer Care to reply.";
+
+    sgMail.setApiKey(SENDGRID_API_KEY.value());
+    try {
+      await sgMail.send({
+        to: Array.from(recipients),
+        from: SUPPORT_FROM,
+        replyTo: t.userEmail || SUPPORT_TO,
+        subject,
+        text: body,
+      });
+    } catch (err) {
+      console.error(
+        "SendGrid ticket email failed:",
+        (err && err.message) || err
+      );
+    }
+  }
+);
+
 // ---------------------------------------------------------------------------
 // Escrow payments
 //
