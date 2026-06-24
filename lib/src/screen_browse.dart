@@ -219,6 +219,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
   bool hideSold = false;
   String conditionFilter = 'Any'; // 'Any' | 'New' | 'Used'
   bool negotiableOnly = false;
+  String colorFilter = ''; // '' = any colour
 
   static const sortOptions = [
     'Newest',
@@ -318,6 +319,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     bool tempHideSold = hideSold;
     String tempCondition = conditionFilter;
     bool tempNegotiable = negotiableOnly;
+    String tempColor = colorFilter;
 
     await showModalBottomSheet(
       context: context,
@@ -399,6 +401,12 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                     }).toList(),
                   ),
                   const SizedBox(height: 8),
+                  ColorSwatchSelector(
+                    label: 'Colour',
+                    selected: tempColor,
+                    onChanged: (v) => setSheetState(() => tempColor = v),
+                  ),
+                  const SizedBox(height: 8),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Negotiable price only'),
@@ -434,6 +442,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                               hideSold = false;
                               conditionFilter = 'Any';
                               negotiableOnly = false;
+                              colorFilter = '';
                             });
                             Navigator.pop(context);
                           },
@@ -456,6 +465,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                               hideSold = tempHideSold;
                               conditionFilter = tempCondition;
                               negotiableOnly = tempNegotiable;
+                              colorFilter = tempColor;
                             });
                             Navigator.pop(context);
                           },
@@ -484,6 +494,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     if (hideSold) count++;
     if (conditionFilter != 'Any') count++;
     if (negotiableOnly) count++;
+    if (colorFilter.isNotEmpty) count++;
     return count;
   }
 
@@ -544,6 +555,10 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
       final matchesCondition =
           conditionFilter == 'Any' || listing.condition == conditionFilter;
       final matchesNegotiable = !negotiableOnly || listing.negotiable;
+      final matchesColor =
+          colorFilter.isEmpty ||
+          (listing.attributes['Color'] ?? '').toLowerCase() ==
+              colorFilter.toLowerCase();
       final notBlocked = !isHiddenSeller(listing.userId);
 
       return matchesSearch &&
@@ -555,6 +570,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
           matchesSold &&
           matchesCondition &&
           matchesNegotiable &&
+          matchesColor &&
           notBlocked &&
           listing.isApproved;
     }).toList();

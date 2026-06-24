@@ -707,10 +707,36 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                         ),
                       ),
                       Expanded(
-                        child: Text(
-                          e.value,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
+                        child: (e.key == 'Color' &&
+                                productColorByName(e.value) != null)
+                            ? Row(
+                                children: [
+                                  Container(
+                                    width: 16,
+                                    height: 16,
+                                    decoration: BoxDecoration(
+                                      color: productColorByName(e.value),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.grey.shade400,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    e.value,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Text(
+                                e.value,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
                     ],
                   ),

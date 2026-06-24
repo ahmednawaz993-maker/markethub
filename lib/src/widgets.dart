@@ -2,6 +2,127 @@ part of '../main.dart';
 
 // Reusable UI widgets shared across screens.
 
+/// Looks up a palette [Color] by its display name (case-insensitive). Returns
+/// null for an unknown/legacy free-text colour.
+Color? productColorByName(String name) {
+  final n = name.trim().toLowerCase();
+  for (final (pn, pc) in kProductColors) {
+    if (pn.toLowerCase() == n) return pc;
+  }
+  return null;
+}
+
+/// Daraz-style colour picker: a wrap of round colour swatches from the fixed
+/// [kProductColors] palette. Tap a swatch to select it (tap again to clear).
+/// The selected colour NAME is reported via [onChanged]. Used by sellers when
+/// posting and by buyers in the filter sheet.
+class ColorSwatchSelector extends StatelessWidget {
+  final String selected; // selected colour name, '' = none
+  final ValueChanged<String> onChanged;
+  final String label;
+  const ColorSwatchSelector({
+    super.key,
+    required this.selected,
+    required this.onChanged,
+    this.label = 'Colour',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 10, bottom: 8),
+          child: Text(
+            selected.isEmpty ? '$label (optional)' : '$label:  $selected',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (final (name, color) in kProductColors)
+              _ColorSwatch(
+                name: name,
+                color: color,
+                selected: selected == name,
+                onTap: () => onChanged(selected == name ? '' : name),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ColorSwatch extends StatelessWidget {
+  final String name;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+  const _ColorSwatch({
+    required this.name,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = color.computeLuminance() > 0.7;
+    final isMulti = name == 'Multicolour';
+    return Tooltip(
+      message: name,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: isMulti ? null : color,
+            gradient: isMulti
+                ? const SweepGradient(
+                    colors: [
+                      Color(0xFFD32F2F),
+                      Color(0xFFFBC02D),
+                      Color(0xFF2E7D32),
+                      Color(0xFF1976D2),
+                      Color(0xFF7B1FA2),
+                      Color(0xFFD32F2F),
+                    ],
+                  )
+                : null,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: selected
+                  ? kPakGreen
+                  : (isLight ? Colors.grey.shade400 : Colors.transparent),
+              width: selected ? 3 : 1,
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: kPakGreen.withValues(alpha: 0.45),
+                      blurRadius: 5,
+                    ),
+                  ]
+                : null,
+          ),
+          child: selected
+              ? Icon(
+                  Icons.check,
+                  size: 20,
+                  color: (isLight || isMulti) ? Colors.black87 : Colors.white,
+                )
+              : null,
+        ),
+      ),
+    );
+  }
+}
+
 class EmptyState extends StatelessWidget {
   final IconData icon;
   final String title;

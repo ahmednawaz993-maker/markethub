@@ -385,12 +385,18 @@ const List<String> pricingUnits = [
 List<String> attributeFieldsFor(String category) {
   switch (category) {
     case 'Motors':
-      return const ['Make / Brand', 'Year', 'KM driven'];
+      return const ['Make / Brand', 'Year', 'KM driven', 'Color'];
     case 'Properties':
       return const ['Bedrooms', 'Bathrooms', 'Area (sq ft / marla)'];
     case 'Mobiles & Tablets':
     case 'Electronics':
-      return const ['Brand', 'Model'];
+      return const ['Brand', 'Model', 'Color'];
+    case 'Men Essentials':
+    case 'Women Essentials':
+    case 'Kids Essentials':
+      return const ['Brand', 'Size', 'Color'];
+    case 'Home & Furniture':
+      return const ['Material', 'Color'];
     case 'Commute & Rides':
       return const [
         'Route (From → To)',
@@ -405,6 +411,32 @@ List<String> attributeFieldsFor(String category) {
       return const [];
   }
 }
+
+/// Professional, fixed colour palette used for product colour selection
+/// (Daraz-style swatches). The colour NAME is what gets stored in a listing's
+/// `Color` attribute and what buyers filter by.
+const List<(String, Color)> kProductColors = [
+  ('Black', Color(0xFF1C1C1C)),
+  ('White', Color(0xFFFFFFFF)),
+  ('Grey', Color(0xFF9E9E9E)),
+  ('Silver', Color(0xFFCFD8DC)),
+  ('Beige', Color(0xFFD7CCC8)),
+  ('Brown', Color(0xFF6D4C41)),
+  ('Red', Color(0xFFD32F2F)),
+  ('Maroon', Color(0xFF7B1E1E)),
+  ('Pink', Color(0xFFEC407A)),
+  ('Orange', Color(0xFFF57C00)),
+  ('Yellow', Color(0xFFFBC02D)),
+  ('Gold', Color(0xFFC9A227)),
+  ('Green', Color(0xFF2E7D32)),
+  ('Olive', Color(0xFF808000)),
+  ('Teal', Color(0xFF00897B)),
+  ('Sky Blue', Color(0xFF4FC3F7)),
+  ('Blue', Color(0xFF1976D2)),
+  ('Navy', Color(0xFF173A6B)),
+  ('Purple', Color(0xFF7B1FA2)),
+  ('Multicolour', Color(0xFF607D8B)),
+];
 
 class MarketplaceCategory {
   final String title;

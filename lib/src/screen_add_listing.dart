@@ -606,14 +606,22 @@ class _AddListingScreenState extends State<AddListingScreen> {
                   : (v) => setState(() => negotiable = v),
             ),
             for (final label in attributeFieldsFor(selectedCategory))
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: TextField(
-                  controller: _attrCtrl(label),
-                  enabled: !isSubmitting,
-                  decoration: InputDecoration(labelText: '$label (optional)'),
+              if (label == 'Color')
+                ColorSwatchSelector(
+                  selected: _attrCtrl('Color').text,
+                  onChanged: isSubmitting
+                      ? (_) {}
+                      : (v) => setState(() => _attrCtrl('Color').text = v),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: TextField(
+                    controller: _attrCtrl(label),
+                    enabled: !isSubmitting,
+                    decoration: InputDecoration(labelText: '$label (optional)'),
+                  ),
                 ),
-              ),
             TextField(
               controller: phoneController,
               decoration: const InputDecoration(
