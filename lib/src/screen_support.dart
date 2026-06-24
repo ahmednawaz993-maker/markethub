@@ -42,6 +42,25 @@ const List<String> kSupportCategories = [
   'Other',
 ];
 
+/// Policy guidance shown when a user picks certain categories. Order problems
+/// are between buyer and seller; refunds are only handled by support when the
+/// buyer paid through PakBazar's on-platform options (escrow).
+String? _categoryNote(String category) {
+  switch (category) {
+    case 'Order / Delivery':
+      return 'For order or delivery problems, please contact the seller '
+          'directly through chat or their listed phone number. PakBazar can '
+          'only step in for payments made through the platform.';
+    case 'Payment / Refund':
+      return 'Refunds can only be handled by us if you paid through PakBazar\'s '
+          'on-platform payment options (escrow). If you paid the seller '
+          'directly — cash on delivery, bank transfer, etc. — please settle it '
+          'with the seller.';
+    default:
+      return null;
+  }
+}
+
 /// Opens a new support ticket with its first message. Returns the ticket id.
 Future<String?> createSupportTicket({
   required String category,
@@ -323,6 +342,31 @@ Future<void> _showNewTicketSheet(BuildContext context) async {
                 ],
                 onChanged: (v) => setS(() => category = v ?? category),
               ),
+              if (_categoryNote(category) != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: kGold.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: kGold.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.info_outline, size: 18, color: kGold),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _categoryNote(category)!,
+                          style: const TextStyle(fontSize: 12.5, height: 1.3),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               TextField(
                 controller: subjectCtrl,
