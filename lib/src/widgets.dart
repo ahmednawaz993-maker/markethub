@@ -739,6 +739,7 @@ class _FeedAdCardState extends State<FeedAdCard> {
     final l = widget.listing;
     final img = l.galleryImages;
     final posted = timeAgo(l.createdAt);
+    final colorSwatch = productColorByName(l.attributes['Color'] ?? '');
     final isNew =
         l.createdAt != null &&
         DateTime.now().difference(l.createdAt!.toDate()).inHours < 24;
@@ -938,11 +939,35 @@ class _FeedAdCardState extends State<FeedAdCard> {
                     ],
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    l.title.isEmpty ? 'Untitled ad' : l.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12.5, color: Colors.grey[800]),
+                  Row(
+                    children: [
+                      if (colorSwatch != null) ...[
+                        Container(
+                          width: 11,
+                          height: 11,
+                          decoration: BoxDecoration(
+                            color: colorSwatch,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.grey.shade400,
+                              width: 0.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                      ],
+                      Expanded(
+                        child: Text(
+                          l.title.isEmpty ? 'Untitled ad' : l.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   if (l.condition.isNotEmpty && l.condition != 'N/A') ...[
                     const SizedBox(height: 4),

@@ -940,12 +940,37 @@ class _ListingCardState extends State<ListingCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    listing.title.isEmpty ? 'Untitled ad' : listing.title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    children: [
+                      if (productColorByName(
+                            listing.attributes['Color'] ?? '',
+                          ) !=
+                          null) ...[
+                        Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: productColorByName(
+                              listing.attributes['Color'] ?? '',
+                            ),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.grey.shade400),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      Expanded(
+                        child: Text(
+                          listing.title.isEmpty
+                              ? 'Untitled ad'
+                              : listing.title,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 6),
                   Text(
