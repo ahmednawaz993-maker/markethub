@@ -661,6 +661,41 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
       );
 }
 
+/// The Admin Panel tab label for Customer Care, with a badge counting tickets
+/// that need a staff reply (not resolved and the last message was the
+/// customer's). Returns a [Tab] so it slots straight into the TabBar.
+class _SupportTabLabel extends StatelessWidget {
+  final String title;
+  const _SupportTabLabel(this.title);
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      // Single-field filter (no composite index); status filtered client-side.
+      stream: _supportTicketsCol
+          .where('lastSenderRole', isEqualTo: 'user')
+          .snapshots(),
+      builder: (context, snap) {
+        final count = (snap.data?.docs ?? []).where((d) {
+          final s = (d.data() as Map)['status']?.toString() ?? 'open';
+          return s != 'resolved';
+        }).length;
+        return Tab(
+          child: Badge(
+            isLabelVisible: count > 0,
+            label: Text('$count'),
+            offset: const Offset(6, -4),
+            child: Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Text(title),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Admin Panel → Customer Care tab
 // ---------------------------------------------------------------------------

@@ -75,7 +75,12 @@ class AdminPanelScreen extends StatelessWidget {
             labelColor: Colors.white,
             indicatorColor: Colors.white,
             isScrollable: true,
-            tabs: [for (final e in visible) Tab(text: e.$2)],
+            tabs: [
+              for (final e in visible)
+                e.$1 == 'support'
+                    ? _SupportTabLabel(e.$2)
+                    : Tab(text: e.$2),
+            ],
           ),
         ),
         body: TabBarView(
