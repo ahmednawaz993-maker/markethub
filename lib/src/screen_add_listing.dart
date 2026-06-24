@@ -678,6 +678,49 @@ class _AddListingScreenState extends State<AddListingScreen> {
                     },
             ),
             const SizedBox(height: 20),
+            // Seller conduct notice — every seller sees this before posting, so
+            // the zero-tolerance policy isn't buried only in the Terms.
+            InkWell(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TermsScreen()),
+              ),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Icon(Icons.gavel, color: Colors.red, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'Sell honestly. ',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            TextSpan(
+                              text: 'Any fraud or violent activity will get '
+                                  'your seller account suspended immediately. '
+                                  'Tap to read the seller terms.',
+                            ),
+                          ],
+                        ),
+                        style: TextStyle(fontSize: 12.5, height: 1.3),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
             ElevatedButton(
               onPressed: isSubmitting ? null : submitListing,
               child: isSubmitting
