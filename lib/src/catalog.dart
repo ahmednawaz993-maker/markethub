@@ -399,6 +399,8 @@ List<String> attributeFieldsFor(String category) {
         'Monthly fare',
         'Per-trip fare',
       ];
+    case 'Garments':
+      return const ['Brand', 'Size', 'Fabric', 'Color'];
     default:
       return const [];
   }
@@ -556,6 +558,22 @@ const List<MarketplaceCategory> appCategories = [
       'School Items',
       'Kids Furniture',
       'Maternity',
+    ],
+  ),
+  MarketplaceCategory(
+    title: 'Garments',
+    icon: Icons.checkroom,
+    subcategories: [
+      'Men\'s Wear',
+      'Women\'s Wear',
+      'Kids\' Wear',
+      'Unstitched Fabric',
+      'Stitched Suits',
+      'Bridal & Formal',
+      'Winter Wear',
+      'Footwear',
+      'Undergarments',
+      'Wholesale / Lots',
     ],
   ),
   MarketplaceCategory(
