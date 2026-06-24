@@ -1303,7 +1303,7 @@ class TermsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const _LegalScreen(
       title: 'Terms of Use',
-      updated: '22 June 2026',
+      updated: '24 June 2026',
       sections: [
         ('Acceptance of terms', [
           'By creating an account or using PakBazar, you agree to these Terms '
@@ -1355,6 +1355,25 @@ class TermsScreen extends StatelessWidget {
           '• Breaking these Terms or our rules may lead to ad removal, '
               'warnings, or suspension of your account.',
           '• Suspended users may submit an appeal from within the app.',
+        ]),
+        ('Seller conduct & immediate suspension', [
+          'Sellers are held to a strict standard. If any fraud or violent '
+              'activity is found on your account, your seller account will be '
+              'SUSPENDED IMMEDIATELY — without prior warning.',
+          '• Fraud includes (but is not limited to): fake, stolen, or '
+              'misrepresented listings; scams or advance-fee tricks; requesting '
+              'or taking payment off-platform; taking payment and not '
+              'delivering; and counterfeit or illegal goods.',
+          '• Violent activity includes any threats, intimidation, harassment, '
+              'or abuse towards buyers, our staff, or other users — in chat or '
+              'in person.',
+          '• On immediate suspension you can no longer post ads, sell, make '
+              'offers, or chat, and any pending payouts may be held while we '
+              'investigate.',
+          '• Serious cases — fraud, threats, or violence — may also be '
+              'reported to the relevant law-enforcement authorities.',
+          '• If you believe a suspension was a mistake, you may submit an '
+              'appeal from within the app for review.',
         ]),
         ('Intellectual property', [
           'PakBazar and its logo, design and content are our property. By '
