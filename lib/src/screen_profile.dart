@@ -1115,6 +1115,21 @@ class TrustSafetyScreen extends StatelessWidget {
             'Scam detection warns you about risky messages in chat.',
             'Admin moderation can warn, block, or suspend rule-breakers.',
           ]),
+          _card(Icons.support_agent, 'Support, orders & refunds', Colors.indigo,
+              const [
+                'Order or delivery problems are between the buyer and the '
+                    'seller — contact the seller directly through chat or their '
+                    'listed phone number.',
+                'PakBazar can only help with a refund if you paid through the '
+                    'platform\'s on-platform payment options (escrow).',
+                'If you paid the seller directly — Cash on Delivery, bank '
+                    'transfer, or any off-platform method — settle it with the '
+                    'seller. PakBazar cannot refund money it never held.',
+                'For a dispute on an escrow-funded order, or to report a scam, '
+                    'open a request in Customer Care (24/7) — we aim to resolve '
+                    'it within 24 hours.',
+                'Always keep your payment on PakBazar so you stay protected.',
+              ]),
           _card(
             Icons.report_gmailerrorred,
             'Spotted something wrong?',
