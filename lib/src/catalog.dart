@@ -519,6 +519,22 @@ const List<MarketplaceCategory> appCategories = [
     ],
   ),
   MarketplaceCategory(
+    title: 'Garments',
+    icon: Icons.checkroom,
+    subcategories: [
+      'Men\'s Wear',
+      'Women\'s Wear',
+      'Kids\' Wear',
+      'Unstitched Fabric',
+      'Stitched Suits',
+      'Bridal & Formal',
+      'Winter Wear',
+      'Footwear',
+      'Undergarments',
+      'Wholesale / Lots',
+    ],
+  ),
+  MarketplaceCategory(
     title: 'Men Essentials',
     icon: Icons.man,
     subcategories: [
@@ -558,22 +574,6 @@ const List<MarketplaceCategory> appCategories = [
       'School Items',
       'Kids Furniture',
       'Maternity',
-    ],
-  ),
-  MarketplaceCategory(
-    title: 'Garments',
-    icon: Icons.checkroom,
-    subcategories: [
-      'Men\'s Wear',
-      'Women\'s Wear',
-      'Kids\' Wear',
-      'Unstitched Fabric',
-      'Stitched Suits',
-      'Bridal & Formal',
-      'Winter Wear',
-      'Footwear',
-      'Undergarments',
-      'Wholesale / Lots',
     ],
   ),
   MarketplaceCategory(
