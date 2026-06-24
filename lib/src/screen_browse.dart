@@ -2,6 +2,51 @@ part of '../main.dart';
 
 // Category / search / listings browser and listing cards.
 
+/// Levenshtein edit distance between [a] and [b], capped at [max]: returns a
+/// value > [max] as soon as the distance is known to exceed it (cheap early
+/// out for typo tolerance, which only cares about small distances).
+int _editDistanceCapped(String a, String b, int max) {
+  final la = a.length, lb = b.length;
+  if ((la - lb).abs() > max) return max + 1;
+  if (la == 0) return lb;
+  if (lb == 0) return la;
+  var prev = List<int>.generate(lb + 1, (i) => i);
+  var curr = List<int>.filled(lb + 1, 0);
+  for (var i = 1; i <= la; i++) {
+    curr[0] = i;
+    var rowMin = curr[0];
+    final ca = a.codeUnitAt(i - 1);
+    for (var j = 1; j <= lb; j++) {
+      final cost = ca == b.codeUnitAt(j - 1) ? 0 : 1;
+      var v = prev[j] + 1;
+      if (curr[j - 1] + 1 < v) v = curr[j - 1] + 1;
+      if (prev[j - 1] + cost < v) v = prev[j - 1] + cost;
+      curr[j] = v;
+      if (v < rowMin) rowMin = v;
+    }
+    if (rowMin > max) return max + 1; // whole row already past the cap
+    final tmp = prev;
+    prev = curr;
+    curr = tmp;
+  }
+  return prev[lb];
+}
+
+/// True if [token] is a close typo of any word in [words]. Only applied when a
+/// plain substring match failed. Short tokens (<4) are excluded to avoid noisy
+/// matches; the allowed distance grows for longer tokens (1 for 4-6 chars, 2
+/// for 7+).
+bool _fuzzyWordMatch(List<String> words, String token) {
+  if (token.length < 4) return false;
+  final maxDist = token.length >= 7 ? 2 : 1;
+  for (final w in words) {
+    if (w.length < 3) continue;
+    if ((w.length - token.length).abs() > maxDist) continue;
+    if (_editDistanceCapped(token, w, maxDist) <= maxDist) return true;
+  }
+  return false;
+}
+
 class CategoryScreen extends StatelessWidget {
   final String title;
 
@@ -469,8 +514,20 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
         listing.price,
         ...listing.attributes.values,
       ].join(' ').toLowerCase();
+      // Each query word must match the ad: as a substring (exact/partial), or
+      // — if not found — as a close typo of one of the ad's words (edit
+      // distance). Words are split out lazily, only when a typo path is hit.
+      List<String>? words;
       final matchesSearch =
-          tokens.isEmpty || tokens.every((t) => haystack.contains(t));
+          tokens.isEmpty ||
+          tokens.every((t) {
+            if (haystack.contains(t)) return true;
+            words ??= haystack
+                .split(RegExp(r'[\s,.;:!/()\-]+'))
+                .where((w) => w.isNotEmpty)
+                .toList();
+            return _fuzzyWordMatch(words!, t);
+          });
 
       final matchesSub =
           selectedSubcategory == 'All' ||
