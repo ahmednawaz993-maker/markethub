@@ -14,6 +14,21 @@ part of '../main.dart';
 CollectionReference<Map<String, dynamic>> get _supportTicketsCol =>
     FirebaseFirestore.instance.collection('supportTickets');
 
+/// Admin-managed customer-care helpline numbers (config/customerCare). Shown to
+/// users on the Customer Care screen; staff with 'support' edit them.
+DocumentReference<Map<String, dynamic>> get _careConfigDoc =>
+    FirebaseFirestore.instance.collection('config').doc('customerCare');
+
+List<Map<String, dynamic>> _parseCareNumbers(Map<String, dynamic>? data) {
+  final raw = data?['numbers'];
+  if (raw is! List) return [];
+  return raw
+      .whereType<Map>()
+      .map((e) => Map<String, dynamic>.from(e))
+      .where((m) => (m['number']?.toString() ?? '').isNotEmpty)
+      .toList();
+}
+
 /// Resolution target for every ticket.
 const Duration kSupportSla = Duration(hours: 24);
 
@@ -140,6 +155,7 @@ class CustomerCareScreen extends StatelessWidget {
               ],
             ),
           ),
+          const _CareNumbersBar(),
           Expanded(
             child: uid == null
                 ? const EmptyState(
@@ -661,6 +677,228 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
       );
 }
 
+/// User-facing list of helpline numbers (tap to call). Hidden when none set.
+class _CareNumbersBar extends StatelessWidget {
+  const _CareNumbersBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _careConfigDoc.snapshots(),
+      builder: (context, snap) {
+        final numbers =
+            _parseCareNumbers(snap.data?.data() as Map<String, dynamic>?);
+        if (numbers.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 6),
+                child: Text(
+                  'Call our helpline',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final n in numbers)
+                    ActionChip(
+                      avatar: const Icon(Icons.call, size: 18, color: kPakGreen),
+                      label: Text(
+                        (n['label']?.toString().isNotEmpty ?? false)
+                            ? '${n['label']}: ${n['number']}'
+                            : '${n['number']}',
+                      ),
+                      onPressed: () {
+                        final num = n['number']?.toString() ?? '';
+                        if (num.isNotEmpty) {
+                          launchUrl(
+                            Uri.parse('tel:$num'),
+                            mode: LaunchMode.externalApplication,
+                          );
+                        }
+                      },
+                    ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Admin/support screen to add, edit and delete the helpline numbers shown to
+/// users on the Customer Care screen.
+class CareNumbersAdminScreen extends StatelessWidget {
+  const CareNumbersAdminScreen({super.key});
+
+  Future<void> _save(List<Map<String, dynamic>> numbers) =>
+      _careConfigDoc.set({
+        'numbers': numbers,
+        'updatedAt': Timestamp.now(),
+      }, SetOptions(merge: true));
+
+  /// Opens the add/edit dialog; [existing]/[index] are null when adding.
+  Future<void> _edit(
+    BuildContext context,
+    List<Map<String, dynamic>> numbers,
+    int? index,
+  ) async {
+    final entry = index != null ? numbers[index] : null;
+    final labelCtrl =
+        TextEditingController(text: entry?['label']?.toString() ?? '');
+    final numberCtrl =
+        TextEditingController(text: entry?['number']?.toString() ?? '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(index == null ? 'Add number' : 'Edit number'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: labelCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Label (e.g. Helpline, WhatsApp)',
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: numberCtrl,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: 'Number',
+                hintText: '+92 3xx xxxxxxx',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final number = numberCtrl.text.trim();
+    if (number.isEmpty) return;
+    final updated = [...numbers];
+    final newEntry = {'label': labelCtrl.text.trim(), 'number': number};
+    if (index != null) {
+      updated[index] = newEntry;
+    } else {
+      updated.add(newEntry);
+    }
+    await _save(updated);
+  }
+
+  Future<void> _delete(
+    BuildContext context,
+    List<Map<String, dynamic>> numbers,
+    int index,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete number?'),
+        content: Text('Remove ${numbers[index]['number']}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final updated = [...numbers]..removeAt(index);
+    await _save(updated);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Helpline numbers')),
+      body: StreamBuilder<DocumentSnapshot>(
+        stream: _careConfigDoc.snapshots(),
+        builder: (context, snap) {
+          if (!snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final numbers =
+              _parseCareNumbers(snap.data!.data() as Map<String, dynamic>?);
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _edit(context, numbers, null),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add number'),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: numbers.isEmpty
+                    ? const EmptyState(
+                        icon: Icons.phone_disabled,
+                        title: 'No helpline numbers',
+                        subtitle: 'Add a number for users to call.',
+                      )
+                    : ListView.separated(
+                        itemCount: numbers.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (context, i) {
+                          final n = numbers[i];
+                          final label = n['label']?.toString() ?? '';
+                          return ListTile(
+                            leading: const Icon(Icons.call, color: kPakGreen),
+                            title: Text(n['number']?.toString() ?? ''),
+                            subtitle: label.isNotEmpty ? Text(label) : null,
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit, size: 20),
+                                  onPressed: () => _edit(context, numbers, i),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete,
+                                      size: 20, color: Colors.red),
+                                  onPressed: () => _delete(context, numbers, i),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
 /// The Admin Panel tab label for Customer Care, with a badge counting tickets
 /// that need a staff reply (not resolved and the last message was the
 /// customer's). Returns a [Tab] so it slots straight into the TabBar.
@@ -715,6 +953,22 @@ class _AdminSupportTabState extends State<_AdminSupportTab> {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const CareNumbersAdminScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.call),
+              label: const Text('Manage helpline numbers'),
+            ),
+          ),
+        ),
         const SizedBox(height: 8),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,

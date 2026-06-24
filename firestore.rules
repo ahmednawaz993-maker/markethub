@@ -536,6 +536,7 @@ service cloud.firestore {
       allow write: if (docId == 'paymentAccount' && can('paymentAccount'))
                    || (docId == 'featuring' && can('featured'))
                    || (docId == 'verification' && can('verifyId'))
+                   || (docId == 'customerCare' && can('support'))
                    || isAdmin();
     }
 
