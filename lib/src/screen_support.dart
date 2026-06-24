@@ -697,38 +697,62 @@ class _CareNumbersBar extends StatelessWidget {
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 6),
                 child: Text(
-                  'Call our helpline',
+                  'Contact our helpline',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final n in numbers)
-                    ActionChip(
-                      avatar: const Icon(Icons.call, size: 18, color: kPakGreen),
-                      label: Text(
-                        (n['label']?.toString().isNotEmpty ?? false)
-                            ? '${n['label']}: ${n['number']}'
-                            : '${n['number']}',
-                      ),
-                      onPressed: () {
-                        final num = n['number']?.toString() ?? '';
-                        if (num.isNotEmpty) {
-                          launchUrl(
-                            Uri.parse('tel:$num'),
-                            mode: LaunchMode.externalApplication,
-                          );
-                        }
-                      },
-                    ),
-                ],
-              ),
+              for (final n in numbers) _careNumberRow(n),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _careNumberRow(Map<String, dynamic> n) {
+    final number = n['number']?.toString() ?? '';
+    final label = n['label']?.toString() ?? '';
+    final hasWhatsApp = n['whatsapp'] == true;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label.isNotEmpty ? '$label · $number' : number,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          IconButton(
+            tooltip: 'Call',
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.call, color: kPakGreen),
+            onPressed: number.isEmpty
+                ? null
+                : () => launchUrl(
+                      Uri.parse('tel:$number'),
+                      mode: LaunchMode.externalApplication,
+                    ),
+          ),
+          if (hasWhatsApp)
+            IconButton(
+              tooltip: 'WhatsApp',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
+              onPressed: number.isEmpty ? null : () => _openWhatsApp(number),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _openWhatsApp(String number) {
+    final cleaned = normalizePhoneForWhatsApp(number);
+    if (cleaned.isEmpty) return;
+    launchUrl(
+      Uri.parse('https://wa.me/$cleaned'),
+      mode: LaunchMode.externalApplication,
     );
   }
 }
@@ -755,29 +779,40 @@ class CareNumbersAdminScreen extends StatelessWidget {
         TextEditingController(text: entry?['label']?.toString() ?? '');
     final numberCtrl =
         TextEditingController(text: entry?['number']?.toString() ?? '');
+    bool whatsapp = entry?['whatsapp'] == true;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(index == null ? 'Add number' : 'Edit number'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: labelCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Label (e.g. Helpline, WhatsApp)',
+        content: StatefulBuilder(
+          builder: (ctx, setS) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: labelCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Label (e.g. Helpline, Orders)',
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: numberCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Number',
-                hintText: '+92 3xx xxxxxxx',
+              const SizedBox(height: 8),
+              TextField(
+                controller: numberCtrl,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'Number',
+                  hintText: '+92 3xx xxxxxxx',
+                ),
               ),
-            ),
-          ],
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text('Available on WhatsApp'),
+                subtitle: const Text('Shows a WhatsApp chat button to users'),
+                value: whatsapp,
+                onChanged: (v) => setS(() => whatsapp = v ?? false),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -795,7 +830,11 @@ class CareNumbersAdminScreen extends StatelessWidget {
     final number = numberCtrl.text.trim();
     if (number.isEmpty) return;
     final updated = [...numbers];
-    final newEntry = {'label': labelCtrl.text.trim(), 'number': number};
+    final newEntry = {
+      'label': labelCtrl.text.trim(),
+      'number': number,
+      'whatsapp': whatsapp,
+    };
     if (index != null) {
       updated[index] = newEntry;
     } else {
@@ -869,10 +908,14 @@ class CareNumbersAdminScreen extends StatelessWidget {
                         itemBuilder: (context, i) {
                           final n = numbers[i];
                           final label = n['label']?.toString() ?? '';
+                          final sub = [
+                            if (label.isNotEmpty) label,
+                            if (n['whatsapp'] == true) 'WhatsApp enabled',
+                          ].join(' · ');
                           return ListTile(
                             leading: const Icon(Icons.call, color: kPakGreen),
                             title: Text(n['number']?.toString() ?? ''),
-                            subtitle: label.isNotEmpty ? Text(label) : null,
+                            subtitle: sub.isNotEmpty ? Text(sub) : null,
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
