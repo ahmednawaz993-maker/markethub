@@ -397,6 +397,8 @@ List<String> attributeFieldsFor(String category) {
       return const ['Brand', 'Size', 'Color'];
     case 'Home & Furniture':
       return const ['Material', 'Color'];
+    case 'Crockery':
+      return const ['Brand', 'Material', 'Color'];
     case 'Commute & Rides':
       return const [
         'Route (From → To)',
@@ -548,6 +550,22 @@ const List<MarketplaceCategory> appCategories = [
       'Beds & Mattresses',
       'Tools',
       'Moving & Storage',
+    ],
+  ),
+  MarketplaceCategory(
+    title: 'Crockery',
+    icon: Icons.dinner_dining,
+    subcategories: [
+      'Dinner Sets',
+      'Plates & Bowls',
+      'Cups & Mugs',
+      'Tea & Coffee Sets',
+      'Glassware',
+      'Serving Dishes',
+      'Cutlery',
+      'Melamine',
+      'Ceramic & China',
+      'Kitchen Storage',
     ],
   ),
   MarketplaceCategory(

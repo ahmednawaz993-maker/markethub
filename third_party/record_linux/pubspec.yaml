@@ -1,0 +1,31 @@
+name: record_linux
+description: >-
+  Build-only patched copy of record_linux 0.7.2. The published 0.7.2 does not
+  implement the members added in record_platform_interface 1.6.0 (startStream,
+  and the request: named arg on hasPermission), which breaks the Dart plugin
+  registrant compile for ALL targets — even though Linux code never runs on
+  Android/web. This copy adds those members so builds succeed. Referenced via a
+  path dependency_override in the app pubspec; remove it once the upstream
+  record_linux ships a 0.x release compatible with interface 1.6.0.
+version: 0.7.2
+publish_to: none
+
+environment:
+  sdk: ^3.3.0
+  flutter: ">=3.16.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  record_platform_interface: ^1.0.2
+
+# Same plugin metadata as the upstream package so Flutter's plugin resolution
+# and the generated registrant treat it identically.
+flutter:
+  plugin:
+    implements: record
+    platforms:
+      linux:
+        pluginClass: RecordLinuxPlugin
+        dartPluginClass: RecordLinux
