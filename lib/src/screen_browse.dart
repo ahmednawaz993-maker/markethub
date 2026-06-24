@@ -202,9 +202,11 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     }
     // Read-level moderation: only approved ads are fetched for public browsing.
     q = q.where('approvalStatus', isEqualTo: 'approved');
+    // Load a wide window so search covers effectively the whole catalogue (not
+    // just the latest 100). Client-side token search then filters this set.
     _listingsStream = q
         .orderBy('createdAt', descending: true)
-        .limit(100)
+        .limit(1000)
         .snapshots();
   }
 
@@ -441,21 +443,34 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
   }
 
   List<Listing> applyFilters(List<Listing> listings) {
-    final query = searchText.trim().toLowerCase();
+    // Split the query into words so an ad matches when EVERY word appears
+    // somewhere in it (any field, any order) — e.g. "nike shoes" finds
+    // "Shoes - Nike". Case-insensitive substring ("alphabetic") matching, so
+    // partial words match too.
+    final tokens = searchText
+        .trim()
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((t) => t.isNotEmpty)
+        .toList();
 
     final result = listings.where((listing) {
+      // One searchable haystack covering every text field on the ad.
+      final haystack = [
+        listing.title,
+        listing.description,
+        listing.location,
+        listing.city,
+        listing.category,
+        listing.subcategory,
+        listing.condition,
+        listing.unit,
+        listing.sellerName,
+        listing.price,
+        ...listing.attributes.values,
+      ].join(' ').toLowerCase();
       final matchesSearch =
-          query.isEmpty ||
-          listing.title.toLowerCase().contains(query) ||
-          listing.description.toLowerCase().contains(query) ||
-          listing.location.toLowerCase().contains(query) ||
-          listing.city.toLowerCase().contains(query) ||
-          listing.category.toLowerCase().contains(query) ||
-          listing.subcategory.toLowerCase().contains(query) ||
-          listing.price.toLowerCase().contains(query) ||
-          listing.attributes.values.any(
-            (v) => v.toLowerCase().contains(query),
-          );
+          tokens.isEmpty || tokens.every((t) => haystack.contains(t));
 
       final matchesSub =
           selectedSubcategory == 'All' ||
@@ -524,7 +539,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
             controller: searchController,
             textInputAction: TextInputAction.search,
             decoration: const InputDecoration(
-              hintText: 'Search by title, location or price...',
+              hintText: 'Search anything — title, category, brand, location…',
               prefixIcon: Icon(Icons.search),
               border: OutlineInputBorder(),
             ),
