@@ -36,6 +36,7 @@ class AdminPanelScreen extends StatelessWidget {
       ('escrow', 'Escrow', _AdminEscrowTab()),
       ('featured', 'Featured', _AdminFeaturedTab()),
       ('feedback', 'Feedback', _AdminFeedbackTab()),
+      ('support', 'Customer Care', _AdminSupportTab()),
       ('users', 'Users', _AdminUsersTab()),
       ('reports', 'Reports', _AdminReportsTab()),
       ('topups', 'Top-ups', _AdminTopupsTab()),

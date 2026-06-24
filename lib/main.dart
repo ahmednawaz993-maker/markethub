@@ -43,6 +43,7 @@ part 'src/screen_offers.dart';
 part 'src/screen_admin.dart';
 part 'src/screen_notifications.dart';
 part 'src/screen_chat.dart';
+part 'src/screen_support.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

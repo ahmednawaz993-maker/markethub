@@ -1448,6 +1448,19 @@ class AboutScreen extends StatelessWidget {
                 ),
                 const Divider(height: 1),
                 ListTile(
+                  leading: const Icon(Icons.support_agent, color: kPakGreen),
+                  title: const Text('Customer Care (24/7)'),
+                  subtitle: const Text('Open a request — resolved within 24h'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CustomerCareScreen(),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
                   leading: const Icon(Icons.email_outlined),
                   title: const Text('Contact support'),
                   trailing: const Icon(Icons.chevron_right),

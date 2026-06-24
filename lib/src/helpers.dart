@@ -137,6 +137,7 @@ const List<(String, String)> kAdminAreas = [
   ('escrow', 'Escrow'),
   ('featured', 'Featured'),
   ('feedback', 'Feedback'),
+  ('support', 'Customer Care'),
   ('users', 'Users'),
   ('reports', 'Reports'),
   ('topups', 'Top-ups'),

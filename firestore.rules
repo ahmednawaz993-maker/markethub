@@ -444,6 +444,51 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // Customer Care — 24/7 support tickets. A user opens a ticket and chats
+    // with support in its messages subcollection; staff with the 'support'
+    // permission read all tickets, reply, and move them through open ->
+    // in_progress -> resolved (target resolution 24h, tracked by slaDueAt).
+    // ---------------------------------------------------------------------
+    match /supportTickets/{ticketId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.status == 'open';
+      allow read: if isSignedIn()
+                  && (resource.data.userId == request.auth.uid
+                      || can('support'));
+      // Support staff manage a ticket fully; the owner may only bump the thread
+      // metadata and (re)open it — never mark their own ticket resolved or
+      // change the parties.
+      allow update: if can('support')
+                    || (isSignedIn()
+                        && resource.data.userId == request.auth.uid
+                        && onlyOwnerTicketChange());
+      allow delete: if can('support');
+
+      function onlyOwnerTicketChange() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'lastMessage', 'lastSenderRole',
+                           'updatedAt'])
+               && (request.resource.data.status == resource.data.status
+                   || request.resource.data.status == 'open');
+      }
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn()
+                    && (ticketOwner() == request.auth.uid || can('support'));
+        allow create: if isSignedIn()
+                      && request.resource.data.senderId == request.auth.uid
+                      && (ticketOwner() == request.auth.uid || can('support'));
+        allow update, delete: if false;
+
+        function ticketOwner() {
+          return get(/databases/$(database)/documents/supportTickets/$(ticketId))
+                   .data.userId;
+        }
+      }
+    }
+
+    // ---------------------------------------------------------------------
     // Appeals — a suspended user asks to be reinstated, committing to fix the
     // violation. Creation is deliberately NOT gated by isNotBlocked() (a
     // blocked user must be able to appeal); the owner reads their own appeals,

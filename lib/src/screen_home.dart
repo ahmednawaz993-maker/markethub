@@ -1602,6 +1602,14 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       actions: [
         IconButton(
+          icon: const Icon(Icons.support_agent, color: Colors.white),
+          tooltip: 'Customer Care (24/7)',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CustomerCareScreen()),
+          ),
+        ),
+        IconButton(
           icon: const Icon(Icons.favorite_border, color: Colors.white),
           tooltip: 'Favorites',
           onPressed: () => Navigator.push(

@@ -20,6 +20,8 @@ IconData _notificationIcon(String type) {
       return Icons.warning_amber_rounded;
     case 'admin':
       return Icons.campaign_outlined;
+    case 'support':
+      return Icons.support_agent;
     default:
       return Icons.notifications;
   }
