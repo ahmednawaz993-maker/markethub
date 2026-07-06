@@ -161,14 +161,24 @@ class _DisplayNameTileState extends State<_DisplayNameTile> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     setState(() => saving = true);
-    await FirebaseFirestore.instance.collection('users').doc(uid).set({
-      'displayName': controller.text.trim(),
-    }, SetOptions(merge: true));
-    if (!mounted) return;
-    setState(() => saving = false);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Display name saved')));
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'displayName': controller.text.trim(),
+      }, SetOptions(merge: true));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Display name saved')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
   }
 
   @override
@@ -310,7 +320,12 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       logoUrl = d?['logoUrl']?.toString();
       coverUrl = d?['coverUrl']?.toString();
       final sc = d?['storeCategory']?.toString();
-      storeCategory = (sc != null && sc.isNotEmpty) ? sc : null;
+      storeCategory =
+          (sc != null &&
+              sc.isNotEmpty &&
+              appCategories.any((c) => c.title == sc))
+          ? sc
+          : null;
       featuredBusiness = d?['featuredBusiness'] == true;
       featuredUntil = d?['featuredBusinessUntil'] is Timestamp
           ? d!['featuredBusinessUntil'] as Timestamp
@@ -324,20 +339,30 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     setState(() => saving = true);
-    await FirebaseFirestore.instance.collection('users').doc(uid).set({
-      'isBusiness': isBusiness,
-      'businessName': nameController.text.trim(),
-      'tagline': taglineController.text.trim(),
-      'storePolicies': policiesController.text.trim(),
-      'logoUrl': logoUrl ?? '',
-      'coverUrl': coverUrl ?? '',
-      'storeCategory': storeCategory ?? '',
-    }, SetOptions(merge: true));
-    if (!mounted) return;
-    setState(() => saving = false);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Business profile saved')));
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'isBusiness': isBusiness,
+        'businessName': nameController.text.trim(),
+        'tagline': taglineController.text.trim(),
+        'storePolicies': policiesController.text.trim(),
+        'logoUrl': logoUrl ?? '',
+        'coverUrl': coverUrl ?? '',
+        'storeCategory': storeCategory ?? '',
+      }, SetOptions(merge: true));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Business profile saved')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
   }
 
   /// Activates the free 3-month Featured Business trial (no payment).
@@ -347,23 +372,31 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
     final until = Timestamp.fromDate(
       DateTime.now().add(const Duration(days: 90)),
     );
-    await FirebaseFirestore.instance.collection('users').doc(uid).set({
-      'isBusiness': true,
-      'featuredBusiness': true,
-      'featuredBusinessUntil': until,
-      'featuredTrialUsed': true,
-    }, SetOptions(merge: true));
-    if (!mounted) return;
-    setState(() {
-      featuredBusiness = true;
-      featuredUntil = until;
-      featuredTrialUsed = true;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Featured Business activated — free for 3 months!'),
-      ),
-    );
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'isBusiness': true,
+        'featuredBusiness': true,
+        'featuredBusinessUntil': until,
+        'featuredTrialUsed': true,
+      }, SetOptions(merge: true));
+      if (!mounted) return;
+      setState(() {
+        featuredBusiness = true;
+        featuredUntil = until;
+        featuredTrialUsed = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Featured Business activated — free for 3 months!'),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Activation failed: $e')));
+      }
+    }
   }
 
   @override
@@ -836,27 +869,35 @@ class _VerificationScreenState extends State<VerificationScreen> {
       return;
     }
     setState(() => submitting = true);
-    await FirebaseFirestore.instance
-        .collection('verifications')
-        .doc(user.uid)
-        .set({
-          'userId': user.uid,
-          'email': user.email ?? '',
-          'selfieUrl': selfieUrl,
-          'cnicUrl': cnicUrl,
-          'address': addressController.text.trim(),
-          'addressProofUrl': addressProofUrl,
-          'status': 'pending',
-          'submittedAt': Timestamp.now(),
-        }, SetOptions(merge: true));
-    if (!mounted) return;
-    setState(() {
-      submitting = false;
-      status = 'pending';
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Submitted — we\'ll review it shortly.')),
-    );
+    try {
+      await FirebaseFirestore.instance
+          .collection('verifications')
+          .doc(user.uid)
+          .set({
+            'userId': user.uid,
+            'email': user.email ?? '',
+            'selfieUrl': selfieUrl,
+            'cnicUrl': cnicUrl,
+            'address': addressController.text.trim(),
+            'addressProofUrl': addressProofUrl,
+            'status': 'pending',
+            'submittedAt': Timestamp.now(),
+          }, SetOptions(merge: true));
+      if (mounted) {
+        setState(() => status = 'pending');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Submitted — we\'ll review it shortly.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Submit failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => submitting = false);
+    }
   }
 
   Widget _uploadTile(String label, String? url, bool busy, VoidCallback onTap) {

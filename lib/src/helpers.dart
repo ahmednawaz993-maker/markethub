@@ -18,16 +18,20 @@ String formatPrice(String raw) {
   if (value == null || cleaned.isEmpty) {
     return raw.trim().isEmpty ? currencySymbol : '$currencySymbol ${raw.trim()}';
   }
-  final intPart = value.truncate();
-  final digits = intPart.toString();
+  // Round the whole value in one operation so the fraction carries into the
+  // integer part correctly (e.g. 100.999 -> 101.00, not 100.00).
+  final fixed = value.toStringAsFixed(2);
+  final dot = fixed.indexOf('.');
+  final digits = fixed.substring(0, dot);
+  final frac = fixed.substring(dot); // includes leading '.'
   final buf = StringBuffer();
   for (var i = 0; i < digits.length; i++) {
     if (i > 0 && (digits.length - i) % 3 == 0) buf.write(',');
     buf.write(digits[i]);
   }
   var out = buf.toString();
-  if (value != intPart.toDouble()) {
-    out += (value - intPart).toStringAsFixed(2).substring(1);
+  if (frac != '.00') {
+    out += frac;
   }
   return '$currencySymbol $out';
 }
@@ -113,7 +117,7 @@ Future<void> saveUserLocation({String? city, double? lat, double? lng}) async {
 }
 
 bool isAdminUser() =>
-    adminEmails.contains(FirebaseAuth.instance.currentUser?.email);
+    adminEmails.contains(FirebaseAuth.instance.currentUser?.email?.toLowerCase());
 
 /// Demo / review accounts that bypass ID verification so Google Play reviewers
 /// (and demos) can use post/buy/offer/chat immediately, without waiting for

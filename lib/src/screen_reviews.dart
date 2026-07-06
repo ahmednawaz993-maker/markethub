@@ -82,6 +82,8 @@ Future<void> showReviewDialog(BuildContext context, String sellerId) async {
       }
     }
   }
+
+  textController.dispose();
 }
 
 class ReviewsScreen extends StatelessWidget {

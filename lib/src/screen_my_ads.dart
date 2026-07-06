@@ -870,9 +870,15 @@ class _EditListingScreenState extends State<EditListingScreen> {
     selectedCategory = widget.listing.category.isEmpty
         ? 'Motors'
         : widget.listing.category;
-    selectedSubcategory = widget.listing.subcategory.isEmpty
-        ? categoryByTitle(selectedCategory).subcategories.first
-        : widget.listing.subcategory;
+    // Validate the saved subcategory against the current category's list so the
+    // state variable matches what the dropdown displays (which falls back to
+    // subcategories.first for a missing/invalid value). Keeps Update from
+    // persisting a stale value the user never sees, and avoids a dropdown
+    // assertion when value isn't in items.
+    final initSubcategories = categoryByTitle(selectedCategory).subcategories;
+    selectedSubcategory = initSubcategories.contains(widget.listing.subcategory)
+        ? widget.listing.subcategory
+        : initSubcategories.first;
     selectedCondition = itemConditions.contains(widget.listing.condition)
         ? widget.listing.condition
         : 'Used';
@@ -882,9 +888,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
     deliveryAvailable = widget.listing.deliveryAvailable;
     codAvailable = widget.listing.codAvailable;
     negotiable = widget.listing.negotiable;
-    selectedCity = pakistanCities.contains(widget.listing.city)
-        ? widget.listing.city
-        : 'Karachi';
+    // Keep the saved place, including a custom town/village not in the list.
+    selectedCity =
+        widget.listing.city.isNotEmpty ? widget.listing.city : 'Karachi';
   }
 
   Future<void> useCurrentLocation() async {
@@ -1114,6 +1120,8 @@ class _EditListingScreenState extends State<EditListingScreen> {
             const SizedBox(height: 12),
             CitySelector(
               value: selectedCity,
+              label: 'City / Town / Village',
+              allowCustom: true,
               onChanged: (value) => setState(() => selectedCity = value),
             ),
             const SizedBox(height: 8),

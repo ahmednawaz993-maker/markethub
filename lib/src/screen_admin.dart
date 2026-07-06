@@ -11,7 +11,7 @@ class AdminPanelScreen extends StatelessWidget {
     // reflect the latest grants (and aren't empty due to a cold-start race
     // where the panel is opened before the startup load finishes).
     return FutureBuilder<void>(
-      future: loadStaffPermissions(),
+      future: loadStaffPermissions().then((_) => syncSupportPushToken()),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return Scaffold(
@@ -71,6 +71,7 @@ class AdminPanelScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: Text(isSuperAdmin() ? 'Admin Panel' : 'Staff Panel'),
+          actions: const [AdminLiveUsersPill()],
           bottom: TabBar(
             labelColor: Colors.white,
             indicatorColor: Colors.white,
@@ -83,8 +84,14 @@ class AdminPanelScreen extends StatelessWidget {
             ],
           ),
         ),
-        body: TabBarView(
-          children: [for (final e in visible) e.$3],
+        body: Stack(
+          children: [
+            TabBarView(
+              children: [for (final e in visible) e.$3],
+            ),
+            // Invisible: pops a snackbar on new user support messages.
+            const SupportAlertWatcher(),
+          ],
         ),
       ),
     );
@@ -429,7 +436,8 @@ class _AdminEscrowTab extends StatelessWidget {
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
             final amount = (d['amount'] as num?)?.toDouble() ?? 0;
-            final commission = amount * commissionRate;
+            final commission =
+                (d['commission'] as num?)?.toDouble() ?? (amount * commissionRate);
             final payout = amount - commission;
             final confirmed = d['buyerConfirmed'] == true;
             return Card(
@@ -989,13 +997,20 @@ class _AdminVerificationsTab extends StatelessWidget {
               child: GestureDetector(
                 onTap: url.isEmpty
                     ? null
-                    : () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              FullScreenGallery(images: [selfie, cnic]),
-                        ),
-                      ),
+                    : () {
+                        final gallery = [selfie, cnic]
+                            .where((u) => u.isNotEmpty)
+                            .toList();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => FullScreenGallery(
+                              images: gallery,
+                              initialIndex: gallery.indexOf(url),
+                            ),
+                          ),
+                        );
+                      },
                 child: Container(
                   height: 110,
                   margin: const EdgeInsets.symmetric(horizontal: 2),
@@ -1232,6 +1247,74 @@ class _VerificationActionsState extends State<_VerificationActions> {
 }
 
 /// Platform-wide inspection dashboard: live counts and money across the app.
+/// Live snapshot at the top of the Overview: how many users are online right
+/// now, plus whether Customer Care itself is staffed/online.
+class _LiveUsersCard extends StatelessWidget {
+  const _LiveUsersCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            OnlineUsersCount(
+              builder: (context, onlineCount) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          color: kOnlineGreen,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '$onlineCount',
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          color: kPakGreen,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Text(
+                    'Users online now',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            const Spacer(),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: const [
+                Text(
+                  'Customer Care',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                SizedBox(height: 4),
+                PresenceStatusLine(
+                  kSupportPresenceId,
+                  onlinePrefix: 'Support is',
+                  style: TextStyle(fontSize: 12, color: Colors.black87),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _AdminOverviewTab extends StatelessWidget {
   const _AdminOverviewTab();
 
@@ -1370,6 +1453,7 @@ class _AdminOverviewTab extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       children: [
         const _VerificationToggle(),
+        const _LiveUsersCard(),
         _section('Users', fs.collection('users').snapshots(), (docs) {
           int business = 0;
           num float = 0;
@@ -1515,8 +1599,9 @@ Future<void> _sendUserNotice(
       ],
     ),
   );
-  if (ok != true) return;
   final text = controller.text.trim();
+  controller.dispose();
+  if (ok != true) return;
   if (text.isEmpty) return;
   await FirebaseFirestore.instance
       .collection('users')
@@ -1592,12 +1677,13 @@ Future<void> _toggleUserBlock(
       ],
     ),
   );
+  final reason = controller.text.trim();
+  controller.dispose();
   if (ok != true) return;
   await ref.update({
     'blocked': block,
     'blockedAt': block ? Timestamp.now() : FieldValue.delete(),
   });
-  final reason = controller.text.trim();
   await ref.collection('notifications').add({
     'title': block
         ? '⛔ Your account has been suspended'
@@ -3259,11 +3345,12 @@ class _ListingApprovalActionsState extends State<_ListingApprovalActions> {
         ],
       ),
     );
+    final reason = controller.text.trim();
+    controller.dispose();
     if (ok != true) return;
     setState(() => _busy = true);
     try {
       await widget.listingRef.update({'approvalStatus': 'rejected'});
-      final reason = controller.text.trim();
       await _notifySeller(
         '⚠️ Your ad was not approved',
         reason.isEmpty
@@ -3420,8 +3507,9 @@ Future<void> _editStaffDialog(
       ),
     ),
   );
-  if (saved != true) return;
   final e = emailCtrl.text.trim().toLowerCase();
+  emailCtrl.dispose();
+  if (saved != true) return;
   if (e.isEmpty || !e.contains('@')) {
     messenger.showSnackBar(
       const SnackBar(content: Text('Enter a valid email')),

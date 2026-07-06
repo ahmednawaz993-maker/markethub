@@ -9,6 +9,11 @@ const String fcmVapidKey =
 final GlobalKey<ScaffoldMessengerState> rootMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
+/// Ensures the foreground `onMessage` listener is registered only once for the
+/// app's lifetime, even if `setupPushNotifications()` runs again (e.g. when
+/// HomeScreen re-mounts).
+bool _onMessageListenerRegistered = false;
+
 /// Requests notification permission, registers this device's FCM token under
 /// users/{uid}/fcmTokens, and surfaces foreground messages. Fully guarded:
 /// if messaging isn't configured/available it silently no-ops.
@@ -40,21 +45,61 @@ Future<void> setupPushNotifications() async {
           });
     }
 
-    FirebaseMessaging.onMessage.listen((message) {
-      final n = message.notification;
-      if (n != null) {
-        rootMessengerKey.currentState?.showSnackBar(
-          SnackBar(
-            content: Text(
-              [n.title, n.body].where((e) => (e ?? '').isNotEmpty).join(': '),
+    if (!_onMessageListenerRegistered) {
+      _onMessageListenerRegistered = true;
+      FirebaseMessaging.onMessage.listen((message) {
+        final n = message.notification;
+        if (n != null) {
+          rootMessengerKey.currentState?.showSnackBar(
+            SnackBar(
+              content: Text(
+                [n.title, n.body].where((e) => (e ?? '').isNotEmpty).join(': '),
+              ),
+              action: SnackBarAction(label: 'OK', onPressed: () {}),
             ),
-            action: SnackBarAction(label: 'OK', onPressed: () {}),
-          ),
-        );
-      }
-    });
+          );
+        }
+      });
+    }
   } catch (_) {
     // Messaging unavailable/unconfigured — ignore.
+  }
+}
+
+/// Mirrors this device's FCM token into the shared `supportTokens` collection
+/// when the signed-in user is a Customer Care agent (super admin or 'support'
+/// staff), so the notifyOnNewSupportMessage Cloud Function can push new-message
+/// alerts to every agent's device — even when the app is closed. Best-effort;
+/// call after staff permissions have loaded (e.g. when the admin panel opens).
+Future<void> syncSupportPushToken() async {
+  try {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    if (kIsWeb && fcmVapidKey.isEmpty) return;
+
+    final messaging = FirebaseMessaging.instance;
+    final settings = await messaging.requestPermission();
+    if (settings.authorizationStatus == AuthorizationStatus.denied) return;
+
+    final token = kIsWeb
+        ? await messaging.getToken(vapidKey: fcmVapidKey)
+        : await messaging.getToken();
+    if (token == null) return;
+
+    final ref =
+        FirebaseFirestore.instance.collection('supportTokens').doc(token);
+    if (isSuperAdmin() || hasAdminPerm('support')) {
+      await ref.set({
+        'uid': uid,
+        'platform': kIsWeb ? 'web' : 'app',
+        'updatedAt': Timestamp.now(),
+      });
+    } else {
+      // No longer an agent on this device — drop any stale registration.
+      await ref.delete();
+    }
+  } catch (_) {
+    // Messaging unavailable / not permitted / not an agent — ignore.
   }
 }
 

@@ -400,9 +400,12 @@ Future<void> _showNewTicketSheet(BuildContext context) async {
     },
   );
 
-  if (result != true) return;
   final subject = subjectCtrl.text.trim();
   final message = messageCtrl.text.trim();
+  subjectCtrl.dispose();
+  messageCtrl.dispose();
+
+  if (result != true) return;
   if (subject.isEmpty || message.isEmpty) {
     messenger.showSnackBar(
       const SnackBar(content: Text('Please add a subject and a description.')),
@@ -450,6 +453,15 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
   final _controller = TextEditingController();
   bool _sending = false;
 
+  /// My role in this ticket and the counterpart whose read-marker drives my
+  /// ticks.
+  String get _myRole => widget.adminView ? 'support' : 'user';
+  String get _otherRole => widget.adminView ? 'user' : 'support';
+
+  /// Live ticket-doc metadata (read/delivered markers) for rendering ticks.
+  Map<String, dynamic>? _meta;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _metaSub;
+
   // Voice recording state.
   final AudioRecorder _recorder = AudioRecorder();
   bool _recording = false;
@@ -461,11 +473,32 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
       _supportTicketsCol.doc(widget.ticketId);
 
   @override
+  void initState() {
+    super.initState();
+    _metaSub = _ticketRef.snapshots().listen((snap) {
+      if (mounted) setState(() => _meta = snap.data());
+    });
+  }
+
+  @override
   void dispose() {
+    _metaSub?.cancel();
     _controller.dispose();
     _recTimer?.cancel();
     _recorder.dispose();
     super.dispose();
+  }
+
+  /// Marks the newest counterpart message read for my role, guarded to avoid
+  /// write loops.
+  void _maybeMarkRead(Timestamp? latestIncoming) {
+    if (latestIncoming == null) return;
+    final myRead = readMarker(_meta?['readAt'], _myRole);
+    if (myRead != null &&
+        myRead.millisecondsSinceEpoch >= latestIncoming.millisecondsSinceEpoch) {
+      return;
+    }
+    markTicketRead(widget.ticketId, _myRole);
   }
 
   void _snack(String m) {
@@ -530,6 +563,11 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
     try {
       await _postMessage({'text': text}, text);
     } catch (e) {
+      // Restore the typed text so it isn't lost on a failed send.
+      _controller.text = text;
+      _controller.selection = TextSelection.fromPosition(
+        TextPosition(offset: _controller.text.length),
+      );
       _snack('Could not send: $e');
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -591,6 +629,7 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
       _snack('Voice message too short.');
       return;
     }
+    if (!mounted) return;
     setState(() => _uploadingVoice = true);
     try {
       final bytes = await XFile(path).readAsBytes();
@@ -628,7 +667,22 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.adminView ? 'Ticket' : 'Customer Care'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.adminView ? 'Ticket' : 'Customer Care'),
+            // User sees whether Care is live; the agent sees the ticket owner.
+            if (widget.adminView)
+              (widget.ownerId.isEmpty
+                  ? const SizedBox.shrink()
+                  : PresenceStatusLine(widget.ownerId))
+            else
+              const PresenceStatusLine(
+                kSupportPresenceId,
+                onlinePrefix: 'Support is',
+              ),
+          ],
+        ),
       ),
       body: Column(
         children: [
@@ -697,6 +751,26 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                 }
                 final docs = snap.data!.docs;
                 final mineRole = widget.adminView ? 'support' : 'user';
+
+                // Mark the newest counterpart message read so their ticks turn
+                // blue. Post-frame; guarded against write loops.
+                Timestamp? latestIncoming;
+                for (final d in docs) {
+                  final m = d.data() as Map<String, dynamic>;
+                  if ((m['senderRole']?.toString() ?? '') == mineRole) continue;
+                  final ts = m['createdAt'] as Timestamp?;
+                  if (ts == null) continue;
+                  if (latestIncoming == null ||
+                      ts.millisecondsSinceEpoch >
+                          latestIncoming.millisecondsSinceEpoch) {
+                    latestIncoming = ts;
+                  }
+                }
+                final pending = latestIncoming;
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => _maybeMarkRead(pending),
+                );
+
                 return ListView.builder(
                   padding: const EdgeInsets.all(12),
                   itemCount: docs.length,
@@ -747,10 +821,30 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                             else
                               Text(m['text']?.toString() ?? ''),
                             const SizedBox(height: 2),
-                            Text(
-                              timeAgo(m['createdAt'] as Timestamp?),
-                              style: const TextStyle(
-                                  fontSize: 10, color: Colors.grey),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  timeAgo(m['createdAt'] as Timestamp?),
+                                  style: const TextStyle(
+                                      fontSize: 10, color: Colors.grey),
+                                ),
+                                if (mine) ...[
+                                  const SizedBox(width: 4),
+                                  MessageStatusTick(
+                                    sentAt: m['createdAt'] as Timestamp?,
+                                    deliveredAt: readMarker(
+                                      _meta?['deliveredAt'],
+                                      _otherRole,
+                                    ),
+                                    seenAt: readMarker(
+                                      _meta?['readAt'],
+                                      _otherRole,
+                                    ),
+                                    baseColor: Colors.black38,
+                                  ),
+                                ],
+                              ],
                             ),
                           ],
                         ),
@@ -1013,12 +1107,15 @@ class CareNumbersAdminScreen extends StatelessWidget {
         ],
       ),
     );
-    if (ok != true) return;
+    final label = labelCtrl.text.trim();
     final number = numberCtrl.text.trim();
+    labelCtrl.dispose();
+    numberCtrl.dispose();
+    if (ok != true) return;
     if (number.isEmpty) return;
     final updated = [...numbers];
     final newEntry = {
-      'label': labelCtrl.text.trim(),
+      'label': label,
       'number': number,
       'whatsapp': whatsapp,
     };
@@ -1159,6 +1256,84 @@ class _SupportTabLabel extends StatelessWidget {
             ),
           ),
         );
+      },
+    );
+  }
+}
+
+/// Invisible watcher mounted in the admin panel: while a support agent has the
+/// app open, it pops a snackbar the moment a user posts a new support message,
+/// so incoming messages are noticed immediately across any tab. No-op for
+/// non-support users. Push notifications (Cloud Function) cover the offline case.
+class SupportAlertWatcher extends StatefulWidget {
+  const SupportAlertWatcher({super.key});
+
+  @override
+  State<SupportAlertWatcher> createState() => _SupportAlertWatcherState();
+}
+
+class _SupportAlertWatcherState extends State<SupportAlertWatcher> {
+  int? _lastMax; // newest user-message updatedAt seen (ms); null until baseline.
+
+  @override
+  Widget build(BuildContext context) {
+    if (!(isSuperAdmin() || hasAdminPerm('support'))) {
+      return const SizedBox.shrink();
+    }
+    return StreamBuilder<QuerySnapshot>(
+      stream: _supportTicketsCol
+          .where('lastSenderRole', isEqualTo: 'user')
+          .snapshots(),
+      builder: (context, snap) {
+        final docs = (snap.data?.docs ?? []).where((d) {
+          final s = (d.data() as Map)['status']?.toString() ?? 'open';
+          return s != 'resolved';
+        }).toList();
+
+        QueryDocumentSnapshot? newest;
+        int maxTs = 0;
+        for (final d in docs) {
+          final ts = ((d.data() as Map)['updatedAt'] as Timestamp?)
+                  ?.millisecondsSinceEpoch ??
+              0;
+          if (ts > maxTs) {
+            maxTs = ts;
+            newest = d;
+          }
+        }
+
+        // Baseline on the first snapshot (don't alert for the existing backlog).
+        if (_lastMax == null) {
+          _lastMax = maxTs;
+        } else if (maxTs > _lastMax! && newest != null) {
+          _lastMax = maxTs;
+          final m = newest.data() as Map<String, dynamic>;
+          final who = m['userName']?.toString().trim();
+          final preview = m['lastMessage']?.toString() ?? '';
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            rootMessengerKey.currentState
+              ?..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  backgroundColor: kPakGreen,
+                  duration: const Duration(seconds: 6),
+                  content: Text(
+                    '📩 New support message'
+                    '${(who != null && who.isNotEmpty) ? ' from $who' : ''}'
+                    '${preview.isEmpty ? '' : ': $preview'}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  action: SnackBarAction(
+                    label: 'OK',
+                    textColor: Colors.white,
+                    onPressed: () {},
+                  ),
+                ),
+              );
+          });
+        }
+        return const SizedBox.shrink();
       },
     );
   }
