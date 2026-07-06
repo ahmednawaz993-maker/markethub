@@ -28,6 +28,7 @@ part 'src/catalog.dart';
 part 'src/push.dart';
 part 'src/commerce.dart';
 part 'src/widgets.dart';
+part 'src/presence.dart';
 part 'src/app.dart';
 part 'src/screen_auth.dart';
 part 'src/screen_home.dart';

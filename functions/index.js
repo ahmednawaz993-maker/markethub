@@ -116,6 +116,64 @@ exports.notifyOnNewMessage = onDocumentCreated(
   }
 );
 
+// notifyOnNewSupportMessage: when a USER posts a message in a support ticket,
+// push an FCM alert to every Customer Care agent's registered device (the
+// shared `supportTokens` collection, kept in sync by syncSupportPushToken in
+// the app). Messages from support ('support' role) are ignored here — the user
+// is notified of those by the reply-notification the app already writes.
+exports.notifyOnNewSupportMessage = onDocumentCreated(
+  "supportTickets/{ticketId}/messages/{messageId}",
+  async (event) => {
+    const msg = event.data && event.data.data();
+    if (!msg) return;
+    if (String(msg.senderRole || "") !== "user") return;
+
+    const db = getFirestore();
+    const ticketId = event.params.ticketId;
+
+    const ticketSnap = await db
+      .collection("supportTickets")
+      .doc(ticketId)
+      .get();
+    const ticket = ticketSnap.data() || {};
+    const who = String(ticket.userName || "").trim();
+    const title = who ? `New support message from ${who}` : "New support message";
+    const body = String(
+      msg.text || (msg.type === "voice" ? "🎤 Voice message" : "")
+    ).slice(0, 140);
+
+    const tokensSnap = await db.collection("supportTokens").get();
+    const tokens = tokensSnap.docs.map((d) => d.id);
+    if (tokens.length === 0) return;
+
+    const response = await getMessaging().sendEachForMulticast({
+      tokens,
+      notification: { title, body },
+      data: { type: "support", ticketId },
+      webpush: {
+        notification: { icon: "/icons/Icon-192.png" },
+        fcmOptions: { link: "/" },
+      },
+    });
+
+    // Prune any support tokens that are no longer valid.
+    const removals = [];
+    response.responses.forEach((r, i) => {
+      if (!r.success) {
+        const code = (r.error && r.error.code) || "";
+        if (
+          code.includes("registration-token-not-registered") ||
+          code.includes("invalid-registration-token") ||
+          code.includes("invalid-argument")
+        ) {
+          removals.push(db.collection("supportTokens").doc(tokens[i]).delete());
+        }
+      }
+    });
+    await Promise.all(removals);
+  }
+);
+
 // Recompute a seller's aggregate rating whenever one of their reviews is
 // created, edited or deleted. This is the AUTHORITATIVE source of
 // ratingSum/ratingCount on the user doc — clients can no longer write those

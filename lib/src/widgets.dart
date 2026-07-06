@@ -323,11 +323,26 @@ class _FocusableTapState extends State<FocusableTap> {
   }
 }
 
-/// Opens a searchable, full-height city picker. Returns the chosen city, or
+/// Title-cases a free-typed place name, e.g. "chak 51 gb" -> "Chak 51 Gb".
+String titleCasePlace(String s) => s
+    .trim()
+    .split(RegExp(r'\s+'))
+    .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+    .join(' ');
+
+/// Opens a searchable, full-height place picker. Returns the chosen place, or
 /// null if dismissed. Much friendlier on mobile than a 190-item dropdown.
+///
+/// When [allowCustom] is true, a `Use "…"` option (with whatever was typed)
+/// appears at the top whenever the search text doesn't exactly match a listed
+/// place — so a
+/// resident of any small village or town not in the curated list can still add
+/// and select their own location. (Kept off for filters, where selecting a city
+/// nobody has posted from would just return nothing.)
 Future<String?> showCityPicker(
   BuildContext context, {
   bool includeAll = false,
+  bool allowCustom = false,
 }) {
   final options = [if (includeAll) 'All', ...(pakistanCities.toList()..sort())];
 
@@ -338,11 +353,16 @@ Future<String?> showCityPicker(
       String query = '';
       return StatefulBuilder(
         builder: (context, setSheetState) {
+          final q = query.trim();
           final filtered = options
-              .where(
-                (c) => c.toLowerCase().contains(query.trim().toLowerCase()),
-              )
+              .where((c) => c.toLowerCase().contains(q.toLowerCase()))
               .toList();
+          // Offer the typed text as a custom place when it isn't already an
+          // exact (case-insensitive) match in the list.
+          final hasExact =
+              options.any((c) => c.toLowerCase() == q.toLowerCase());
+          final showCustom = allowCustom && q.isNotEmpty && !hasExact;
+          final custom = titleCasePlace(q);
 
           return Padding(
             padding: EdgeInsets.only(
@@ -353,30 +373,46 @@ Future<String?> showCityPicker(
               child: Column(
                 children: [
                   const SizedBox(height: 12),
-                  const Text(
-                    'Select City',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Text(
+                    allowCustom ? 'City / Town / Village' : 'Select City',
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   Padding(
                     padding: const EdgeInsets.all(12),
                     child: TextField(
                       autofocus: true,
-                      decoration: const InputDecoration(
-                        hintText: 'Search city...',
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder(),
+                      textCapitalization: TextCapitalization.words,
+                      decoration: InputDecoration(
+                        hintText: allowCustom
+                            ? 'Search or type your town / village...'
+                            : 'Search city...',
+                        prefixIcon: const Icon(Icons.search),
+                        border: const OutlineInputBorder(),
                       ),
                       onChanged: (value) =>
                           setSheetState(() => query = value),
                     ),
                   ),
                   Expanded(
-                    child: filtered.isEmpty
-                        ? const Center(child: Text('No city found'))
+                    child: (filtered.isEmpty && !showCustom)
+                        ? const Center(child: Text('No place found'))
                         : ListView.builder(
-                            itemCount: filtered.length,
+                            itemCount: filtered.length + (showCustom ? 1 : 0),
                             itemBuilder: (context, index) {
-                              final city = filtered[index];
+                              if (showCustom && index == 0) {
+                                return ListTile(
+                                  leading: const Icon(Icons.add_location_alt,
+                                      color: kPakGreen),
+                                  title: Text('Use "$custom"'),
+                                  subtitle: const Text(
+                                      'Add my town / village'),
+                                  onTap: () =>
+                                      Navigator.pop(context, custom),
+                                );
+                              }
+                              final city =
+                                  filtered[index - (showCustom ? 1 : 0)];
                               return ListTile(
                                 title: Text(city),
                                 onTap: () => Navigator.pop(context, city),
@@ -400,6 +436,7 @@ class CitySelector extends StatelessWidget {
   final String value;
   final String label;
   final bool includeAll;
+  final bool allowCustom;
   final ValueChanged<String> onChanged;
   final bool enabled;
 
@@ -409,6 +446,7 @@ class CitySelector extends StatelessWidget {
     required this.onChanged,
     this.label = 'City',
     this.includeAll = false,
+    this.allowCustom = false,
     this.enabled = true,
   });
 
@@ -420,6 +458,7 @@ class CitySelector extends StatelessWidget {
               final selected = await showCityPicker(
                 context,
                 includeAll: includeAll,
+                allowCustom: allowCustom,
               );
               if (selected != null) onChanged(selected);
             }
