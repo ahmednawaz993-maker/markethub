@@ -320,6 +320,14 @@ class SellerProfileScreen extends StatelessWidget {
                   .where('approvalStatus', isEqualTo: 'approved')
                   .snapshots(),
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      'Error loading ads: ${snapshot.error}',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  );
+                }
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
@@ -560,6 +568,11 @@ class FollowingScreen extends StatelessWidget {
                       .where('approvalStatus', isEqualTo: 'approved')
                       .snapshots(),
                   builder: (context, ls) {
+                    if (ls.hasError) {
+                      return Center(
+                        child: Text('Error loading ads: ${ls.error}'),
+                      );
+                    }
                     if (!ls.hasData) {
                       return const Center(child: CircularProgressIndicator());
                     }

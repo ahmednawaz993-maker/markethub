@@ -48,13 +48,41 @@ class AuthGate extends StatelessWidget {
         }
 
         if (snapshot.hasData) {
-          return const _GatedHome();
+          return const _PresenceHost(child: _GatedHome());
         }
 
         return const AuthScreen();
       },
     );
   }
+}
+
+/// Keeps the signed-in user's presence heartbeat running for as long as they
+/// are authenticated. Mounted only inside the authenticated branch of AuthGate,
+/// so signing out disposes it and writes a final "offline".
+class _PresenceHost extends StatefulWidget {
+  final Widget child;
+  const _PresenceHost({required this.child});
+
+  @override
+  State<_PresenceHost> createState() => _PresenceHostState();
+}
+
+class _PresenceHostState extends State<_PresenceHost> {
+  @override
+  void initState() {
+    super.initState();
+    PresenceService.instance.start();
+  }
+
+  @override
+  void dispose() {
+    PresenceService.instance.stop();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// Wraps the home screen with a platform-suspension check: if an admin has set
@@ -97,6 +125,7 @@ Future<void> _submitAppeal(BuildContext context) async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) return;
   final controller = TextEditingController();
+  try {
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -148,6 +177,9 @@ Future<void> _submitAppeal(BuildContext context) async {
         content: Text('Appeal submitted. An administrator will review it.'),
       ),
     );
+  }
+  } finally {
+    controller.dispose();
   }
 }
 

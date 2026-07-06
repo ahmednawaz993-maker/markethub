@@ -135,7 +135,10 @@ class _AddListingScreenState extends State<AddListingScreen> {
     deliveryAvailable = d['deliveryAvailable'] == true;
     codAvailable = d['codAvailable'] == true;
     negotiable = d['negotiable'] == true;
-    if (pakistanCities.contains(d['city'])) selectedCity = d['city'].toString();
+    // Preselect the saved place even if it's a custom town/village not in the
+    // curated list.
+    final savedCity = d['city']?.toString() ?? '';
+    if (savedCity.isNotEmpty) selectedCity = savedCity;
     final attrs = (d['attributes'] as Map?) ?? {};
     attrs.forEach((k, v) => _attrCtrl(k.toString()).text = v.toString());
   }
@@ -194,8 +197,9 @@ class _AddListingScreenState extends State<AddListingScreen> {
     }
     if (!mounted) return;
     setState(() => savingDraft = false);
+    final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       const SnackBar(content: Text('Saved to Drafts (Profile → Drafts)')),
     );
   }
@@ -349,23 +353,31 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'approvalStatus': isDemoUser() ? 'approved' : 'pending',
       });
 
+      // The ad is now live. Everything below is best-effort cleanup — a failure
+      // here must NOT be treated as a post failure (that would show an error and
+      // tempt the user to re-submit, creating a duplicate live ad).
+
       // Mirror the seller's location onto their profile (for the admin panel).
-      await saveUserLocation(
-        city: selectedCity,
-        lat: latitude,
-        lng: longitude,
-      );
+      try {
+        await saveUserLocation(
+          city: selectedCity,
+          lat: latitude,
+          lng: longitude,
+        );
+      } catch (_) {}
 
       // If this was resumed from a draft, remove the draft.
       if (widget.draftId != null) {
         final uid = FirebaseAuth.instance.currentUser?.uid;
         if (uid != null) {
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(uid)
-              .collection('drafts')
-              .doc(widget.draftId)
-              .delete();
+          try {
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(uid)
+                .collection('drafts')
+                .doc(widget.draftId)
+                .delete();
+          } catch (_) {}
         }
       }
 
@@ -516,6 +528,8 @@ class _AddListingScreenState extends State<AddListingScreen> {
             const SizedBox(height: 12),
             CitySelector(
               value: selectedCity,
+              label: 'City / Town / Village',
+              allowCustom: true,
               enabled: !isSubmitting,
               onChanged: (value) => setState(() => selectedCity = value),
             ),

@@ -59,14 +59,17 @@ class _AuthScreenState extends State<AuthScreen> {
       final confirmation = await FirebaseAuth.instance.signInWithPhoneNumber(
         phone,
       );
+      if (!mounted) return;
       setState(() {
         _confirmation = confirmation;
         _sentTo = phone;
         otpSent = true;
       });
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
       setState(() => errorMessage = e.message ?? 'Could not send the code');
     } catch (e) {
+      if (!mounted) return;
       setState(() => errorMessage = 'Could not send the code: $e');
     } finally {
       if (mounted) setState(() => isLoading = false);
@@ -88,6 +91,7 @@ class _AuthScreenState extends State<AuthScreen> {
       await _confirmation!.confirm(code);
       // AuthGate listens to authStateChanges and navigates automatically.
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
       setState(() => errorMessage = e.message ?? 'Invalid or expired code');
     } finally {
       if (mounted) setState(() => isLoading = false);
@@ -132,6 +136,7 @@ class _AuthScreenState extends State<AuthScreen> {
       }
       // AuthGate listens to authStateChanges and navigates automatically.
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
       setState(() => errorMessage = e.message ?? 'Authentication failed');
     } finally {
       if (mounted) {
@@ -149,6 +154,7 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       await FirebaseAuth.instance.signInAnonymously();
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
       setState(() => errorMessage = e.message ?? 'Could not continue as guest');
     } finally {
       if (mounted) {

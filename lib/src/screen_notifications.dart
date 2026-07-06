@@ -95,14 +95,28 @@ class NotificationsScreen extends StatelessWidget {
           if (col != null)
             TextButton(
               onPressed: () async {
-                final unread = await col
-                    .where('read', isEqualTo: false)
-                    .get();
-                final batch = FirebaseFirestore.instance.batch();
-                for (final d in unread.docs) {
-                  batch.update(d.reference, {'read': true});
+                try {
+                  final unread = await col
+                      .where('read', isEqualTo: false)
+                      .get();
+                  // Firestore caps a WriteBatch at 500 writes, so commit the
+                  // updates in chunks of at most 500.
+                  final docs = unread.docs;
+                  for (var i = 0; i < docs.length; i += 500) {
+                    final batch = FirebaseFirestore.instance.batch();
+                    final end = (i + 500 < docs.length) ? i + 500 : docs.length;
+                    for (final d in docs.sublist(i, end)) {
+                      batch.update(d.reference, {'read': true});
+                    }
+                    await batch.commit();
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not mark all read: $e')),
+                    );
+                  }
                 }
-                await batch.commit();
               },
               child: const Text(
                 'Mark all read',

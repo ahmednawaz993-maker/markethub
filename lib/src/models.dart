@@ -120,13 +120,23 @@ class Listing {
       'unit': unit,
       'deliveryAvailable': deliveryAvailable,
       'codAvailable': codAvailable,
+      'sellerVerified': sellerVerified,
+      'negotiable': negotiable,
+      'attributes': attributes,
       'city': city,
       'latitude': latitude,
       'longitude': longitude,
       'views': views,
+      'calls': calls,
+      'whatsapps': whatsapps,
+      'chats': chats,
       'isFeatured': isFeatured,
       'isSold': isSold,
+      'previousPrice': previousPrice,
+      'approvalStatus': approvalStatus,
+      if (featuredUntil != null) 'featuredUntil': featuredUntil,
       if (createdAt != null) 'createdAt': createdAt,
+      if (priceDropAt != null) 'priceDropAt': priceDropAt,
     };
   }
 
