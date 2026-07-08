@@ -529,126 +529,246 @@ class HorizontalAdCard extends StatelessWidget {
     final w = MediaQuery.of(context).size.width;
     // Narrower cards on phones so ~2 peek into view and feel app-like.
     final cardWidth = w < 600 ? (w * 0.44).clamp(150.0, 190.0) : 220.0;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final muted = isDark ? Colors.white60 : Colors.black54;
+    final placeholderBg = isDark ? Colors.white10 : Colors.grey.shade200;
 
     return FocusableTap(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => AdDetailsScreen(listing: listing)),
       ),
-      child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        clipBehavior: Clip.antiAlias,
+      child: Container(
+        width: cardWidth,
         margin: const EdgeInsets.all(6),
-        child: SizedBox(
-          width: cardWidth,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: img.isNotEmpty
-                          ? Image.network(
-                              img.first,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stack) => Container(
-                                color: Colors.grey.shade300,
-                                child: const Center(
-                                  child: Icon(Icons.broken_image, size: 40),
-                                ),
-                              ),
-                            )
-                          : Container(
-                              color: Colors.grey.shade300,
-                              child: const Center(
-                                child: Icon(Icons.image, size: 40),
-                              ),
-                            ),
-                    ),
-                    if (listing.isCurrentlyFeatured)
-                      Positioned(
-                        top: 6,
-                        left: 6,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: kGold,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'FEATURED',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    if (listing.isSold) const SoldTag(),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        if (productColorByName(
-                              listing.attributes['Color'] ?? '',
-                            ) !=
-                            null) ...[
-                          Container(
-                            width: 11,
-                            height: 11,
-                            decoration: BoxDecoration(
-                              color: productColorByName(
-                                listing.attributes['Color'] ?? '',
-                              ),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.grey.shade400,
-                                width: 0.5,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                        ],
-                        Expanded(
-                          child: Text(
-                            listing.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                    Text(
-                      priceLabel(listing),
-                      style: const TextStyle(
-                        color: Colors.green,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      listing.city.isEmpty ? listing.location : listing.city,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.10),
+              blurRadius: 12,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (img.isNotEmpty)
+                    Image.network(
+                      img.first,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return Container(
+                          color: placeholderBg,
+                          alignment: Alignment.center,
+                          child: const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        );
+                      },
+                      errorBuilder: (context, error, stack) => Container(
+                        color: placeholderBg,
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.broken_image_outlined,
+                          size: 38,
+                          color: muted,
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      color: placeholderBg,
+                      alignment: Alignment.center,
+                      child: Icon(
+                        Icons.image_outlined,
+                        size: 38,
+                        color: muted,
+                      ),
+                    ),
+                  // Top scrim keeps the FEATURED badge legible over any image.
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 44,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.25),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (listing.isCurrentlyFeatured)
+                    Positioned(
+                      top: 7,
+                      left: 7,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFE0B33A), kGold],
+                          ),
+                          borderRadius: BorderRadius.circular(6),
+                          boxShadow: [
+                            BoxShadow(
+                              color: kGold.withValues(alpha: 0.5),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.star, size: 10, color: Colors.white),
+                            SizedBox(width: 3),
+                            Text(
+                              'FEATURED',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (img.length > 1)
+                    Positioned(
+                      bottom: 7,
+                      left: 7,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.photo_library,
+                              color: Colors.white,
+                              size: 11,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '${img.length}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (listing.isSold) const SoldTag(),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(9, 8, 9, 9),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      if (productColorByName(
+                            listing.attributes['Color'] ?? '',
+                          ) !=
+                          null) ...[
+                        Container(
+                          width: 11,
+                          height: 11,
+                          decoration: BoxDecoration(
+                            color: productColorByName(
+                              listing.attributes['Color'] ?? '',
+                            ),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.grey.shade400,
+                              width: 0.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                      ],
+                      Expanded(
+                        child: Text(
+                          listing.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    priceLabel(listing),
+                    style: TextStyle(
+                      color: isDark
+                          ? const Color(0xFF66BB6A)
+                          : const Color(0xFF1B8E3C),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14.5,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      Icon(Icons.location_on, size: 12, color: muted),
+                      const SizedBox(width: 2),
+                      Expanded(
+                        child: Text(
+                          listing.city.isEmpty
+                              ? listing.location
+                              : listing.city,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: muted, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

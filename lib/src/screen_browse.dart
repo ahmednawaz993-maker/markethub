@@ -812,6 +812,12 @@ class _ListingCardState extends State<ListingCard> {
     final images = listing.galleryImages;
     final hasImage = images.isNotEmpty;
     final posted = timeAgo(listing.createdAt);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final muted = isDark ? Colors.white60 : Colors.black54;
+    final showCondition =
+        listing.condition.isNotEmpty && listing.condition != 'N/A';
+    final isNew = listing.condition == 'New';
 
     return FocusableTap(
       onTap: () {
@@ -820,64 +826,122 @@ class _ListingCardState extends State<ListingCard> {
           MaterialPageRoute(builder: (_) => AdDetailsScreen(listing: listing)),
         );
       },
-      child: Card(
+      child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        elevation: 5,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.10),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
-              ),
+            AspectRatio(
+              aspectRatio: 4 / 3,
               child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  hasImage
-                      ? Image.network(
-                          images.first,
-                          height: 170,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const SizedBox(
-                              height: 170,
-                              child: Center(
-                                child: Icon(Icons.broken_image, size: 60),
-                              ),
-                            );
-                          },
-                        )
-                      : const SizedBox(
-                          height: 170,
-                          child: Center(child: Icon(Icons.image, size: 60)),
+                  if (hasImage)
+                    Image.network(
+                      images.first,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return Container(
+                          color: isDark
+                              ? Colors.white10
+                              : Colors.grey.shade200,
+                          alignment: Alignment.center,
+                          child: const SizedBox(
+                            width: 26,
+                            height: 26,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: isDark ? Colors.white10 : Colors.grey.shade200,
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.broken_image_outlined,
+                          size: 48,
+                          color: muted,
                         ),
+                      ),
+                    )
+                  else
+                    Container(
+                      color: isDark ? Colors.white10 : Colors.grey.shade200,
+                      alignment: Alignment.center,
+                      child: Icon(
+                        Icons.image_outlined,
+                        size: 48,
+                        color: muted,
+                      ),
+                    ),
+                  // Subtle top scrim so overlaid chips stay legible on any image.
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 56,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.28),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                   if (listing.isCurrentlyFeatured)
                     Positioned(
-                      top: 8,
-                      left: 8,
+                      top: 10,
+                      left: 10,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
-                          vertical: 4,
+                          vertical: 5,
                         ),
                         decoration: BoxDecoration(
-                          color: kGold,
-                          borderRadius: BorderRadius.circular(6),
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFE0B33A), kGold],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: kGold.withValues(alpha: 0.5),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.star, size: 14, color: Colors.white),
-                            SizedBox(width: 3),
+                            Icon(Icons.star, size: 13, color: Colors.white),
+                            SizedBox(width: 4),
                             Text(
                               'FEATURED',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
+                                letterSpacing: 0.6,
                               ),
                             ),
                           ],
@@ -886,16 +950,16 @@ class _ListingCardState extends State<ListingCard> {
                     ),
                   if (images.length > 1)
                     Positioned(
-                      bottom: 8,
-                      left: 8,
+                      bottom: 10,
+                      left: 10,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(12),
+                          color: Colors.black.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(20),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -903,7 +967,7 @@ class _ListingCardState extends State<ListingCard> {
                             const Icon(
                               Icons.photo_library,
                               color: Colors.white,
-                              size: 14,
+                              size: 13,
                             ),
                             const SizedBox(width: 4),
                             Text(
@@ -911,6 +975,7 @@ class _ListingCardState extends State<ListingCard> {
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 12,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
@@ -920,14 +985,22 @@ class _ListingCardState extends State<ListingCard> {
                   Positioned(
                     top: 8,
                     right: 8,
-                    child: CircleAvatar(
-                      backgroundColor: Colors.white,
-                      child: IconButton(
-                        icon: Icon(
-                          isFavorite ? Icons.favorite : Icons.favorite_border,
-                          color: Colors.red,
+                    child: Material(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      shape: const CircleBorder(),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: toggleFavorite,
+                        child: Padding(
+                          padding: const EdgeInsets.all(7),
+                          child: Icon(
+                            isFavorite
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                            color: Colors.red,
+                            size: 20,
+                          ),
                         ),
-                        onPressed: toggleFavorite,
                       ),
                     ),
                   ),
@@ -936,7 +1009,7 @@ class _ListingCardState extends State<ListingCard> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -964,9 +1037,12 @@ class _ListingCardState extends State<ListingCard> {
                           listing.title.isEmpty
                               ? 'Untitled ad'
                               : listing.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
                           ),
                         ),
                       ),
@@ -975,76 +1051,91 @@ class _ListingCardState extends State<ListingCard> {
                   const SizedBox(height: 6),
                   Text(
                     priceLabel(listing),
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                    style: TextStyle(
+                      color: isDark
+                          ? const Color(0xFF66BB6A)
+                          : const Color(0xFF1B8E3C),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 17,
+                      letterSpacing: -0.2,
                     ),
                   ),
-                  if ((listing.condition.isNotEmpty &&
-                          listing.condition != 'N/A') ||
-                      listing.deliveryAvailable) ...[
-                    const SizedBox(height: 6),
+                  if (showCondition || listing.deliveryAvailable) ...[
+                    const SizedBox(height: 8),
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
+                      spacing: 6,
+                      runSpacing: 6,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        if (listing.condition.isNotEmpty &&
-                            listing.condition != 'N/A')
+                        if (showCondition)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
+                              horizontal: 9,
+                              vertical: 3,
                             ),
                             decoration: BoxDecoration(
-                              color: listing.condition == 'New'
-                                  ? Colors.green.shade50
-                                  : Colors.blue.shade50,
-                              borderRadius: BorderRadius.circular(4),
+                              color: (isNew ? Colors.green : Colors.blue)
+                                  .withValues(alpha: isDark ? 0.22 : 0.12),
+                              borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
                               listing.condition,
                               style: TextStyle(
                                 fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: listing.condition == 'New'
-                                    ? Colors.green.shade800
-                                    : Colors.blue.shade800,
+                                fontWeight: FontWeight.w700,
+                                color: isNew
+                                    ? (isDark
+                                          ? Colors.green.shade300
+                                          : Colors.green.shade800)
+                                    : (isDark
+                                          ? Colors.blue.shade200
+                                          : Colors.blue.shade800),
                               ),
                             ),
                           ),
                         if (listing.deliveryAvailable)
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Icon(
-                                Icons.delivery_dining,
-                                size: 15,
-                                color: kPakGreen,
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: kPakGreen.withValues(
+                                alpha: isDark ? 0.24 : 0.10,
                               ),
-                              SizedBox(width: 3),
-                              Text(
-                                'Delivery',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: kPakGreen,
-                                  fontWeight: FontWeight.w600,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.delivery_dining,
+                                  size: 14,
+                                  color: isDark
+                                      ? Colors.lightBlue.shade200
+                                      : kPakGreen,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Delivery',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: isDark
+                                        ? Colors.lightBlue.shade200
+                                        : kPakGreen,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                       ],
                     ),
                   ],
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(
-                        Icons.location_on,
-                        size: 14,
-                        color: Colors.grey,
-                      ),
+                      Icon(Icons.location_on, size: 14, color: muted),
                       const SizedBox(width: 2),
                       Expanded(
                         child: Text(
@@ -1052,52 +1143,18 @@ class _ListingCardState extends State<ListingCard> {
                             listing.city,
                             listing.location,
                           ].where((e) => e.isNotEmpty).join(', '),
-                          style: const TextStyle(color: Colors.grey),
+                          style: TextStyle(color: muted, fontSize: 12.5),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      if (listing.condition.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: listing.condition == 'New'
-                                ? Colors.green.shade50
-                                : Colors.orange.shade50,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: listing.condition == 'New'
-                                  ? Colors.green
-                                  : Colors.orange,
-                            ),
-                          ),
-                          child: Text(
-                            listing.condition,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: listing.condition == 'New'
-                                  ? Colors.green.shade800
-                                  : Colors.orange.shade800,
-                            ),
-                          ),
-                        ),
-                      const Spacer(),
-                      if (posted.isNotEmpty)
+                      if (posted.isNotEmpty) ...[
+                        const SizedBox(width: 6),
                         Text(
                           posted,
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
-                          ),
+                          style: TextStyle(color: muted, fontSize: 11.5),
                         ),
+                      ],
                     ],
                   ),
                 ],
