@@ -42,6 +42,27 @@ class _FullScreenGalleryState extends State<FullScreenGallery> {
     );
   }
 
+  /// Desktop/web keyboard control: left/right arrows change photo, Esc closes.
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowRight) {
+      _go(1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowLeft) {
+      _go(-1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape) {
+      Navigator.of(context).maybePop();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   @override
   Widget build(BuildContext context) {
     final images = widget.images;
@@ -59,9 +80,12 @@ class _FullScreenGalleryState extends State<FullScreenGallery> {
               )
             : null,
       ),
-      body: Stack(
-        alignment: Alignment.center,
-        children: [
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: _handleKey,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
           PageView.builder(
             controller: _controller,
             itemCount: images.length,
@@ -107,6 +131,7 @@ class _FullScreenGalleryState extends State<FullScreenGallery> {
             ),
           ],
         ],
+        ),
       ),
     );
   }
