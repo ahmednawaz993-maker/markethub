@@ -2,7 +2,7 @@ part of '../main.dart';
 
 // Ad details, gallery, price insight and safety tips.
 
-class FullScreenGallery extends StatelessWidget {
+class FullScreenGallery extends StatefulWidget {
   final List<String> images;
   final int initialIndex;
 
@@ -13,30 +13,127 @@ class FullScreenGallery extends StatelessWidget {
   });
 
   @override
+  State<FullScreenGallery> createState() => _FullScreenGalleryState();
+}
+
+class _FullScreenGalleryState extends State<FullScreenGallery> {
+  late final PageController _controller;
+  late int _index;
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.initialIndex;
+    _controller = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _go(int delta) {
+    final next = (_index + delta).clamp(0, widget.images.length - 1);
+    _controller.animateToPage(
+      next,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final images = widget.images;
+    final multi = images.length > 1;
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         elevation: 0,
+        title: multi
+            ? Text(
+                '${_index + 1} / ${images.length}',
+                style: const TextStyle(fontSize: 16, color: Colors.white),
+              )
+            : null,
       ),
-      body: PageView.builder(
-        controller: PageController(initialPage: initialIndex),
-        itemCount: images.length,
-        itemBuilder: (context, i) => InteractiveViewer(
-          minScale: 1,
-          maxScale: 4,
-          child: Center(
-            child: Image.network(
-              images[i],
-              fit: BoxFit.contain,
-              errorBuilder: (_, _, _) => const Icon(
-                Icons.broken_image,
-                color: Colors.white,
-                size: 80,
+      body: Stack(
+        alignment: Alignment.center,
+        children: [
+          PageView.builder(
+            controller: _controller,
+            itemCount: images.length,
+            onPageChanged: (i) => setState(() => _index = i),
+            itemBuilder: (context, i) => InteractiveViewer(
+              minScale: 1,
+              maxScale: 5,
+              child: Center(
+                child: Image.network(
+                  images[i],
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, progress) {
+                    if (progress == null) return child;
+                    return const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    );
+                  },
+                  errorBuilder: (_, _, _) => const Icon(
+                    Icons.broken_image,
+                    color: Colors.white,
+                    size: 80,
+                  ),
+                ),
               ),
             ),
+          ),
+          // Prev / next arrows — the primary way to move between photos on
+          // web/desktop where there's no swipe gesture.
+          if (multi) ...[
+            Positioned(
+              left: 8,
+              child: _GalleryNavArrow(
+                icon: Icons.chevron_left,
+                onTap: _index > 0 ? () => _go(-1) : null,
+              ),
+            ),
+            Positioned(
+              right: 8,
+              child: _GalleryNavArrow(
+                icon: Icons.chevron_right,
+                onTap: _index < images.length - 1 ? () => _go(1) : null,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A round, semi-transparent navigation arrow used over a photo. Disabled
+/// (dimmed, non-tappable) when [onTap] is null.
+class _GalleryNavArrow extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  const _GalleryNavArrow({required this.icon, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return Material(
+      color: Colors.black.withValues(alpha: enabled ? 0.45 : 0.15),
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Icon(
+            icon,
+            color: Colors.white.withValues(alpha: enabled ? 1 : 0.4),
+            size: 28,
           ),
         ),
       ),
@@ -55,12 +152,36 @@ class AdDetailsScreen extends StatefulWidget {
 
 class _AdDetailsScreenState extends State<AdDetailsScreen> {
   int currentImage = 0;
+  final PageController _imageController = PageController();
 
   @override
   void initState() {
     super.initState();
     _incrementViews();
     recordRecentlyViewed(widget.listing);
+  }
+
+  @override
+  void dispose() {
+    _imageController.dispose();
+    super.dispose();
+  }
+
+  void _openGallery(List<String> images, int index) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FullScreenGallery(images: images, initialIndex: index),
+      ),
+    );
+  }
+
+  void _goToImage(int i) {
+    _imageController.animateToPage(
+      i,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
   }
 
   Future<void> _incrementViews() async {
@@ -372,57 +493,179 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
             if (images.isNotEmpty) ...[
-              SizedBox(
-                height: isPhone(context) ? 230 : 280,
-                width: double.infinity,
-                child: PageView.builder(
-                  itemCount: images.length,
-                  onPageChanged: (i) => setState(() => currentImage = i),
-                  itemBuilder: (context, index) {
-                    return GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => FullScreenGallery(
-                            images: images,
-                            initialIndex: index,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  height: isPhone(context) ? 250 : 320,
+                  width: double.infinity,
+                  child: Stack(
+                    children: [
+                      PageView.builder(
+                        controller: _imageController,
+                        itemCount: images.length,
+                        onPageChanged: (i) =>
+                            setState(() => currentImage = i),
+                        itemBuilder: (context, index) {
+                          return GestureDetector(
+                            onTap: () => _openGallery(images, index),
+                            child: Image.network(
+                              images[index],
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, progress) {
+                                if (progress == null) return child;
+                                return Container(
+                                  color: Colors.grey.shade200,
+                                  child: const Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  color: Colors.grey.shade200,
+                                  child: const Center(
+                                    child: Icon(Icons.image, size: 80),
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                      // Photo counter (top-right).
+                      if (images.length > 1)
+                        Positioned(
+                          top: 10,
+                          right: 10,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.photo_library,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  '${currentImage + 1}/${images.length}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      // Tap-to-expand button (bottom-right).
+                      Positioned(
+                        bottom: 10,
+                        right: 10,
+                        child: Material(
+                          color: Colors.black.withValues(alpha: 0.6),
+                          shape: const CircleBorder(),
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            onTap: () => _openGallery(images, currentImage),
+                            child: const Padding(
+                              padding: EdgeInsets.all(7),
+                              child: Icon(
+                                Icons.fullscreen,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          images[index],
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Center(
-                              child: Icon(Icons.image, size: 80),
-                            );
-                          },
+                      // Prev / next arrows — web/desktop friendly.
+                      if (images.length > 1) ...[
+                        Positioned.fill(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: _GalleryNavArrow(
+                                icon: Icons.chevron_left,
+                                onTap: currentImage > 0
+                                    ? () => _goToImage(currentImage - 1)
+                                    : null,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    );
-                  },
+                        Positioned.fill(
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: _GalleryNavArrow(
+                                icon: Icons.chevron_right,
+                                onTap: currentImage < images.length - 1
+                                    ? () => _goToImage(currentImage + 1)
+                                    : null,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
+              // Thumbnail strip for quick jumping between photos.
               if (images.length > 1) ...[
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(images.length, (i) {
-                    return Container(
-                      width: 8,
-                      height: 8,
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: i == currentImage
-                            ? kPakGreen
-                            : Colors.grey.shade400,
-                      ),
-                    );
-                  }),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 60,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: images.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (context, i) {
+                      final selected = i == currentImage;
+                      return GestureDetector(
+                        onTap: () => _goToImage(i),
+                        child: Container(
+                          width: 60,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: selected ? kPakGreen : Colors.transparent,
+                              width: 2.5,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: Image.network(
+                              images[i],
+                              fit: BoxFit.cover,
+                              width: 60,
+                              height: 60,
+                              errorBuilder: (_, _, _) => Container(
+                                color: Colors.grey.shade300,
+                                child: const Icon(Icons.image, size: 20),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ],
             ],
