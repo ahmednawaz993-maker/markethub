@@ -145,6 +145,38 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  /// Emails a password-reset link to the address in the email field.
+  Future<void> forgotPassword() async {
+    final email = emailController.text.trim();
+    if (email.isEmpty) {
+      setState(
+        () => errorMessage = 'Enter your email above, then tap Forgot password',
+      );
+      return;
+    }
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Password reset link sent to $email'),
+          backgroundColor: kPakGreen,
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(
+        () => errorMessage = e.message ?? 'Could not send the reset email',
+      );
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
   Future<void> continueAsGuest() async {
     setState(() {
       isLoading = true;
@@ -295,6 +327,19 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                     ),
                   ],
+                  if (isLogin)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: isLoading ? null : forgotPassword,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text('Forgot password?'),
+                      ),
+                    ),
                 ] else if (!otpSent) ...[
                   TextField(
                     controller: phoneController,
