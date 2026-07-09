@@ -324,7 +324,17 @@ Future<Position> determineCurrentPosition() async {
         'browser/device settings.';
   }
 
-  return Geolocator.getCurrentPosition();
+  final position = await Geolocator.getCurrentPosition();
+
+  // Anti-fraud: reject mocked/spoofed locations from "Fake GPS" apps. On
+  // Android, isMocked is set when the fix comes from a mock location provider
+  // (a fake-GPS app selected in Developer options). iOS/web report false.
+  if (position.isMocked) {
+    throw 'Fake GPS detected. Please turn off any mock-location / Fake GPS app '
+        'and disable "mock location" in Developer options to use PakBazar.';
+  }
+
+  return position;
 }
 
 // ---------------------------------------------------------------------------

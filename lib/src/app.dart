@@ -26,7 +26,7 @@ class PakBazarApp extends StatelessWidget {
           ],
           builder: (context, child) =>
               AppBackground(child: child ?? const SizedBox()),
-          home: const AuthGate(),
+          home: const SecurityGate(child: AuthGate()),
         );
       },
     );

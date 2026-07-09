@@ -876,6 +876,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.7"
+  safe_device:
+    dependency: "direct main"
+    description:
+      name: safe_device
+      sha256: ad1b32a564484c710f6d52b5a526838c8a7d999c8ab2e14890ff55c06a018248
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.4.1"
   shared_preferences:
     dependency: "direct main"
     description:

@@ -50,6 +50,7 @@ dependencies:
   audioplayers: ^6.5.0
   cross_file: ^0.3.4
   path_provider: ^2.1.4
+  safe_device: ^1.4.1
 
 # record 5.2.1 pulls record_linux 0.7.2, which doesn't implement the members
 # added in record_platform_interface 1.6.0 (startStream + hasPermission's

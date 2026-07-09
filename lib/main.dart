@@ -2,7 +2,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, kReleaseMode, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show
@@ -25,10 +26,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:safe_device/safe_device.dart';
 
 // Implementation is split across part files under lib/src/ (see below).
 part 'src/i18n.dart';
 part 'src/helpers.dart';
+part 'src/security.dart';
 part 'src/theme.dart';
 part 'src/models.dart';
 part 'src/catalog.dart';
