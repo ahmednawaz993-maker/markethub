@@ -28,7 +28,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.pakbazaar.app"
+        applicationId = "com.pakbazar24.app"
         // Firebase Auth/Firestore require minSdk 23+.
         minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = flutter.targetSdkVersion

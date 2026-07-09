@@ -64,7 +64,7 @@
       "android": {
         "default": {
           "projectId": "markethub-80276",
-          "appId": "1:541505846653:android:058fd729a280dbb28a2014",
+          "appId": "1:541505846653:android:43c0c2c9c92db4148a2014",
           "fileOutput": "android/app/google-services.json"
         }
       },
@@ -72,7 +72,7 @@
         "lib/firebase_options.dart": {
           "projectId": "markethub-80276",
           "configurations": {
-            "android": "1:541505846653:android:058fd729a280dbb28a2014",
+            "android": "1:541505846653:android:43c0c2c9c92db4148a2014",
             "ios": "1:541505846653:ios:deb9017ac06595108a2014",
             "macos": "1:541505846653:ios:deb9017ac06595108a2014",
             "web": "1:541505846653:web:2afe478f1fb52e358a2014",
