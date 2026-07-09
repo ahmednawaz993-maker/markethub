@@ -78,15 +78,24 @@ dev_dependencies:
 # PakBazar launcher/web icons (run: dart run flutter_launcher_icons)
 flutter_launcher_icons:
   android: true
+  ios: true
   min_sdk_android: 23
   image_path: "store_assets/icon_1024.png"
-  adaptive_icon_background: "#015127"
+  adaptive_icon_background: "#000000"
   adaptive_icon_foreground: "store_assets/icon_fg_1024.png"
+  remove_alpha_ios: true
   web:
     generate: true
     image_path: "store_assets/icon_1024.png"
-    background_color: "#015127"
+    background_color: "#000000"
     theme_color: "#015127"
+  windows:
+    generate: true
+    image_path: "store_assets/icon_1024.png"
+    icon_size: 48
+  macos:
+    generate: true
+    image_path: "store_assets/icon_1024.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -98,6 +107,10 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/pakbazar_logo.png
+    - assets/pakbazar_mark_light.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

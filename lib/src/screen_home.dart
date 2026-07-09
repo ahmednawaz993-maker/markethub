@@ -1568,7 +1568,18 @@ class _HomeScreenState extends State<HomeScreen> {
   /// dubizzle-style home top bar: location selector + favorites + alerts.
   PreferredSizeWidget _homeAppBar() {
     return AppBar(
-      titleSpacing: 12,
+      titleSpacing: 4,
+      leadingWidth: 40,
+      leading: Center(
+        child: Padding(
+          padding: const EdgeInsets.only(left: 10),
+          child: Image.asset(
+            'assets/pakbazar_mark_light.png',
+            height: 30,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
       title: InkWell(
         onTap: () async {
           final c = await showCityPicker(context, includeAll: true);

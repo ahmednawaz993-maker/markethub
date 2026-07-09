@@ -228,18 +228,12 @@ class _AuthScreenState extends State<AuthScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(Icons.storefront, size: 80, color: kPakGreen),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'PakBazar',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: kPakGreen,
-                      ),
+                    Image.asset(
+                      'assets/pakbazar_logo.png',
+                      height: 88,
+                      fit: BoxFit.contain,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     const Text(
                       'Pakistan ka apna online bazaar',
                       textAlign: TextAlign.center,
