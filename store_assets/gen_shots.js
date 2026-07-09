@@ -7,6 +7,10 @@ const out = path.join(__dirname, 'gen');
 fs.mkdirSync(out, { recursive: true });
 
 const NAVY = '#173A6B', DEEP = '#0A1A33', GOLD = '#C9A227', BG = '#eff1f2';
+// Real PakBazar logo mark (embedded so renders stay offline).
+const LOGOIMG = 'data:image/png;base64,' +
+  fs.readFileSync(path.join(__dirname, 'logo_mark_sm.png')).toString('base64');
+const LOGO = `<span class="logo"><img class="bagimg" src="${LOGOIMG}"/>Pak<span class="gold">Bazar</span></span>`;
 const grads = [
   'linear-gradient(135deg,#dbeafe,#93c5fd)',
   'linear-gradient(135deg,#dcfce7,#bbf7d0)',
@@ -27,6 +31,7 @@ html,body{width:1080px;height:1920px;background:${BG};overflow:hidden;}
 .bar .loc{font-size:36px;font-weight:bold;flex:1;}.bar .ico{font-size:40px;}
 .logo{display:flex;align-items:center;gap:14px;font-size:42px;font-weight:bold;}
 .logo .bag{width:60px;height:60px;border-radius:15px;background:${GOLD};display:flex;align-items:center;justify-content:center;font-size:34px;}
+.logo .bagimg{height:66px;width:auto;display:block;}
 .gold{color:${GOLD};}
 .search{margin:26px 30px;background:#fff;border-radius:60px;padding:30px 38px;color:#777;font-size:34px;box-shadow:0 4px 14px rgba(0,0,0,.08);}
 .headline{font-size:48px;font-weight:bold;color:#111;margin:26px 30px 6px;}
@@ -89,6 +94,7 @@ html,body{width:100vw;height:100vh;background:${BG};overflow:hidden;}
 .top{height:8vmin;background:linear-gradient(135deg,${DEEP},${NAVY});display:flex;align-items:center;gap:2.4vmin;padding:0 3.6vmin;color:#fff;}
 .logo{display:flex;align-items:center;gap:1.3vmin;font-size:3.4vmin;font-weight:bold;}
 .logo .bag{width:5.2vmin;height:5.2vmin;border-radius:1.3vmin;background:${GOLD};display:flex;align-items:center;justify-content:center;font-size:3vmin;}
+.logo .bagimg{height:5.6vmin;width:auto;display:block;}
 .gold{color:${GOLD};}
 .search{flex:1;background:#fff;border-radius:4vmin;padding:1.8vmin 2.8vmin;color:#888;font-size:2.4vmin;max-width:64vmin;}
 .acts{margin-left:auto;display:flex;gap:2.6vmin;font-size:3vmin;align-items:center;}
@@ -178,18 +184,18 @@ const screens = {};
 screens.home = {
   phone: `
   <div class="status"><span>9:41</span><span>&#9679;&#9679;&#9679;&#9679; &#128246; &#128267;</span></div>
-  <div class="bar"><span class="logo"><span class="bag">&#128717;</span>Pak<span class="gold">Bazar</span></span><span class="ico">&#9825;</span><span class="ico">&#128276;</span></div>
+  <div class="bar">${LOGO}<span class="ico">&#9825;</span><span class="ico">&#128276;</span></div>
   <div class="search">&#128269;&nbsp; Find cars, mobiles, property and more</div>
   <div class="cats">${cats.map(c => cat(c[0], c[1])).join('')}</div>
-  <div class="promo"><span class="star">&#9733;</span><h2>Pakistan ka apna<br>online bazaar</h2><p>Buy &amp; sell safely with escrow</p><span class="pill">Explore deals</span></div>
+  <div class="promo"><span class="star">&#9733;</span><h2>Pakistan ka apna<br>online bazaar</h2><p>Buy &amp; sell safely, near you</p><span class="pill">Explore deals</span></div>
   <div class="sec">Fresh recommendations</div>
   <div class="grid">${prods.slice(0, 4).map(p => cardP(...p)).join('')}</div>
   <div class="sell"><span class="plus">+</span><span class="ts">SELL</span></div>
   <div class="nav"><div class="on"><span class="ic">&#127968;</span>Home</div><div><span class="ic">&#128172;</span>Chats</div><div style="width:120px"></div><div><span class="ic">&#128203;</span>My Ads</div><div><span class="ic">&#128100;</span>Profile</div></div>`,
   wide: `
-  <div class="top"><span class="logo"><span class="bag">&#128717;</span>Pak<span class="gold">Bazar</span></span><span style="font-size:2.4vmin">&#128205; Karachi &#9662;</span><span class="search">&#128269; Find cars, mobiles, property and more…</span><span class="acts"><span>&#9825;</span><span>&#128276;</span><span class="sell">+ SELL</span></span></div>
+  <div class="top">${LOGO}<span style="font-size:2.4vmin">&#128205; Karachi &#9662;</span><span class="search">&#128269; Find cars, mobiles, property and more…</span><span class="acts"><span>&#9825;</span><span>&#128276;</span><span class="sell">+ SELL</span></span></div>
   <div class="wrap"><div class="side"><div class="h">CATEGORIES</div>${sideCats.map(c => sideIt(c[0], c[1], c[2])).join('')}</div>
-  <div class="main"><div class="promo"><span class="star">&#9733;</span><h2>Pakistan ka apna online bazaar</h2><p>Buy &amp; sell across 280+ cities — safely, with escrow &amp; verified members.</p><span class="pill">Explore deals</span></div>
+  <div class="main"><div class="promo"><span class="star">&#9733;</span><h2>Pakistan ka apna online bazaar</h2><p>Buy &amp; sell across 280+ cities — safely, with verified members near you.</p><span class="pill">Explore deals</span></div>
   <div class="sec">Fresh recommendations</div><div class="grid">${prods.map(p => cardP(...p)).join('')}</div></div></div>`,
 };
 
@@ -204,7 +210,7 @@ screens.search = {
   <div class="sell"><span class="plus">+</span><span class="ts">SELL</span></div>
   <div class="nav"><div><span class="ic">&#127968;</span>Home</div><div><span class="ic">&#128172;</span>Chats</div><div style="width:120px"></div><div><span class="ic">&#128203;</span>My Ads</div><div><span class="ic">&#128100;</span>Profile</div></div>`,
   wide: `
-  <div class="top"><span class="logo"><span class="bag">&#128717;</span>Pak<span class="gold">Bazar</span></span><span class="search">&#128269; Honda Civic</span><span class="acts"><span>&#9825;</span><span>&#128276;</span><span class="sell">+ SELL</span></span></div>
+  <div class="top">${LOGO}<span class="search">&#128269; Honda Civic</span><span class="acts"><span>&#9825;</span><span>&#128276;</span><span class="sell">+ SELL</span></span></div>
   <div class="main" style="height:92vh"><div class="chips"><span class="chip on">All Pakistan</span><span class="chip">Under Rs 5M</span><span class="chip">2018 onwards</span><span class="chip">Verified sellers</span><span class="chip">Newest first</span></div>
   <div class="sec">128 results for "Honda Civic"</div><div class="grid">${prods.map(p => cardP(...p)).join('')}</div></div>`,
 };
@@ -213,7 +219,7 @@ const detailPanel = (cls) => `
   <div class="price">Rs 4,250,000</div><div class="ttl2">Honda Civic 2021 — Oriel</div><div class="loc2">&#128205; DHA Phase 6, Karachi · 2 days ago</div>
   <div class="badges"><span class="badge bg-g">&#10003; Verified seller</span><span class="badge bg-d">&#9733; Featured</span><span class="badge bg-b">&#128666; COD</span></div>
   ${cls === 'wide' ? '<div class="cardrow"><div class="av">A</div><div><div style="font-size:3vmin;font-weight:bold">Ahmed Motors</div><div style="font-size:2.4vmin;color:#C9A227">&#9733;&#9733;&#9733;&#9733;&#9733; 4.9 · 128 deals</div></div></div>' : ''}
-  <div class="btn btn-g">&#128274; Buy securely with Escrow</div><div class="btn btn-n">&#128172; Chat with seller</div><div class="btn btn-o">&#127991; Make an offer</div>`;
+  <div class="btn btn-g">&#128666; Buy with Cash on Delivery</div><div class="btn btn-n">&#128172; Chat with seller</div><div class="btn btn-o">&#127991; Make an offer</div>`;
 
 screens.detail = {
   phone: `
@@ -222,8 +228,8 @@ screens.detail = {
   <div class="big" style="background:${grads[0]}">&#128663;<span class="feat" style="position:absolute;top:24px;left:24px;background:${GOLD};color:${NAVY};font-size:24px;font-weight:bold;padding:10px 20px;border-radius:10px">&#9733; FEATURED</span></div>
   <div class="panel">${detailPanel('phone')}</div>`,
   wide: `
-  <div class="top"><span class="logo"><span class="bag">&#128717;</span>Pak<span class="gold">Bazar</span></span><span class="search">&#128269; Find cars, mobiles, property…</span><span class="acts"><span>&#9825;</span><span>&#128276;</span><span class="sell">+ SELL</span></span></div>
-  <div class="main" style="height:92vh"><div class="two"><div class="big" style="background:${grads[0]}">&#128663;<span class="feat">&#9733; FEATURED</span></div><div class="panel">${detailPanel('wide')}<div style="font-size:2.2vmin;color:#15803d;text-align:center;margin-top:1vmin">&#128737; Protected by PakBazar escrow</div></div></div></div>`,
+  <div class="top">${LOGO}<span class="search">&#128269; Find cars, mobiles, property…</span><span class="acts"><span>&#9825;</span><span>&#128276;</span><span class="sell">+ SELL</span></span></div>
+  <div class="main" style="height:92vh"><div class="two"><div class="big" style="background:${grads[0]}">&#128663;<span class="feat">&#9733; FEATURED</span></div><div class="panel">${detailPanel('wide')}<div style="font-size:2.2vmin;color:#15803d;text-align:center;margin-top:1vmin">&#10003; Verified sellers · &#128666; Cash on Delivery</div></div></div></div>`,
 };
 
 const chatInner = `
@@ -231,7 +237,7 @@ const chatInner = `
   <div class="msg"><div class="bub them">Is the Honda Civic still available?</div></div>
   <div class="msg me"><div class="bub me2">Yes it is! Would you like to see it?</div></div>
   <div class="msg"><div class="bub them">Can I pay safely through the app?</div></div>
-  <div class="msg me"><div class="bub me2">Absolutely — we'll use PakBazar Escrow. You pay only when you confirm. &#128274;</div></div>
+  <div class="msg me"><div class="bub me2">Great! Is Cash on Delivery okay? I can meet in Karachi. &#128075;</div></div>
   <div class="msg"><div class="bub them">Great, let's do it &#128077;</div></div>`;
 
 screens.chat = {
@@ -240,7 +246,7 @@ screens.chat = {
   <div class="bar"><span class="loc">Ahmed Motors<br><span style="font-size:24px;color:#cdddf2">Honda Civic 2021</span></span><span class="ico">&#128247;</span></div>
   <div style="padding:10px 30px">${chatInner}</div>`,
   wide: `
-  <div class="top"><span class="logo"><span class="bag">&#128717;</span>Pak<span class="gold">Bazar</span></span><span style="font-size:3vmin;margin-left:2vmin">Chat — Ahmed Motors</span><span class="acts"><span>&#128276;</span></span></div>
+  <div class="top">${LOGO}<span style="font-size:3vmin;margin-left:2vmin">Chat — Ahmed Motors</span><span class="acts"><span>&#128276;</span></span></div>
   <div class="main" style="height:92vh"><div class="chatwrap">${chatInner}</div></div>`,
 };
 
@@ -260,7 +266,7 @@ screens.post = {
   <div class="headline" style="margin-top:20px">Post your ad in minutes</div>
   <div class="panel" style="margin-top:10px">${formInner}</div>`,
   wide: `
-  <div class="top"><span class="logo"><span class="bag">&#128717;</span>Pak<span class="gold">Bazar</span></span><span style="font-size:3vmin;margin-left:2vmin">Sell an item</span></div>
+  <div class="top">${LOGO}<span style="font-size:3vmin;margin-left:2vmin">Sell an item</span></div>
   <div class="main" style="height:92vh"><div class="formwrap"><div class="headline">Post your ad in minutes</div><div class="sub">Add photos, set your price, and reach buyers across Pakistan.</div><div class="panel">${formInner}</div></div></div>`,
 };
 
@@ -279,30 +285,30 @@ screens.verify = {
   <div class="sub">ID &amp; address verification builds trust.</div>
   <div class="panel">${verifyInner}</div>`,
   wide: `
-  <div class="top"><span class="logo"><span class="bag">&#128717;</span>Pak<span class="gold">Bazar</span></span><span style="font-size:3vmin;margin-left:2vmin">Identity &amp; Address Verification</span></div>
+  <div class="top">${LOGO}<span style="font-size:3vmin;margin-left:2vmin">Identity &amp; Address Verification</span></div>
   <div class="main" style="height:92vh"><div class="formwrap"><div class="headline">Verified members, safer deals</div><div class="sub">ID &amp; address verification builds trust across the marketplace.</div><div class="panel">${verifyInner}</div></div></div>`,
 };
 
 const bars = [['Jan', 30], ['Feb', 55], ['Mar', 40], ['Apr', 75], ['May', 90], ['Jun', 100]];
 const earnInner = (cls) => `
-  <div class="kpi"><div class="lbl">Total earnings · after 2% commission</div><div class="val">Rs 482,300</div></div>
-  <div class="mrow"><div class="mcard"><div class="mv">Rs 492,000</div><div class="ml">Gross sales</div></div><div class="mcard"><div class="mv">Rs 9,840</div><div class="ml">Commission</div></div><div class="mcard"><div class="mv">Rs 60,000</div><div class="ml">In escrow</div></div><div class="mcard"><div class="mv">37</div><div class="ml">Items sold</div></div></div>
-  <div class="sec">Earnings — last 6 months</div>
+  <div class="kpi"><div class="lbl">Your marketplace activity</div><div class="val">4,820 views</div></div>
+  <div class="mrow"><div class="mcard"><div class="mv">12</div><div class="ml">Active ads</div></div><div class="mcard"><div class="mv">37</div><div class="ml">Chats</div></div><div class="mcard"><div class="mv">86</div><div class="ml">Favourites</div></div><div class="mcard"><div class="mv">5</div><div class="ml">Items sold</div></div></div>
+  <div class="sec">Views — last 6 months</div>
   ${bars.map(b => `<div class="barrow"><span class="lab">${b[0]} 26</span><span class="track"><span class="fill" style="width:${b[1]}%"></span></span></div>`).join('')}`;
 
 screens.earnings = {
   phone: `
   <div class="status"><span>9:41</span><span>&#9679;&#9679;&#9679;&#9679; &#128246; &#128267;</span></div>
-  <div class="bar"><span class="loc">Sales &amp; Earnings</span></div>
+  <div class="bar"><span class="loc">My Ads</span></div>
   ${earnInner('phone')}`,
   wide: `
-  <div class="top"><span class="logo"><span class="bag">&#128717;</span>Pak<span class="gold">Bazar</span></span><span style="font-size:3vmin;margin-left:2vmin">Sales &amp; Earnings</span></div>
+  <div class="top">${LOGO}<span style="font-size:3vmin;margin-left:2vmin">My Ads</span></div>
   <div class="main" style="height:92vh"><div class="formwrap" style="max-width:130vmin">${earnInner('wide')}</div></div>`,
 };
 
 const safeItems = [
   ['&#10003;', 'Every ad is reviewed before it goes live'],
-  ['&#128274;', 'Secure escrow — pay only when you confirm receipt'],
+  ['&#128666;', 'Cash on Delivery available on supported ads'],
   ['&#129331;', 'ID &amp; address verified members'],
   ['&#128737;', 'Scam detection &amp; easy reporting in chat'],
   ['&#9878;', 'Clear buyer &amp; seller rules, fair for both sides'],
@@ -317,7 +323,7 @@ screens.safety = {
   <div class="sub">PakBazar protects buyers and sellers.</div>
   <div class="panel">${safeInner}</div>`,
   wide: `
-  <div class="top"><span class="logo"><span class="bag">&#128717;</span>Pak<span class="gold">Bazar</span></span><span style="font-size:3vmin;margin-left:2vmin">Trust &amp; Safety</span></div>
+  <div class="top">${LOGO}<span style="font-size:3vmin;margin-left:2vmin">Trust &amp; Safety</span></div>
   <div class="main" style="height:92vh"><div class="formwrap"><div class="headline">Buy &amp; sell with confidence</div><div class="sub">How PakBazar protects buyers and sellers at every step.</div><div class="panel">${safeInner}</div></div></div>`,
 };
 
