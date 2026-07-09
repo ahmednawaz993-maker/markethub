@@ -185,35 +185,38 @@ class SalesDashboardScreen extends StatelessWidget {
                       Icons.local_shipping, Colors.purple),
                 ],
               ),
-              const SizedBox(height: 10),
-              // Wallet balance (separate stream on the user doc).
-              StreamBuilder<DocumentSnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(uid)
-                    .snapshots(),
-                builder: (context, us) {
-                  final bal = ((us.data?.data()
-                          as Map<String, dynamic>?)?['walletBalance'] as num?)
-                      ?.toInt() ??
-                      0;
-                  return Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.account_balance_wallet,
-                          color: kPakGreen),
-                      title: const Text('Available wallet balance'),
-                      subtitle: Text(formatPrice('$bal')),
-                      trailing: TextButton(
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const WalletScreen()),
+              if (monetizationEnabled.value) ...[
+                const SizedBox(height: 10),
+                // Wallet balance (separate stream on the user doc).
+                StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(uid)
+                      .snapshots(),
+                  builder: (context, us) {
+                    final bal = ((us.data?.data()
+                            as Map<String, dynamic>?)?['walletBalance'] as num?)
+                        ?.toInt() ??
+                        0;
+                    return Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.account_balance_wallet,
+                            color: kPakGreen),
+                        title: const Text('Available wallet balance'),
+                        subtitle: Text(formatPrice('$bal')),
+                        trailing: TextButton(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const WalletScreen()),
+                          ),
+                          child: const Text('Wallet'),
                         ),
-                        child: const Text('Wallet'),
                       ),
-                    ),
-                  );
-                },
-              ),
+                    );
+                  },
+                ),
+              ],
               const SizedBox(height: 16),
               const Text(
                 'Earnings — last 6 months',

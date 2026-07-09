@@ -624,17 +624,18 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                   );
                 },
               ),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const BannerAdScreen()),
+              if (monetizationEnabled.value)
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const BannerAdScreen()),
+                    ),
+                    icon: const Icon(Icons.view_carousel, color: kGold),
+                    label: const Text('Buy a home banner'),
                   ),
-                  icon: const Icon(Icons.view_carousel, color: kGold),
-                  label: const Text('Buy a home banner'),
                 ),
-              ),
             ],
           ],
         ),
@@ -1818,15 +1819,17 @@ class ProfileScreen extends StatelessWidget {
                       label: Text(tr('profile.offers')),
                     ),
                     const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const WalletScreen()),
+                    if (monetizationEnabled.value) ...[
+                      OutlinedButton.icon(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const WalletScreen()),
+                        ),
+                        icon: const Icon(Icons.account_balance_wallet),
+                        label: Text(tr('profile.wallet')),
                       ),
-                      icon: const Icon(Icons.account_balance_wallet),
-                      label: Text(tr('profile.wallet')),
-                    ),
-                    const SizedBox(height: 12),
+                      const SizedBox(height: 12),
+                    ],
                     OutlinedButton.icon(
                       onPressed: () => Navigator.push(
                         context,

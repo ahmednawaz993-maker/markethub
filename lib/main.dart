@@ -66,6 +66,7 @@ Future<void> main() async {
   await loadSavedLocale();
   await loadFeaturingFlag();
   await loadVerificationFlag();
+  await loadMonetizationFlag();
 
   runApp(const PakBazarApp());
 }

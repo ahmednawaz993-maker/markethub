@@ -76,6 +76,25 @@ Future<void> loadVerificationFlag() async {
   } catch (_) {}
 }
 
+/// Whether paid monetization features — the wallet (top-ups/withdrawals) and
+/// paid banner-ad promotions — are shown. Kept OFF for the Play Store launch:
+/// selling in-app promotions for money loaded outside Google Play Billing
+/// violates Play's Payments policy. Do NOT enable this until those purchases go
+/// through Google Play Billing (or are otherwise compliant); flipping it on
+/// after review to slip the feature past Google is itself a policy breach.
+/// Controlled by config/monetization (enabled: true), loaded at startup.
+final ValueNotifier<bool> monetizationEnabled = ValueNotifier<bool>(false);
+
+Future<void> loadMonetizationFlag() async {
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('config')
+        .doc('monetization')
+        .get();
+    monetizationEnabled.value = doc.data()?['enabled'] == true;
+  } catch (_) {}
+}
+
 /// Loads the set of admin-suspended (platform-blocked) users so their listings
 /// can be hidden from everyone's feeds and search results. Refreshed at startup.
 Future<void> loadPlatformBlockedUsers() async {
