@@ -46,6 +46,9 @@ android/key.properties
 **/*.jks
 **/*.keystore
 
+# Google Play Developer API service-account key (never commit)
+**/play-service-account.json
+
 # Symbolication related
 app.*.symbols
 
