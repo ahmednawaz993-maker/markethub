@@ -54,6 +54,7 @@ def main() -> int:
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
         from googleapiclient.http import MediaFileUpload
+        from googleapiclient.errors import HttpError
     except ImportError:
         sys.exit("Missing deps. Run:\n"
                  "  pip install google-api-python-client google-auth")
@@ -68,45 +69,58 @@ def main() -> int:
         args.key, scopes=["https://www.googleapis.com/auth/androidpublisher"])
     svc = build("androidpublisher", "v3", credentials=creds, cache_discovery=False)
 
-    print(f"Opening edit for {PACKAGE} ...")
-    edit_id = svc.edits().insert(packageName=PACKAGE, body={}).execute()["id"]
+    # One full release attempt: open a fresh edit, upload the AAB, set the
+    # track release, and commit. Play edits have a short TTL, so everything from
+    # insert -> commit must happen inside one attempt; if the edit expires (or a
+    # transient error hits), the caller retries with a brand-new edit. 10MB
+    # chunks keep the transfer short enough to finish inside the edit's life.
+    def attempt_release():
+        edit_id = svc.edits().insert(packageName=PACKAGE, body={}).execute()["id"]
+        media = MediaFileUpload(
+            args.aab,
+            mimetype="application/octet-stream",
+            chunksize=10 * 1024 * 1024,
+            resumable=True,
+        )
+        request = svc.edits().bundles().upload(
+            packageName=PACKAGE, editId=edit_id, media_body=media)
+        bundle = None
+        while bundle is None:
+            status, bundle = request.next_chunk(num_retries=3)
+            if status:
+                print(f"  {int(status.progress() * 100)}% uploaded")
+        code = bundle["versionCode"]
+        svc.edits().tracks().update(
+            packageName=PACKAGE,
+            editId=edit_id,
+            track=args.track,
+            body={"releases": [{
+                "versionCodes": [str(code)],
+                "status": "completed",
+                "releaseNotes": [{"language": "en-US", "text": args.notes}],
+            }]},
+        ).execute()
+        svc.edits().commit(packageName=PACKAGE, editId=edit_id).execute()
+        return code
 
-    print(f"Uploading {os.path.basename(args.aab)} ...")
-    # Resumable, chunked upload: each 5MB chunk is sent (and retried) on its own,
-    # so a slow/flaky connection can't fail the whole 58MB transfer at once.
-    media = MediaFileUpload(
-        args.aab,
-        mimetype="application/octet-stream",
-        chunksize=5 * 1024 * 1024,
-        resumable=True,
-    )
-    request = svc.edits().bundles().upload(
-        packageName=PACKAGE,
-        editId=edit_id,
-        media_body=media,
-    )
-    bundle = None
-    while bundle is None:
-        status, bundle = request.next_chunk(num_retries=5)
-        if status:
-            print(f"  {int(status.progress() * 100)}% uploaded")
-    version_code = bundle["versionCode"]
-    print(f"Uploaded versionCode {version_code}.")
-
-    svc.edits().tracks().update(
-        packageName=PACKAGE,
-        editId=edit_id,
-        track=args.track,
-        body={"releases": [{
-            "versionCodes": [str(version_code)],
-            "status": "completed",
-            "releaseNotes": [{"language": "en-US", "text": args.notes}],
-        }]},
-    ).execute()
-
-    svc.edits().commit(packageName=PACKAGE, editId=edit_id).execute()
-    print(f"Done — versionCode {version_code} rolled out to '{args.track}'.")
-    return 0
+    print(f"Uploading {os.path.basename(args.aab)} to '{args.track}' ...")
+    last_err = None
+    for attempt in range(1, 4):
+        try:
+            version_code = attempt_release()
+            print(f"Done — versionCode {version_code} rolled out to '{args.track}'.")
+            return 0
+        except HttpError as e:
+            last_err = e
+            msg = str(e).lower()
+            retryable = "expired" in msg or e.resp.status in (409, 429, 500, 502, 503)
+            if attempt < 3 and retryable:
+                print(f"Attempt {attempt} failed ({e.resp.status}: "
+                      f"{'edit expired' if 'expired' in msg else 'transient'}); "
+                      f"retrying with a fresh edit ...")
+                continue
+            raise
+    sys.exit(f"Upload failed after retries: {last_err}")
 
 
 if __name__ == "__main__":
