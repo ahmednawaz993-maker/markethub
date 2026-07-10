@@ -17,6 +17,7 @@ class Listing {
   String sellerName;
   String condition;
   String unit; // pricing unit e.g. 'kg', 'dozen', 'plate' (optional)
+  String deliveryFee; // extra delivery charge (String like price; '' = free)
   bool deliveryAvailable;
   bool codAvailable; // Cash on Delivery offered for this ad
   bool sellerVerified;
@@ -52,6 +53,7 @@ class Listing {
     this.sellerName = '',
     this.condition = '',
     this.unit = '',
+    this.deliveryFee = '',
     this.deliveryAvailable = false,
     this.codAvailable = false,
     this.sellerVerified = false,
@@ -118,6 +120,7 @@ class Listing {
       'sellerName': sellerName,
       'condition': condition,
       'unit': unit,
+      'deliveryFee': deliveryFee,
       'deliveryAvailable': deliveryAvailable,
       'codAvailable': codAvailable,
       'sellerVerified': sellerVerified,
@@ -171,6 +174,7 @@ class Listing {
       sellerName: data['sellerName']?.toString() ?? '',
       condition: data['condition']?.toString() ?? '',
       unit: data['unit']?.toString() ?? '',
+      deliveryFee: data['deliveryFee']?.toString() ?? '',
       deliveryAvailable: data['deliveryAvailable'] == true,
       codAvailable: data['codAvailable'] == true,
       sellerVerified: data['sellerVerified'] == true,

@@ -515,6 +515,13 @@ Future<void> _orderFromOffer(
   Map<String, dynamic> offer,
   double amount,
 ) async {
+  // `amount` is the negotiated product price. Delivery fee (carried on the
+  // offer) is added on top for the buyer total; commission is on the product
+  // only, so the seller keeps the full delivery fee. This order is created with
+  // fromOffer:true, so the Cloud Function does NOT recompute it — the totals
+  // here are authoritative.
+  final delivery = (offer['deliveryFee'] as num?)?.toDouble() ?? 0;
+  final total = amount + delivery;
   final commission = amount * commissionRate;
   final orderRef = FirebaseFirestore.instance.collection('orders').doc();
   // Atomic: re-read the offer and only create the order if it hasn't already
@@ -531,9 +538,10 @@ Future<void> _orderFromOffer(
       'sellerName': offer['sellerName'] ?? '',
       'buyerId': offer['buyerId'] ?? '',
       'buyerName': offer['buyerName'] ?? '',
-      'amount': amount,
+      'amount': total,
+      'deliveryFee': delivery,
       'commission': commission,
-      'sellerPayout': amount - commission,
+      'sellerPayout': total - commission,
       'status': 'pending_payment',
       'createdAt': Timestamp.now(),
       'fromOffer': true,

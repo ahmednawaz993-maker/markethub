@@ -450,20 +450,28 @@ exports.notifyOnNewOrder = onDocumentCreated(
       }
 
       const listing = listingSnap.data();
-      amount = parsePrice(listing.price);
+      const itemPrice = parsePrice(listing.price);
+      // Delivery fee is added to the buyer total but excluded from commission,
+      // so the seller keeps it in full. Only applies when delivery is offered.
+      const delivery =
+        listing.deliveryAvailable === true
+          ? parsePrice(listing.deliveryFee)
+          : 0;
+      amount = itemPrice + delivery;
       const isCod = order.status === "cod_pending";
-      const commission = isCod ? 0 : round2(amount * commissionRate());
+      const commission = isCod ? 0 : round2(itemPrice * commissionRate());
       const sellerPayout = round2(amount - commission);
       sellerId = listing.userId || order.sellerId || "";
 
       if (
         order.amount !== amount ||
+        order.deliveryFee !== delivery ||
         order.commission !== commission ||
         order.sellerPayout !== sellerPayout ||
         order.sellerId !== sellerId
       ) {
         await snap.ref.set(
-          { amount, commission, sellerPayout, sellerId },
+          { amount, deliveryFee: delivery, commission, sellerPayout, sellerId },
           { merge: true }
         );
       }
@@ -1054,7 +1062,11 @@ exports.onEscrowAction = onDocumentCreated(
       if (act.type === "release") {
         // Commission/payout are recomputed here (server-authoritative) rather
         // than trusting whatever the client stored on the order.
-        const commission = Math.round(amount * commissionRate() * 100) / 100;
+        // Commission is on the product only; the delivery fee (part of amount)
+        // passes through to the seller in full.
+        const delivery = Number(order.deliveryFee) || 0;
+        const commission =
+          Math.round((amount - delivery) * commissionRate() * 100) / 100;
         const payout = amount - commission;
         const sellerRef = db.collection("users").doc(order.sellerId);
         const sellerSnap = await tx.get(sellerRef);

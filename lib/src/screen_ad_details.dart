@@ -741,6 +741,25 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+                if (deliveryFeeOf(listing) > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '+ ${formatPrice(listing.deliveryFee)} delivery',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: kPakGreen,
+                      ),
+                    ),
+                  ),
                 if (listing.hasRecentPriceDrop) ...[
                   Text(
                     formatPrice(listing.previousPrice),

@@ -832,6 +832,7 @@ class EditListingScreen extends StatefulWidget {
 class _EditListingScreenState extends State<EditListingScreen> {
   late TextEditingController titleController;
   late TextEditingController priceController;
+  late TextEditingController deliveryFeeController;
   late TextEditingController locationController;
   late TextEditingController phoneController;
   late TextEditingController descriptionController;
@@ -865,6 +866,8 @@ class _EditListingScreenState extends State<EditListingScreen> {
 
     titleController = TextEditingController(text: widget.listing.title);
     priceController = TextEditingController(text: widget.listing.price);
+    deliveryFeeController =
+        TextEditingController(text: widget.listing.deliveryFee);
     locationController = TextEditingController(text: widget.listing.location);
     phoneController = TextEditingController(text: widget.listing.phone);
     descriptionController = TextEditingController(
@@ -976,6 +979,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
         'subcategory': selectedSubcategory,
         'condition': selectedCondition,
         'unit': selectedUnit == 'None' ? '' : selectedUnit,
+        'deliveryFee': deliveryAvailable ? deliveryFeeController.text.trim() : '',
         'deliveryAvailable': deliveryAvailable,
         'codAvailable': codAvailable,
         'negotiable': negotiable,
@@ -1031,6 +1035,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
   void dispose() {
     titleController.dispose();
     priceController.dispose();
+    deliveryFeeController.dispose();
     locationController.dispose();
     phoneController.dispose();
     descriptionController.dispose();
@@ -1200,6 +1205,16 @@ class _EditListingScreenState extends State<EditListingScreen> {
               activeThumbColor: kPakGreen,
               onChanged: (v) => setState(() => deliveryAvailable = v),
             ),
+            if (deliveryAvailable)
+              TextField(
+                controller: deliveryFeeController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Delivery fee (PKR, optional)',
+                  hintText: 'Leave blank for free delivery',
+                  prefixIcon: Icon(Icons.local_shipping),
+                ),
+              ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Cash on Delivery'),

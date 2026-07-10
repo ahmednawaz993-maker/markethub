@@ -111,13 +111,24 @@ double get commissionRate =>
 /// free-launch period is active). Drives seller-facing fee wording.
 bool get commissionActive => commissionRate > 0;
 
+/// The delivery fee a buyer pays on top of the product price, or 0 when the
+/// seller doesn't offer delivery / left it blank (free delivery). Only applies
+/// while `deliveryAvailable` is on. Kept in sync with the server recompute in
+/// functions/index.js (notifyOnNewOrder).
+double deliveryFeeOf(Listing l) =>
+    l.deliveryAvailable ? parsePrice(l.deliveryFee) : 0;
+
 /// Creates a buy order for a listing. Commission (2%) is recorded so the
 /// platform can take its cut once gateway payments go live (Phase 2).
 Future<void> createOrder(Listing listing) async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) return;
-  final amount = parsePrice(listing.price);
-  final commission = amount * commissionRate;
+  final itemPrice = parsePrice(listing.price);
+  final delivery = deliveryFeeOf(listing);
+  // `amount` is the total the buyer pays (product + delivery); commission is
+  // taken on the product only, so the seller keeps the full delivery fee.
+  final amount = itemPrice + delivery;
+  final commission = itemPrice * commissionRate;
   await FirebaseFirestore.instance.collection('orders').add({
     'listingId': listing.id,
     'listingTitle': listing.title,
@@ -128,6 +139,7 @@ Future<void> createOrder(Listing listing) async {
     'buyerId': user.uid,
     'buyerName': user.email ?? 'Buyer',
     'amount': amount,
+    'deliveryFee': delivery,
     'commission': commission,
     'sellerPayout': amount - commission,
     'status': 'pending_payment',
@@ -140,7 +152,9 @@ Future<void> createOrder(Listing listing) async {
 Future<void> createCodOrder(Listing listing) async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) return;
-  final amount = parsePrice(listing.price);
+  final delivery = deliveryFeeOf(listing);
+  // Buyer pays product + delivery in cash on handover. No commission on COD.
+  final amount = parsePrice(listing.price) + delivery;
   await FirebaseFirestore.instance.collection('orders').add({
     'listingId': listing.id,
     'listingTitle': listing.title,
@@ -151,6 +165,7 @@ Future<void> createCodOrder(Listing listing) async {
     'buyerId': user.uid,
     'buyerName': user.email ?? 'Buyer',
     'amount': amount,
+    'deliveryFee': delivery,
     'commission': 0,
     'sellerPayout': amount,
     'paymentMethod': 'cod',
@@ -191,6 +206,16 @@ Future<void> showBuyNowSheet(BuildContext context, Listing listing) async {
                   ),
                 ],
               ),
+              if (deliveryFeeOf(listing) > 0) ...[
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Delivery fee'),
+                    Text(formatPrice(listing.deliveryFee)),
+                  ],
+                ),
+              ],
               const Divider(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -200,7 +225,10 @@ Future<void> showBuyNowSheet(BuildContext context, Listing listing) async {
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   Text(
-                    priceLabel(listing),
+                    formatPrice(
+                      (parsePrice(listing.price) + deliveryFeeOf(listing))
+                          .toStringAsFixed(0),
+                    ),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: kPakGreen,
@@ -315,6 +343,7 @@ Future<void> createOffer(Listing listing, double amount) async {
         listing.galleryImages.isEmpty ? '' : listing.galleryImages.first,
     'askingPrice': parsePrice(listing.price),
     'offerAmount': amount,
+    'deliveryFee': deliveryFeeOf(listing),
     'sellerId': listing.userId,
     'sellerName': listing.sellerName,
     'buyerId': user.uid,

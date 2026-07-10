@@ -88,6 +88,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
 
   final titleController = TextEditingController();
   final priceController = TextEditingController();
+  final deliveryFeeController = TextEditingController();
   final locationController = TextEditingController();
   final phoneController = TextEditingController();
   final descriptionController = TextEditingController();
@@ -133,6 +134,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
     final u = d['unit']?.toString() ?? '';
     selectedUnit = pricingUnits.contains(u) ? u : 'None';
     deliveryAvailable = d['deliveryAvailable'] == true;
+    deliveryFeeController.text = d['deliveryFee']?.toString() ?? '';
     codAvailable = d['codAvailable'] == true;
     negotiable = d['negotiable'] == true;
     // Preselect the saved place even if it's a custom town/village not in the
@@ -179,6 +181,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
       'subcategory': selectedSubcategory,
       'condition': selectedCondition,
       'unit': selectedUnit,
+      'deliveryFee': deliveryFeeController.text.trim(),
       'deliveryAvailable': deliveryAvailable,
       'codAvailable': codAvailable,
       'negotiable': negotiable,
@@ -342,6 +345,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'subcategory': selectedSubcategory,
         'condition': selectedCondition,
         'unit': selectedUnit == 'None' ? '' : selectedUnit,
+        'deliveryFee': deliveryAvailable ? deliveryFeeController.text.trim() : '',
         'deliveryAvailable': deliveryAvailable,
         'codAvailable': codAvailable,
         'negotiable': negotiable,
@@ -435,6 +439,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
   void dispose() {
     titleController.dispose();
     priceController.dispose();
+    deliveryFeeController.dispose();
     locationController.dispose();
     phoneController.dispose();
     descriptionController.dispose();
@@ -603,6 +608,17 @@ class _AddListingScreenState extends State<AddListingScreen> {
                   ? null
                   : (v) => setState(() => deliveryAvailable = v),
             ),
+            if (deliveryAvailable)
+              TextField(
+                controller: deliveryFeeController,
+                enabled: !isSubmitting,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Delivery fee (PKR, optional)',
+                  hintText: 'Leave blank for free delivery',
+                  prefixIcon: Icon(Icons.local_shipping),
+                ),
+              ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Cash on Delivery'),
