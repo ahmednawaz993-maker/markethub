@@ -161,7 +161,7 @@ class SalesDashboardScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$sold item(s) sold · after 2% commission',
+                      '$sold item(s) sold${commissionActive ? ' · after 2% commission' : ' · 0% fee (free)'}',
                       style: const TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                   ],

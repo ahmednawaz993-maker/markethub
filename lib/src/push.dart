@@ -9,6 +9,26 @@ const String fcmVapidKey =
 final GlobalKey<ScaffoldMessengerState> rootMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
+/// Long-lived player reused for the in-app notification chime, so a new message
+/// arriving while the app is open (foreground) is audible — Android suppresses
+/// the system notification sound when the app is in the foreground, delivering
+/// the message to `onMessage` instead. Low-latency so the ding is instant.
+final AudioPlayer _notifyPlayer = AudioPlayer()
+  ..setPlayerMode(PlayerMode.lowLatency)
+  ..setReleaseMode(ReleaseMode.stop);
+
+/// Plays the short notification chime and a light buzz. Best-effort: any audio
+/// error (no audio focus, muted, etc.) is ignored so it never breaks the push.
+Future<void> playNotificationAlert() async {
+  try {
+    await HapticFeedback.mediumImpact();
+    await _notifyPlayer.stop();
+    await _notifyPlayer.play(AssetSource('sounds/notify.wav'));
+  } catch (_) {
+    // Audio unavailable — the snackbar/notification still shows.
+  }
+}
+
 /// Ensures the foreground `onMessage` listener is registered only once for the
 /// app's lifetime, even if `setupPushNotifications()` runs again (e.g. when
 /// HomeScreen re-mounts).
@@ -50,6 +70,9 @@ Future<void> setupPushNotifications() async {
       FirebaseMessaging.onMessage.listen((message) {
         final n = message.notification;
         if (n != null) {
+          // App is open — the OS won't play the notification sound, so chime
+          // + buzz here to make sure the seller notices the new message.
+          playNotificationAlert();
           rootMessengerKey.currentState?.showSnackBar(
             SnackBar(
               content: Text(

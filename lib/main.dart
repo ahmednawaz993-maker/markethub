@@ -9,6 +9,7 @@ import 'package:flutter/services.dart'
     show
         Clipboard,
         ClipboardData,
+        HapticFeedback,
         LogicalKeyboardKey,
         KeyEvent,
         KeyDownEvent,

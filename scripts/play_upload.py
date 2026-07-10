@@ -53,9 +53,16 @@ def main() -> int:
     try:
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
+        from googleapiclient.http import MediaFileUpload
     except ImportError:
         sys.exit("Missing deps. Run:\n"
                  "  pip install google-api-python-client google-auth")
+
+    # Raise the socket timeout — a single-shot upload of a ~58MB AAB stalls and
+    # times out on slower links. Combined with the resumable/chunked upload
+    # below, this makes large uploads reliable.
+    import socket
+    socket.setdefaulttimeout(300)
 
     creds = service_account.Credentials.from_service_account_file(
         args.key, scopes=["https://www.googleapis.com/auth/androidpublisher"])
@@ -65,12 +72,24 @@ def main() -> int:
     edit_id = svc.edits().insert(packageName=PACKAGE, body={}).execute()["id"]
 
     print(f"Uploading {os.path.basename(args.aab)} ...")
-    bundle = svc.edits().bundles().upload(
+    # Resumable, chunked upload: each 5MB chunk is sent (and retried) on its own,
+    # so a slow/flaky connection can't fail the whole 58MB transfer at once.
+    media = MediaFileUpload(
+        args.aab,
+        mimetype="application/octet-stream",
+        chunksize=5 * 1024 * 1024,
+        resumable=True,
+    )
+    request = svc.edits().bundles().upload(
         packageName=PACKAGE,
         editId=edit_id,
-        media_body=args.aab,
-        media_mime_type="application/octet-stream",
-    ).execute()
+        media_body=media,
+    )
+    bundle = None
+    while bundle is None:
+        status, bundle = request.next_chunk(num_retries=5)
+        if status:
+            print(f"  {int(status.progress() * 100)}% uploaded")
     version_code = bundle["versionCode"]
     print(f"Uploaded versionCode {version_code}.")
 

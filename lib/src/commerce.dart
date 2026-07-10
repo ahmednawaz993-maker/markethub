@@ -95,8 +95,21 @@ Future<void> showPromoteSheet(BuildContext context, Listing listing) async {
   );
 }
 
-/// Platform commission taken on each successful on-platform deal.
-const double commissionRate = 0.02; // 2%
+/// Free-launch period: the platform takes NO commission on any deal until this
+/// date, after which the standard 2% resumes automatically — no app update
+/// needed. Set for a 3-month free launch starting 2026-07-10.
+/// IMPORTANT: keep this date in sync with FREE_UNTIL in functions/index.js,
+/// which is the server-authoritative value used on escrow release.
+final DateTime commissionFreeUntil = DateTime.utc(2026, 10, 10);
+
+/// Platform commission taken on each successful on-platform deal: 0% during the
+/// free-launch period, 2% afterwards.
+double get commissionRate =>
+    DateTime.now().toUtc().isBefore(commissionFreeUntil) ? 0.0 : 0.02;
+
+/// Whether the platform is currently charging a commission (false while the
+/// free-launch period is active). Drives seller-facing fee wording.
+bool get commissionActive => commissionRate > 0;
 
 /// Creates a buy order for a listing. Commission (2%) is recorded so the
 /// platform can take its cut once gateway payments go live (Phase 2).

@@ -34,9 +34,22 @@ const SENDGRID_API_KEY = defineSecret("SENDGRID_API_KEY");
 const SUPPORT_TO = "ahmednawaz993@gmail.com";
 const SUPPORT_FROM = "ahmednawaz993@gmail.com";
 
-// Platform commission taken on each released escrow deal. Keep in sync with
-// commissionRate in the app (lib/src/commerce.dart).
-const COMMISSION_RATE = 0.02;
+// Free-launch period: no platform commission on any deal until this date, then
+// the standard 2% resumes automatically. Keep the date in sync with
+// commissionFreeUntil in the app (lib/src/commerce.dart). This is the
+// server-authoritative rate used on escrow release + order normalization.
+const FREE_UNTIL = Date.parse("2026-10-10T00:00:00Z");
+function commissionRate() {
+  return Date.now() < FREE_UNTIL ? 0 : 0.02;
+}
+
+// Make pushes alert loudly even when the app is closed: deliver at high
+// priority and play the device's default notification sound. No channelId is
+// set on purpose — that lets FCM use its auto-created default channel (which
+// has sound); naming a channel that doesn't exist would suppress the alert on
+// Android 8+. iOS plays its default sound via the apns block.
+const ANDROID_ALERT = { priority: "high", notification: { sound: "default" } };
+const APNS_ALERT = { payload: { aps: { sound: "default" } } };
 
 // Numeric value of a listing's price string. Mirrors parsePrice() in the app
 // (lib/src/helpers.dart): strip everything except digits and dots, then parse.
@@ -106,6 +119,8 @@ exports.notifyOnNewMessage = onDocumentCreated(
         chatId,
         listingTitle: String(chat.listingTitle || ""),
       },
+      android: ANDROID_ALERT,
+      apns: APNS_ALERT,
       webpush: {
         notification: { icon: "/icons/Icon-192.png" },
         fcmOptions: { link: "/" },
@@ -150,6 +165,8 @@ exports.notifyOnNewSupportMessage = onDocumentCreated(
       tokens,
       notification: { title, body },
       data: { type: "support", ticketId },
+      android: ANDROID_ALERT,
+      apns: APNS_ALERT,
       webpush: {
         notification: { icon: "/icons/Icon-192.png" },
         fcmOptions: { link: "/" },
@@ -259,6 +276,8 @@ exports.notifyOnNewListing = onDocumentCreated(
           type: "savedSearch",
           listingId: event.params.listingId,
         },
+        android: ANDROID_ALERT,
+        apns: APNS_ALERT,
         webpush: {
           notification: { icon: "/icons/Icon-192.png" },
           fcmOptions: { link: "/" },
@@ -433,7 +452,7 @@ exports.notifyOnNewOrder = onDocumentCreated(
       const listing = listingSnap.data();
       amount = parsePrice(listing.price);
       const isCod = order.status === "cod_pending";
-      const commission = isCod ? 0 : round2(amount * COMMISSION_RATE);
+      const commission = isCod ? 0 : round2(amount * commissionRate());
       const sellerPayout = round2(amount - commission);
       sellerId = listing.userId || order.sellerId || "";
 
@@ -476,6 +495,8 @@ exports.notifyOnNewOrder = onDocumentCreated(
       tokens,
       notification: { title: "New order received", body },
       data: { type: "order", orderId: event.params.orderId },
+      android: ANDROID_ALERT,
+      apns: APNS_ALERT,
       webpush: {
         notification: { icon: "/icons/Icon-192.png" },
         fcmOptions: { link: "/" },
@@ -507,6 +528,8 @@ async function pushToUser(db, uid, notification, data) {
     tokens,
     notification,
     data: data || {},
+    android: ANDROID_ALERT,
+    apns: APNS_ALERT,
     webpush: {
       notification: { icon: "/icons/Icon-192.png" },
       fcmOptions: { link: "/" },
@@ -1031,7 +1054,7 @@ exports.onEscrowAction = onDocumentCreated(
       if (act.type === "release") {
         // Commission/payout are recomputed here (server-authoritative) rather
         // than trusting whatever the client stored on the order.
-        const commission = Math.round(amount * COMMISSION_RATE * 100) / 100;
+        const commission = Math.round(amount * commissionRate() * 100) / 100;
         const payout = amount - commission;
         const sellerRef = db.collection("users").doc(order.sellerId);
         const sellerSnap = await tx.get(sellerRef);

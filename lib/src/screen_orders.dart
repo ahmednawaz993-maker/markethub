@@ -264,7 +264,7 @@ class _OrdersList extends StatelessWidget {
                               ),
                               Text(
                                 asSeller
-                                    ? 'You receive ${formatPrice(payout.toStringAsFixed(0))} (after 2% fee)'
+                                    ? 'You receive ${formatPrice(payout.toStringAsFixed(0))}${commissionActive ? ' (after 2% fee)' : ' (0% fee — free)'}'
                                     : formatPrice(amount.toStringAsFixed(0)),
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,

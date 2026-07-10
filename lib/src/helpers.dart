@@ -36,6 +36,11 @@ String formatPrice(String raw) {
   return '$currencySymbol $out';
 }
 
+/// True if [email] looks like a valid address. Permissive on purpose — this is
+/// a client-side sanity check; Firebase Auth does the authoritative validation.
+bool isValidEmail(String email) =>
+    RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email.trim());
+
 /// Emails granted admin access (also enforced in Firestore rules via the
 /// auth token email). Add more to expand the admin team.
 const List<String> adminEmails = ['ahmednawaz993@gmail.com'];

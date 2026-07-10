@@ -145,36 +145,138 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  /// Emails a password-reset link to the address in the email field.
+  /// Opens the "Reset your password" dialog, pre-filled with whatever is in the
+  /// email field, so a user who forgot their password can get a reset link in a
+  /// couple of taps. Firebase emails a link to a page where they set a new
+  /// password, then log back in.
   Future<void> forgotPassword() async {
-    final email = emailController.text.trim();
-    if (email.isEmpty) {
-      setState(
-        () => errorMessage = 'Enter your email above, then tap Forgot password',
-      );
-      return;
-    }
-    setState(() {
-      isLoading = true;
-      errorMessage = null;
-    });
-    try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Password reset link sent to $email'),
-          backgroundColor: kPakGreen,
-        ),
-      );
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      setState(
-        () => errorMessage = e.message ?? 'Could not send the reset email',
-      );
-    } finally {
-      if (mounted) setState(() => isLoading = false);
-    }
+    final resetController = TextEditingController(
+      text: emailController.text.trim(),
+    );
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        String? dialogError;
+        bool sending = false;
+        bool sent = false;
+
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            Future<void> send() async {
+              final email = resetController.text.trim();
+              if (!isValidEmail(email)) {
+                setDialogState(
+                  () => dialogError = 'Please enter a valid email address',
+                );
+                return;
+              }
+              setDialogState(() {
+                sending = true;
+                dialogError = null;
+              });
+              try {
+                await FirebaseAuth.instance.sendPasswordResetEmail(
+                  email: email,
+                );
+                setDialogState(() {
+                  sending = false;
+                  sent = true;
+                });
+              } on FirebaseAuthException catch (e) {
+                // Don't reveal whether an account exists for this email
+                // (account enumeration) — show the same success screen.
+                if (e.code == 'user-not-found') {
+                  setDialogState(() {
+                    sending = false;
+                    sent = true;
+                  });
+                  return;
+                }
+                setDialogState(() {
+                  sending = false;
+                  dialogError = switch (e.code) {
+                    'invalid-email' => 'Please enter a valid email address',
+                    'too-many-requests' =>
+                      'Too many attempts. Please try again in a few minutes.',
+                    'network-request-failed' =>
+                      'No internet connection. Please try again.',
+                    _ => 'Could not send the reset email. Please try again.',
+                  };
+                });
+              }
+            }
+
+            if (sent) {
+              return AlertDialog(
+                icon: const Icon(
+                  Icons.mark_email_read,
+                  color: kPakGreen,
+                  size: 44,
+                ),
+                title: const Text('Check your email'),
+                content: Text(
+                  'If an account exists for ${resetController.text.trim()}, '
+                  "we've sent a link to reset your password. Open it, choose a "
+                  'new password, then log in.',
+                ),
+                actions: [
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Got it'),
+                  ),
+                ],
+              );
+            }
+
+            return AlertDialog(
+              icon: const Icon(Icons.lock_reset, color: kPakGreen, size: 44),
+              title: const Text('Reset your password'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    "Enter your account email and we'll send you a link to set "
+                    'a new password.',
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: resetController,
+                    enabled: !sending,
+                    autofocus: true,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => sending ? null : send(),
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.email),
+                      errorText: dialogError,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: sending ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: sending ? null : send,
+                  child: sending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Send reset link'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    resetController.dispose();
   }
 
   Future<void> continueAsGuest() async {
