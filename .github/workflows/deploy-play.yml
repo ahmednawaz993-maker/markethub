@@ -1,0 +1,102 @@
+name: Deploy to Google Play
+
+# Auto-build a signed AAB and upload it to Google Play on every push to main.
+# versionCode auto-increments so uploads never collide; versionName comes from
+# pubspec.yaml (bump `version:` there when you want a new user-visible version).
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
+#   UPLOAD_KEYSTORE_BASE64     base64 of android/app/upload-keystore.jks
+#   KEYSTORE_PASSWORD          storePassword from android/key.properties
+#   KEY_PASSWORD               keyPassword   from android/key.properties
+#   KEY_ALIAS                  keyAlias      from android/key.properties
+#   PLAY_SERVICE_ACCOUNT_JSON  contents of android/play-service-account.json
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+# Never let two releases race (they'd fight over the versionCode / Play edit).
+concurrency:
+  group: play-deploy
+  cancel-in-progress: false
+
+env:
+  # Track to release to. Change to `internal` (or beta/alpha) if you'd rather
+  # auto-ship to testers and promote to production manually.
+  PLAY_TRACK: production
+  FLUTTER_VERSION: "3.44.1"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Play-upload dependencies
+        run: pip install google-api-python-client google-auth
+
+      - name: Restore signing keystore
+        env:
+          UPLOAD_KEYSTORE_BASE64: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
+        run: echo "$UPLOAD_KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+
+      - name: Write key.properties
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          {
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyPassword=$KEY_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "storeFile=upload-keystore.jks"
+          } > android/key.properties
+
+      - name: Write Play service-account key
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: echo "$PLAY_SERVICE_ACCOUNT_JSON" > android/play-service-account.json
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Compute versionCode
+        id: vc
+        # 12 = highest versionCode already on Play. run_number is monotonic, so
+        # this only ever increases (first CI run -> 13).
+        run: echo "code=$((12 + GITHUB_RUN_NUMBER))" >> "$GITHUB_OUTPUT"
+
+      - name: Build signed AAB
+        run: flutter build appbundle --release --build-number=${{ steps.vc.outputs.code }}
+
+      - name: Upload to Google Play (${{ env.PLAY_TRACK }})
+        run: |
+          python scripts/play_upload.py \
+            --track "$PLAY_TRACK" \
+            --notes "Automated release from ${GITHUB_SHA::7}"
+
+      - name: Clean up secrets on runner
+        if: always()
+        run: rm -f android/key.properties android/play-service-account.json android/app/upload-keystore.jks
