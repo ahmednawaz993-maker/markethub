@@ -691,6 +691,8 @@ Future<void> _requestAccountDeletion(BuildContext context) async {
       ],
     ),
   );
+  final reason = reasonCtrl.text.trim();
+  reasonCtrl.dispose();
   if (ok != true) return;
   try {
     await FirebaseFirestore.instance
@@ -699,7 +701,7 @@ Future<void> _requestAccountDeletion(BuildContext context) async {
         .set({
           'userId': user.uid,
           'email': user.email ?? '',
-          'reason': reasonCtrl.text.trim(),
+          'reason': reason,
           'status': 'pending',
           'createdAt': Timestamp.now(),
         });

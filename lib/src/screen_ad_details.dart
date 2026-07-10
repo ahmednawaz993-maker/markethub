@@ -409,13 +409,21 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
 
     if (confirmed != true) return;
 
-    await FirebaseFirestore.instance.collection('reports').add({
-      'listingId': widget.listing.id,
-      'listingTitle': widget.listing.title,
-      'reason': selected,
-      'reporterId': FirebaseAuth.instance.currentUser?.uid ?? '',
-      'createdAt': Timestamp.now(),
-    });
+    try {
+      await FirebaseFirestore.instance.collection('reports').add({
+        'listingId': widget.listing.id,
+        'listingTitle': widget.listing.title,
+        'reason': selected,
+        'reporterId': FirebaseAuth.instance.currentUser?.uid ?? '',
+        'createdAt': Timestamp.now(),
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not submit report. Try again.')),
+      );
+      return;
+    }
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(

@@ -938,6 +938,23 @@ class _EditListingScreenState extends State<EditListingScreen> {
   }
 
   Future<void> updateListing() async {
+    // Match submitListing's guards so an edit can't blank out required fields or
+    // save a zero/invalid price (which would make cards show "Rs" with no amount
+    // and record amount:0 on any resulting order).
+    if (titleController.text.trim().isEmpty ||
+        priceController.text.trim().isEmpty ||
+        locationController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill title, price, and location')),
+      );
+      return;
+    }
+    if (parsePrice(priceController.text.trim()) <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid price')),
+      );
+      return;
+    }
     if (normalizePhoneForWhatsApp(phoneController.text.trim()).length < 11) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a valid phone number')),

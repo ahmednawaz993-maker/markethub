@@ -260,40 +260,44 @@ class _AddListingScreenState extends State<AddListingScreen> {
 
   Future<void> submitListing() async {
     // Guard against a double-tap re-entering during the async gaps below
-    // (ensureVerified can await a dialog) — isSubmitting is only set true after
-    // those awaits, so without this the same ad could be posted twice.
+    // (ensureVerified and the Firestore/Storage writes all await). The flag is
+    // set *synchronously* before the first await so a second tap arriving during
+    // ensureVerified sees isSubmitting == true and bails — otherwise the same ad
+    // could be posted twice. The finally below always clears it.
     if (isSubmitting) return;
-    if (!await ensureVerified(context)) return;
-    if (!mounted) return;
-    if (titleController.text.trim().isEmpty ||
-        priceController.text.trim().isEmpty ||
-        locationController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill title, price, and location')),
-      );
-      return;
-    }
-    if (parsePrice(priceController.text.trim()) <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid price')),
-      );
-      return;
-    }
-    // A contact number is required so buyers can reach the seller.
-    if (normalizePhoneForWhatsApp(phoneController.text.trim()).length < 11) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid phone number'),
-        ),
-      );
-      return;
-    }
-
     setState(() {
       isSubmitting = true;
     });
 
     try {
+      if (!await ensureVerified(context)) return;
+      if (!mounted) return;
+      if (titleController.text.trim().isEmpty ||
+          priceController.text.trim().isEmpty ||
+          locationController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please fill title, price, and location'),
+          ),
+        );
+        return;
+      }
+      if (parsePrice(priceController.text.trim()) <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a valid price')),
+        );
+        return;
+      }
+      // A contact number is required so buyers can reach the seller.
+      if (normalizePhoneForWhatsApp(phoneController.text.trim()).length < 11) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter a valid phone number'),
+          ),
+        );
+        return;
+      }
+
       final imageUrls = await uploadImages();
 
       final attributes = <String, String>{};

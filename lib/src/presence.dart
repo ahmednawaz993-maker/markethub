@@ -42,9 +42,17 @@ class PresenceService with WidgetsBindingObserver {
   Timer? _timer;
   bool _started = false;
 
+  /// The uid we are keeping a heartbeat for. Captured at [start] and reused for
+  /// the final "offline" write in [stop]/[_beat] — by the time sign-out disposes
+  /// this service, `FirebaseAuth.currentUser` is already null, so without this
+  /// the last offline write would be silently skipped and the user would linger
+  /// "Online" until their heartbeat went stale.
+  String? _uid;
+
   void start() {
     if (_started) return;
     _started = true;
+    _uid = FirebaseAuth.instance.currentUser?.uid;
     WidgetsBinding.instance.addObserver(this);
     _beat(true);
     _timer = Timer.periodic(_kHeartbeat, (_) => _beat(true));
@@ -67,18 +75,23 @@ class PresenceService with WidgetsBindingObserver {
 
   Future<void> _beat(bool online) async {
     final me = FirebaseAuth.instance.currentUser;
-    if (me == null) return;
+    // On sign-out, currentUser is already null when the final offline write
+    // runs — fall back to the uid captured at start() so it still lands.
+    final uid = me?.uid ?? _uid;
+    if (uid == null) return;
+    _uid = uid;
     final now = Timestamp.now();
     try {
-      await _presenceCol.doc(me.uid).set({
+      await _presenceCol.doc(uid).set({
         'online': online,
         'lastActive': now,
-        'name': me.email?.split('@').first ?? 'User',
+        // merge:true keeps the last-known name if currentUser is gone.
+        if (me?.email != null) 'name': me!.email!.split('@').first,
       }, SetOptions(merge: true));
       // Support agents keep the shared Care presence fresh only while online, so
       // one agent going offline never marks Care offline while another is live —
       // staleness handles the last agent leaving.
-      if (online && hasAdminPerm('support')) {
+      if (online && me != null && hasAdminPerm('support')) {
         await _presenceCol.doc(kSupportPresenceId).set({
           'online': true,
           'lastActive': now,

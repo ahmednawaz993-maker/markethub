@@ -153,7 +153,11 @@ Future<void> showBuyNowSheet(BuildContext context, Listing listing) async {
   await showModalBottomSheet(
     context: context,
     builder: (context) {
-      return SafeArea(
+      // Disables both buttons for the duration of the create() write so a
+      // double-tap can't place two orders for the same purchase.
+      var submitting = false;
+      return StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -206,44 +210,79 @@ Future<void> showBuyNowSheet(BuildContext context, Listing listing) async {
               const SizedBox(height: 12),
               if (listing.codAvailable) ...[
                 OutlinedButton.icon(
-                  onPressed: () async {
-                    await createCodOrder(listing);
-                    if (context.mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'COD order placed — pay cash on delivery. See '
-                            'Profile → My Orders.',
-                          ),
-                        ),
-                      );
-                    }
-                  },
+                  onPressed: submitting
+                      ? null
+                      : () async {
+                          setSheetState(() => submitting = true);
+                          try {
+                            await createCodOrder(listing);
+                          } catch (_) {
+                            if (context.mounted) {
+                              setSheetState(() => submitting = false);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Could not place order. Try again.',
+                                  ),
+                                ),
+                              );
+                            }
+                            return;
+                          }
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'COD order placed — pay cash on delivery. See '
+                                  'Profile → My Orders.',
+                                ),
+                              ),
+                            );
+                          }
+                        },
                   icon: const Icon(Icons.local_shipping),
                   label: const Text('Cash on Delivery'),
                 ),
                 const SizedBox(height: 8),
               ],
               ElevatedButton(
-                onPressed: () async {
-                  await createOrder(listing);
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Order placed! Pay it from Profile → My Orders.',
-                        ),
-                      ),
-                    );
-                  }
-                },
+                onPressed: submitting
+                    ? null
+                    : () async {
+                        setSheetState(() => submitting = true);
+                        try {
+                          await createOrder(listing);
+                        } catch (_) {
+                          if (context.mounted) {
+                            setSheetState(() => submitting = false);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Could not place order. Try again.',
+                                ),
+                              ),
+                            );
+                          }
+                          return;
+                        }
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Order placed! Pay it from Profile → My Orders.',
+                              ),
+                            ),
+                          );
+                        }
+                      },
                 child: const Text('Pay online (escrow)'),
               ),
             ],
           ),
         ),
+      ),
       );
     },
   );
@@ -280,7 +319,9 @@ Future<void> showOfferSheet(BuildContext context, Listing listing) async {
     context: context,
     isScrollControlled: true,
     builder: (context) {
-      return Padding(
+      var submitting = false;
+      return StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
@@ -312,34 +353,54 @@ Future<void> showOfferSheet(BuildContext context, Listing listing) async {
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton(
-                  onPressed: () async {
-                    final amt = double.tryParse(
-                      controller.text.replaceAll(RegExp(r'[^0-9.]'), ''),
-                    );
-                    if (amt == null || amt <= 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Enter a valid amount')),
-                      );
-                      return;
-                    }
-                    await createOffer(listing, amt);
-                    if (context.mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Offer sent! Track it in Profile → Offers.',
-                          ),
-                        ),
-                      );
-                    }
-                  },
+                  onPressed: submitting
+                      ? null
+                      : () async {
+                          final amt = double.tryParse(
+                            controller.text.replaceAll(RegExp(r'[^0-9.]'), ''),
+                          );
+                          if (amt == null || amt <= 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Enter a valid amount'),
+                              ),
+                            );
+                            return;
+                          }
+                          setSheetState(() => submitting = true);
+                          try {
+                            await createOffer(listing, amt);
+                          } catch (_) {
+                            if (context.mounted) {
+                              setSheetState(() => submitting = false);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Could not send offer. Try again.',
+                                  ),
+                                ),
+                              );
+                            }
+                            return;
+                          }
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Offer sent! Track it in Profile → Offers.',
+                                ),
+                              ),
+                            );
+                          }
+                        },
                   child: const Text('Send offer'),
                 ),
               ],
             ),
           ),
         ),
+      ),
       );
     },
   );

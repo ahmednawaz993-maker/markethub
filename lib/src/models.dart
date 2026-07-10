@@ -143,6 +143,14 @@ class Listing {
   factory Listing.fromDoc(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
 
+    // Tolerant numeric read: a single doc with a stringified/odd number field
+    // (legacy or hand-edited) must not throw and blank the entire feed.
+    num? asNum(Object? v) {
+      if (v is num) return v;
+      if (v is String) return num.tryParse(v);
+      return null;
+    }
+
     final rawImages = data['images'];
     final imagesList = rawImages is List
         ? rawImages.map((e) => e.toString()).toList()
@@ -167,19 +175,19 @@ class Listing {
       codAvailable: data['codAvailable'] == true,
       sellerVerified: data['sellerVerified'] == true,
       negotiable: data['negotiable'] == true,
-      attributes:
-          (data['attributes'] as Map?)?.map(
-            (k, v) => MapEntry(k.toString(), v.toString()),
-          ) ??
-          const {},
+      attributes: data['attributes'] is Map
+          ? (data['attributes'] as Map).map(
+              (k, v) => MapEntry(k.toString(), v.toString()),
+            )
+          : const {},
       // 'city' is the current field; fall back to legacy 'emirate' for old ads.
       city: data['city']?.toString() ?? data['emirate']?.toString() ?? '',
-      latitude: (data['latitude'] as num?)?.toDouble(),
-      longitude: (data['longitude'] as num?)?.toDouble(),
-      views: (data['views'] as num?)?.toInt() ?? 0,
-      calls: (data['calls'] as num?)?.toInt() ?? 0,
-      whatsapps: (data['whatsapps'] as num?)?.toInt() ?? 0,
-      chats: (data['chats'] as num?)?.toInt() ?? 0,
+      latitude: asNum(data['latitude'])?.toDouble(),
+      longitude: asNum(data['longitude'])?.toDouble(),
+      views: asNum(data['views'])?.toInt() ?? 0,
+      calls: asNum(data['calls'])?.toInt() ?? 0,
+      whatsapps: asNum(data['whatsapps'])?.toInt() ?? 0,
+      chats: asNum(data['chats'])?.toInt() ?? 0,
       isFeatured: data['isFeatured'] == true,
       isSold: data['isSold'] == true,
       featuredUntil: data['featuredUntil'] is Timestamp

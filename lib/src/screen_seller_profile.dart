@@ -272,7 +272,14 @@ class SellerProfileScreen extends StatelessWidget {
                               ],
                             ),
                             const SizedBox(height: 6),
-                            Text(storePolicies),
+                            // Cap the height so a very long policies block can't
+                            // overflow this fixed (non-scrolling) header and
+                            // starve the Expanded products list below it.
+                            Text(
+                              storePolicies,
+                              maxLines: 6,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                             const SizedBox(height: 10),
                             InkWell(
                               onTap: () => Navigator.push(
