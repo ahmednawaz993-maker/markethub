@@ -1,0 +1,59 @@
+name: Payout smoke test
+
+# End-to-end health check of the platform-held payout flow against the LIVE
+# markethub-80276 backend. Drives a synthetic order (throwaway `smoke_*` UIDs)
+# through payment-held -> buyer-confirmed -> admin-release and asserts every
+# deployed Cloud Function effect + the security guards (no-verified-account,
+# open-dispute, premature release, double-pay). Cleans up everything it creates.
+#
+# Triggers:
+#   - after "Deploy to Google Play" finishes successfully (post-deploy check)
+#   - manually from the Actions tab (workflow_dispatch)
+#   - nightly (schedule) so a broken backend surfaces even without a deploy
+# To make it manual-only, delete the `workflow_run` and `schedule` blocks below.
+#
+# Requires repo secret PLAY_SERVICE_ACCOUNT_JSON (the Firebase Admin SDK service
+# account — same one the deploy workflow uses), which has Firestore access.
+
+on:
+  workflow_run:
+    workflows: ["Deploy to Google Play"]
+    types: [completed]
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC nightly
+
+concurrency:
+  group: payout-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    # For the post-deploy trigger, only run when that deploy succeeded. Manual /
+    # scheduled runs have no workflow_run context, so they always proceed.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install functions dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Write Admin SDK service-account key
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: echo "$PLAY_SERVICE_ACCOUNT_JSON" > android/play-service-account.json
+
+      - name: Run payout smoke test
+        working-directory: functions
+        run: node smoke_payout_test.js
+
+      - name: Clean up secret on runner
+        if: always()
+        run: rm -f android/play-service-account.json
