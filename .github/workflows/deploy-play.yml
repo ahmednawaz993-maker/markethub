@@ -26,7 +26,7 @@ concurrency:
 env:
   # Track to release to. Change to `internal` (or beta/alpha) if you'd rather
   # auto-ship to testers and promote to production manually.
-  PLAY_TRACK: internal
+  PLAY_TRACK: production
   FLUTTER_VERSION: "3.44.1"
 
 jobs:
