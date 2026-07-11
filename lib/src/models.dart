@@ -96,7 +96,8 @@ class Listing {
   /// safety net in case the daily expireFeatured job hasn't run yet.
   bool get isCurrentlyFeatured =>
       isFeatured &&
-      (featuredUntil == null || featuredUntil!.toDate().isAfter(DateTime.now()));
+      (featuredUntil == null ||
+          featuredUntil!.toDate().isAfter(DateTime.now()));
 
   /// All gallery images, falling back to the single [imageUrl] for old ads.
   List<String> get galleryImages {

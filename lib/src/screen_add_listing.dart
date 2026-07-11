@@ -294,9 +294,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
       // A contact number is required so buyers can reach the seller.
       if (normalizePhoneForWhatsApp(phoneController.text.trim()).length < 11) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter a valid phone number'),
-          ),
+          const SnackBar(content: Text('Please enter a valid phone number')),
         );
         return;
       }
@@ -345,7 +343,9 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'subcategory': selectedSubcategory,
         'condition': selectedCondition,
         'unit': selectedUnit == 'None' ? '' : selectedUnit,
-        'deliveryFee': deliveryAvailable ? deliveryFeeController.text.trim() : '',
+        'deliveryFee': deliveryAvailable
+            ? deliveryFeeController.text.trim()
+            : '',
         'deliveryAvailable': deliveryAvailable,
         'codAvailable': codAvailable,
         'negotiable': negotiable,
@@ -463,322 +463,330 @@ class _AddListingScreenState extends State<AddListingScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-            OutlinedButton.icon(
-              onPressed: isSubmitting ? null : pickImages,
-              icon: const Icon(Icons.add_a_photo),
-              label: Text(
-                selectedImages.isEmpty
-                    ? 'Add Photos'
-                    : '${selectedImages.length} photo(s) selected',
-              ),
-            ),
-            if (selectedImages.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 90,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: selectedImages.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
-                  itemBuilder: (context, index) {
-                    return ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: FutureBuilder<Uint8List>(
-                        future: selectedImages[index].readAsBytes(),
-                        builder: (context, snap) {
-                          if (!snap.hasData) {
-                            return Container(
-                              width: 90,
-                              height: 90,
-                              color: Colors.grey.shade300,
-                              child: const Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
-                          return Image.memory(
-                            snap.data!,
-                            width: 90,
-                            height: 90,
-                            fit: BoxFit.cover,
-                          );
-                        },
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-            const SizedBox(height: 8),
-            TextField(
-              controller: titleController,
-              decoration: const InputDecoration(labelText: 'Title'),
-            ),
-            TextField(
-              controller: priceController,
-              decoration: const InputDecoration(
-                labelText: 'Price (PKR)',
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            TextField(
-              controller: locationController,
-              decoration: const InputDecoration(
-                labelText: 'Area / Block',
-                hintText: 'Example: Gulshan-e-Iqbal, Block 5',
-              ),
-            ),
-            const SizedBox(height: 12),
-            CitySelector(
-              value: selectedCity,
-              label: 'City / Town / Village',
-              allowCustom: true,
-              enabled: !isSubmitting,
-              onChanged: (value) => setState(() => selectedCity = value),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: (isSubmitting || isLocating) ? null : useCurrentLocation,
-              icon: isLocating
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(
-                      latitude != null
-                          ? Icons.location_on
-                          : Icons.my_location,
-                      color: latitude != null ? Colors.green : null,
-                    ),
-              label: Text(
-                latitude != null
-                    ? 'Current location added ✓'
-                    : 'Use my current location',
-              ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: selectedCondition,
-              decoration: const InputDecoration(labelText: 'Condition'),
-              items: itemConditions
-                  .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                  .toList(),
-              onChanged: isSubmitting
-                  ? null
-                  : (value) {
-                      if (value != null) {
-                        setState(() => selectedCondition = value);
-                      }
-                    },
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: selectedUnit,
-              decoration: const InputDecoration(
-                labelText: 'Price unit (optional, e.g. per kg/dozen/plate)',
-              ),
-              items: pricingUnits
-                  .map(
-                    (u) => DropdownMenuItem(
-                      value: u,
-                      child: Text(u == 'None' ? 'None' : 'per $u'),
-                    ),
-                  )
-                  .toList(),
-              onChanged: isSubmitting
-                  ? null
-                  : (value) {
-                      if (value != null) setState(() => selectedUnit = value);
-                    },
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Delivery available'),
-              subtitle: const Text('Show a delivery badge on your ad'),
-              value: deliveryAvailable,
-              activeThumbColor: kPakGreen,
-              onChanged: isSubmitting
-                  ? null
-                  : (v) => setState(() => deliveryAvailable = v),
-            ),
-            if (deliveryAvailable)
-              TextField(
-                controller: deliveryFeeController,
-                enabled: !isSubmitting,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Delivery fee (PKR, optional)',
-                  hintText: 'Leave blank for free delivery',
-                  prefixIcon: Icon(Icons.local_shipping),
-                ),
-              ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Cash on Delivery'),
-              subtitle: const Text('Let buyers pay cash when the item arrives'),
-              value: codAvailable,
-              activeThumbColor: kPakGreen,
-              onChanged: isSubmitting
-                  ? null
-                  : (v) => setState(() => codAvailable = v),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Price negotiable'),
-              subtitle: const Text('Buyers can make an offer'),
-              value: negotiable,
-              activeThumbColor: kPakGreen,
-              onChanged: isSubmitting
-                  ? null
-                  : (v) => setState(() => negotiable = v),
-            ),
-            for (final label in attributeFieldsFor(selectedCategory))
-              if (label == 'Color')
-                ColorSwatchSelector(
-                  selected: _attrCtrl('Color').text,
-                  onChanged: isSubmitting
-                      ? (_) {}
-                      : (v) => setState(() => _attrCtrl('Color').text = v),
-                )
-              else
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: TextField(
-                    controller: _attrCtrl(label),
-                    enabled: !isSubmitting,
-                    decoration: InputDecoration(labelText: '$label (optional)'),
+                OutlinedButton.icon(
+                  onPressed: isSubmitting ? null : pickImages,
+                  icon: const Icon(Icons.add_a_photo),
+                  label: Text(
+                    selectedImages.isEmpty
+                        ? 'Add Photos'
+                        : '${selectedImages.length} photo(s) selected',
                   ),
                 ),
-            TextField(
-              controller: phoneController,
-              decoration: const InputDecoration(
-                labelText: 'WhatsApp / Phone Number *',
-                hintText: 'Example: 03001234567 or +92 300 1234567',
-              ),
-              keyboardType: TextInputType.phone,
-            ),
-            TextField(
-              controller: descriptionController,
-              decoration: const InputDecoration(labelText: 'Description'),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 20),
-            DropdownButtonFormField<String>(
-              initialValue: selectedCategory,
-              decoration: const InputDecoration(labelText: 'Main Category'),
-              items: appCategories
-                  .where((category) => category.title != 'All')
-                  .map(
-                    (category) => DropdownMenuItem(
-                      value: category.title,
-                      child: Text(category.title),
+                if (selectedImages.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 90,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: selectedImages.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: FutureBuilder<Uint8List>(
+                            future: selectedImages[index].readAsBytes(),
+                            builder: (context, snap) {
+                              if (!snap.hasData) {
+                                return Container(
+                                  width: 90,
+                                  height: 90,
+                                  color: Colors.grey.shade300,
+                                  child: const Center(
+                                    child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+                              return Image.memory(
+                                snap.data!,
+                                width: 90,
+                                height: 90,
+                                fit: BoxFit.cover,
+                              );
+                            },
+                          ),
+                        );
+                      },
                     ),
-                  )
-                  .toList(),
-              onChanged: isSubmitting
-                  ? null
-                  : (value) {
-                      if (value != null) {
-                        setState(() {
-                          selectedCategory = value;
-                          selectedSubcategory = categoryByTitle(
-                            value,
-                          ).subcategories.first;
-                        });
-                      }
-                    },
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: subcategories.contains(selectedSubcategory)
-                  ? selectedSubcategory
-                  : subcategories.first,
-              decoration: const InputDecoration(labelText: 'Subcategory'),
-              items: subcategories
-                  .map(
-                    (subcategory) => DropdownMenuItem(
-                      value: subcategory,
-                      child: Text(subcategory),
-                    ),
-                  )
-                  .toList(),
-              onChanged: isSubmitting
-                  ? null
-                  : (value) {
-                      if (value != null) {
-                        setState(() {
-                          selectedSubcategory = value;
-                        });
-                      }
-                    },
-            ),
-            const SizedBox(height: 20),
-            // Seller conduct notice — every seller sees this before posting, so
-            // the zero-tolerance policy isn't buried only in the Terms.
-            InkWell(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const TermsScreen()),
-              ),
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.07),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.withValues(alpha: 0.35)),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(labelText: 'Title'),
                 ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Icon(Icons.gavel, color: Colors.red, size: 20),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text.rich(
-                        TextSpan(
-                          children: [
-                            TextSpan(
-                              text: 'Sell honestly. ',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            TextSpan(
-                              text: 'Any fraud or violent activity will get '
-                                  'your seller account suspended immediately. '
-                                  'Tap to read the seller terms.',
-                            ),
-                          ],
+                TextField(
+                  controller: priceController,
+                  decoration: const InputDecoration(labelText: 'Price (PKR)'),
+                  keyboardType: TextInputType.number,
+                ),
+                TextField(
+                  controller: locationController,
+                  decoration: const InputDecoration(
+                    labelText: 'Area / Block',
+                    hintText: 'Example: Gulshan-e-Iqbal, Block 5',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                CitySelector(
+                  value: selectedCity,
+                  label: 'City / Town / Village',
+                  allowCustom: true,
+                  enabled: !isSubmitting,
+                  onChanged: (value) => setState(() => selectedCity = value),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: (isSubmitting || isLocating)
+                      ? null
+                      : useCurrentLocation,
+                  icon: isLocating
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          latitude != null
+                              ? Icons.location_on
+                              : Icons.my_location,
+                          color: latitude != null ? Colors.green : null,
                         ),
-                        style: TextStyle(fontSize: 12.5, height: 1.3),
+                  label: Text(
+                    latitude != null
+                        ? 'Current location added ✓'
+                        : 'Use my current location',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedCondition,
+                  decoration: const InputDecoration(labelText: 'Condition'),
+                  items: itemConditions
+                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                      .toList(),
+                  onChanged: isSubmitting
+                      ? null
+                      : (value) {
+                          if (value != null) {
+                            setState(() => selectedCondition = value);
+                          }
+                        },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedUnit,
+                  decoration: const InputDecoration(
+                    labelText: 'Price unit (optional, e.g. per kg/dozen/plate)',
+                  ),
+                  items: pricingUnits
+                      .map(
+                        (u) => DropdownMenuItem(
+                          value: u,
+                          child: Text(u == 'None' ? 'None' : 'per $u'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: isSubmitting
+                      ? null
+                      : (value) {
+                          if (value != null)
+                            setState(() => selectedUnit = value);
+                        },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Delivery available'),
+                  subtitle: const Text('Show a delivery badge on your ad'),
+                  value: deliveryAvailable,
+                  activeThumbColor: kPakGreen,
+                  onChanged: isSubmitting
+                      ? null
+                      : (v) => setState(() => deliveryAvailable = v),
+                ),
+                if (deliveryAvailable)
+                  TextField(
+                    controller: deliveryFeeController,
+                    enabled: !isSubmitting,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Delivery fee (PKR, optional)',
+                      hintText: 'Leave blank for free delivery',
+                      prefixIcon: Icon(Icons.local_shipping),
+                    ),
+                  ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Cash on Delivery'),
+                  subtitle: const Text(
+                    'Let buyers pay cash when the item arrives',
+                  ),
+                  value: codAvailable,
+                  activeThumbColor: kPakGreen,
+                  onChanged: isSubmitting
+                      ? null
+                      : (v) => setState(() => codAvailable = v),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Price negotiable'),
+                  subtitle: const Text('Buyers can make an offer'),
+                  value: negotiable,
+                  activeThumbColor: kPakGreen,
+                  onChanged: isSubmitting
+                      ? null
+                      : (v) => setState(() => negotiable = v),
+                ),
+                for (final label in attributeFieldsFor(selectedCategory))
+                  if (label == 'Color')
+                    ColorSwatchSelector(
+                      selected: _attrCtrl('Color').text,
+                      onChanged: isSubmitting
+                          ? (_) {}
+                          : (v) => setState(() => _attrCtrl('Color').text = v),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: TextField(
+                        controller: _attrCtrl(label),
+                        enabled: !isSubmitting,
+                        decoration: InputDecoration(
+                          labelText: '$label (optional)',
+                        ),
                       ),
                     ),
-                  ],
+                TextField(
+                  controller: phoneController,
+                  decoration: const InputDecoration(
+                    labelText: 'WhatsApp / Phone Number *',
+                    hintText: 'Example: 03001234567 or +92 300 1234567',
+                  ),
+                  keyboardType: TextInputType.phone,
                 ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            ElevatedButton(
-              onPressed: isSubmitting ? null : submitListing,
-              child: isSubmitting
-                  ? const SizedBox(
-                      height: 22,
-                      width: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Submit'),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: (isSubmitting || savingDraft) ? null : saveDraft,
-              icon: const Icon(Icons.save_outlined),
-              label: Text(savingDraft ? 'Saving…' : 'Save Draft'),
-            ),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'Description'),
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 20),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedCategory,
+                  decoration: const InputDecoration(labelText: 'Main Category'),
+                  items: appCategories
+                      .where((category) => category.title != 'All')
+                      .map(
+                        (category) => DropdownMenuItem(
+                          value: category.title,
+                          child: Text(category.title),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: isSubmitting
+                      ? null
+                      : (value) {
+                          if (value != null) {
+                            setState(() {
+                              selectedCategory = value;
+                              selectedSubcategory = categoryByTitle(
+                                value,
+                              ).subcategories.first;
+                            });
+                          }
+                        },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: subcategories.contains(selectedSubcategory)
+                      ? selectedSubcategory
+                      : subcategories.first,
+                  decoration: const InputDecoration(labelText: 'Subcategory'),
+                  items: subcategories
+                      .map(
+                        (subcategory) => DropdownMenuItem(
+                          value: subcategory,
+                          child: Text(subcategory),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: isSubmitting
+                      ? null
+                      : (value) {
+                          if (value != null) {
+                            setState(() {
+                              selectedSubcategory = value;
+                            });
+                          }
+                        },
+                ),
+                const SizedBox(height: 20),
+                // Seller conduct notice — every seller sees this before posting, so
+                // the zero-tolerance policy isn't buried only in the Terms.
+                InkWell(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const TermsScreen()),
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Colors.red.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Icon(Icons.gavel, color: Colors.red, size: 20),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: 'Sell honestly. ',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                TextSpan(
+                                  text:
+                                      'Any fraud or violent activity will get '
+                                      'your seller account suspended immediately. '
+                                      'Tap to read the seller terms.',
+                                ),
+                              ],
+                            ),
+                            style: TextStyle(fontSize: 12.5, height: 1.3),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ElevatedButton(
+                  onPressed: isSubmitting ? null : submitListing,
+                  child: isSubmitting
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Submit'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: (isSubmitting || savingDraft) ? null : saveDraft,
+                  icon: const Icon(Icons.save_outlined),
+                  label: Text(savingDraft ? 'Saving…' : 'Save Draft'),
+                ),
               ],
             ),
           ),

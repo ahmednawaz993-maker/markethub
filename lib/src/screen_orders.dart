@@ -137,7 +137,10 @@ class OrdersScreen extends StatelessWidget {
           bottom: const TabBar(
             labelColor: Colors.white,
             indicatorColor: Colors.white,
-            tabs: [Tab(text: 'Buying'), Tab(text: 'Selling')],
+            tabs: [
+              Tab(text: 'Buying'),
+              Tab(text: 'Selling'),
+            ],
           ),
         ),
         body: const TabBarView(
@@ -294,6 +297,7 @@ class _OrdersList extends StatelessWidget {
                         ),
                       ],
                     ),
+                    _OrderDeliveryPanel(data: d, asSeller: asSeller),
                     if (status == 'pending_payment') ...[
                       const SizedBox(height: 8),
                       if (!asSeller)
@@ -488,7 +492,9 @@ class _OrdersList extends StatelessWidget {
                                   '',
                             ),
                             icon: const Icon(Icons.star, size: 18),
-                            label: Text(asSeller ? 'Rate buyer' : 'Rate seller'),
+                            label: Text(
+                              asSeller ? 'Rate buyer' : 'Rate seller',
+                            ),
                           ),
                         ],
                       ),
@@ -502,6 +508,146 @@ class _OrdersList extends StatelessWidget {
       },
     );
   }
+}
+
+/// Shows the delivery-address snapshot + price breakdown stored on an order.
+/// Renders nothing for legacy orders created before delivery addresses existed.
+class _OrderDeliveryPanel extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final bool asSeller;
+  const _OrderDeliveryPanel({required this.data, required this.asSeller});
+
+  @override
+  Widget build(BuildContext context) {
+    final addr = data['deliveryAddress'];
+    final hasAddr =
+        addr is Map &&
+        (addr['fullName']?.toString().trim().isNotEmpty ?? false);
+    final subtotal = (data['itemSubtotal'] as num?)?.toDouble();
+    final delivery = (data['deliveryFee'] as num?)?.toDouble();
+    final total = (data['amount'] as num?)?.toDouble();
+    final notes = data['notes']?.toString().trim() ?? '';
+    final payMethod = data['paymentMethod']?.toString() ?? '';
+    if (!hasAddr && subtotal == null) return const SizedBox.shrink();
+
+    String line(String k) =>
+        addr is Map ? (addr[k]?.toString().trim() ?? '') : '';
+    final summary = [
+      line('houseOrBuilding'),
+      line('streetAddress'),
+      line('area'),
+      line('city'),
+      line('province'),
+    ].where((e) => e.isNotEmpty).join(', ');
+    final phone = line('phone').isNotEmpty
+        ? line('phone')
+        : (data['buyerPhone']?.toString() ?? '');
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.grey.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (subtotal != null) ...[
+              _kv('Subtotal', formatPrice(subtotal.toStringAsFixed(0))),
+              _kv(
+                'Delivery',
+                (delivery ?? 0) == 0
+                    ? 'FREE'
+                    : formatPrice((delivery ?? 0).toStringAsFixed(0)),
+                valueColor: (delivery ?? 0) == 0 ? kPakGreen : null,
+              ),
+              if (total != null)
+                _kv('Total', formatPrice(total.toStringAsFixed(0)), bold: true),
+            ],
+            if (hasAddr) ...[
+              const Divider(height: 14),
+              Row(
+                children: [
+                  const Icon(Icons.location_on, size: 14, color: kPakGreen),
+                  const SizedBox(width: 4),
+                  Text(
+                    asSeller ? 'Deliver to buyer' : 'Your delivery address',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                line('fullName'),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              if (phone.isNotEmpty)
+                Text(
+                  phone,
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              Text(summary, style: const TextStyle(fontSize: 12)),
+              if (line('landmark').isNotEmpty)
+                Text(
+                  'Landmark: ${line('landmark')}',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              if (line('deliveryInstructions').isNotEmpty)
+                Text(
+                  'Instructions: ${line('deliveryInstructions')}',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+            ],
+            if (payMethod.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Payment: '
+                '${payMethod == 'cod' ? 'Cash on Delivery' : 'Online (escrow)'}',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+            ],
+            if (notes.isNotEmpty)
+              Text(
+                'Order notes: $notes',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _kv(String k, String v, {bool bold = false, Color? valueColor}) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 1),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              k,
+              style: TextStyle(
+                fontSize: bold ? 13 : 12,
+                fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+            Text(
+              v,
+              style: TextStyle(
+                fontSize: bold ? 13 : 12,
+                fontWeight: bold || valueColor != null
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+                color: valueColor,
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 // ---------------------------------------------------------------------------
@@ -520,7 +666,10 @@ Future<void> _orderFromOffer(
   // only, so the seller keeps the full delivery fee. This order is created with
   // fromOffer:true, so the Cloud Function does NOT recompute it — the totals
   // here are authoritative.
-  final delivery = (offer['deliveryFee'] as num?)?.toDouble() ?? 0;
+  // Apply the free-delivery rule to the negotiated product price too, so an
+  // accepted offer >= Rs freeDeliveryThreshold also ships free.
+  final baseDelivery = (offer['deliveryFee'] as num?)?.toDouble() ?? 0;
+  final delivery = qualifiesForFreeDelivery(amount) ? 0.0 : baseDelivery;
   final total = amount + delivery;
   final commission = amount * commissionRate;
   final orderRef = FirebaseFirestore.instance.collection('orders').doc();
@@ -539,7 +688,11 @@ Future<void> _orderFromOffer(
       'buyerId': offer['buyerId'] ?? '',
       'buyerName': offer['buyerName'] ?? '',
       'amount': total,
+      'itemSubtotal': amount,
       'deliveryFee': delivery,
+      'discount': 0,
+      'qualifiesForFreeDelivery': qualifiesForFreeDelivery(amount),
+      'freeDeliveryThreshold': freeDeliveryThreshold,
       'commission': commission,
       'sellerPayout': total - commission,
       'status': 'pending_payment',

@@ -410,6 +410,10 @@ async function pruneInvalidTokens(db, uid, tokens, response) {
 }
 
 // Notify a seller when a buyer places an order on their listing.
+// Merchandise subtotal at/above which delivery is free. Mirror of
+// freeDeliveryThreshold in lib/src/commerce.dart — keep the two in sync.
+const FREE_DELIVERY_THRESHOLD = 3000;
+
 exports.notifyOnNewOrder = onDocumentCreated(
   "orders/{orderId}",
   async (event) => {
@@ -453,10 +457,15 @@ exports.notifyOnNewOrder = onDocumentCreated(
       const itemPrice = parsePrice(listing.price);
       // Delivery fee is added to the buyer total but excluded from commission,
       // so the seller keeps it in full. Only applies when delivery is offered.
-      const delivery =
+      // Free delivery: a merchandise subtotal >= FREE_DELIVERY_THRESHOLD ships
+      // free regardless of the seller's per-listing fee. Server-authoritative,
+      // so a tampered client cannot avoid (or fake) it.
+      const qualifiesFree = itemPrice >= FREE_DELIVERY_THRESHOLD;
+      const baseDelivery =
         listing.deliveryAvailable === true
           ? parsePrice(listing.deliveryFee)
           : 0;
+      const delivery = qualifiesFree ? 0 : baseDelivery;
       amount = itemPrice + delivery;
       const isCod = order.status === "cod_pending";
       const commission = isCod ? 0 : round2(itemPrice * commissionRate());
@@ -468,10 +477,21 @@ exports.notifyOnNewOrder = onDocumentCreated(
         order.deliveryFee !== delivery ||
         order.commission !== commission ||
         order.sellerPayout !== sellerPayout ||
-        order.sellerId !== sellerId
+        order.sellerId !== sellerId ||
+        order.itemSubtotal !== itemPrice ||
+        order.qualifiesForFreeDelivery !== qualifiesFree
       ) {
         await snap.ref.set(
-          { amount, deliveryFee: delivery, commission, sellerPayout, sellerId },
+          {
+            amount,
+            deliveryFee: delivery,
+            commission,
+            sellerPayout,
+            sellerId,
+            itemSubtotal: itemPrice,
+            qualifiesForFreeDelivery: qualifiesFree,
+            freeDeliveryThreshold: FREE_DELIVERY_THRESHOLD,
+          },
           { merge: true }
         );
       }

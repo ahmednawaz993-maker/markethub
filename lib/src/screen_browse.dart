@@ -155,8 +155,10 @@ class SavedSearchesScreen extends StatelessWidget {
                             initialQuery: d['query']?.toString() ?? '',
                             initialSubcategory: d['subcategory']?.toString(),
                             initialCity: d['city']?.toString(),
-                            initialMinPrice: (d['minPrice'] as num?)?.toDouble(),
-                            initialMaxPrice: (d['maxPrice'] as num?)?.toDouble(),
+                            initialMinPrice: (d['minPrice'] as num?)
+                                ?.toDouble(),
+                            initialMaxPrice: (d['maxPrice'] as num?)
+                                ?.toDouble(),
                           ),
                         ),
                       ),
@@ -340,17 +342,13 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                 children: [
                   const Text(
                     'Filters',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
                   CitySelector(
                     value: tempCity,
                     includeAll: true,
-                    onChanged: (value) =>
-                        setSheetState(() => tempCity = value),
+                    onChanged: (value) => setSheetState(() => tempCity = value),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -544,8 +542,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
           selectedSubcategory == 'All' ||
           listing.subcategory == selectedSubcategory;
 
-      final matchesCity =
-          cityFilter == 'All' || listing.city == cityFilter;
+      final matchesCity = cityFilter == 'All' || listing.city == cityFilter;
 
       final price = parsePrice(listing.price);
       final matchesMin = minPrice == null || price >= minPrice!;
@@ -832,7 +829,9 @@ class _ListingCardState extends State<ListingCard> {
           color: theme.cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
+            color: isDark
+                ? Colors.white10
+                : Colors.black.withValues(alpha: 0.06),
           ),
           boxShadow: [
             BoxShadow(
@@ -858,9 +857,7 @@ class _ListingCardState extends State<ListingCard> {
                       loadingBuilder: (context, child, progress) {
                         if (progress == null) return child;
                         return Container(
-                          color: isDark
-                              ? Colors.white10
-                              : Colors.grey.shade200,
+                          color: isDark ? Colors.white10 : Colors.grey.shade200,
                           alignment: Alignment.center,
                           child: const SizedBox(
                             width: 26,
@@ -883,11 +880,7 @@ class _ListingCardState extends State<ListingCard> {
                     Container(
                       color: isDark ? Colors.white10 : Colors.grey.shade200,
                       alignment: Alignment.center,
-                      child: Icon(
-                        Icons.image_outlined,
-                        size: 48,
-                        color: muted,
-                      ),
+                      child: Icon(Icons.image_outlined, size: 48, color: muted),
                     ),
                   // Subtle top scrim so overlaid chips stay legible on any image.
                   Positioned(
@@ -994,9 +987,7 @@ class _ListingCardState extends State<ListingCard> {
                         child: Padding(
                           padding: const EdgeInsets.all(7),
                           child: Icon(
-                            isFavorite
-                                ? Icons.favorite
-                                : Icons.favorite_border,
+                            isFavorite ? Icons.favorite : Icons.favorite_border,
                             color: Colors.red,
                             size: 20,
                           ),
@@ -1034,9 +1025,7 @@ class _ListingCardState extends State<ListingCard> {
                       ],
                       Expanded(
                         child: Text(
-                          listing.title.isEmpty
-                              ? 'Untitled ad'
-                              : listing.title,
+                          listing.title.isEmpty ? 'Untitled ad' : listing.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(

@@ -44,7 +44,9 @@ class StoresScreen extends StatelessWidget {
                   leading: CircleAvatar(
                     radius: 26,
                     backgroundColor: kPakGreen.withValues(alpha: 0.12),
-                    backgroundImage: logo.isNotEmpty ? NetworkImage(logo) : null,
+                    backgroundImage: logo.isNotEmpty
+                        ? NetworkImage(logo)
+                        : null,
                     child: logo.isEmpty
                         ? const Icon(Icons.storefront, color: kPakGreen)
                         : null,
@@ -158,7 +160,10 @@ class AllCategoriesScreen extends StatelessWidget {
                 ),
               ),
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 6,
+                ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(

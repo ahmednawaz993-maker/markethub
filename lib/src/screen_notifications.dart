@@ -126,10 +126,7 @@ class NotificationsScreen extends StatelessWidget {
         ],
       ),
       body: col == null
-          ? const EmptyState(
-              icon: Icons.notifications,
-              title: 'Please log in',
-            )
+          ? const EmptyState(icon: Icons.notifications, title: 'Please log in')
           : StreamBuilder<QuerySnapshot>(
               stream: col
                   .orderBy('createdAt', descending: true)

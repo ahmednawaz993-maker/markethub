@@ -5,7 +5,9 @@ part of '../main.dart';
 // Brand palette — Midnight Navy + Gold (premium). The constant names are kept
 // (kPakGreen*) to avoid a large rename across the app; they now hold navy.
 const Color kPakGreenDeep = Color(0xFF0A1A33); // darkest navy (gradient ends)
-const Color kPakGreen = Color(0xFF173A6B); // primary royal navy (buttons/accents)
+const Color kPakGreen = Color(
+  0xFF173A6B,
+); // primary royal navy (buttons/accents)
 const Color kPakGreenLight = Color(0xFF2E5AA0); // lighter navy accent
 const Color kGold = Color(0xFFC9A227); // premium gold accent
 
@@ -48,9 +50,7 @@ ThemeData buildAppTheme() {
         foregroundColor: Colors.white,
         elevation: 4,
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
       ),
     ),
@@ -59,9 +59,7 @@ ThemeData buildAppTheme() {
         foregroundColor: kPakGreen,
         side: const BorderSide(color: kPakGreen, width: 1.5),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         textStyle: const TextStyle(fontWeight: FontWeight.w600),
       ),
     ),

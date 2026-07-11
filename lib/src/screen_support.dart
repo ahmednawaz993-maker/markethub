@@ -114,9 +114,13 @@ String _fmtDur(Duration d) {
   final due = (t['slaDueAt'] as Timestamp?)?.toDate();
   if (due == null) return ('Open', kPakGreen);
   final now = DateTime.now();
-  if (now.isAfter(due)) return ('Overdue by ${_fmtDur(now.difference(due))}', Colors.red);
+  if (now.isAfter(due))
+    return ('Overdue by ${_fmtDur(now.difference(due))}', Colors.red);
   final left = due.difference(now);
-  return ('Due in ${_fmtDur(left)}', left.inHours < 6 ? Colors.orange : kPakGreen);
+  return (
+    'Due in ${_fmtDur(left)}',
+    left.inHours < 6 ? Colors.orange : kPakGreen,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -145,7 +149,9 @@ class CustomerCareScreen extends StatelessWidget {
             margin: const EdgeInsets.all(12),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [kPakGreen, kPakGreenLight]),
+              gradient: const LinearGradient(
+                colors: [kPakGreen, kPakGreenLight],
+              ),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -194,10 +200,14 @@ class CustomerCareScreen extends StatelessWidget {
                       // index on (userId, updatedAt).
                       final docs = snapshot.data!.docs.toList()
                         ..sort((a, b) {
-                          final at = ((a.data() as Map)['updatedAt'] as Timestamp?)
-                                  ?.millisecondsSinceEpoch ?? 0;
-                          final bt = ((b.data() as Map)['updatedAt'] as Timestamp?)
-                                  ?.millisecondsSinceEpoch ?? 0;
+                          final at =
+                              ((a.data() as Map)['updatedAt'] as Timestamp?)
+                                  ?.millisecondsSinceEpoch ??
+                              0;
+                          final bt =
+                              ((b.data() as Map)['updatedAt'] as Timestamp?)
+                                  ?.millisecondsSinceEpoch ??
+                              0;
                           return bt.compareTo(at);
                         });
                       if (docs.isEmpty) {
@@ -495,7 +505,8 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
     if (latestIncoming == null) return;
     final myRead = readMarker(_meta?['readAt'], _myRole);
     if (myRead != null &&
-        myRead.millisecondsSinceEpoch >= latestIncoming.millisecondsSinceEpoch) {
+        myRead.millisecondsSinceEpoch >=
+            latestIncoming.millisecondsSinceEpoch) {
       return;
     }
     markTicketRead(widget.ticketId, _myRole);
@@ -643,10 +654,12 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
           );
       await ref.putData(bytes, SettableMetadata(contentType: ctype));
       final url = await ref.getDownloadURL();
-      await _postMessage(
-        {'type': 'voice', 'audioUrl': url, 'durationSec': secs, 'text': ''},
-        '🎤 Voice message',
-      );
+      await _postMessage({
+        'type': 'voice',
+        'audioUrl': url,
+        'durationSec': secs,
+        'text': '',
+      }, '🎤 Voice message');
     } catch (e) {
       _snack('Could not send voice: $e');
     } finally {
@@ -722,14 +735,23 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                         _statusPill(slaLabel, slaColor),
                         if (widget.adminView) ...[
                           if (status != 'in_progress' && status != 'resolved')
-                            _actionChip('Mark in progress', Colors.blue,
-                                () => _setStatus('in_progress')),
+                            _actionChip(
+                              'Mark in progress',
+                              Colors.blue,
+                              () => _setStatus('in_progress'),
+                            ),
                           if (status != 'resolved')
-                            _actionChip('Mark resolved', Colors.green,
-                                () => _setStatus('resolved')),
+                            _actionChip(
+                              'Mark resolved',
+                              Colors.green,
+                              () => _setStatus('resolved'),
+                            ),
                           if (status == 'resolved')
-                            _actionChip('Reopen', Colors.orange,
-                                () => _setStatus('open')),
+                            _actionChip(
+                              'Reopen',
+                              Colors.orange,
+                              () => _setStatus('open'),
+                            ),
                         ],
                       ],
                     ),
@@ -776,16 +798,20 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                   itemCount: docs.length,
                   itemBuilder: (context, i) {
                     final m = docs[i].data() as Map<String, dynamic>;
-                    final mine = (m['senderRole']?.toString() ?? '') == mineRole;
+                    final mine =
+                        (m['senderRole']?.toString() ?? '') == mineRole;
                     final isSupport =
                         (m['senderRole']?.toString() ?? '') == 'support';
                     return Align(
-                      alignment:
-                          mine ? Alignment.centerRight : Alignment.centerLeft,
+                      alignment: mine
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                         constraints: BoxConstraints(
                           maxWidth: MediaQuery.of(context).size.width * 0.78,
                         ),
@@ -793,8 +819,8 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                           color: mine
                               ? kPakGreen.withValues(alpha: 0.12)
                               : (isSupport
-                                  ? kGold.withValues(alpha: 0.14)
-                                  : Colors.grey.withValues(alpha: 0.12)),
+                                    ? kGold.withValues(alpha: 0.14)
+                                    : Colors.grey.withValues(alpha: 0.12)),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
@@ -827,7 +853,9 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                                 Text(
                                   timeAgo(m['createdAt'] as Timestamp?),
                                   style: const TextStyle(
-                                      fontSize: 10, color: Colors.grey),
+                                    fontSize: 10,
+                                    color: Colors.grey,
+                                  ),
                                 ),
                                 if (mine) ...[
                                   const SizedBox(width: 4),
@@ -967,8 +995,9 @@ class _CareNumbersBar extends StatelessWidget {
     return StreamBuilder<DocumentSnapshot>(
       stream: _careConfigDoc.snapshots(),
       builder: (context, snap) {
-        final numbers =
-            _parseCareNumbers(snap.data?.data() as Map<String, dynamic>?);
+        final numbers = _parseCareNumbers(
+          snap.data?.data() as Map<String, dynamic>?,
+        );
         if (numbers.isEmpty) return const SizedBox.shrink();
         return Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
@@ -1012,9 +1041,9 @@ class _CareNumbersBar extends StatelessWidget {
             onPressed: number.isEmpty
                 ? null
                 : () => launchUrl(
-                      Uri.parse('tel:$number'),
-                      mode: LaunchMode.externalApplication,
-                    ),
+                    Uri.parse('tel:$number'),
+                    mode: LaunchMode.externalApplication,
+                  ),
           ),
           if (hasWhatsApp)
             IconButton(
@@ -1043,11 +1072,10 @@ class _CareNumbersBar extends StatelessWidget {
 class CareNumbersAdminScreen extends StatelessWidget {
   const CareNumbersAdminScreen({super.key});
 
-  Future<void> _save(List<Map<String, dynamic>> numbers) =>
-      _careConfigDoc.set({
-        'numbers': numbers,
-        'updatedAt': Timestamp.now(),
-      }, SetOptions(merge: true));
+  Future<void> _save(List<Map<String, dynamic>> numbers) => _careConfigDoc.set({
+    'numbers': numbers,
+    'updatedAt': Timestamp.now(),
+  }, SetOptions(merge: true));
 
   /// Opens the add/edit dialog; [existing]/[index] are null when adding.
   Future<void> _edit(
@@ -1056,10 +1084,12 @@ class CareNumbersAdminScreen extends StatelessWidget {
     int? index,
   ) async {
     final entry = index != null ? numbers[index] : null;
-    final labelCtrl =
-        TextEditingController(text: entry?['label']?.toString() ?? '');
-    final numberCtrl =
-        TextEditingController(text: entry?['number']?.toString() ?? '');
+    final labelCtrl = TextEditingController(
+      text: entry?['label']?.toString() ?? '',
+    );
+    final numberCtrl = TextEditingController(
+      text: entry?['number']?.toString() ?? '',
+    );
     bool whatsapp = entry?['whatsapp'] == true;
     final ok = await showDialog<bool>(
       context: context,
@@ -1114,11 +1144,7 @@ class CareNumbersAdminScreen extends StatelessWidget {
     if (ok != true) return;
     if (number.isEmpty) return;
     final updated = [...numbers];
-    final newEntry = {
-      'label': label,
-      'number': number,
-      'whatsapp': whatsapp,
-    };
+    final newEntry = {'label': label, 'number': number, 'whatsapp': whatsapp};
     if (index != null) {
       updated[index] = newEntry;
     } else {
@@ -1164,8 +1190,9 @@ class CareNumbersAdminScreen extends StatelessWidget {
           if (!snap.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          final numbers =
-              _parseCareNumbers(snap.data!.data() as Map<String, dynamic>?);
+          final numbers = _parseCareNumbers(
+            snap.data!.data() as Map<String, dynamic>?,
+          );
           return Column(
             children: [
               Padding(
@@ -1208,8 +1235,11 @@ class CareNumbersAdminScreen extends StatelessWidget {
                                   onPressed: () => _edit(context, numbers, i),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete,
-                                      size: 20, color: Colors.red),
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    size: 20,
+                                    color: Colors.red,
+                                  ),
                                   onPressed: () => _delete(context, numbers, i),
                                 ),
                               ],
@@ -1273,7 +1303,8 @@ class SupportAlertWatcher extends StatefulWidget {
 }
 
 class _SupportAlertWatcherState extends State<SupportAlertWatcher> {
-  int? _lastMax; // newest user-message updatedAt seen (ms); null until baseline.
+  int?
+  _lastMax; // newest user-message updatedAt seen (ms); null until baseline.
 
   @override
   Widget build(BuildContext context) {
@@ -1293,7 +1324,8 @@ class _SupportAlertWatcherState extends State<SupportAlertWatcher> {
         QueryDocumentSnapshot? newest;
         int maxTs = 0;
         for (final d in docs) {
-          final ts = ((d.data() as Map)['updatedAt'] as Timestamp?)
+          final ts =
+              ((d.data() as Map)['updatedAt'] as Timestamp?)
                   ?.millisecondsSinceEpoch ??
               0;
           if (ts > maxTs) {
@@ -1420,10 +1452,10 @@ class _AdminSupportTabState extends State<_AdminSupportTab> {
                 final ar = (am['status'] == 'resolved') ? 1 : 0;
                 final br = (bm['status'] == 'resolved') ? 1 : 0;
                 if (ar != br) return ar - br;
-                final ad = (am['slaDueAt'] as Timestamp?)
-                        ?.millisecondsSinceEpoch ?? 0;
-                final bd = (bm['slaDueAt'] as Timestamp?)
-                        ?.millisecondsSinceEpoch ?? 0;
+                final ad =
+                    (am['slaDueAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+                final bd =
+                    (bm['slaDueAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
                 return ad.compareTo(bd);
               });
               if (docs.isEmpty) {
@@ -1580,7 +1612,10 @@ class _VoiceBubbleState extends State<_VoiceBubble> {
                 height: 34,
                 child: Padding(
                   padding: const EdgeInsets.all(7),
-                  child: CircularProgressIndicator(strokeWidth: 2, color: color),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: color,
+                  ),
                 ),
               )
             : InkWell(

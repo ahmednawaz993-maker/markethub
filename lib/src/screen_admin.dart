@@ -78,17 +78,13 @@ class AdminPanelScreen extends StatelessWidget {
             isScrollable: true,
             tabs: [
               for (final e in visible)
-                e.$1 == 'support'
-                    ? _SupportTabLabel(e.$2)
-                    : Tab(text: e.$2),
+                e.$1 == 'support' ? _SupportTabLabel(e.$2) : Tab(text: e.$2),
             ],
           ),
         ),
         body: Stack(
           children: [
-            TabBarView(
-              children: [for (final e in visible) e.$3],
-            ),
+            TabBarView(children: [for (final e in visible) e.$3]),
             // Invisible: pops a snackbar on new user support messages.
             const SupportAlertWatcher(),
           ],
@@ -105,9 +101,9 @@ Future<void> _openListingById(BuildContext context, String id) async {
       .get();
   if (!context.mounted) return;
   if (!doc.exists) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('That ad no longer exists.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('That ad no longer exists.')));
     return;
   }
   Navigator.push(
@@ -437,7 +433,8 @@ class _AdminEscrowTab extends StatelessWidget {
             final d = docs[i].data() as Map<String, dynamic>;
             final amount = (d['amount'] as num?)?.toDouble() ?? 0;
             final commission =
-                (d['commission'] as num?)?.toDouble() ?? (amount * commissionRate);
+                (d['commission'] as num?)?.toDouble() ??
+                (amount * commissionRate);
             final payout = amount - commission;
             final confirmed = d['buyerConfirmed'] == true;
             return Card(
@@ -468,9 +465,7 @@ class _AdminEscrowTab extends StatelessWidget {
                     Row(
                       children: [
                         Icon(
-                          confirmed
-                              ? Icons.check_circle
-                              : Icons.hourglass_top,
+                          confirmed ? Icons.check_circle : Icons.hourglass_top,
                           size: 15,
                           color: confirmed ? Colors.green : Colors.orange,
                         ),
@@ -956,164 +951,183 @@ class _AdminVerificationsTab extends StatelessWidget {
         const _VerificationToggle(),
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('verifications').snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final docs = snapshot.data!.docs.toList()
-          ..sort((a, b) {
-            final am = a.data() as Map;
-            final bm = b.data() as Map;
-            final ap = am['status'] == 'pending' ? 0 : 1;
-            final bp = bm['status'] == 'pending' ? 0 : 1;
-            if (ap != bp) return ap - bp;
-            final at =
-                (am['submittedAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
-            final bt =
-                (bm['submittedAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
-            return bt.compareTo(at);
-          });
-        if (docs.isEmpty) {
-          return const EmptyState(
-            icon: Icons.verified_user,
-            title: 'No verification requests',
-            subtitle: 'Selfie + CNIC submissions appear here for review.',
-          );
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.all(12),
-          itemCount: docs.length,
-          itemBuilder: (context, i) {
-            final d = docs[i].data() as Map<String, dynamic>;
-            final status = d['status']?.toString() ?? 'pending';
-            final pending = status == 'pending';
-            final uid = d['userId']?.toString() ?? docs[i].id;
-            final selfie = d['selfieUrl']?.toString() ?? '';
-            final cnic = d['cnicUrl']?.toString() ?? '';
-            final address = d['address']?.toString() ?? '';
-            final proof = d['addressProofUrl']?.toString() ?? '';
-            Widget img(String url) => Expanded(
-              child: GestureDetector(
-                onTap: url.isEmpty
-                    ? null
-                    : () {
-                        final gallery = [selfie, cnic]
-                            .where((u) => u.isNotEmpty)
-                            .toList();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => FullScreenGallery(
-                              images: gallery,
-                              initialIndex: gallery.indexOf(url),
-                            ),
-                          ),
-                        );
-                      },
-                child: Container(
-                  height: 110,
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(8),
-                    image: url.isEmpty
-                        ? null
-                        : DecorationImage(
-                            image: NetworkImage(url),
-                            fit: BoxFit.cover,
-                          ),
-                  ),
-                ),
-              ),
-            );
-            return Card(
-              margin: const EdgeInsets.only(bottom: 10),
-              child: Padding(
+            stream: FirebaseFirestore.instance
+                .collection('verifications')
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final docs = snapshot.data!.docs.toList()
+                ..sort((a, b) {
+                  final am = a.data() as Map;
+                  final bm = b.data() as Map;
+                  final ap = am['status'] == 'pending' ? 0 : 1;
+                  final bp = bm['status'] == 'pending' ? 0 : 1;
+                  if (ap != bp) return ap - bp;
+                  final at =
+                      (am['submittedAt'] as Timestamp?)
+                          ?.millisecondsSinceEpoch ??
+                      0;
+                  final bt =
+                      (bm['submittedAt'] as Timestamp?)
+                          ?.millisecondsSinceEpoch ??
+                      0;
+                  return bt.compareTo(at);
+                });
+              if (docs.isEmpty) {
+                return const EmptyState(
+                  icon: Icons.verified_user,
+                  title: 'No verification requests',
+                  subtitle: 'Selfie + CNIC submissions appear here for review.',
+                );
+              }
+              return ListView.builder(
                 padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      d['email']?.toString() ?? uid,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      'Status: $status',
-                      style: TextStyle(
-                        color: pending
-                            ? Colors.orange
-                            : (status == 'approved'
-                                  ? Colors.green
-                                  : Colors.red),
-                        fontWeight: FontWeight.bold,
+                itemCount: docs.length,
+                itemBuilder: (context, i) {
+                  final d = docs[i].data() as Map<String, dynamic>;
+                  final status = d['status']?.toString() ?? 'pending';
+                  final pending = status == 'pending';
+                  final uid = d['userId']?.toString() ?? docs[i].id;
+                  final selfie = d['selfieUrl']?.toString() ?? '';
+                  final cnic = d['cnicUrl']?.toString() ?? '';
+                  final address = d['address']?.toString() ?? '';
+                  final proof = d['addressProofUrl']?.toString() ?? '';
+                  Widget img(String url) => Expanded(
+                    child: GestureDetector(
+                      onTap: url.isEmpty
+                          ? null
+                          : () {
+                              final gallery = [
+                                selfie,
+                                cnic,
+                              ].where((u) => u.isNotEmpty).toList();
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => FullScreenGallery(
+                                    images: gallery,
+                                    initialIndex: gallery.indexOf(url),
+                                  ),
+                                ),
+                              );
+                            },
+                      child: Container(
+                        height: 110,
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(8),
+                          image: url.isEmpty
+                              ? null
+                              : DecorationImage(
+                                  image: NetworkImage(url),
+                                  fit: BoxFit.cover,
+                                ),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(children: [img(selfie), img(cnic)]),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 4),
-                      child: Text(
-                        'Selfie  ·  CNIC  (tap to enlarge)',
-                        style: TextStyle(fontSize: 11, color: Colors.grey),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.home_outlined,
-                            size: 16, color: kPakGreen),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            address.isEmpty ? '(no address provided)' : address,
-                            style: const TextStyle(fontSize: 13),
+                  );
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            d['email']?.toString() ?? uid,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
-                        ),
-                      ],
-                    ),
-                    if (proof.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      GestureDetector(
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => FullScreenGallery(images: [proof]),
-                          ),
-                        ),
-                        child: Container(
-                          height: 90,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            image: DecorationImage(
-                              image: NetworkImage(proof),
-                              fit: BoxFit.cover,
+                          Text(
+                            'Status: $status',
+                            style: TextStyle(
+                              color: pending
+                                  ? Colors.orange
+                                  : (status == 'approved'
+                                        ? Colors.green
+                                        : Colors.red),
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 8),
+                          Row(children: [img(selfie), img(cnic)]),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 4),
+                            child: Text(
+                              'Selfie  ·  CNIC  (tap to enlarge)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.home_outlined,
+                                size: 16,
+                                color: kPakGreen,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  address.isEmpty
+                                      ? '(no address provided)'
+                                      : address,
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (proof.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            GestureDetector(
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      FullScreenGallery(images: [proof]),
+                                ),
+                              ),
+                              child: Container(
+                                height: 90,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  image: DecorationImage(
+                                    image: NetworkImage(proof),
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 2),
+                              child: Text(
+                                'Address proof (tap to enlarge)',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                          ],
+                          if (pending)
+                            _VerificationActions(
+                              uid: uid,
+                              ref: docs[i].reference,
+                              address: address,
+                            ),
+                        ],
                       ),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 2),
-                        child: Text(
-                          'Address proof (tap to enlarge)',
-                          style: TextStyle(fontSize: 11, color: Colors.grey),
-                        ),
-                      ),
-                    ],
-                    if (pending)
-                      _VerificationActions(
-                        uid: uid,
-                        ref: docs[i].reference,
-                        address: address,
-                      ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+                    ),
+                  );
+                },
+              );
+            },
           ),
         ),
       ],
@@ -1129,8 +1143,9 @@ class _VerificationToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ref =
-        FirebaseFirestore.instance.collection('config').doc('verification');
+    final ref = FirebaseFirestore.instance
+        .collection('config')
+        .doc('verification');
     return StreamBuilder<DocumentSnapshot>(
       stream: ref.snapshots(),
       builder: (context, snap) {
@@ -1191,27 +1206,30 @@ class _VerificationActionsState extends State<_VerificationActions> {
         // Store the approved address on the profile (visible to admins).
         if (approve && widget.address.isNotEmpty) 'address': widget.address,
       }, SetOptions(merge: true));
-      await users.doc(widget.uid).collection('notifications').add(
-        approve
-            ? {
-                'title': 'Identity & address verified ✓',
-                'body':
-                    'You can now post ads, buy, make offers and chat on '
-                    'PakBazar.',
-                'type': 'verification',
-                'read': false,
-                'createdAt': Timestamp.now(),
-              }
-            : {
-                'title': 'Verification needs another try',
-                'body':
-                    'Please re-upload a clear selfie and CNIC photo, then '
-                    'resubmit.',
-                'type': 'verification',
-                'read': false,
-                'createdAt': Timestamp.now(),
-              },
-      );
+      await users
+          .doc(widget.uid)
+          .collection('notifications')
+          .add(
+            approve
+                ? {
+                    'title': 'Identity & address verified ✓',
+                    'body':
+                        'You can now post ads, buy, make offers and chat on '
+                        'PakBazar.',
+                    'type': 'verification',
+                    'read': false,
+                    'createdAt': Timestamp.now(),
+                  }
+                : {
+                    'title': 'Verification needs another try',
+                    'body':
+                        'Please re-upload a clear selfie and CNIC photo, then '
+                        'resubmit.',
+                    'type': 'verification',
+                    'read': false,
+                    'createdAt': Timestamp.now(),
+                  },
+          );
       await widget.ref.update({
         'status': approve ? 'approved' : 'rejected',
         'reviewedAt': Timestamp.now(),
@@ -1485,37 +1503,42 @@ class _AdminOverviewTab extends StatelessWidget {
         // deal accrues to you (it's the gap between what the buyer paid and the
         // seller payout). With PayFast wired, it settles into your merchant
         // account automatically; here it's the running total you've earned.
-        _section('Escrow & your earnings', fs.collection('orders').snapshots(), (
-          docs,
-        ) {
-          int inEscrow = 0, settled = 0;
-          num held = 0, gmv = 0, earnings = 0;
-          for (final d in docs) {
-            final m = d.data() as Map;
-            final amt = (m['amount'] as num?) ?? 0;
-            switch (m['status']) {
-              case 'in_escrow':
-                inEscrow++;
-                held += amt;
-              case 'released' || 'completed': // 'completed' = legacy orders
-                settled++;
-                gmv += amt;
-                earnings += (m['commission'] as num?) ?? (amt * commissionRate);
+        _section(
+          'Escrow & your earnings',
+          fs.collection('orders').snapshots(),
+          (docs) {
+            int inEscrow = 0, settled = 0;
+            num held = 0, gmv = 0, earnings = 0;
+            for (final d in docs) {
+              final m = d.data() as Map;
+              final amt = (m['amount'] as num?) ?? 0;
+              switch (m['status']) {
+                case 'in_escrow':
+                  inEscrow++;
+                  held += amt;
+                case 'released' || 'completed': // 'completed' = legacy orders
+                  settled++;
+                  gmv += amt;
+                  earnings +=
+                      (m['commission'] as num?) ?? (amt * commissionRate);
+              }
             }
-          }
-          return [
-            _Metric('$settled', 'Deals done'),
-            _Metric(formatPrice('${gmv.toInt()}'), 'GMV'),
-            _Metric(formatPrice('${earnings.toInt()}'), 'Your earnings (2%)'),
-            _Metric('$inEscrow', 'In escrow'),
-            _Metric(formatPrice('${held.toInt()}'), 'Held now'),
-          ];
-        }),
-        _section('Negotiation & purchases', fs.collection('offers').snapshots(), (
-          docs,
-        ) {
-          return [_Metric('${docs.length}', 'Total offers')];
-        }),
+            return [
+              _Metric('$settled', 'Deals done'),
+              _Metric(formatPrice('${gmv.toInt()}'), 'GMV'),
+              _Metric(formatPrice('${earnings.toInt()}'), 'Your earnings (2%)'),
+              _Metric('$inEscrow', 'In escrow'),
+              _Metric(formatPrice('${held.toInt()}'), 'Held now'),
+            ];
+          },
+        ),
+        _section(
+          'Negotiation & purchases',
+          fs.collection('offers').snapshots(),
+          (docs) {
+            return [_Metric('${docs.length}', 'Total offers')];
+          },
+        ),
         const Padding(
           padding: EdgeInsets.fromLTRB(4, 10, 4, 6),
           child: Text(
@@ -1539,15 +1562,12 @@ class _AdminOverviewTab extends StatelessWidget {
               return 0.0;
             }
             final amt = ((m['amount'] as num?)?.toDouble()) ?? 0.0;
-            return ((m['commission'] as num?)?.toDouble()) ?? amt * commissionRate;
+            return ((m['commission'] as num?)?.toDouble()) ??
+                amt * commissionRate;
           },
           money: true,
         ),
-        _trendCard(
-          'New users',
-          fs.collection('users').snapshots(),
-          (m) => 1.0,
-        ),
+        _trendCard('New users', fs.collection('users').snapshots(), (m) => 1.0),
         _trendCard(
           'New ads',
           fs.collection('listings').snapshots(),
@@ -1701,7 +1721,9 @@ Future<void> _toggleUserBlock(
   if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(block ? '$name has been blocked' : '$name has been unblocked'),
+        content: Text(
+          block ? '$name has been blocked' : '$name has been unblocked',
+        ),
       ),
     );
   }
@@ -1713,7 +1735,10 @@ class _AdminUsersTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('users').limit(300).snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .limit(300)
+          .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -1737,7 +1762,8 @@ class _AdminUsersTab extends StatelessWidget {
             final d = docs[i].data() as Map<String, dynamic>;
             final isBusiness = d['isBusiness'] == true;
             final blocked = d['blocked'] == true;
-            final name = isBusiness && (d['businessName']?.toString() ?? '').isNotEmpty
+            final name =
+                isBusiness && (d['businessName']?.toString() ?? '').isNotEmpty
                 ? d['businessName'].toString()
                 : (d['email']?.toString() ?? '(guest)');
             final balance = (d['walletBalance'] as num?)?.toInt() ?? 0;
@@ -1758,11 +1784,7 @@ class _AdminUsersTab extends StatelessWidget {
                     color: blocked ? Colors.red : kPakGreen,
                   ),
                 ),
-                title: Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Text(
                   'Wallet ${formatPrice('$balance')}'
                   '${city.isNotEmpty ? ' · 📍 $city' : ''}'
@@ -1770,9 +1792,7 @@ class _AdminUsersTab extends StatelessWidget {
                   '${isBusiness ? ' · Business' : ''}'
                   '${d['featuredBusiness'] == true ? ' · ★Featured' : ''}'
                   '${blocked ? ' · ⛔ BLOCKED' : ''}',
-                  style: blocked
-                      ? const TextStyle(color: Colors.red)
-                      : null,
+                  style: blocked ? const TextStyle(color: Colors.red) : null,
                 ),
                 trailing: PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert),
@@ -1833,8 +1853,11 @@ class _AdminUsersTab extends StatelessWidget {
                         value: 'map',
                         child: Row(
                           children: [
-                            Icon(Icons.map_outlined,
-                                size: 20, color: kPakGreen),
+                            Icon(
+                              Icons.map_outlined,
+                              size: 20,
+                              color: kPakGreen,
+                            ),
                             SizedBox(width: 10),
                             Text('View on map'),
                           ],
@@ -1844,8 +1867,11 @@ class _AdminUsersTab extends StatelessWidget {
                       value: 'message',
                       child: Row(
                         children: [
-                          Icon(Icons.campaign_outlined,
-                              size: 20, color: kPakGreen),
+                          Icon(
+                            Icons.campaign_outlined,
+                            size: 20,
+                            color: kPakGreen,
+                          ),
                           SizedBox(width: 10),
                           Text('Send message'),
                         ],
@@ -1855,8 +1881,11 @@ class _AdminUsersTab extends StatelessWidget {
                       value: 'warn',
                       child: Row(
                         children: [
-                          Icon(Icons.warning_amber_rounded,
-                              size: 20, color: Colors.red),
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            size: 20,
+                            color: Colors.red,
+                          ),
                           SizedBox(width: 10),
                           Text('Issue warning'),
                         ],
@@ -1866,9 +1895,11 @@ class _AdminUsersTab extends StatelessWidget {
                       value: 'block',
                       child: Row(
                         children: [
-                          Icon(blocked ? Icons.lock_open : Icons.block,
-                              size: 20,
-                              color: blocked ? Colors.green : Colors.red),
+                          Icon(
+                            blocked ? Icons.lock_open : Icons.block,
+                            size: 20,
+                            color: blocked ? Colors.green : Colors.red,
+                          ),
                           const SizedBox(width: 10),
                           Text(blocked ? 'Unblock user' : 'Block user'),
                         ],
@@ -1881,9 +1912,11 @@ class _AdminUsersTab extends StatelessWidget {
                           children: [
                             const Icon(Icons.star, size: 20, color: kGold),
                             const SizedBox(width: 10),
-                            Text(d['featuredBusiness'] == true
-                                ? 'Unfeature business'
-                                : 'Feature business'),
+                            Text(
+                              d['featuredBusiness'] == true
+                                  ? 'Unfeature business'
+                                  : 'Feature business',
+                            ),
                           ],
                         ),
                       ),
@@ -2002,7 +2035,9 @@ class _AdminPurchasesTab extends StatelessWidget {
               child: ListTile(
                 dense: true,
                 leading: const Icon(Icons.shopping_bag_outlined),
-                title: Text('${d['type'] ?? 'purchase'} · ${formatPrice('$amount')}'),
+                title: Text(
+                  '${d['type'] ?? 'purchase'} · ${formatPrice('$amount')}',
+                ),
                 subtitle: Text(
                   '${d['userId'] ?? ''}\n${timeAgo(d['createdAt'] as Timestamp?)}',
                 ),
@@ -2102,8 +2137,7 @@ class _AdminReportsTab extends StatelessWidget {
                         ),
                         const Spacer(),
                         TextButton(
-                          onPressed: () =>
-                              docs[i].reference.delete(),
+                          onPressed: () => docs[i].reference.delete(),
                           child: const Text('Dismiss'),
                         ),
                         const SizedBox(width: 4),
@@ -2213,8 +2247,9 @@ class _AdminPromotionsTab extends StatelessWidget {
                           ),
                           const Spacer(),
                           TextButton(
-                            onPressed: () =>
-                                docs[i].reference.update({'status': 'rejected'}),
+                            onPressed: () => docs[i].reference.update({
+                              'status': 'rejected',
+                            }),
                             child: const Text('Reject'),
                           ),
                           const SizedBox(width: 4),
@@ -2353,8 +2388,9 @@ class _AdminTopupsTab extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           TextButton(
-                            onPressed: () =>
-                                docs[i].reference.update({'status': 'rejected'}),
+                            onPressed: () => docs[i].reference.update({
+                              'status': 'rejected',
+                            }),
                             child: const Text('Reject'),
                           ),
                           const SizedBox(width: 4),
@@ -2363,7 +2399,9 @@ class _AdminTopupsTab extends StatelessWidget {
                               if (userId.isEmpty || amount <= 0) return;
                               final fs = FirebaseFirestore.instance;
                               final topupRef = docs[i].reference;
-                              final userRef = fs.collection('users').doc(userId);
+                              final userRef = fs
+                                  .collection('users')
+                                  .doc(userId);
                               // Atomic + idempotent: only credit if still
                               // pending, so a double-tap can't double-credit.
                               await fs.runTransaction((tx) async {
@@ -2383,7 +2421,9 @@ class _AdminTopupsTab extends StatelessWidget {
                                   'walletBalance': current + amount,
                                 }, SetOptions(merge: true));
                                 tx.set(
-                                  userRef.collection('walletTransactions').doc(),
+                                  userRef
+                                      .collection('walletTransactions')
+                                      .doc(),
                                   {
                                     'type': 'credit',
                                     'amount': amount,
@@ -2443,7 +2483,8 @@ class _AdminOrdersTab extends StatelessWidget {
           // A finished deal is 'released' (escrow) or 'completed' (legacy/COD).
           if (m['status'] == 'released' || m['status'] == 'completed') {
             final amt = (m['amount'] as num?)?.toDouble() ?? 0;
-            revenue += (m['commission'] as num?)?.toDouble() ?? amt * commissionRate;
+            revenue +=
+                (m['commission'] as num?)?.toDouble() ?? amt * commissionRate;
             completed++;
           }
         }
@@ -2551,7 +2592,10 @@ class _AdminOrdersTab extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
+        ),
       ],
     );
   }
@@ -2710,7 +2754,9 @@ class _AdminListingsTab extends StatelessWidget {
                             l.isSold ? Icons.shopping_bag : Icons.sell,
                             size: 18,
                           ),
-                          label: Text(l.isSold ? 'Mark available' : 'Mark sold'),
+                          label: Text(
+                            l.isSold ? 'Mark available' : 'Mark sold',
+                          ),
                         ),
                         TextButton.icon(
                           onPressed: () async {
@@ -2799,7 +2845,9 @@ class _AdminChatsTabState extends State<_AdminChatsTab> {
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
-                return Center(child: Text('Error loading chats: ${snapshot.error}'));
+                return Center(
+                  child: Text('Error loading chats: ${snapshot.error}'),
+                );
               }
               if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
@@ -2879,7 +2927,8 @@ class _AdminChatsTabState extends State<_AdminChatsTab> {
                           builder: (_) => ChatScreen(
                             chatId: data['chatId']?.toString() ?? docs[i].id,
                             listingId: data['listingId']?.toString() ?? '',
-                            listingTitle: data['listingTitle']?.toString() ?? '',
+                            listingTitle:
+                                data['listingTitle']?.toString() ?? '',
                             listingImage: listingImage,
                             buyerId: data['buyerId']?.toString() ?? '',
                             sellerId: data['sellerId']?.toString() ?? '',
@@ -2916,17 +2965,23 @@ class _AdminAppealsTab extends StatelessWidget {
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Center(child: Text('Error loading appeals: ${snapshot.error}'));
+          return Center(
+            child: Text('Error loading appeals: ${snapshot.error}'),
+          );
         }
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         final docs = snapshot.data!.docs.toList()
           ..sort((a, b) {
-            final at = ((a.data() as Map)['createdAt'] as Timestamp?)
-                    ?.millisecondsSinceEpoch ?? 0;
-            final bt = ((b.data() as Map)['createdAt'] as Timestamp?)
-                    ?.millisecondsSinceEpoch ?? 0;
+            final at =
+                ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            final bt =
+                ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
             return bt.compareTo(at);
           });
         if (docs.isEmpty) {
@@ -3049,9 +3104,9 @@ class _AppealActionsState extends State<_AppealActions> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not resolve appeal: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not resolve appeal: $e')));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -3185,10 +3240,14 @@ class _AdminApprovalsTab extends StatelessWidget {
         }
         final docs = snapshot.data!.docs.toList()
           ..sort((a, b) {
-            final at = ((a.data() as Map)['createdAt'] as Timestamp?)
-                    ?.millisecondsSinceEpoch ?? 0;
-            final bt = ((b.data() as Map)['createdAt'] as Timestamp?)
-                    ?.millisecondsSinceEpoch ?? 0;
+            final at =
+                ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            final bt =
+                ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
             return at.compareTo(bt); // oldest first — clear the queue in order
           });
         if (docs.isEmpty) {
@@ -3234,8 +3293,7 @@ class _AdminApprovalsTab extends StatelessWidget {
                         onPressed: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) =>
-                                AdDetailsScreen(listing: listing),
+                            builder: (_) => AdDetailsScreen(listing: listing),
                           ),
                         ),
                         child: const Text('View'),
@@ -3301,15 +3359,15 @@ class _ListingApprovalActionsState extends State<_ListingApprovalActions> {
         'admin',
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ad approved — now live')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Ad approved — now live')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not approve: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not approve: $e')));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -3360,15 +3418,15 @@ class _ListingApprovalActionsState extends State<_ListingApprovalActions> {
         'warning',
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ad rejected')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Ad rejected')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not reject: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not reject: $e')));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -3555,7 +3613,9 @@ class _AdminStaffTab extends StatelessWidget {
             stream: FirebaseFirestore.instance.collection('staff').snapshots(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
-                return Center(child: Text('Error loading staff: ${snapshot.error}'));
+                return Center(
+                  child: Text('Error loading staff: ${snapshot.error}'),
+                );
               }
               if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
@@ -3662,10 +3722,14 @@ class _AdminDeletionsTab extends StatelessWidget {
         }
         final docs = snapshot.data!.docs.toList()
           ..sort((a, b) {
-            final at = ((a.data() as Map)['createdAt'] as Timestamp?)
-                    ?.millisecondsSinceEpoch ?? 0;
-            final bt = ((b.data() as Map)['createdAt'] as Timestamp?)
-                    ?.millisecondsSinceEpoch ?? 0;
+            final at =
+                ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            final bt =
+                ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
             return at.compareTo(bt);
           });
         if (docs.isEmpty) {
@@ -3709,12 +3773,16 @@ class _AdminDeletionsTab extends StatelessWidget {
                           Text(
                             'UID: $uid',
                             style: const TextStyle(
-                                fontSize: 11, color: Colors.grey),
+                              fontSize: 11,
+                              color: Colors.grey,
+                            ),
                           ),
                           Text(
                             'Requested ${timeAgo(d['createdAt'] as Timestamp?)}',
                             style: const TextStyle(
-                                fontSize: 11, color: Colors.grey),
+                              fontSize: 11,
+                              color: Colors.grey,
+                            ),
                           ),
                           if (reason.isNotEmpty) ...[
                             const SizedBox(height: 6),

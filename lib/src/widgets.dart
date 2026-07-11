@@ -253,9 +253,7 @@ class StarRating extends StatelessWidget {
         if (count != null) ...[
           const SizedBox(width: 4),
           Text(
-            count == 0
-                ? 'No reviews'
-                : '${rating.toStringAsFixed(1)} ($count)',
+            count == 0 ? 'No reviews' : '${rating.toStringAsFixed(1)} ($count)',
             style: TextStyle(fontSize: size * 0.8, color: Colors.grey[700]),
           ),
         ],
@@ -359,8 +357,9 @@ Future<String?> showCityPicker(
               .toList();
           // Offer the typed text as a custom place when it isn't already an
           // exact (case-insensitive) match in the list.
-          final hasExact =
-              options.any((c) => c.toLowerCase() == q.toLowerCase());
+          final hasExact = options.any(
+            (c) => c.toLowerCase() == q.toLowerCase(),
+          );
           final showCustom = allowCustom && q.isNotEmpty && !hasExact;
           final custom = titleCasePlace(q);
 
@@ -376,7 +375,9 @@ Future<String?> showCityPicker(
                   Text(
                     allowCustom ? 'City / Town / Village' : 'Select City',
                     style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold),
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   Padding(
                     padding: const EdgeInsets.all(12),
@@ -390,8 +391,7 @@ Future<String?> showCityPicker(
                         prefixIcon: const Icon(Icons.search),
                         border: const OutlineInputBorder(),
                       ),
-                      onChanged: (value) =>
-                          setSheetState(() => query = value),
+                      onChanged: (value) => setSheetState(() => query = value),
                     ),
                   ),
                   Expanded(
@@ -402,13 +402,13 @@ Future<String?> showCityPicker(
                             itemBuilder: (context, index) {
                               if (showCustom && index == 0) {
                                 return ListTile(
-                                  leading: const Icon(Icons.add_location_alt,
-                                      color: kPakGreen),
+                                  leading: const Icon(
+                                    Icons.add_location_alt,
+                                    color: kPakGreen,
+                                  ),
                                   title: Text('Use "$custom"'),
-                                  subtitle: const Text(
-                                      'Add my town / village'),
-                                  onTap: () =>
-                                      Navigator.pop(context, custom),
+                                  subtitle: const Text('Add my town / village'),
+                                  onTap: () => Navigator.pop(context, custom),
                                 );
                               }
                               final city =
@@ -490,27 +490,27 @@ class SoldTag extends StatelessWidget {
     return Positioned.fill(
       child: IgnorePointer(
         child: Container(
-        color: Colors.black.withValues(alpha: 0.4),
-        alignment: Alignment.center,
-        child: Transform.rotate(
-          angle: -0.14,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 7),
-            decoration: BoxDecoration(
-              color: Colors.red.shade700,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Text(
-              'SOLD',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 22,
-                letterSpacing: 3,
+          color: Colors.black.withValues(alpha: 0.4),
+          alignment: Alignment.center,
+          child: Transform.rotate(
+            angle: -0.14,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 7),
+              decoration: BoxDecoration(
+                color: Colors.red.shade700,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'SOLD',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 22,
+                  letterSpacing: 3,
+                ),
               ),
             ),
           ),
-        ),
         ),
       ),
     );
@@ -546,7 +546,9 @@ class HorizontalAdCard extends StatelessWidget {
           color: theme.cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
+            color: isDark
+                ? Colors.white10
+                : Colors.black.withValues(alpha: 0.06),
           ),
           boxShadow: [
             BoxShadow(
@@ -594,11 +596,7 @@ class HorizontalAdCard extends StatelessWidget {
                     Container(
                       color: placeholderBg,
                       alignment: Alignment.center,
-                      child: Icon(
-                        Icons.image_outlined,
-                        size: 38,
-                        color: muted,
-                      ),
+                      child: Icon(Icons.image_outlined, size: 38, color: muted),
                     ),
                   // Top scrim keeps the FEATURED badge legible over any image.
                   Positioned(
@@ -889,8 +887,7 @@ class FeedAdCard extends StatefulWidget {
 }
 
 class _FeedAdCardState extends State<FeedAdCard> {
-  bool get isFav =>
-      favoriteListings.any((i) => i.id == widget.listing.id);
+  bool get isFav => favoriteListings.any((i) => i.id == widget.listing.id);
 
   void toggleFav() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -1064,11 +1061,7 @@ class _FeedAdCardState extends State<FeedAdCard> {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              Icons.south,
-                              color: Colors.white,
-                              size: 9,
-                            ),
+                            Icon(Icons.south, color: Colors.white, size: 9),
                             SizedBox(width: 1),
                             Text(
                               'PRICE DROP',
@@ -1187,21 +1180,14 @@ class _FeedAdCardState extends State<FeedAdCard> {
                       l.attributes.values.take(2).join(' · '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        color: Colors.grey[700],
-                      ),
+                      style: TextStyle(fontSize: 10.5, color: Colors.grey[700]),
                     ),
                   ],
                   if (l.deliveryAvailable) ...[
                     const SizedBox(height: 3),
                     Row(
                       children: const [
-                        Icon(
-                          Icons.delivery_dining,
-                          size: 13,
-                          color: kPakGreen,
-                        ),
+                        Icon(Icons.delivery_dining, size: 13, color: kPakGreen),
                         SizedBox(width: 2),
                         Text(
                           'Delivery',
@@ -1217,7 +1203,11 @@ class _FeedAdCardState extends State<FeedAdCard> {
                   const SizedBox(height: 5),
                   Row(
                     children: [
-                      Icon(Icons.location_on, size: 11, color: Colors.grey[500]),
+                      Icon(
+                        Icons.location_on,
+                        size: 11,
+                        color: Colors.grey[500],
+                      ),
                       const SizedBox(width: 1),
                       Expanded(
                         child: Text(

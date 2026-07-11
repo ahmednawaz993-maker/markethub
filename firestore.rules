@@ -214,6 +214,13 @@ service cloud.firestore {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
       }
 
+      // A buyer's saved delivery addresses — private to the owner. Sellers
+      // never read these directly; each order carries an immutable address
+      // SNAPSHOT instead (see deliveryAddress on the order document).
+      match /addresses/{addressId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
       // People who follow this user. The follower owns their own follow doc
       // (doc id == follower uid) even though it lives under the seller, so they
       // may create/remove it; anyone signed in may read (for the follower count

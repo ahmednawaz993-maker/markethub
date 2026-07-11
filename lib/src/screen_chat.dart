@@ -30,7 +30,9 @@ class ChatsScreen extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('Error loading chats: ${snapshot.error}'));
+            return Center(
+              child: Text('Error loading chats: ${snapshot.error}'),
+            );
           }
 
           if (!snapshot.hasData) {
@@ -40,13 +42,11 @@ class ChatsScreen extends StatelessWidget {
           final chats = snapshot.data!.docs.toList()
             ..sort((a, b) {
               final at =
-                  ((a.data() as Map<String, dynamic>)['lastTime']
-                          as Timestamp?)
+                  ((a.data() as Map<String, dynamic>)['lastTime'] as Timestamp?)
                       ?.millisecondsSinceEpoch ??
                   0;
               final bt =
-                  ((b.data() as Map<String, dynamic>)['lastTime']
-                          as Timestamp?)
+                  ((b.data() as Map<String, dynamic>)['lastTime'] as Timestamp?)
                       ?.millisecondsSinceEpoch ??
                   0;
               return bt.compareTo(at);
@@ -69,7 +69,8 @@ class ChatsScreen extends StatelessWidget {
               final otherName = isBuyer
                   ? (data['sellerName']?.toString() ?? 'Seller')
                   : (data['buyerName']?.toString() ?? 'Buyer');
-              final otherUid = (isBuyer
+              final otherUid =
+                  (isBuyer
                       ? data['sellerId']?.toString()
                       : data['buyerId']?.toString()) ??
                   '';
@@ -93,56 +94,60 @@ class ChatsScreen extends StatelessWidget {
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
                 child: ListTile(
-                leading: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    listingImage.isEmpty
-                        ? const CircleAvatar(child: Icon(Icons.image))
-                        : CircleAvatar(
-                            backgroundImage: NetworkImage(listingImage),
-                          ),
-                    if (otherUid.isNotEmpty)
-                      Positioned(
-                        right: -1,
-                        bottom: -1,
-                        child: PresenceDot(otherUid),
+                  leading: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      listingImage.isEmpty
+                          ? const CircleAvatar(child: Icon(Icons.image))
+                          : CircleAvatar(
+                              backgroundImage: NetworkImage(listingImage),
+                            ),
+                      if (otherUid.isNotEmpty)
+                        Positioned(
+                          right: -1,
+                          bottom: -1,
+                          child: PresenceDot(otherUid),
+                        ),
+                    ],
+                  ),
+                  title: Text(otherName),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        data['listingTitle']?.toString() ?? '',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
                       ),
-                  ],
-                ),
-                title: Text(otherName),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      data['listingTitle']?.toString() ?? '',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    Text(
-                      data['lastMessage']?.toString() ?? '',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-                isThreeLine: true,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ChatScreen(
-                        chatId: data['chatId']?.toString() ?? chats[index].id,
-                        listingId: data['listingId']?.toString() ?? '',
-                        listingTitle: data['listingTitle']?.toString() ?? '',
-                        listingImage: listingImage,
-                        buyerId: data['buyerId']?.toString() ?? '',
-                        sellerId: data['sellerId']?.toString() ?? '',
-                        buyerName: data['buyerName']?.toString() ?? 'Buyer',
-                        sellerName: data['sellerName']?.toString() ?? 'Seller',
+                      Text(
+                        data['lastMessage']?.toString() ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  );
-                },
-              ),
+                    ],
+                  ),
+                  isThreeLine: true,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChatScreen(
+                          chatId: data['chatId']?.toString() ?? chats[index].id,
+                          listingId: data['listingId']?.toString() ?? '',
+                          listingTitle: data['listingTitle']?.toString() ?? '',
+                          listingImage: listingImage,
+                          buyerId: data['buyerId']?.toString() ?? '',
+                          sellerId: data['sellerId']?.toString() ?? '',
+                          buyerName: data['buyerName']?.toString() ?? 'Buyer',
+                          sellerName:
+                              data['sellerName']?.toString() ?? 'Seller',
+                        ),
+                      ),
+                    );
+                  },
+                ),
               );
             },
           );
@@ -277,8 +282,8 @@ class _ChatScreenState extends State<ChatScreen> {
           .doc(widget.chatId)
           .snapshots()
           .listen((snap) {
-        if (mounted) setState(() => _meta = snap.data());
-      });
+            if (mounted) setState(() => _meta = snap.data());
+          });
     }
   }
 
@@ -289,7 +294,8 @@ class _ChatScreenState extends State<ChatScreen> {
     if (widget.adminView || me == null || latestIncoming == null) return;
     final myRead = readMarker(_meta?['readAt'], me);
     if (myRead != null &&
-        myRead.millisecondsSinceEpoch >= latestIncoming.millisecondsSinceEpoch) {
+        myRead.millisecondsSinceEpoch >=
+            latestIncoming.millisecondsSinceEpoch) {
       return;
     }
     markChatRead(widget.chatId, me);
@@ -309,7 +315,9 @@ class _ChatScreenState extends State<ChatScreen> {
       final ref = FirebaseStorage.instance
           .ref()
           .child('chat_images')
-          .child('${widget.chatId}_${DateTime.now().millisecondsSinceEpoch}.jpg');
+          .child(
+            '${widget.chatId}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          );
       await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
       final url = await ref.getDownloadURL();
       await chatRef.set({
@@ -496,129 +504,140 @@ class _ChatScreenState extends State<ChatScreen> {
                     if (scamRisk) const _ChatScamBanner(),
                     Expanded(
                       child: ListView.builder(
-                  reverse: true,
-                  padding: const EdgeInsets.all(12),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final data =
-                        messages[index].data() as Map<String, dynamic>;
-                    // In admin (monitoring) mode the viewer is neither party, so
-                    // anchor the seller's messages right and the buyer's left and
-                    // label who said what; otherwise it's the usual "me vs them".
-                    final isMine = widget.adminView
-                        ? data['senderId'] == widget.sellerId
-                        : data['senderId'] == uid;
-                    final senderLabel = widget.adminView
-                        ? (data['senderId'] == widget.sellerId
-                            ? widget.sellerName
-                            : widget.buyerName)
-                        : null;
+                        reverse: true,
+                        padding: const EdgeInsets.all(12),
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          final data =
+                              messages[index].data() as Map<String, dynamic>;
+                          // In admin (monitoring) mode the viewer is neither party, so
+                          // anchor the seller's messages right and the buyer's left and
+                          // label who said what; otherwise it's the usual "me vs them".
+                          final isMine = widget.adminView
+                              ? data['senderId'] == widget.sellerId
+                              : data['senderId'] == uid;
+                          final senderLabel = widget.adminView
+                              ? (data['senderId'] == widget.sellerId
+                                    ? widget.sellerName
+                                    : widget.buyerName)
+                              : null;
 
-                    return Align(
-                      alignment: isMine
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width * 0.72,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isMine ? kPakGreen : Colors.grey.shade300,
-                          borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(14),
-                            topRight: const Radius.circular(14),
-                            bottomLeft: Radius.circular(isMine ? 14 : 2),
-                            bottomRight: Radius.circular(isMine ? 2 : 14),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: isMine
-                              ? CrossAxisAlignment.end
-                              : CrossAxisAlignment.start,
-                          children: [
-                            if (senderLabel != null)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 3),
-                                child: Text(
-                                  senderLabel,
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: isMine
-                                        ? Colors.white70
-                                        : Colors.black54,
-                                  ),
+                          return Align(
+                            alignment: isMine
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              constraints: BoxConstraints(
+                                maxWidth:
+                                    MediaQuery.of(context).size.width * 0.72,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isMine
+                                    ? kPakGreen
+                                    : Colors.grey.shade300,
+                                borderRadius: BorderRadius.only(
+                                  topLeft: const Radius.circular(14),
+                                  topRight: const Radius.circular(14),
+                                  bottomLeft: Radius.circular(isMine ? 14 : 2),
+                                  bottomRight: Radius.circular(isMine ? 2 : 14),
                                 ),
                               ),
-                            if ((data['imageUrl']?.toString() ?? '').isNotEmpty)
-                              GestureDetector(
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => FullScreenGallery(
-                                      images: [data['imageUrl'].toString()],
+                              child: Column(
+                                crossAxisAlignment: isMine
+                                    ? CrossAxisAlignment.end
+                                    : CrossAxisAlignment.start,
+                                children: [
+                                  if (senderLabel != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 3),
+                                      child: Text(
+                                        senderLabel,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: isMine
+                                              ? Colors.white70
+                                              : Colors.black54,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    data['imageUrl'].toString(),
-                                    width: 180,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) => const Icon(
-                                      Icons.broken_image,
-                                      color: Colors.white70,
+                                  if ((data['imageUrl']?.toString() ?? '')
+                                      .isNotEmpty)
+                                    GestureDetector(
+                                      onTap: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => FullScreenGallery(
+                                            images: [
+                                              data['imageUrl'].toString(),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          data['imageUrl'].toString(),
+                                          width: 180,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, _, _) => const Icon(
+                                            Icons.broken_image,
+                                            color: Colors.white70,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    Text(
+                                      data['text']?.toString() ?? '',
+                                      style: TextStyle(
+                                        color: isMine
+                                            ? Colors.white
+                                            : Colors.black87,
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              )
-                            else
-                              Text(
-                                data['text']?.toString() ?? '',
-                                style: TextStyle(
-                                  color: isMine ? Colors.white : Colors.black87,
-                                ),
-                              ),
-                            const SizedBox(height: 2),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _msgTime(data['createdAt'] as Timestamp?),
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    color: isMine
-                                        ? Colors.white70
-                                        : Colors.black54,
-                                  ),
-                                ),
-                                if (isMine && !widget.adminView) ...[
-                                  const SizedBox(width: 4),
-                                  MessageStatusTick(
-                                    sentAt: data['createdAt'] as Timestamp?,
-                                    deliveredAt: readMarker(
-                                      _meta?['deliveredAt'],
-                                      _otherUid,
-                                    ),
-                                    seenAt: readMarker(
-                                      _meta?['readAt'],
-                                      _otherUid,
-                                    ),
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        _msgTime(
+                                          data['createdAt'] as Timestamp?,
+                                        ),
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          color: isMine
+                                              ? Colors.white70
+                                              : Colors.black54,
+                                        ),
+                                      ),
+                                      if (isMine && !widget.adminView) ...[
+                                        const SizedBox(width: 4),
+                                        MessageStatusTick(
+                                          sentAt:
+                                              data['createdAt'] as Timestamp?,
+                                          deliveredAt: readMarker(
+                                            _meta?['deliveredAt'],
+                                            _otherUid,
+                                          ),
+                                          seenAt: readMarker(
+                                            _meta?['readAt'],
+                                            _otherUid,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ],
-                              ],
+                              ),
                             ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -627,87 +646,87 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           if (!widget.adminView)
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    height: 38,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        for (final q in const [
-                          'Is this still available?',
-                          'Is this the last price?',
-                          'Can I get a discount?',
-                          'Can you tell me more about it?',
-                          'Where can we meet?',
-                          'Thank you for contacting!',
-                        ])
-                          Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: ActionChip(
-                              visualDensity: VisualDensity.compact,
-                              label: Text(
-                                q,
-                                style: const TextStyle(fontSize: 12),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      height: 38,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          for (final q in const [
+                            'Is this still available?',
+                            'Is this the last price?',
+                            'Can I get a discount?',
+                            'Can you tell me more about it?',
+                            'Where can we meet?',
+                            'Thank you for contacting!',
+                          ])
+                            Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: ActionChip(
+                                visualDensity: VisualDensity.compact,
+                                label: Text(
+                                  q,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                onPressed: () => sendMessage(q),
                               ),
-                              onPressed: () => sendMessage(q),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'Send photo',
+                          onPressed: sendingImage ? null : sendImageMessage,
+                          icon: sendingImage
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.photo_camera_outlined,
+                                  color: kPakGreen,
+                                ),
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: messageController,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => sendMessage(),
+                            decoration: const InputDecoration(
+                              hintText: 'Type a message...',
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
                             ),
                           ),
+                        ),
+                        const SizedBox(width: 8),
+                        CircleAvatar(
+                          backgroundColor: kPakGreen,
+                          child: IconButton(
+                            icon: const Icon(Icons.send, color: Colors.white),
+                            onPressed: sendMessage,
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      IconButton(
-                        tooltip: 'Send photo',
-                        onPressed: sendingImage ? null : sendImageMessage,
-                        icon: sendingImage
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.photo_camera_outlined,
-                                color: kPakGreen,
-                              ),
-                      ),
-                      Expanded(
-                        child: TextField(
-                      controller: messageController,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => sendMessage(),
-                      decoration: const InputDecoration(
-                        hintText: 'Type a message...',
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  CircleAvatar(
-                    backgroundColor: kPakGreen,
-                    child: IconButton(
-                      icon: const Icon(Icons.send, color: Colors.white),
-                      onPressed: sendMessage,
-                    ),
-                  ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
         ],
       ),
     );

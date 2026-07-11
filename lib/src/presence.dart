@@ -163,8 +163,8 @@ class _PresenceStatusLineState extends State<PresenceStatusLine> {
 
   @override
   Widget build(BuildContext context) {
-    final style = widget.style ??
-        const TextStyle(fontSize: 11, color: Colors.white70);
+    final style =
+        widget.style ?? const TextStyle(fontSize: 11, color: Colors.white70);
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: _presenceCol.doc(widget.presenceId).snapshots(),
       builder: (context, snap) {

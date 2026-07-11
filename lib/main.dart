@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -38,6 +37,7 @@ part 'src/models.dart';
 part 'src/catalog.dart';
 part 'src/push.dart';
 part 'src/commerce.dart';
+part 'src/addresses.dart';
 part 'src/widgets.dart';
 part 'src/presence.dart';
 part 'src/app.dart';
@@ -54,6 +54,8 @@ part 'src/screen_favorites.dart';
 part 'src/screen_profile.dart';
 part 'src/screen_wallet.dart';
 part 'src/screen_orders.dart';
+part 'src/screen_checkout.dart';
+part 'src/screen_addresses.dart';
 part 'src/screen_offers.dart';
 part 'src/screen_admin.dart';
 part 'src/screen_notifications.dart';
@@ -71,4 +73,3 @@ Future<void> main() async {
 
   runApp(const PakBazarApp());
 }
-

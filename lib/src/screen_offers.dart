@@ -49,7 +49,10 @@ class OffersScreen extends StatelessWidget {
           bottom: const TabBar(
             labelColor: Colors.white,
             indicatorColor: Colors.white,
-            tabs: [Tab(text: 'Received'), Tab(text: 'Sent')],
+            tabs: [
+              Tab(text: 'Received'),
+              Tab(text: 'Sent'),
+            ],
           ),
         ),
         body: const TabBarView(

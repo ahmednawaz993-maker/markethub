@@ -383,7 +383,9 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: sending ? null : () => Navigator.pop(dialogContext),
+                  onPressed: sending
+                      ? null
+                      : () => Navigator.pop(dialogContext),
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
@@ -450,218 +452,225 @@ class _AuthScreenState extends State<AuthScreen> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Image.asset(
-                      'assets/pakbazar_logo.png',
-                      height: 88,
-                      fit: BoxFit.contain,
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Pakistan ka apna online bazaar',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: kPakGreen,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                const SizedBox(height: 16),
-                // Choose how to sign in: email/password or phone + OTP.
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEFF1F2),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(
-                        child: _AuthMethodTab(
-                          label: 'Email',
-                          icon: Icons.email,
-                          selected: !usePhone,
-                          onTap: isLoading
-                              ? null
-                              : () => setState(() {
-                                  usePhone = false;
-                                  errorMessage = null;
-                                }),
+                      Image.asset(
+                        'assets/pakbazar_logo.png',
+                        height: 88,
+                        fit: BoxFit.contain,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Pakistan ka apna online bazaar',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: kPakGreen,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      Expanded(
-                        child: _AuthMethodTab(
-                          label: 'Phone',
-                          icon: Icons.phone_android,
-                          selected: usePhone,
-                          onTap: isLoading
-                              ? null
-                              : () => setState(() {
-                                  usePhone = true;
-                                  errorMessage = null;
-                                }),
+                      const SizedBox(height: 16),
+                      // Choose how to sign in: email/password or phone + OTP.
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF1F2),
+                          borderRadius: BorderRadius.circular(10),
                         ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _AuthMethodTab(
+                                label: 'Email',
+                                icon: Icons.email,
+                                selected: !usePhone,
+                                onTap: isLoading
+                                    ? null
+                                    : () => setState(() {
+                                        usePhone = false;
+                                        errorMessage = null;
+                                      }),
+                              ),
+                            ),
+                            Expanded(
+                              child: _AuthMethodTab(
+                                label: 'Phone',
+                                icon: Icons.phone_android,
+                                selected: usePhone,
+                                onTap: isLoading
+                                    ? null
+                                    : () => setState(() {
+                                        usePhone = true;
+                                        errorMessage = null;
+                                      }),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (!usePhone) ...[
+                        TextField(
+                          controller: emailController,
+                          enabled: !isLoading,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(
+                            labelText: 'Email',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.email),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: passwordController,
+                          enabled: !isLoading,
+                          obscureText: true,
+                          onSubmitted: (_) => isLoading ? null : submit(),
+                          decoration: const InputDecoration(
+                            labelText: 'Password',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.lock),
+                          ),
+                        ),
+                        if (!isLogin) ...[
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: signupPhoneController,
+                            enabled: !isLoading,
+                            keyboardType: TextInputType.phone,
+                            onSubmitted: (_) => isLoading ? null : submit(),
+                            decoration: const InputDecoration(
+                              labelText: 'Phone number',
+                              hintText: '03xx xxxxxxx',
+                              prefixText: '+92 ',
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.phone),
+                            ),
+                          ),
+                        ],
+                        if (isLogin)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: isLoading ? null : forgotPassword,
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 4,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: const Text('Forgot password?'),
+                            ),
+                          ),
+                      ] else if (!otpSent) ...[
+                        TextField(
+                          controller: phoneController,
+                          enabled: !isLoading,
+                          keyboardType: TextInputType.phone,
+                          onSubmitted: (_) => isLoading ? null : sendOtp(),
+                          decoration: const InputDecoration(
+                            labelText: 'Phone number',
+                            hintText: '03xx xxxxxxx',
+                            prefixText: '+92 ',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.phone),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'We\'ll text you a one-time code to verify your number.',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      ] else ...[
+                        Text(
+                          'Enter the 6-digit code sent to $_sentTo',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: otpController,
+                          enabled: !isLoading,
+                          keyboardType: TextInputType.number,
+                          maxLength: 6,
+                          onSubmitted: (_) => isLoading ? null : verifyOtp(),
+                          decoration: const InputDecoration(
+                            labelText: 'OTP code',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.sms),
+                            counterText: '',
+                          ),
+                        ),
+                      ],
+                      if (errorMessage != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          errorMessage!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ],
+                      const SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: isLoading ? null : _primaryAction,
+                        child: isLoading
+                            ? const SizedBox(
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(_primaryLabel),
+                      ),
+                      const SizedBox(height: 8),
+                      if (!usePhone)
+                        TextButton(
+                          onPressed: isLoading
+                              ? null
+                              : () {
+                                  setState(() {
+                                    isLogin = !isLogin;
+                                    errorMessage = null;
+                                  });
+                                },
+                          child: Text(
+                            isLogin
+                                ? "Don't have an account? Sign up"
+                                : 'Already have an account? Log in',
+                          ),
+                        )
+                      else if (otpSent)
+                        TextButton(
+                          onPressed: isLoading
+                              ? null
+                              : () {
+                                  setState(() {
+                                    otpSent = false;
+                                    _confirmation = null;
+                                    _verificationId = null;
+                                    otpController.clear();
+                                    errorMessage = null;
+                                  });
+                                },
+                          child: const Text('Change number'),
+                        ),
+                      const Divider(height: 32),
+                      OutlinedButton.icon(
+                        onPressed: isLoading ? null : continueAsGuest,
+                        icon: const Icon(Icons.person_outline),
+                        label: const Text('Continue as Guest'),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                if (!usePhone) ...[
-                  TextField(
-                    controller: emailController,
-                    enabled: !isLoading,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.email),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: passwordController,
-                    enabled: !isLoading,
-                    obscureText: true,
-                    onSubmitted: (_) => isLoading ? null : submit(),
-                    decoration: const InputDecoration(
-                      labelText: 'Password',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.lock),
-                    ),
-                  ),
-                  if (!isLogin) ...[
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: signupPhoneController,
-                      enabled: !isLoading,
-                      keyboardType: TextInputType.phone,
-                      onSubmitted: (_) => isLoading ? null : submit(),
-                      decoration: const InputDecoration(
-                        labelText: 'Phone number',
-                        hintText: '03xx xxxxxxx',
-                        prefixText: '+92 ',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.phone),
-                      ),
-                    ),
-                  ],
-                  if (isLogin)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: isLoading ? null : forgotPassword,
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: const Text('Forgot password?'),
-                      ),
-                    ),
-                ] else if (!otpSent) ...[
-                  TextField(
-                    controller: phoneController,
-                    enabled: !isLoading,
-                    keyboardType: TextInputType.phone,
-                    onSubmitted: (_) => isLoading ? null : sendOtp(),
-                    decoration: const InputDecoration(
-                      labelText: 'Phone number',
-                      hintText: '03xx xxxxxxx',
-                      prefixText: '+92 ',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.phone),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'We\'ll text you a one-time code to verify your number.',
-                    style: TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
-                ] else ...[
-                  Text(
-                    'Enter the 6-digit code sent to $_sentTo',
-                    style: const TextStyle(color: Colors.grey, fontSize: 13),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: otpController,
-                    enabled: !isLoading,
-                    keyboardType: TextInputType.number,
-                    maxLength: 6,
-                    onSubmitted: (_) => isLoading ? null : verifyOtp(),
-                    decoration: const InputDecoration(
-                      labelText: 'OTP code',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.sms),
-                      counterText: '',
-                    ),
-                  ),
-                ],
-                if (errorMessage != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    errorMessage!,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: isLoading ? null : _primaryAction,
-                  child: isLoading
-                      ? const SizedBox(
-                          height: 22,
-                          width: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(_primaryLabel),
-                ),
-                const SizedBox(height: 8),
-                if (!usePhone)
-                  TextButton(
-                    onPressed: isLoading
-                        ? null
-                        : () {
-                            setState(() {
-                              isLogin = !isLogin;
-                              errorMessage = null;
-                            });
-                          },
-                    child: Text(
-                      isLogin
-                          ? "Don't have an account? Sign up"
-                          : 'Already have an account? Log in',
-                    ),
-                  )
-                else if (otpSent)
-                  TextButton(
-                    onPressed: isLoading
-                        ? null
-                        : () {
-                            setState(() {
-                              otpSent = false;
-                              _confirmation = null;
-                              _verificationId = null;
-                              otpController.clear();
-                              errorMessage = null;
-                            });
-                          },
-                    child: const Text('Change number'),
-                  ),
-                const Divider(height: 32),
-                    OutlinedButton.icon(
-                      onPressed: isLoading ? null : continueAsGuest,
-                      icon: const Icon(Icons.person_outline),
-                      label: const Text('Continue as Guest'),
-                    ),
-                  ],
-                ),
               ),
             ),
-          ),
           ),
         ),
       ),
@@ -696,11 +705,7 @@ class _AuthMethodTab extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 18,
-              color: selected ? Colors.white : kPakGreen,
-            ),
+            Icon(icon, size: 18, color: selected ? Colors.white : kPakGreen),
             const SizedBox(width: 6),
             Text(
               label,

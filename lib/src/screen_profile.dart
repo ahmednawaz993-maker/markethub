@@ -350,9 +350,9 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
         'storeCategory': storeCategory ?? '',
       }, SetOptions(merge: true));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Business profile saved')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Business profile saved')));
       }
     } catch (e) {
       if (mounted) {
@@ -506,10 +506,13 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                 child: DropdownButtonFormField<String>(
                   initialValue: storeCategory,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Store category'),
+                  decoration: const InputDecoration(
+                    labelText: 'Store category',
+                  ),
                   items: [
-                    for (final c
-                        in appCategories.where((c) => c.title != 'All'))
+                    for (final c in appCategories.where(
+                      (c) => c.title != 'All',
+                    ))
                       DropdownMenuItem(value: c.title, child: Text(c.title)),
                   ],
                   onChanged: (v) => setState(() => storeCategory = v),
@@ -595,7 +598,10 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                           else if (featuredTrialUsed)
                             const Text(
                               'Your free 3-month trial has ended.',
-                              style: TextStyle(fontSize: 13, color: Colors.grey),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey,
+                              ),
                             )
                           else ...[
                             const Text(
@@ -614,7 +620,9 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                                     ? _activateFeaturedTrial
                                     : null,
                                 icon: const Icon(Icons.star),
-                                label: const Text('Activate free 3-month trial'),
+                                label: const Text(
+                                  'Activate free 3-month trial',
+                                ),
                               ),
                             ),
                           ],
@@ -766,7 +774,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
       cnicUrl = v?['cnicUrl']?.toString();
       addressProofUrl = v?['addressProofUrl']?.toString();
       addressController.text =
-          v?['address']?.toString() ?? uDoc.data()?['address']?.toString() ?? '';
+          v?['address']?.toString() ??
+          uDoc.data()?['address']?.toString() ??
+          '';
       idVerified = uDoc.data()?['idVerified'] == true;
       loaded = true;
     });
@@ -889,7 +899,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
       if (mounted) {
         setState(() => status = 'pending');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Submitted — we\'ll review it shortly.')),
+          const SnackBar(
+            content: Text('Submitted — we\'ll review it shortly.'),
+          ),
         );
       }
     } catch (e) {
@@ -1159,21 +1171,25 @@ class TrustSafetyScreen extends StatelessWidget {
             'Scam detection warns you about risky messages in chat.',
             'Admin moderation can warn, block, or suspend rule-breakers.',
           ]),
-          _card(Icons.support_agent, 'Support, orders & refunds', Colors.indigo,
-              const [
-                'Order or delivery problems are between the buyer and the '
-                    'seller — contact the seller directly through chat or their '
-                    'listed phone number.',
-                'PakBazar can only help with a refund if you paid through the '
-                    'platform\'s on-platform payment options (escrow).',
-                'If you paid the seller directly — Cash on Delivery, bank '
-                    'transfer, or any off-platform method — settle it with the '
-                    'seller. PakBazar cannot refund money it never held.',
-                'For a dispute on an escrow-funded order, or to report a scam, '
-                    'open a request in Customer Care (24/7) — we aim to resolve '
-                    'it within 24 hours.',
-                'Always keep your payment on PakBazar so you stay protected.',
-              ]),
+          _card(
+            Icons.support_agent,
+            'Support, orders & refunds',
+            Colors.indigo,
+            const [
+              'Order or delivery problems are between the buyer and the '
+                  'seller — contact the seller directly through chat or their '
+                  'listed phone number.',
+              'PakBazar can only help with a refund if you paid through the '
+                  'platform\'s on-platform payment options (escrow).',
+              'If you paid the seller directly — Cash on Delivery, bank '
+                  'transfer, or any off-platform method — settle it with the '
+                  'seller. PakBazar cannot refund money it never held.',
+              'For a dispute on an escrow-funded order, or to report a scam, '
+                  'open a request in Customer Care (24/7) — we aim to resolve '
+                  'it within 24 hours.',
+              'Always keep your payment on PakBazar so you stay protected.',
+            ],
+          ),
           _card(
             Icons.report_gmailerrorred,
             'Spotted something wrong?',
@@ -1260,81 +1276,108 @@ class PrivacyPolicyScreen extends StatelessWidget {
       title: 'Privacy Policy',
       updated: '22 June 2026',
       sections: [
-        ('Introduction', [
-          'PakBazar ("we", "us") operates an online marketplace in Pakistan '
-              'that lets people buy and sell goods and services. This policy '
-              'explains what information we collect, how we use it, and the '
-              'choices you have. By using PakBazar you agree to this policy.',
-        ]),
-        ('Information we collect', [
-          '• Account details: your email and/or phone number, and a password '
-              '(handled by Firebase Authentication).',
-          '• Profile: display or business name, city, and address.',
-          '• Verification: a live selfie, CNIC photo, your address and an '
-              'optional proof-of-address document, submitted for ID and address '
-              'verification.',
-          '• Listings: photos, descriptions, price, category, the contact '
-              'number you choose to show, and the item location (city and, if '
-              'you allow it, GPS coordinates).',
-          '• Location: approximate or precise device location, only if you '
-              'grant permission.',
-          '• Usage and device data: app interactions, views and leads, '
-              'recently viewed items, saved searches, favourites, and push '
-              'notification tokens.',
-          '• Communications: in-app chat messages, offers, support requests, '
-              'and reports you submit.',
-          '• Payments: wallet balance, top-up and withdrawal requests, and '
-              'escrow transactions. We do not store full card numbers; payments '
-              'are handled manually or by a payment provider.',
-        ]),
-        ('How we use your information', [
-          '• To run the marketplace — show listings, enable chat, offers, '
-              'orders, and escrow.',
-          '• To verify identity and address and to prevent fraud and abuse.',
-          '• To moderate content — every ad is reviewed before it goes live.',
-          '• To process payments, escrow, wallet top-ups and withdrawals.',
-          '• To send you notifications about chats, offers, orders, and '
-              'account decisions.',
-          '• To provide support and to improve and secure the service.',
-          '• To comply with the law and enforce our Terms and rules.',
-        ]),
-        ('How we share information', [
-          '• With other users: your public profile, listings, ratings, and any '
-              'contact number you add to an ad are visible to others.',
-          '• With service providers that power the app, such as Google '
-              'Firebase / Google Cloud (hosting, database, authentication, '
-              'notifications) and our payment and email providers.',
-          '• For safety and legal reasons: to investigate fraud, enforce our '
-              'rules, or comply with a lawful request.',
-          '• We do not sell your personal information.',
-        ]),
-        ('Your verification documents', [
-          'Your selfie, CNIC and address proof are kept private. They are '
-              'visible only to you and our review team and are never shown '
-              'publicly. They are used solely to verify your identity and '
-              'address.',
-        ]),
-        ('Data retention & security', [
-          'We keep your information for as long as your account is active or as '
-              'needed to provide the service, resolve disputes, and meet legal '
-              'obligations. We use industry-standard safeguards, but no method '
-              'of transmission or storage is 100% secure.',
-        ]),
-        ('Your choices', [
-          '• You can edit your profile information in the app at any time.',
-          '• You can turn location and notification permissions on or off in '
-              'your device/browser settings.',
-          '• You can delete your account and data with "Delete my account" in '
-              'your Profile, or by contacting us at ahmednawaz993@gmail.com.',
-        ]),
-        ('Children', [
-          'PakBazar is intended for users aged 18 and over. We do not '
-              'knowingly collect information from children.',
-        ]),
-        ('Changes to this policy', [
-          'We may update this policy from time to time. We will post the '
-              'updated version here with a new "Last updated" date.',
-        ]),
+        (
+          'Introduction',
+          [
+            'PakBazar ("we", "us") operates an online marketplace in Pakistan '
+                'that lets people buy and sell goods and services. This policy '
+                'explains what information we collect, how we use it, and the '
+                'choices you have. By using PakBazar you agree to this policy.',
+          ],
+        ),
+        (
+          'Information we collect',
+          [
+            '• Account details: your email and/or phone number, and a password '
+                '(handled by Firebase Authentication).',
+            '• Profile: display or business name, city, and address.',
+            '• Verification: a live selfie, CNIC photo, your address and an '
+                'optional proof-of-address document, submitted for ID and address '
+                'verification.',
+            '• Listings: photos, descriptions, price, category, the contact '
+                'number you choose to show, and the item location (city and, if '
+                'you allow it, GPS coordinates).',
+            '• Location: approximate or precise device location, only if you '
+                'grant permission.',
+            '• Usage and device data: app interactions, views and leads, '
+                'recently viewed items, saved searches, favourites, and push '
+                'notification tokens.',
+            '• Communications: in-app chat messages, offers, support requests, '
+                'and reports you submit.',
+            '• Payments: wallet balance, top-up and withdrawal requests, and '
+                'escrow transactions. We do not store full card numbers; payments '
+                'are handled manually or by a payment provider.',
+          ],
+        ),
+        (
+          'How we use your information',
+          [
+            '• To run the marketplace — show listings, enable chat, offers, '
+                'orders, and escrow.',
+            '• To verify identity and address and to prevent fraud and abuse.',
+            '• To moderate content — every ad is reviewed before it goes live.',
+            '• To process payments, escrow, wallet top-ups and withdrawals.',
+            '• To send you notifications about chats, offers, orders, and '
+                'account decisions.',
+            '• To provide support and to improve and secure the service.',
+            '• To comply with the law and enforce our Terms and rules.',
+          ],
+        ),
+        (
+          'How we share information',
+          [
+            '• With other users: your public profile, listings, ratings, and any '
+                'contact number you add to an ad are visible to others.',
+            '• With service providers that power the app, such as Google '
+                'Firebase / Google Cloud (hosting, database, authentication, '
+                'notifications) and our payment and email providers.',
+            '• For safety and legal reasons: to investigate fraud, enforce our '
+                'rules, or comply with a lawful request.',
+            '• We do not sell your personal information.',
+          ],
+        ),
+        (
+          'Your verification documents',
+          [
+            'Your selfie, CNIC and address proof are kept private. They are '
+                'visible only to you and our review team and are never shown '
+                'publicly. They are used solely to verify your identity and '
+                'address.',
+          ],
+        ),
+        (
+          'Data retention & security',
+          [
+            'We keep your information for as long as your account is active or as '
+                'needed to provide the service, resolve disputes, and meet legal '
+                'obligations. We use industry-standard safeguards, but no method '
+                'of transmission or storage is 100% secure.',
+          ],
+        ),
+        (
+          'Your choices',
+          [
+            '• You can edit your profile information in the app at any time.',
+            '• You can turn location and notification permissions on or off in '
+                'your device/browser settings.',
+            '• You can delete your account and data with "Delete my account" in '
+                'your Profile, or by contacting us at ahmednawaz993@gmail.com.',
+          ],
+        ),
+        (
+          'Children',
+          [
+            'PakBazar is intended for users aged 18 and over. We do not '
+                'knowingly collect information from children.',
+          ],
+        ),
+        (
+          'Changes to this policy',
+          [
+            'We may update this policy from time to time. We will post the '
+                'updated version here with a new "Last updated" date.',
+          ],
+        ),
       ],
     );
   }
@@ -1349,95 +1392,131 @@ class TermsScreen extends StatelessWidget {
       title: 'Terms of Use',
       updated: '24 June 2026',
       sections: [
-        ('Acceptance of terms', [
-          'By creating an account or using PakBazar, you agree to these Terms '
-              'of Use and to our Privacy Policy and Trust & Safety rules. If you '
-              'do not agree, please do not use the app.',
-        ]),
-        ('Eligibility & account', [
-          '• You must be at least 18 years old and provide accurate '
-              'information.',
-          '• Posting ads, buying, making offers and chatting require identity '
-              'and address verification.',
-          '• You are responsible for keeping your account secure and for all '
-              'activity under it.',
-        ]),
-        ('Our role', [
-          'PakBazar is a venue that connects buyers and sellers. Except where '
-              'we hold funds in escrow, we are not a party to transactions '
-              'between users and are not responsible for the items, their '
-              'quality, legality, or delivery. Deals are between the buyer and '
-              'the seller.',
-        ]),
-        ('Listings & moderation', [
-          '• You may list only items you own and are legally allowed to sell.',
-          '• Listings must be honest, with your own photos and accurate '
-              'details and prices.',
-          '• Every ad is reviewed before going live; we may approve, reject, '
-              'or remove any listing at our discretion.',
-          '• Prohibited items and conduct are described in Trust & Safety and '
-              'are not allowed.',
-        ]),
-        ('Buyer & seller responsibilities', [
-          'Buyers and sellers must follow the matched responsibilities set out '
-              'in our Trust & Safety rules — including honest dealing, keeping '
-              'communication and payment on PakBazar, and completing deals '
-              'fairly.',
-        ]),
-        ('Payments, escrow & fees', [
-          '• Payments can be made through in-app escrow or Cash on Delivery '
-              'where offered.',
-          '• With escrow, we hold the payment until the buyer confirms '
-              'receipt, then release it to the seller.',
-          '• A platform commission may apply to completed sales, and sellers '
-              'can request withdrawals of their wallet balance.',
-          '• Never make or request payments outside PakBazar.',
-        ]),
-        ('Prohibited conduct & enforcement', [
-          '• No fraud, scams, off-platform payment requests, harassment, or '
-              'illegal activity.',
-          '• Breaking these Terms or our rules may lead to ad removal, '
-              'warnings, or suspension of your account.',
-          '• Suspended users may submit an appeal from within the app.',
-        ]),
-        ('Seller conduct & immediate suspension', [
-          'Sellers are held to a strict standard. If any fraud or violent '
-              'activity is found on your account, your seller account will be '
-              'SUSPENDED IMMEDIATELY — without prior warning.',
-          '• Fraud includes (but is not limited to): fake, stolen, or '
-              'misrepresented listings; scams or advance-fee tricks; requesting '
-              'or taking payment off-platform; taking payment and not '
-              'delivering; and counterfeit or illegal goods.',
-          '• Violent activity includes any threats, intimidation, harassment, '
-              'or abuse towards buyers, our staff, or other users — in chat or '
-              'in person.',
-          '• On immediate suspension you can no longer post ads, sell, make '
-              'offers, or chat, and any pending payouts may be held while we '
-              'investigate.',
-          '• Serious cases — fraud, threats, or violence — may also be '
-              'reported to the relevant law-enforcement authorities.',
-          '• If you believe a suspension was a mistake, you may submit an '
-              'appeal from within the app for review.',
-        ]),
-        ('Intellectual property', [
-          'PakBazar and its logo, design and content are our property. By '
-              'posting content you grant us a licence to host and display it '
-              'for the purpose of operating the marketplace.',
-        ]),
-        ('Disclaimers & liability', [
-          'The service is provided "as is" without warranties of any kind. To '
-              'the maximum extent permitted by law, PakBazar is not liable for '
-              'any indirect or consequential loss, or for disputes, items, or '
-              'conduct of users.',
-        ]),
-        ('Governing law', [
-          'These Terms are governed by the laws of the Islamic Republic of '
-              'Pakistan.',
-        ]),
-        ('Changes to these terms', [
-          'We may update these Terms from time to time. Continued use after an '
-              'update means you accept the revised Terms.',
-        ]),
+        (
+          'Acceptance of terms',
+          [
+            'By creating an account or using PakBazar, you agree to these Terms '
+                'of Use and to our Privacy Policy and Trust & Safety rules. If you '
+                'do not agree, please do not use the app.',
+          ],
+        ),
+        (
+          'Eligibility & account',
+          [
+            '• You must be at least 18 years old and provide accurate '
+                'information.',
+            '• Posting ads, buying, making offers and chatting require identity '
+                'and address verification.',
+            '• You are responsible for keeping your account secure and for all '
+                'activity under it.',
+          ],
+        ),
+        (
+          'Our role',
+          [
+            'PakBazar is a venue that connects buyers and sellers. Except where '
+                'we hold funds in escrow, we are not a party to transactions '
+                'between users and are not responsible for the items, their '
+                'quality, legality, or delivery. Deals are between the buyer and '
+                'the seller.',
+          ],
+        ),
+        (
+          'Listings & moderation',
+          [
+            '• You may list only items you own and are legally allowed to sell.',
+            '• Listings must be honest, with your own photos and accurate '
+                'details and prices.',
+            '• Every ad is reviewed before going live; we may approve, reject, '
+                'or remove any listing at our discretion.',
+            '• Prohibited items and conduct are described in Trust & Safety and '
+                'are not allowed.',
+          ],
+        ),
+        (
+          'Buyer & seller responsibilities',
+          [
+            'Buyers and sellers must follow the matched responsibilities set out '
+                'in our Trust & Safety rules — including honest dealing, keeping '
+                'communication and payment on PakBazar, and completing deals '
+                'fairly.',
+          ],
+        ),
+        (
+          'Payments, escrow & fees',
+          [
+            '• Payments can be made through in-app escrow or Cash on Delivery '
+                'where offered.',
+            '• With escrow, we hold the payment until the buyer confirms '
+                'receipt, then release it to the seller.',
+            '• A platform commission may apply to completed sales, and sellers '
+                'can request withdrawals of their wallet balance.',
+            '• Never make or request payments outside PakBazar.',
+          ],
+        ),
+        (
+          'Prohibited conduct & enforcement',
+          [
+            '• No fraud, scams, off-platform payment requests, harassment, or '
+                'illegal activity.',
+            '• Breaking these Terms or our rules may lead to ad removal, '
+                'warnings, or suspension of your account.',
+            '• Suspended users may submit an appeal from within the app.',
+          ],
+        ),
+        (
+          'Seller conduct & immediate suspension',
+          [
+            'Sellers are held to a strict standard. If any fraud or violent '
+                'activity is found on your account, your seller account will be '
+                'SUSPENDED IMMEDIATELY — without prior warning.',
+            '• Fraud includes (but is not limited to): fake, stolen, or '
+                'misrepresented listings; scams or advance-fee tricks; requesting '
+                'or taking payment off-platform; taking payment and not '
+                'delivering; and counterfeit or illegal goods.',
+            '• Violent activity includes any threats, intimidation, harassment, '
+                'or abuse towards buyers, our staff, or other users — in chat or '
+                'in person.',
+            '• On immediate suspension you can no longer post ads, sell, make '
+                'offers, or chat, and any pending payouts may be held while we '
+                'investigate.',
+            '• Serious cases — fraud, threats, or violence — may also be '
+                'reported to the relevant law-enforcement authorities.',
+            '• If you believe a suspension was a mistake, you may submit an '
+                'appeal from within the app for review.',
+          ],
+        ),
+        (
+          'Intellectual property',
+          [
+            'PakBazar and its logo, design and content are our property. By '
+                'posting content you grant us a licence to host and display it '
+                'for the purpose of operating the marketplace.',
+          ],
+        ),
+        (
+          'Disclaimers & liability',
+          [
+            'The service is provided "as is" without warranties of any kind. To '
+                'the maximum extent permitted by law, PakBazar is not liable for '
+                'any indirect or consequential loss, or for disputes, items, or '
+                'conduct of users.',
+          ],
+        ),
+        (
+          'Governing law',
+          [
+            'These Terms are governed by the laws of the Islamic Republic of '
+                'Pakistan.',
+          ],
+        ),
+        (
+          'Changes to these terms',
+          [
+            'We may update these Terms from time to time. Continued use after an '
+                'update means you accept the revised Terms.',
+          ],
+        ),
       ],
     );
   }
@@ -1805,6 +1884,17 @@ class ProfileScreen extends StatelessWidget {
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(
+                          builder: (_) => const AddressBookScreen(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.location_on_outlined),
+                      label: const Text('Delivery addresses'),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
                           builder: (_) => const SalesDashboardScreen(),
                         ),
                       ),
@@ -1825,7 +1915,9 @@ class ProfileScreen extends StatelessWidget {
                       OutlinedButton.icon(
                         onPressed: () => Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const WalletScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const WalletScreen(),
+                          ),
                         ),
                         icon: const Icon(Icons.account_balance_wallet),
                         label: Text(tr('profile.wallet')),

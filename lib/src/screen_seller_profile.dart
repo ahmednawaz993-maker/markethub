@@ -339,15 +339,16 @@ class SellerProfileScreen extends StatelessWidget {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                final listings = snapshot.data!.docs
-                    .map((d) => Listing.fromDoc(d))
-                    .where((l) => l.isApproved)
-                    .toList()
-                  ..sort((a, b) {
-                    final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
-                    final bt = b.createdAt?.millisecondsSinceEpoch ?? 0;
-                    return bt.compareTo(at);
-                  });
+                final listings =
+                    snapshot.data!.docs
+                        .map((d) => Listing.fromDoc(d))
+                        .where((l) => l.isApproved)
+                        .toList()
+                      ..sort((a, b) {
+                        final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
+                        final bt = b.createdAt?.millisecondsSinceEpoch ?? 0;
+                        return bt.compareTo(at);
+                      });
 
                 if (listings.isEmpty) {
                   return const Center(
@@ -542,10 +543,7 @@ class FollowingScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Following')),
       body: uid == null
-          ? const EmptyState(
-              icon: Icons.people_outline,
-              title: 'Please log in',
-            )
+          ? const EmptyState(icon: Icons.people_outline, title: 'Please log in')
           : StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('users')
@@ -589,10 +587,8 @@ class FollowingScreen extends StatelessWidget {
                             .where((l) => l.isApproved)
                             .toList()
                           ..sort((a, b) {
-                            final at =
-                                a.createdAt?.millisecondsSinceEpoch ?? 0;
-                            final bt =
-                                b.createdAt?.millisecondsSinceEpoch ?? 0;
+                            final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
+                            final bt = b.createdAt?.millisecondsSinceEpoch ?? 0;
                             return bt.compareTo(at);
                           });
                     if (listings.isEmpty) {

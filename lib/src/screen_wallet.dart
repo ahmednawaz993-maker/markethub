@@ -167,7 +167,9 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
   if (!context.mounted) return;
 
   final bank = TextEditingController(text: d?['payoutBank']?.toString() ?? '');
-  final title = TextEditingController(text: d?['payoutTitle']?.toString() ?? '');
+  final title = TextEditingController(
+    text: d?['payoutTitle']?.toString() ?? '',
+  );
   final number = TextEditingController(
     text: d?['payoutNumber']?.toString() ?? '',
   );

@@ -13,11 +13,7 @@ Widget _statusChip(String label, Color color) {
     ),
     child: Text(
       label,
-      style: TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.bold,
-        color: color,
-      ),
+      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color),
     ),
   );
 }
@@ -95,7 +91,9 @@ class SalesDashboardScreen extends StatelessWidget {
           final months = [
             for (int i = 5; i >= 0; i--) DateTime(now.year, now.month - i, 1),
           ];
-          final monthEarn = {for (final m in months) '${m.year}-${m.month}': 0.0};
+          final monthEarn = {
+            for (final m in months) '${m.year}-${m.month}': 0.0,
+          };
 
           for (final o in orders) {
             final status = o['status']?.toString() ?? '';
@@ -107,8 +105,7 @@ class SalesDashboardScreen extends StatelessWidget {
               gross += amount;
               commissionPaid += comm;
               sold++;
-              final ts =
-                  (o['completedAt'] ?? o['createdAt']) as Timestamp?;
+              final ts = (o['completedAt'] ?? o['createdAt']) as Timestamp?;
               if (ts != null) {
                 final d = ts.toDate();
                 final key = '${d.year}-${d.month}';
@@ -162,7 +159,10 @@ class SalesDashboardScreen extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       '$sold item(s) sold${commissionActive ? ' · after 2% commission' : ' · 0% fee (free)'}',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
@@ -172,17 +172,30 @@ class SalesDashboardScreen extends StatelessWidget {
                 spacing: 10,
                 runSpacing: 10,
                 children: [
-                  _metric('Gross sales', formatPrice(gross.toStringAsFixed(0)),
-                      Icons.point_of_sale, kPakGreen),
-                  _metric('Commission paid',
-                      formatPrice(commissionPaid.toStringAsFixed(0)),
-                      Icons.percent, Colors.deepOrange),
-                  _metric('In escrow ($escrowCount)',
-                      formatPrice(inEscrow.toStringAsFixed(0)),
-                      Icons.lock_clock, Colors.blue),
-                  _metric('COD pending ($codCount)',
-                      formatPrice(codPending.toStringAsFixed(0)),
-                      Icons.local_shipping, Colors.purple),
+                  _metric(
+                    'Gross sales',
+                    formatPrice(gross.toStringAsFixed(0)),
+                    Icons.point_of_sale,
+                    kPakGreen,
+                  ),
+                  _metric(
+                    'Commission paid',
+                    formatPrice(commissionPaid.toStringAsFixed(0)),
+                    Icons.percent,
+                    Colors.deepOrange,
+                  ),
+                  _metric(
+                    'In escrow ($escrowCount)',
+                    formatPrice(inEscrow.toStringAsFixed(0)),
+                    Icons.lock_clock,
+                    Colors.blue,
+                  ),
+                  _metric(
+                    'COD pending ($codCount)',
+                    formatPrice(codPending.toStringAsFixed(0)),
+                    Icons.local_shipping,
+                    Colors.purple,
+                  ),
                 ],
               ),
               if (monetizationEnabled.value) ...[
@@ -194,21 +207,26 @@ class SalesDashboardScreen extends StatelessWidget {
                       .doc(uid)
                       .snapshots(),
                   builder: (context, us) {
-                    final bal = ((us.data?.data()
-                            as Map<String, dynamic>?)?['walletBalance'] as num?)
-                        ?.toInt() ??
+                    final bal =
+                        ((us.data?.data()
+                                    as Map<String, dynamic>?)?['walletBalance']
+                                as num?)
+                            ?.toInt() ??
                         0;
                     return Card(
                       child: ListTile(
-                        leading: const Icon(Icons.account_balance_wallet,
-                            color: kPakGreen),
+                        leading: const Icon(
+                          Icons.account_balance_wallet,
+                          color: kPakGreen,
+                        ),
                         title: const Text('Available wallet balance'),
                         subtitle: Text(formatPrice('$bal')),
                         trailing: TextButton(
                           onPressed: () => Navigator.push(
                             context,
                             MaterialPageRoute(
-                                builder: (_) => const WalletScreen()),
+                              builder: (_) => const WalletScreen(),
+                            ),
                           ),
                           child: const Text('Wallet'),
                         ),
@@ -249,8 +267,18 @@ class SalesDashboardScreen extends StatelessWidget {
 
   static String _monthLabel(DateTime m) {
     const names = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${names[m.month - 1]} ${m.year % 100}';
   }
@@ -259,8 +287,18 @@ class SalesDashboardScreen extends StatelessWidget {
 /// Short month label like "Jun 26" for trend charts.
 String monthShortLabel(DateTime m) {
   const names = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   return '${names[m.month - 1]} ${m.year % 100}';
 }
@@ -317,7 +355,9 @@ class _MonthBar extends StatelessWidget {
           SizedBox(
             width: 72,
             child: Text(
-              money ? formatPrice(value.toStringAsFixed(0)) : '${value.toInt()}',
+              money
+                  ? formatPrice(value.toStringAsFixed(0))
+                  : '${value.toInt()}',
               style: const TextStyle(fontSize: 11),
               textAlign: TextAlign.right,
             ),
@@ -554,7 +594,9 @@ Future<void> showLowerPriceSheet(BuildContext context, Listing listing) async {
                     if (context.mounted) Navigator.pop(context);
                     messenger.showSnackBar(
                       const SnackBar(
-                        content: Text('Price lowered — buyers will be notified'),
+                        content: Text(
+                          'Price lowered — buyers will be notified',
+                        ),
                       ),
                     );
                   },
@@ -677,10 +719,7 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                     children: [
                       IconButton(
                         tooltip: 'Bump to top',
-                        icon: const Icon(
-                          Icons.arrow_upward,
-                          color: kPakGreen,
-                        ),
+                        icon: const Icon(Icons.arrow_upward, color: kPakGreen),
                         onPressed: () async {
                           final messenger = ScaffoldMessenger.of(context);
                           final created = listing.createdAt?.toDate();
@@ -866,8 +905,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
 
     titleController = TextEditingController(text: widget.listing.title);
     priceController = TextEditingController(text: widget.listing.price);
-    deliveryFeeController =
-        TextEditingController(text: widget.listing.deliveryFee);
+    deliveryFeeController = TextEditingController(
+      text: widget.listing.deliveryFee,
+    );
     locationController = TextEditingController(text: widget.listing.location);
     phoneController = TextEditingController(text: widget.listing.phone);
     descriptionController = TextEditingController(
@@ -895,8 +935,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
     codAvailable = widget.listing.codAvailable;
     negotiable = widget.listing.negotiable;
     // Keep the saved place, including a custom town/village not in the list.
-    selectedCity =
-        widget.listing.city.isNotEmpty ? widget.listing.city : 'Karachi';
+    selectedCity = widget.listing.city.isNotEmpty
+        ? widget.listing.city
+        : 'Karachi';
   }
 
   Future<void> useCurrentLocation() async {
@@ -908,9 +949,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
         latitude = position.latitude;
         longitude = position.longitude;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Current location updated')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Current location updated')));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -979,7 +1020,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
         'subcategory': selectedSubcategory,
         'condition': selectedCondition,
         'unit': selectedUnit == 'None' ? '' : selectedUnit,
-        'deliveryFee': deliveryAvailable ? deliveryFeeController.text.trim() : '',
+        'deliveryFee': deliveryAvailable
+            ? deliveryFeeController.text.trim()
+            : '',
         'deliveryAvailable': deliveryAvailable,
         'codAvailable': codAvailable,
         'negotiable': negotiable,
@@ -1059,256 +1102,263 @@ class _EditListingScreenState extends State<EditListingScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Photos',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 90,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  if (newImages.isNotEmpty)
-                    for (final x in newImages)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: FutureBuilder<Uint8List>(
-                            future: x.readAsBytes(),
-                            builder: (context, snap) => snap.hasData
-                                ? Image.memory(
-                                    snap.data!,
-                                    width: 90,
-                                    height: 90,
-                                    fit: BoxFit.cover,
-                                  )
-                                : Container(
-                                    width: 90,
-                                    height: 90,
-                                    color: Colors.grey.shade300,
-                                  ),
-                          ),
-                        ),
-                      )
-                  else
-                    for (final u in widget.listing.galleryImages)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            u,
-                            width: 90,
-                            height: 90,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => Container(
-                              width: 90,
-                              height: 90,
-                              color: Colors.grey.shade300,
-                              child: const Icon(Icons.image),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Photos',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 90,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      if (newImages.isNotEmpty)
+                        for (final x in newImages)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: FutureBuilder<Uint8List>(
+                                future: x.readAsBytes(),
+                                builder: (context, snap) => snap.hasData
+                                    ? Image.memory(
+                                        snap.data!,
+                                        width: 90,
+                                        height: 90,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : Container(
+                                        width: 90,
+                                        height: 90,
+                                        color: Colors.grey.shade300,
+                                      ),
+                              ),
+                            ),
+                          )
+                      else
+                        for (final u in widget.listing.galleryImages)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                u,
+                                width: 90,
+                                height: 90,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => Container(
+                                  width: 90,
+                                  height: 90,
+                                  color: Colors.grey.shade300,
+                                  child: const Icon(Icons.image),
+                                ),
+                              ),
                             ),
                           ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: isSaving ? null : pickImages,
+                  icon: const Icon(Icons.add_a_photo),
+                  label: Text(
+                    newImages.isEmpty
+                        ? 'Change photos'
+                        : '${newImages.length} new photo(s) selected',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(labelText: 'Title'),
+                ),
+                TextField(
+                  controller: priceController,
+                  decoration: const InputDecoration(labelText: 'Price (PKR)'),
+                  keyboardType: TextInputType.number,
+                ),
+                TextField(
+                  controller: locationController,
+                  decoration: const InputDecoration(labelText: 'Area / Block'),
+                ),
+                const SizedBox(height: 12),
+                CitySelector(
+                  value: selectedCity,
+                  label: 'City / Town / Village',
+                  allowCustom: true,
+                  onChanged: (value) => setState(() => selectedCity = value),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: isLocating ? null : useCurrentLocation,
+                  icon: isLocating
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          latitude != null
+                              ? Icons.location_on
+                              : Icons.my_location,
+                          color: latitude != null ? Colors.green : null,
                         ),
+                  label: Text(
+                    latitude != null
+                        ? 'Current location set ✓'
+                        : 'Use my current location',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedCondition,
+                  decoration: const InputDecoration(labelText: 'Condition'),
+                  items: itemConditions
+                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null)
+                      setState(() => selectedCondition = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedUnit,
+                  decoration: const InputDecoration(
+                    labelText: 'Price unit (optional, e.g. per kg/dozen/plate)',
+                  ),
+                  items: pricingUnits
+                      .map(
+                        (u) => DropdownMenuItem(
+                          value: u,
+                          child: Text(u == 'None' ? 'None' : 'per $u'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) setState(() => selectedUnit = value);
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Delivery available'),
+                  subtitle: const Text('Show a delivery badge on your ad'),
+                  value: deliveryAvailable,
+                  activeThumbColor: kPakGreen,
+                  onChanged: (v) => setState(() => deliveryAvailable = v),
+                ),
+                if (deliveryAvailable)
+                  TextField(
+                    controller: deliveryFeeController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Delivery fee (PKR, optional)',
+                      hintText: 'Leave blank for free delivery',
+                      prefixIcon: Icon(Icons.local_shipping),
+                    ),
+                  ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Cash on Delivery'),
+                  subtitle: const Text(
+                    'Let buyers pay cash when the item arrives',
+                  ),
+                  value: codAvailable,
+                  activeThumbColor: kPakGreen,
+                  onChanged: (v) => setState(() => codAvailable = v),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Price negotiable'),
+                  subtitle: const Text('Buyers can make an offer'),
+                  value: negotiable,
+                  activeThumbColor: kPakGreen,
+                  onChanged: (v) => setState(() => negotiable = v),
+                ),
+                for (final label in attributeFieldsFor(selectedCategory))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: TextField(
+                      controller: _attrCtrl(label),
+                      decoration: InputDecoration(
+                        labelText: '$label (optional)',
                       ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: isSaving ? null : pickImages,
-              icon: const Icon(Icons.add_a_photo),
-              label: Text(
-                newImages.isEmpty
-                    ? 'Change photos'
-                    : '${newImages.length} new photo(s) selected',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: titleController,
-              decoration: const InputDecoration(labelText: 'Title'),
-            ),
-            TextField(
-              controller: priceController,
-              decoration: const InputDecoration(labelText: 'Price (PKR)'),
-              keyboardType: TextInputType.number,
-            ),
-            TextField(
-              controller: locationController,
-              decoration: const InputDecoration(labelText: 'Area / Block'),
-            ),
-            const SizedBox(height: 12),
-            CitySelector(
-              value: selectedCity,
-              label: 'City / Town / Village',
-              allowCustom: true,
-              onChanged: (value) => setState(() => selectedCity = value),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: isLocating ? null : useCurrentLocation,
-              icon: isLocating
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(
-                      latitude != null ? Icons.location_on : Icons.my_location,
-                      color: latitude != null ? Colors.green : null,
                     ),
-              label: Text(
-                latitude != null
-                    ? 'Current location set ✓'
-                    : 'Use my current location',
-              ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: selectedCondition,
-              decoration: const InputDecoration(labelText: 'Condition'),
-              items: itemConditions
-                  .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) setState(() => selectedCondition = value);
-              },
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: selectedUnit,
-              decoration: const InputDecoration(
-                labelText: 'Price unit (optional, e.g. per kg/dozen/plate)',
-              ),
-              items: pricingUnits
-                  .map(
-                    (u) => DropdownMenuItem(
-                      value: u,
-                      child: Text(u == 'None' ? 'None' : 'per $u'),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) setState(() => selectedUnit = value);
-              },
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Delivery available'),
-              subtitle: const Text('Show a delivery badge on your ad'),
-              value: deliveryAvailable,
-              activeThumbColor: kPakGreen,
-              onChanged: (v) => setState(() => deliveryAvailable = v),
-            ),
-            if (deliveryAvailable)
-              TextField(
-                controller: deliveryFeeController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Delivery fee (PKR, optional)',
-                  hintText: 'Leave blank for free delivery',
-                  prefixIcon: Icon(Icons.local_shipping),
+                  ),
+                TextField(
+                  controller: phoneController,
+                  decoration: const InputDecoration(
+                    labelText: 'WhatsApp / Phone Number *',
+                    hintText: 'Example: 03001234567 or +92 300 1234567',
+                  ),
+                  keyboardType: TextInputType.phone,
                 ),
-              ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Cash on Delivery'),
-              subtitle: const Text('Let buyers pay cash when the item arrives'),
-              value: codAvailable,
-              activeThumbColor: kPakGreen,
-              onChanged: (v) => setState(() => codAvailable = v),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Price negotiable'),
-              subtitle: const Text('Buyers can make an offer'),
-              value: negotiable,
-              activeThumbColor: kPakGreen,
-              onChanged: (v) => setState(() => negotiable = v),
-            ),
-            for (final label in attributeFieldsFor(selectedCategory))
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: TextField(
-                  controller: _attrCtrl(label),
-                  decoration: InputDecoration(labelText: '$label (optional)'),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'Description'),
+                  maxLines: 3,
                 ),
-              ),
-            TextField(
-              controller: phoneController,
-              decoration: const InputDecoration(
-                labelText: 'WhatsApp / Phone Number *',
-                hintText: 'Example: 03001234567 or +92 300 1234567',
-              ),
-              keyboardType: TextInputType.phone,
-            ),
-            TextField(
-              controller: descriptionController,
-              decoration: const InputDecoration(labelText: 'Description'),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 20),
-            DropdownButtonFormField<String>(
-              initialValue: selectedCategory,
-              decoration: const InputDecoration(labelText: 'Main Category'),
-              items: appCategories
-                  .where((category) => category.title != 'All')
-                  .map(
-                    (category) => DropdownMenuItem(
-                      value: category.title,
-                      child: Text(category.title),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    selectedCategory = value;
-                    selectedSubcategory = categoryByTitle(
-                      value,
-                    ).subcategories.first;
-                  });
-                }
-              },
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: subcategories.contains(selectedSubcategory)
-                  ? selectedSubcategory
-                  : subcategories.first,
-              decoration: const InputDecoration(labelText: 'Subcategory'),
-              items: subcategories
-                  .map(
-                    (subcategory) => DropdownMenuItem(
-                      value: subcategory,
-                      child: Text(subcategory),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    selectedSubcategory = value;
-                  });
-                }
-              },
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: isSaving ? null : updateListing,
-              child: isSaving
-                  ? const SizedBox(
-                      height: 22,
-                      width: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Update'),
-            ),
+                const SizedBox(height: 20),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedCategory,
+                  decoration: const InputDecoration(labelText: 'Main Category'),
+                  items: appCategories
+                      .where((category) => category.title != 'All')
+                      .map(
+                        (category) => DropdownMenuItem(
+                          value: category.title,
+                          child: Text(category.title),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        selectedCategory = value;
+                        selectedSubcategory = categoryByTitle(
+                          value,
+                        ).subcategories.first;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: subcategories.contains(selectedSubcategory)
+                      ? selectedSubcategory
+                      : subcategories.first,
+                  decoration: const InputDecoration(labelText: 'Subcategory'),
+                  items: subcategories
+                      .map(
+                        (subcategory) => DropdownMenuItem(
+                          value: subcategory,
+                          child: Text(subcategory),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        selectedSubcategory = value;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: isSaving ? null : updateListing,
+                  child: isSaving
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Update'),
+                ),
               ],
             ),
           ),

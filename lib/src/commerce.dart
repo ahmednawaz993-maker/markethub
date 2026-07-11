@@ -118,216 +118,155 @@ bool get commissionActive => commissionRate > 0;
 double deliveryFeeOf(Listing l) =>
     l.deliveryAvailable ? parsePrice(l.deliveryFee) : 0;
 
-/// Creates a buy order for a listing. Commission (2%) is recorded so the
-/// platform can take its cut once gateway payments go live (Phase 2).
-Future<void> createOrder(Listing listing) async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) return;
-  final itemPrice = parsePrice(listing.price);
-  final delivery = deliveryFeeOf(listing);
-  // `amount` is the total the buyer pays (product + delivery); commission is
-  // taken on the product only, so the seller keeps the full delivery fee.
-  final amount = itemPrice + delivery;
-  final commission = itemPrice * commissionRate;
-  await FirebaseFirestore.instance.collection('orders').add({
-    'listingId': listing.id,
-    'listingTitle': listing.title,
-    'listingImage':
-        listing.galleryImages.isEmpty ? '' : listing.galleryImages.first,
-    'sellerId': listing.userId,
-    'sellerName': listing.sellerName,
-    'buyerId': user.uid,
-    'buyerName': user.email ?? 'Buyer',
-    'amount': amount,
-    'deliveryFee': delivery,
-    'commission': commission,
-    'sellerPayout': amount - commission,
-    'status': 'pending_payment',
-    'createdAt': Timestamp.now(),
-  });
+/// Merchandise subtotal (in Rs) at or above which delivery is free.
+/// IMPORTANT: mirror of FREE_DELIVERY_THRESHOLD in functions/index.js — the
+/// Cloud Function re-applies this rule server-side (notifyOnNewOrder), so keep
+/// the two values in sync. Defined once here; never hardcode 3000 elsewhere.
+const double freeDeliveryThreshold = 3000;
+
+/// Whether a given merchandise subtotal qualifies for free delivery. The
+/// threshold is on the product subtotal only — before any delivery fee,
+/// discount, or tax.
+bool qualifiesForFreeDelivery(double subtotal) =>
+    subtotal >= freeDeliveryThreshold;
+
+/// The delivery fee actually charged to the buyer: Rs 0 when the subtotal
+/// qualifies for free delivery, otherwise the seller's per-listing fee.
+double effectiveDeliveryFee(Listing l, double subtotal) =>
+    qualifiesForFreeDelivery(subtotal) ? 0 : deliveryFeeOf(l);
+
+/// How much more (in Rs) the buyer must add to reach free delivery (>= 0).
+double amountToFreeDelivery(double subtotal) {
+  final remaining = freeDeliveryThreshold - subtotal;
+  return remaining > 0 ? remaining : 0;
 }
 
-/// Places a Cash-on-Delivery order: no online payment and no platform escrow —
-/// the buyer pays cash on handover. No commission is taken on COD.
-Future<void> createCodOrder(Listing listing) async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) return;
-  final delivery = deliveryFeeOf(listing);
-  // Buyer pays product + delivery in cash on handover. No commission on COD.
-  final amount = parsePrice(listing.price) + delivery;
-  await FirebaseFirestore.instance.collection('orders').add({
-    'listingId': listing.id,
-    'listingTitle': listing.title,
-    'listingImage':
-        listing.galleryImages.isEmpty ? '' : listing.galleryImages.first,
-    'sellerId': listing.userId,
-    'sellerName': listing.sellerName,
-    'buyerId': user.uid,
-    'buyerName': user.email ?? 'Buyer',
-    'amount': amount,
-    'deliveryFee': delivery,
-    'commission': 0,
-    'sellerPayout': amount,
-    'paymentMethod': 'cod',
-    'status': 'cod_pending',
-    'createdAt': Timestamp.now(),
-  });
+/// Raised during checkout with a short, user-friendly message (never a raw
+/// Firebase exception). The checkout screen shows [message] to the buyer.
+class CheckoutException implements Exception {
+  final String message;
+  CheckoutException(this.message);
+  @override
+  String toString() => message;
 }
 
-/// Confirmation sheet for "Buy now".
-Future<void> showBuyNowSheet(BuildContext context, Listing listing) async {
+/// Turns an unexpected error into a friendly checkout message.
+String _friendlyOrderError(Object e) {
+  final s = e.toString().toLowerCase();
+  if (s.contains('permission-denied') || s.contains('permission denied')) {
+    return 'You are not allowed to place this order. Please make sure your '
+        'account is verified and try again.';
+  }
+  if (s.contains('unavailable') ||
+      s.contains('network') ||
+      s.contains('timeout') ||
+      s.contains('deadline')) {
+    return 'Network problem. Please check your connection and try again.';
+  }
+  return 'Could not place the order. Please try again.';
+}
+
+/// Creates a single-listing order after re-validating the listing against
+/// current server data (still exists, not sold, current price) inside a
+/// transaction, and embeds a snapshot of the buyer's [address].
+///
+/// Free delivery (subtotal >= [freeDeliveryThreshold]) is applied here AND
+/// re-applied server-side in notifyOnNewOrder, so the stored fee is
+/// authoritative regardless of the client. [paymentMethod] is 'cod' or
+/// 'escrow'. Returns the new order id. Throws [CheckoutException] with a
+/// user-friendly message on any failure.
+Future<String> placeListingOrder({
+  required Listing listing,
+  required DeliveryAddress address,
+  required String paymentMethod, // 'cod' | 'escrow'
+  String notes = '',
+}) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) throw CheckoutException('Please log in to place an order.');
+  if (!address.isComplete) {
+    throw CheckoutException(
+      'Please provide a complete delivery address first.',
+    );
+  }
+  final isCod = paymentMethod == 'cod';
+  final fs = FirebaseFirestore.instance;
+  final listingRef = fs.collection('listings').doc(listing.id);
+  final orderRef = fs.collection('orders').doc();
+
+  try {
+    await fs.runTransaction((tx) async {
+      final snap = await tx.get(listingRef);
+      if (!snap.exists) {
+        throw CheckoutException('This item is no longer available.');
+      }
+      final data = snap.data() as Map<String, dynamic>;
+      if (data['isSold'] == true) {
+        throw CheckoutException('This item has just been sold.');
+      }
+      if (isCod && data['codAvailable'] != true) {
+        throw CheckoutException(
+          'Cash on Delivery is not available for this item.',
+        );
+      }
+      // Recompute from trusted current data, never the local cart copy.
+      final current = Listing.fromDoc(snap);
+      final itemSubtotal = parsePrice(current.price);
+      if (itemSubtotal <= 0) {
+        throw CheckoutException('This item cannot be purchased right now.');
+      }
+      final delivery = effectiveDeliveryFee(current, itemSubtotal);
+      final amount = itemSubtotal + delivery;
+      // Commission is taken on the product only, so the seller keeps the full
+      // delivery fee; no commission on COD.
+      final commission = isCod ? 0.0 : itemSubtotal * commissionRate;
+      tx.set(orderRef, {
+        'listingId': current.id,
+        'listingTitle': current.title,
+        'listingImage': current.galleryImages.isEmpty
+            ? ''
+            : current.galleryImages.first,
+        'sellerId': current.userId,
+        'sellerName': current.sellerName,
+        'buyerId': user.uid,
+        'buyerName': address.fullName.trim(),
+        'buyerPhone': normalizePakMobile(address.phone),
+        'itemSubtotal': itemSubtotal,
+        'amount': amount,
+        'deliveryFee': delivery,
+        'discount': 0,
+        'qualifiesForFreeDelivery': qualifiesForFreeDelivery(itemSubtotal),
+        'freeDeliveryThreshold': freeDeliveryThreshold,
+        'commission': commission,
+        'sellerPayout': amount - commission,
+        'deliveryAddress': address.snapshotMap(),
+        'paymentMethod': isCod ? 'cod' : 'escrow',
+        'notes': notes.trim(),
+        'status': isCod ? 'cod_pending' : 'pending_payment',
+        'createdAt': Timestamp.now(),
+      });
+    });
+  } on CheckoutException {
+    rethrow;
+  } catch (e) {
+    throw CheckoutException(_friendlyOrderError(e));
+  }
+  return orderRef.id;
+}
+
+/// Entry point from the "Buy now" button: gates on ID verification, then opens
+/// the full checkout screen (address selection + summary + Place Order).
+Future<void> openCheckout(BuildContext context, Listing listing) async {
   if (!await ensureVerified(context)) return;
   if (!context.mounted) return;
-  await showModalBottomSheet(
-    context: context,
-    builder: (context) {
-      // Disables both buttons for the duration of the create() write so a
-      // double-tap can't place two orders for the same purchase.
-      var submitting = false;
-      return StatefulBuilder(
-        builder: (context, setSheetState) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Confirm purchase',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(child: Text(listing.title)),
-                  Text(
-                    priceLabel(listing),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              if (deliveryFeeOf(listing) > 0) ...[
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Delivery fee'),
-                    Text(formatPrice(listing.deliveryFee)),
-                  ],
-                ),
-              ],
-              const Divider(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'You pay',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    formatPrice(
-                      (parsePrice(listing.price) + deliveryFeeOf(listing))
-                          .toStringAsFixed(0),
-                    ),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: kPakGreen,
-                      fontSize: 18,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                listing.codAvailable
-                    ? 'Pay online (held in escrow until you confirm receipt) or '
-                          'choose Cash on Delivery. Track it in Profile → My '
-                          'Orders.'
-                    : 'Your payment is held safely in escrow until you confirm '
-                          'you received the item. Track it in Profile → My '
-                          'Orders.',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(height: 12),
-              if (listing.codAvailable) ...[
-                OutlinedButton.icon(
-                  onPressed: submitting
-                      ? null
-                      : () async {
-                          setSheetState(() => submitting = true);
-                          try {
-                            await createCodOrder(listing);
-                          } catch (_) {
-                            if (context.mounted) {
-                              setSheetState(() => submitting = false);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Could not place order. Try again.',
-                                  ),
-                                ),
-                              );
-                            }
-                            return;
-                          }
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'COD order placed — pay cash on delivery. See '
-                                  'Profile → My Orders.',
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                  icon: const Icon(Icons.local_shipping),
-                  label: const Text('Cash on Delivery'),
-                ),
-                const SizedBox(height: 8),
-              ],
-              ElevatedButton(
-                onPressed: submitting
-                    ? null
-                    : () async {
-                        setSheetState(() => submitting = true);
-                        try {
-                          await createOrder(listing);
-                        } catch (_) {
-                          if (context.mounted) {
-                            setSheetState(() => submitting = false);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Could not place order. Try again.',
-                                ),
-                              ),
-                            );
-                          }
-                          return;
-                        }
-                        if (context.mounted) {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Order placed! Pay it from Profile → My Orders.',
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                child: const Text('Pay online (escrow)'),
-              ),
-            ],
-          ),
-        ),
-      ),
-      );
-    },
+  await Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => CheckoutScreen(listing: listing)),
   );
 }
+
+// The old "Buy now" confirmation bottom sheet was replaced by the full
+// CheckoutScreen (mandatory delivery address + free-delivery rule + payment
+// method). See openCheckout / placeListingOrder above and screen_checkout.dart.
 
 // ---------------------------------------------------------------------------
 // Premium Pakistan-flag theme palette
@@ -339,8 +278,9 @@ Future<void> createOffer(Listing listing, double amount) async {
   await FirebaseFirestore.instance.collection('offers').add({
     'listingId': listing.id,
     'listingTitle': listing.title,
-    'listingImage':
-        listing.galleryImages.isEmpty ? '' : listing.galleryImages.first,
+    'listingImage': listing.galleryImages.isEmpty
+        ? ''
+        : listing.galleryImages.first,
     'askingPrice': parsePrice(listing.price),
     'offerAmount': amount,
     'deliveryFee': deliveryFeeOf(listing),
@@ -364,85 +304,88 @@ Future<void> showOfferSheet(BuildContext context, Listing listing) async {
       var submitting = false;
       return StatefulBuilder(
         builder: (context, setSheetState) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Make an offer',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Asking price: ${formatPrice(listing.price)}',
-                  style: const TextStyle(color: Colors.grey),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: controller,
-                  keyboardType: TextInputType.number,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Your offer (Rs)',
-                    border: OutlineInputBorder(),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Make an offer',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: submitting
-                      ? null
-                      : () async {
-                          final amt = double.tryParse(
-                            controller.text.replaceAll(RegExp(r'[^0-9.]'), ''),
-                          );
-                          if (amt == null || amt <= 0) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Enter a valid amount'),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Asking price: ${formatPrice(listing.price)}',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Your offer (Rs)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: submitting
+                        ? null
+                        : () async {
+                            final amt = double.tryParse(
+                              controller.text.replaceAll(
+                                RegExp(r'[^0-9.]'),
+                                '',
                               ),
                             );
-                            return;
-                          }
-                          setSheetState(() => submitting = true);
-                          try {
-                            await createOffer(listing, amt);
-                          } catch (_) {
+                            if (amt == null || amt <= 0) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Enter a valid amount'),
+                                ),
+                              );
+                              return;
+                            }
+                            setSheetState(() => submitting = true);
+                            try {
+                              await createOffer(listing, amt);
+                            } catch (_) {
+                              if (context.mounted) {
+                                setSheetState(() => submitting = false);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Could not send offer. Try again.',
+                                    ),
+                                  ),
+                                );
+                              }
+                              return;
+                            }
                             if (context.mounted) {
-                              setSheetState(() => submitting = false);
+                              Navigator.pop(context);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text(
-                                    'Could not send offer. Try again.',
+                                    'Offer sent! Track it in Profile → Offers.',
                                   ),
                                 ),
                               );
                             }
-                            return;
-                          }
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Offer sent! Track it in Profile → Offers.',
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                  child: const Text('Send offer'),
-                ),
-              ],
+                          },
+                    child: const Text('Send offer'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
       );
     },
   );
@@ -518,9 +461,7 @@ Future<bool> payFromWallet(
   });
   if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Purchase requested — activating shortly…'),
-      ),
+      const SnackBar(content: Text('Purchase requested — activating shortly…')),
     );
   }
   return true;

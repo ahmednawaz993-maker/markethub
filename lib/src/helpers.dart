@@ -2,7 +2,6 @@ part of '../main.dart';
 
 // Top-level helper functions and shared constants.
 
-
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -16,7 +15,9 @@ String formatPrice(String raw) {
   final cleaned = raw.replaceAll(RegExp(r'[^0-9.]'), '');
   final value = double.tryParse(cleaned);
   if (value == null || cleaned.isEmpty) {
-    return raw.trim().isEmpty ? currencySymbol : '$currencySymbol ${raw.trim()}';
+    return raw.trim().isEmpty
+        ? currencySymbol
+        : '$currencySymbol ${raw.trim()}';
   }
   // Round the whole value in one operation so the fraction carries into the
   // integer part correctly (e.g. 100.999 -> 101.00, not 100.00).
@@ -140,8 +141,9 @@ Future<void> saveUserLocation({String? city, double? lat, double? lng}) async {
   } catch (_) {}
 }
 
-bool isAdminUser() =>
-    adminEmails.contains(FirebaseAuth.instance.currentUser?.email?.toLowerCase());
+bool isAdminUser() => adminEmails.contains(
+  FirebaseAuth.instance.currentUser?.email?.toLowerCase(),
+);
 
 /// Demo / review accounts that bypass ID verification so Google Play reviewers
 /// (and demos) can use post/buy/offer/chat immediately, without waiting for
@@ -213,8 +215,7 @@ bool hasAdminPerm(String code) =>
 
 /// True if the user can open the admin panel at all (super admin or any staff
 /// permission).
-bool canOpenAdminPanel() =>
-    isSuperAdmin() || staffPermissions.isNotEmpty;
+bool canOpenAdminPanel() => isSuperAdmin() || staffPermissions.isNotEmpty;
 
 /// Price with an optional unit suffix, e.g. "Rs 250 / kg".
 String priceLabel(Listing l) =>
@@ -403,8 +404,11 @@ Future<void> submitSellerReview({
   if (me == null) return;
 
   final fs = FirebaseFirestore.instance;
-  final reviewRef =
-      fs.collection('users').doc(sellerId).collection('reviews').doc(me.uid);
+  final reviewRef = fs
+      .collection('users')
+      .doc(sellerId)
+      .collection('reviews')
+      .doc(me.uid);
 
   // Write only the reviewer's own review doc (one per user, doc id == uid,
   // a validated 1-5 stars). The seller's aggregate ratingSum/ratingCount is
@@ -431,10 +435,7 @@ Future<void> recordRecentlyViewed(Listing listing) async {
         .doc(uid)
         .collection('recentlyViewed')
         .doc(listing.id)
-        .set({
-          ...listing.toMap(),
-          'viewedAt': Timestamp.now(),
-        });
+        .set({...listing.toMap(), 'viewedAt': Timestamp.now()});
   } catch (_) {
     // Non-critical.
   }

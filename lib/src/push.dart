@@ -109,8 +109,9 @@ Future<void> syncSupportPushToken() async {
         : await messaging.getToken();
     if (token == null) return;
 
-    final ref =
-        FirebaseFirestore.instance.collection('supportTokens').doc(token);
+    final ref = FirebaseFirestore.instance
+        .collection('supportTokens')
+        .doc(token);
     if (isSuperAdmin() || hasAdminPerm('support')) {
       await ref.set({
         'uid': uid,

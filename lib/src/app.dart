@@ -126,58 +126,58 @@ Future<void> _submitAppeal(BuildContext context) async {
   if (user == null) return;
   final controller = TextEditingController();
   try {
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Appeal your suspension'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'Explain what happened and how you have resolved the issue. An '
-            'administrator will review your appeal.',
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: controller,
-            autofocus: true,
-            maxLines: 5,
-            decoration: const InputDecoration(
-              hintText: 'Your appeal…',
-              border: OutlineInputBorder(),
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Appeal your suspension'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Explain what happened and how you have resolved the issue. An '
+              'administrator will review your appeal.',
             ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              maxLines: 5,
+              decoration: const InputDecoration(
+                hintText: 'Your appeal…',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Submit appeal'),
           ),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, false),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('Submit appeal'),
-        ),
-      ],
-    ),
-  );
-  if (ok != true) return;
-  final text = controller.text.trim();
-  if (text.isEmpty) return;
-  await FirebaseFirestore.instance.collection('appeals').add({
-    'userId': user.uid,
-    'userEmail': user.email ?? '',
-    'message': text,
-    'status': 'pending',
-    'createdAt': Timestamp.now(),
-  });
-  if (context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Appeal submitted. An administrator will review it.'),
-      ),
     );
-  }
+    if (ok != true) return;
+    final text = controller.text.trim();
+    if (text.isEmpty) return;
+    await FirebaseFirestore.instance.collection('appeals').add({
+      'userId': user.uid,
+      'userEmail': user.email ?? '',
+      'message': text,
+      'status': 'pending',
+      'createdAt': Timestamp.now(),
+    });
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Appeal submitted. An administrator will review it.'),
+        ),
+      );
+    }
   } finally {
     controller.dispose();
   }
@@ -266,10 +266,14 @@ class _AppealSection extends StatelessWidget {
         // Newest appeal first (sorted client-side to avoid needing an index).
         final docs = (snap.data?.docs ?? []).toList()
           ..sort((a, b) {
-            final at = ((a.data() as Map)['createdAt'] as Timestamp?)
-                    ?.millisecondsSinceEpoch ?? 0;
-            final bt = ((b.data() as Map)['createdAt'] as Timestamp?)
-                    ?.millisecondsSinceEpoch ?? 0;
+            final at =
+                ((a.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
+            final bt =
+                ((b.data() as Map)['createdAt'] as Timestamp?)
+                    ?.millisecondsSinceEpoch ??
+                0;
             return bt.compareTo(at);
           });
         final latest = docs.isEmpty
