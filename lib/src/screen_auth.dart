@@ -23,7 +23,9 @@ class _AuthScreenState extends State<AuthScreen> {
   // Phone / OTP login state.
   bool usePhone = false;
   bool otpSent = false;
-  ConfirmationResult? _confirmation;
+  ConfirmationResult? _confirmation; // Web only (reCAPTCHA-based flow).
+  String? _verificationId; // Android / iOS (verifyPhoneNumber flow).
+  int? _resendToken; // Android: token used to resend the SMS.
   String _sentTo = '';
 
   String get _primaryLabel {
@@ -41,8 +43,16 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  /// Sends an SMS OTP to the entered Pakistani number. On web this triggers an
-  /// (invisible) reCAPTCHA handled by firebase_auth.
+  /// Sends an SMS OTP to the entered Pakistani number.
+  ///
+  /// Two code paths, because firebase_auth exposes phone auth differently per
+  /// platform:
+  ///   * **Web** — `signInWithPhoneNumber` drives an (invisible) reCAPTCHA and
+  ///     returns a [ConfirmationResult] we later `.confirm()`.
+  ///   * **Android / iOS** — `verifyPhoneNumber` with callbacks. Calling
+  ///     `signInWithPhoneNumber` on mobile throws
+  ///     `UnimplementedError: RecaptchaVerifier is not implemented`, so it must
+  ///     never run off the web.
   Future<void> sendOtp() async {
     final raw = phoneController.text.trim();
     if (normalizePhoneForWhatsApp(raw).length < 11) {
@@ -55,31 +65,91 @@ class _AuthScreenState extends State<AuthScreen> {
       isLoading = true;
       errorMessage = null;
     });
+
+    if (kIsWeb) {
+      // Web: reCAPTCHA-based flow.
+      try {
+        final confirmation = await FirebaseAuth.instance.signInWithPhoneNumber(
+          phone,
+        );
+        if (!mounted) return;
+        setState(() {
+          _confirmation = confirmation;
+          _sentTo = phone;
+          otpSent = true;
+        });
+      } on FirebaseAuthException catch (e) {
+        if (!mounted) return;
+        setState(() => errorMessage = _friendlyPhoneError(e));
+      } catch (e) {
+        if (!mounted) return;
+        setState(
+          () => errorMessage = 'Could not send the code. Please try again.',
+        );
+      } finally {
+        if (mounted) setState(() => isLoading = false);
+      }
+      return;
+    }
+
+    // Android / iOS: verifyPhoneNumber with callbacks. The returned Future
+    // completes as soon as the request is dispatched; the outcome arrives on
+    // the callbacks below, so isLoading is cleared there (not in a finally).
     try {
-      final confirmation = await FirebaseAuth.instance.signInWithPhoneNumber(
-        phone,
+      await FirebaseAuth.instance.verifyPhoneNumber(
+        phoneNumber: phone,
+        timeout: const Duration(seconds: 60),
+        forceResendingToken: _resendToken,
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          // Android instant-verification / SMS auto-retrieval: sign in with no
+          // manual code entry.
+          await _signInWithPhoneCredential(credential);
+        },
+        verificationFailed: (FirebaseAuthException e) {
+          if (!mounted) return;
+          setState(() {
+            isLoading = false;
+            errorMessage = _friendlyPhoneError(e);
+          });
+        },
+        codeSent: (String verificationId, int? resendToken) {
+          if (!mounted) return;
+          setState(() {
+            _verificationId = verificationId;
+            _resendToken = resendToken;
+            _sentTo = phone;
+            otpSent = true;
+            isLoading = false;
+          });
+        },
+        codeAutoRetrievalTimeout: (String verificationId) {
+          // Auto-retrieval window closed; keep the id so manual entry still
+          // works.
+          _verificationId = verificationId;
+        },
       );
-      if (!mounted) return;
-      setState(() {
-        _confirmation = confirmation;
-        _sentTo = phone;
-        otpSent = true;
-      });
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      setState(() => errorMessage = e.message ?? 'Could not send the code');
+      setState(() {
+        isLoading = false;
+        errorMessage = _friendlyPhoneError(e);
+      });
     } catch (e) {
       if (!mounted) return;
-      setState(() => errorMessage = 'Could not send the code: $e');
-    } finally {
-      if (mounted) setState(() => isLoading = false);
+      setState(() {
+        isLoading = false;
+        errorMessage = 'Could not send the code. Please try again.';
+      });
     }
   }
 
-  /// Confirms the 6-digit code and signs the user in.
+  /// Confirms the 6-digit code and signs the user in. Web confirms the
+  /// [ConfirmationResult]; mobile builds a [PhoneAuthProvider] credential from
+  /// the stored verification id.
   Future<void> verifyOtp() async {
     final code = otpController.text.trim();
-    if (code.isEmpty || _confirmation == null) {
+    final hasSession = kIsWeb ? _confirmation != null : _verificationId != null;
+    if (code.isEmpty || !hasSession) {
       setState(() => errorMessage = 'Please enter the code we sent you');
       return;
     }
@@ -87,14 +157,70 @@ class _AuthScreenState extends State<AuthScreen> {
       isLoading = true;
       errorMessage = null;
     });
+
+    if (kIsWeb) {
+      try {
+        await _confirmation!.confirm(code);
+        // AuthGate listens to authStateChanges and navigates automatically.
+      } on FirebaseAuthException catch (e) {
+        if (!mounted) return;
+        setState(() => errorMessage = _friendlyPhoneError(e));
+      } finally {
+        if (mounted) setState(() => isLoading = false);
+      }
+      return;
+    }
+
+    final credential = PhoneAuthProvider.credential(
+      verificationId: _verificationId!,
+      smsCode: code,
+    );
+    await _signInWithPhoneCredential(credential);
+  }
+
+  /// Shared sign-in for a phone credential (used by both manual OTP entry and
+  /// Android auto-verification). Owns its own loading/error handling so it is
+  /// safe to call from the fire-and-forget `verificationCompleted` callback.
+  Future<void> _signInWithPhoneCredential(
+    PhoneAuthCredential credential,
+  ) async {
     try {
-      await _confirmation!.confirm(code);
+      await FirebaseAuth.instance.signInWithCredential(credential);
       // AuthGate listens to authStateChanges and navigates automatically.
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      setState(() => errorMessage = e.message ?? 'Invalid or expired code');
+      setState(() => errorMessage = _friendlyPhoneError(e));
     } finally {
       if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  /// Turns a Firebase phone-auth error code into a short, user-facing message
+  /// instead of leaking the raw exception.
+  String _friendlyPhoneError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-phone-number':
+        return 'That phone number looks invalid. Please check and try again.';
+      case 'invalid-verification-code':
+        return 'The code you entered is incorrect. Please try again.';
+      case 'invalid-verification-id':
+      case 'session-expired':
+        return 'The code has expired. Please request a new one.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please try again in a few minutes.';
+      case 'quota-exceeded':
+        return 'SMS limit reached. Please try again later.';
+      case 'network-request-failed':
+        return 'No internet connection. Please try again.';
+      case 'missing-client-identifier':
+      case 'app-not-authorized':
+        return "This app isn't authorized for phone sign-in yet. "
+            'Please use email login or contact support.';
+      case 'credential-already-in-use':
+      case 'account-exists-with-different-credential':
+        return 'This number is already linked to another account.';
+      default:
+        return e.message ?? 'Could not verify your number. Please try again.';
     }
   }
 
@@ -518,6 +644,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             setState(() {
                               otpSent = false;
                               _confirmation = null;
+                              _verificationId = null;
                               otpController.clear();
                               errorMessage = null;
                             });
