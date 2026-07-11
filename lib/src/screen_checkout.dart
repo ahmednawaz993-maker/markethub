@@ -202,6 +202,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         paymentMethod: _paymentMethod,
         notes: _notesController.text,
       );
+      // A completed order is a meaningful engagement signal for the review
+      // prompt (recorded only — the prompt itself appears later, on Home).
+      recordMeaningfulAction();
       if (!mounted) return;
       Navigator.pushReplacement(
         context,

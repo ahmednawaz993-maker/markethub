@@ -90,4 +90,140 @@ void main() {
       expect(a.isComplete, isFalse);
     });
   });
+
+  group('Seller-controlled inventory status', () {
+    test('migrates legacy isSold when status absent/invalid', () {
+      expect(listingStatusFrom(null, false), 'in_stock');
+      expect(listingStatusFrom(null, true), 'sold');
+      expect(listingStatusFrom('', true), 'sold');
+      expect(listingStatusFrom('garbage', true), 'sold');
+      expect(listingStatusFrom('garbage', false), 'in_stock');
+    });
+
+    test('honours an explicit valid status over the legacy bool', () {
+      expect(listingStatusFrom('in_stock', true), 'in_stock');
+      expect(listingStatusFrom('out_of_stock', false), 'out_of_stock');
+      expect(listingStatusFrom('inactive', true), 'inactive');
+      expect(listingStatusFrom('sold', false), 'sold');
+    });
+
+    Listing withStatus(String s) => Listing(
+      id: '1',
+      title: 'x',
+      price: '100',
+      location: '',
+      imageUrl: '',
+      category: 'x',
+      status: s,
+    );
+
+    test('only in_stock is purchasable', () {
+      expect(withStatus('in_stock').isAvailableForSale, isTrue);
+      expect(withStatus('out_of_stock').isAvailableForSale, isFalse);
+      expect(withStatus('sold').isAvailableForSale, isFalse);
+      expect(withStatus('inactive').isAvailableForSale, isFalse);
+    });
+
+    test('only inactive is hidden from public feeds', () {
+      expect(withStatus('in_stock').isPubliclyVisible, isTrue);
+      expect(withStatus('sold').isPubliclyVisible, isTrue);
+      expect(withStatus('out_of_stock').isPubliclyVisible, isTrue);
+      expect(withStatus('inactive').isPubliclyVisible, isFalse);
+    });
+
+    test('status labels are buyer-facing', () {
+      expect(withStatus('in_stock').statusLabel, '');
+      expect(withStatus('sold').statusLabel, 'Sold');
+      expect(withStatus('out_of_stock').statusLabel, 'Out of stock');
+      expect(withStatus('inactive').statusLabel, 'Inactive');
+    });
+  });
+
+  group('Platform-held payment: separate order & payment status', () {
+    test('explicit orderStatus wins over legacy status', () {
+      expect(
+        orderStatusOf({'orderStatus': 'shipped', 'status': 'in_escrow'}),
+        'shipped',
+      );
+    });
+
+    test('legacy status maps to an order-progress value', () {
+      expect(orderStatusOf({'status': 'pending_payment'}), 'pending');
+      expect(orderStatusOf({'status': 'cod_pending'}), 'processing');
+      expect(orderStatusOf({'status': 'in_escrow'}), 'accepted');
+      expect(
+        orderStatusOf({'status': 'in_escrow', 'buyerConfirmed': true}),
+        'buyer_confirmed',
+      );
+      expect(orderStatusOf({'status': 'released'}), 'completed');
+      expect(orderStatusOf({'status': 'refunded'}), 'cancelled');
+    });
+
+    test('explicit paymentStatus wins over legacy status', () {
+      expect(
+        paymentStatusOf({
+          'paymentStatus': 'release_pending',
+          'status': 'in_escrow',
+        }),
+        'release_pending',
+      );
+    });
+
+    test('legacy status maps to a money status', () {
+      expect(paymentStatusOf({'status': 'pending_payment'}), 'payment_pending');
+      expect(paymentStatusOf({'status': 'in_escrow'}), 'held_by_platform');
+      expect(
+        paymentStatusOf({'status': 'in_escrow', 'buyerConfirmed': true}),
+        'release_pending',
+      );
+      expect(paymentStatusOf({'status': 'released'}), 'released_to_seller');
+      expect(paymentStatusOf({'status': 'cod_pending'}), 'unpaid');
+      expect(paymentStatusOf({'status': 'refunded'}), 'refunded');
+    });
+
+    test('order and payment status are genuinely independent', () {
+      // A shipped-but-still-held order: fulfillment advanced, money unchanged.
+      final o = {
+        'status': 'in_escrow',
+        'orderStatus': 'shipped',
+        'paymentStatus': 'held_by_platform',
+      };
+      expect(orderStatusOf(o), 'shipped');
+      expect(paymentStatusOf(o), 'held_by_platform');
+    });
+  });
+
+  group('Seller shipping flow transitions', () {
+    test('advances one legal step at a time', () {
+      expect(nextShippingStep('pending'), 'accepted');
+      expect(nextShippingStep('accepted'), 'processing');
+      expect(nextShippingStep('processing'), 'shipped');
+      expect(nextShippingStep('shipped'), 'delivered');
+    });
+
+    test('no further seller step after delivered', () {
+      expect(nextShippingStep('delivered'), '');
+      expect(nextShippingStep('buyer_confirmed'), '');
+      expect(nextShippingStep('completed'), '');
+    });
+  });
+
+  group('Policy-compliant status wording', () {
+    test('payment labels never say "escrow"', () {
+      for (final s in [
+        'held_by_platform',
+        'release_pending',
+        'released_to_seller',
+        'refunded',
+      ]) {
+        expect(paymentStatusLabel(s).toLowerCase().contains('escrow'), isFalse);
+      }
+      expect(paymentStatusLabel('held_by_platform'), 'Held by PakBazar');
+      expect(
+        paymentStatusLabel('release_pending'),
+        'Pending seller settlement',
+      );
+      expect(paymentStatusLabel('released_to_seller'), 'Paid out to seller');
+    });
+  });
 }

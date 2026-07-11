@@ -200,16 +200,22 @@ Future<String> placeListingOrder({
         throw CheckoutException('This item is no longer available.');
       }
       final data = snap.data() as Map<String, dynamic>;
-      if (data['isSold'] == true) {
-        throw CheckoutException('This item has just been sold.');
+      // Recompute from trusted current data, never the local cart copy.
+      final current = Listing.fromDoc(snap);
+      // Only an in-stock listing can be bought; sold / out-of-stock / inactive
+      // are re-checked here against the migrated server status (not the cart).
+      if (!current.isAvailableForSale) {
+        throw CheckoutException(
+          current.status == 'sold'
+              ? 'This item has just been sold.'
+              : 'This item is not available for purchase right now.',
+        );
       }
       if (isCod && data['codAvailable'] != true) {
         throw CheckoutException(
           'Cash on Delivery is not available for this item.',
         );
       }
-      // Recompute from trusted current data, never the local cart copy.
-      final current = Listing.fromDoc(snap);
       final itemSubtotal = parsePrice(current.price);
       if (itemSubtotal <= 0) {
         throw CheckoutException('This item cannot be purchased right now.');
@@ -262,6 +268,291 @@ Future<void> openCheckout(BuildContext context, Listing listing) async {
     context,
     MaterialPageRoute(builder: (_) => CheckoutScreen(listing: listing)),
   );
+}
+
+// ---------------------------------------------------------------------------
+// Seller-controlled inventory
+// ---------------------------------------------------------------------------
+
+/// The four seller-controlled inventory states and their buyer-facing labels.
+/// A listing is only purchasable while 'in_stock'. Nothing auto-marks a listing
+/// sold — the seller alone changes this (see showInventorySheet).
+const Map<String, String> kListingStatusLabels = {
+  'in_stock': 'In stock',
+  'out_of_stock': 'Out of stock',
+  'sold': 'Sold',
+  'inactive': 'Inactive',
+};
+
+/// Writes a new inventory [status] onto a listing, keeping the legacy `isSold`
+/// bool in sync (true only for 'sold') so existing feed filters keep working.
+/// A no-op for unknown status values.
+Future<void> setListingStatus(String listingId, String status) async {
+  if (!kListingStatusLabels.containsKey(status)) return;
+  await FirebaseFirestore.instance.collection('listings').doc(listingId).update(
+    {'status': status, 'isSold': status == 'sold'},
+  );
+}
+
+/// Bottom sheet letting a seller set their listing's inventory status. The
+/// significant changes (Sold / Inactive) ask for confirmation first. Does not
+/// delete anything — reviews, orders, images and analytics are preserved.
+Future<void> showInventorySheet(BuildContext context, Listing listing) async {
+  final messenger = ScaffoldMessenger.of(context);
+
+  ({IconData icon, Color color, String? confirm}) meta(String s) => switch (s) {
+    'in_stock' => (icon: Icons.check_circle, color: kPakGreen, confirm: null),
+    'out_of_stock' => (
+      icon: Icons.remove_shopping_cart,
+      color: Colors.orange,
+      confirm: null,
+    ),
+    'sold' => (
+      icon: Icons.sell,
+      color: Colors.red,
+      confirm:
+          'Buyers will no longer be able to purchase this item. '
+          'You can set it back to In stock anytime.',
+    ),
+    _ => (
+      icon: Icons.visibility_off,
+      color: Colors.blueGrey,
+      confirm:
+          'This hides the listing from buyers without deleting it. '
+          'Reviews, orders, images and analytics are kept.',
+    ),
+  };
+
+  await showModalBottomSheet<void>(
+    context: context,
+    builder: (sheetCtx) {
+      Future<void> apply(String status) async {
+        final m = meta(status);
+        if (m.confirm != null) {
+          final ok = await showDialog<bool>(
+            context: sheetCtx,
+            builder: (dCtx) => AlertDialog(
+              title: Text('Mark as ${kListingStatusLabels[status]}?'),
+              content: Text(m.confirm!),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dCtx, false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(dCtx, true),
+                  child: const Text('Confirm'),
+                ),
+              ],
+            ),
+          );
+          if (ok != true) return;
+        }
+        try {
+          await setListingStatus(listing.id, status);
+        } catch (_) {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Could not update status. Try again.'),
+            ),
+          );
+          return;
+        }
+        if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Listing marked "${kListingStatusLabels[status]}".'),
+          ),
+        );
+      }
+
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Text(
+                'Inventory status',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'You control availability. Placing, paying for, or delivering '
+                'an order never changes this automatically.',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final entry in kListingStatusLabels.entries)
+              ListTile(
+                leading: Icon(
+                  meta(entry.key).icon,
+                  color: meta(entry.key).color,
+                ),
+                title: Text(entry.value),
+                trailing: listing.status == entry.key
+                    ? const Icon(Icons.check, color: kPakGreen)
+                    : null,
+                onTap: listing.status == entry.key
+                    ? null
+                    : () => apply(entry.key),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Order fulfillment: separate order-progress and payment-status models
+// ---------------------------------------------------------------------------
+
+// PakBazar keeps ORDER PROGRESS and MONEY STATUS in two independent fields
+// (spec section 2). Older orders only carry the combined escrow `status`, so
+// the helpers below DERIVE both from whatever a document has — new docs read
+// their explicit orderStatus/paymentStatus; legacy docs are mapped on read.
+//
+// Wording rule: money that PakBazar is holding is described as "held by
+// PakBazar / pending seller settlement / payout" — never "regulated escrow".
+
+/// Canonical order-progress states (separate from the payment status).
+const List<String> kOrderStatuses = [
+  'pending',
+  'accepted',
+  'processing',
+  'shipped',
+  'delivered',
+  'buyer_confirmed',
+  'completed',
+  'rejected',
+  'cancelled',
+  'disputed',
+];
+
+/// Buyer-facing label for an [orderStatus] value.
+String orderStatusLabel(String s) => switch (s) {
+  'pending' => 'Pending',
+  'accepted' => 'Accepted',
+  'processing' => 'Processing',
+  'shipped' => 'Shipped',
+  'delivered' => 'Delivered',
+  'buyer_confirmed' => 'Delivery confirmed',
+  'completed' => 'Completed',
+  'rejected' => 'Rejected',
+  'cancelled' => 'Cancelled',
+  'disputed' => 'Disputed',
+  _ => 'Pending',
+};
+
+/// Buyer-facing label for a [paymentStatus] value (policy-compliant wording).
+String paymentStatusLabel(String s) => switch (s) {
+  'unpaid' => 'Unpaid',
+  'payment_pending' => 'Payment pending',
+  'paid_to_platform' => 'Paid to PakBazar',
+  'held_by_platform' => 'Held by PakBazar',
+  'release_pending' => 'Pending seller settlement',
+  'released_to_seller' => 'Paid out to seller',
+  'refunded' => 'Refunded',
+  'partially_refunded' => 'Partially refunded',
+  'disputed' => 'Disputed',
+  'failed' => 'Payment failed',
+  _ => '',
+};
+
+/// Derives the fulfillment status of an order map, tolerating legacy docs that
+/// only carry the combined escrow `status` field.
+String orderStatusOf(Map<String, dynamic> o) {
+  final explicit = o['orderStatus']?.toString();
+  if (explicit != null && kOrderStatuses.contains(explicit)) return explicit;
+  final legacy = o['status']?.toString() ?? '';
+  return switch (legacy) {
+    'pending_payment' || 'payment_review' => 'pending',
+    'cod_pending' => 'processing',
+    'in_escrow' => o['buyerConfirmed'] == true ? 'buyer_confirmed' : 'accepted',
+    'released' || 'completed' => 'completed',
+    'refunded' || 'cancelled' => 'cancelled',
+    _ => 'pending',
+  };
+}
+
+/// Derives the money status of an order map, tolerating legacy docs.
+String paymentStatusOf(Map<String, dynamic> o) {
+  final explicit = o['paymentStatus']?.toString();
+  if (explicit != null && explicit.isNotEmpty) return explicit;
+  final legacy = o['status']?.toString() ?? '';
+  return switch (legacy) {
+    'pending_payment' => 'payment_pending',
+    'payment_review' => 'paid_to_platform',
+    'in_escrow' =>
+      o['buyerConfirmed'] == true ? 'release_pending' : 'held_by_platform',
+    'released' || 'completed' => 'released_to_seller',
+    'refunded' => 'refunded',
+    'cod_pending' => 'unpaid',
+    _ => 'unpaid',
+  };
+}
+
+/// The seller's next allowed shipping step for [orderStatus], or '' at the end
+/// of the seller-controlled chain (pending→accepted→processing→shipped→
+/// delivered). Mirrors the transition guard enforced in firestore.rules.
+String nextShippingStep(String orderStatus) => switch (orderStatus) {
+  'pending' => 'accepted',
+  'accepted' => 'processing',
+  'processing' => 'shipped',
+  'shipped' => 'delivered',
+  _ => '',
+};
+
+/// Advances an order along the seller shipping flow. Money state is never
+/// touched here (payout stays server-authoritative); only the fulfillment
+/// fields change, which the Firestore rules validate as a legal transition.
+/// Marking [toStatus] == 'shipped' requires a courier + tracking number.
+Future<void> setOrderShipping(
+  String orderId,
+  String toStatus, {
+  String courierName = '',
+  String trackingNumber = '',
+  String trackingUrl = '',
+  String sellerNote = '',
+}) async {
+  final data = <String, dynamic>{
+    'orderStatus': toStatus,
+    'updatedAt': Timestamp.now(),
+  };
+  if (toStatus == 'shipped') {
+    data['courierName'] = courierName.trim();
+    data['trackingNumber'] = trackingNumber.trim();
+    if (trackingUrl.trim().isNotEmpty) {
+      data['trackingUrl'] = trackingUrl.trim();
+    }
+    data['shippedAt'] = Timestamp.now();
+  }
+  if (toStatus == 'delivered') data['deliveredAt'] = Timestamp.now();
+  if (sellerNote.trim().isNotEmpty) data['sellerNote'] = sellerNote.trim();
+  await FirebaseFirestore.instance
+      .collection('orders')
+      .doc(orderId)
+      .update(data);
+}
+
+/// Buyer confirms they received and checked the order. Sets the fulfillment
+/// fields only; a Cloud Function (onOrderProgress) derives the money
+/// consequence (payment → release_pending, opens the payout record). The buyer
+/// app never releases money.
+Future<void> confirmOrderDelivery(String orderId) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+  await FirebaseFirestore.instance.collection('orders').doc(orderId).update({
+    'orderStatus': 'buyer_confirmed',
+    'buyerConfirmed': true,
+    'buyerConfirmedAt': Timestamp.now(),
+    'buyerConfirmedBy': uid,
+  });
 }
 
 // The old "Buy now" confirmation bottom sheet was replaced by the full

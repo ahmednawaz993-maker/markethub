@@ -564,7 +564,11 @@ class DealsRail extends StatelessWidget {
         final items = snapshot.data!.docs
             .map((d) => Listing.fromDoc(d))
             .where(
-              (l) => !l.isSold && l.isApproved && !isHiddenSeller(l.userId),
+              (l) =>
+                  !l.isSold &&
+                  l.isPubliclyVisible &&
+                  l.isApproved &&
+                  !isHiddenSeller(l.userId),
             )
             .toList();
         if (items.length < 2) return const SizedBox.shrink();
@@ -781,6 +785,12 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) setState(() {});
     });
     setupPushNotifications();
+    // Ask for a Play review only when the user is genuinely engaged (see
+    // maybeShowReviewPrompt for the configurable eligibility rules). Home is a
+    // safe, neutral screen — never checkout / payment / OTP / dispute / error.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) maybeShowReviewPrompt(context);
+    });
   }
 
   @override

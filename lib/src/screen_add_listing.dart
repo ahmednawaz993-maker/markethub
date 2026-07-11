@@ -356,6 +356,9 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'createdAt': Timestamp.now(),
         'views': 0,
         'isFeatured': false,
+        // New listings start in stock; the seller controls this afterwards.
+        'status': 'in_stock',
+        'isSold': false,
         // New ads are hidden until an admin approves them (admin Approvals tab).
         // Demo/review accounts auto-approve so reviewers see ads go live.
         'approvalStatus': isDemoUser() ? 'approved' : 'pending',
@@ -390,6 +393,9 @@ class _AddListingScreenState extends State<AddListingScreen> {
       }
 
       if (!mounted) return;
+      // A published listing is a meaningful engagement signal for the review
+      // prompt (never triggers the prompt here — only records the signal).
+      recordMeaningfulAction();
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(

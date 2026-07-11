@@ -129,7 +129,8 @@ service cloud.firestore {
       // Anyone signed in may bump the view/lead counters, but ONLY those.
       allow update: if isSignedIn() && (
                       (resource.data.userId == request.auth.uid
-                        && (noSelfApproval() || isDemo()))
+                        && (noSelfApproval() || isDemo())
+                        && validInventoryStatus())
                       || onlyBumpsStats()
                       || can('approvals') || can('listings')
                       || ((can('featured') || can('promotions'))
@@ -154,6 +155,15 @@ service cloud.firestore {
         return !request.resource.data.diff(resource.data)
                  .affectedKeys().hasAny(['approvalStatus'])
                || request.resource.data.approvalStatus == 'pending';
+      }
+
+      // Seller-controlled inventory: if an owner edit changes `status`, it must
+      // be one of the four supported values (nothing auto-marks a listing sold).
+      function validInventoryStatus() {
+        return !request.resource.data.diff(resource.data)
+                 .affectedKeys().hasAny(['status'])
+               || request.resource.data.status in
+                    ['in_stock', 'out_of_stock', 'sold', 'inactive'];
       }
 
       // Featured/promotions staff may only flip the feature flags on an ad —
@@ -219,6 +229,25 @@ service cloud.firestore {
       // SNAPSHOT instead (see deliveryAddress on the order document).
       match /addresses/{addressId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      // Seller payout accounts — private to the seller (and payments admins).
+      // The seller manages routing details but can NEVER self-verify:
+      // verificationStatus is admin/Cloud-Function only. Buyers can't read them
+      // (they are not the owner). New accounts must start 'pending'.
+      match /payoutAccounts/{accountId} {
+        allow read: if isSignedIn()
+                    && (request.auth.uid == userId || can('payments'));
+        allow create: if isSignedIn()
+                      && request.auth.uid == userId
+                      && request.resource.data.verificationStatus == 'pending';
+        allow update: if can('payments')
+                      || (isSignedIn()
+                          && request.auth.uid == userId
+                          && request.resource.data.verificationStatus
+                             == resource.data.verificationStatus);
+        allow delete: if isSignedIn()
+                      && (request.auth.uid == userId || can('payments'));
       }
 
       // People who follow this user. The follower owns their own follow doc
@@ -310,6 +339,22 @@ service cloud.firestore {
       allow update: if false;
     }
 
+    // Order disputes / problem reports. A buyer opens a dispute on their own
+    // order (status must start 'open'); buyer, seller and back-office may read;
+    // only back-office may resolve (update). An open dispute blocks the seller
+    // payout (enforced server-side in onEscrowAction). Never client-deletable.
+    match /disputes/{disputeId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.buyerId == request.auth.uid
+                    && request.resource.data.status == 'open';
+      allow read: if isSignedIn()
+                  && (resource.data.buyerId == request.auth.uid
+                      || resource.data.sellerId == request.auth.uid
+                      || can('orders') || can('escrow'));
+      allow update: if can('orders') || can('escrow');
+      allow delete: if false;
+    }
+
     // ---------------------------------------------------------------------
     // Promotions — sellers request a paid Feature; admins approve/manage.
     // ---------------------------------------------------------------------
@@ -338,20 +383,30 @@ service cloud.firestore {
                     || resource.data.sellerId == request.auth.uid
                     || can('orders')
                   );
-      // Escrow money transitions (in_escrow / released / refunded) and the
-      // amount/commission/payout fields are written ONLY by Cloud Functions
-      // (admin SDK). A buyer/seller client may confirm receipt or cancel a
-      // still-unpaid order — nothing money-bearing.
+      // Money state (the legacy `status` escrow machine, `paymentStatus`, and
+      // every amount/commission/payout field) is written ONLY by Cloud
+      // Functions (admin SDK). Clients may advance the FULFILLMENT side:
+      //  - a buyer/seller may confirm receipt or cancel a still-unpaid order
+      //    (onlySafeOrderChange, unchanged),
+      //  - a SELLER may run the shipping flow (accept → process → ship →
+      //    deliver) while the money is held (sellerShippingChange),
+      //  - a BUYER may confirm delivery after it ships (buyerConfirmChange).
+      // None of these may touch a money field (orderMoneyFields()).
       allow update: if can('orders')
                     || (isSignedIn()
                         && (resource.data.buyerId == request.auth.uid
                             || resource.data.sellerId == request.auth.uid)
-                        && onlySafeOrderChange());
+                        && (onlySafeOrderChange()
+                            || (resource.data.sellerId == request.auth.uid
+                                && sellerShippingChange())
+                            || (resource.data.buyerId == request.auth.uid
+                                && buyerConfirmChange())));
       allow delete: if can('orders');
 
       function onlySafeOrderChange() {
         return request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['buyerConfirmed', 'buyerConfirmedAt', 'status',
+                 .hasOnly(['buyerConfirmed', 'buyerConfirmedAt',
+                           'buyerConfirmedBy', 'orderStatus', 'status',
                            'completedAt'])
                && (
                  request.resource.data.status == resource.data.status
@@ -361,6 +416,65 @@ service cloud.firestore {
                      && (request.resource.data.status == 'cancelled'
                          || request.resource.data.status == 'completed'))
                );
+      }
+
+      // Money/payment fields no client may ever write — backend-owned. Note
+      // `status` (the escrow machine) is governed by the transition checks
+      // above, so it is deliberately not listed here.
+      function orderMoneyFields() {
+        return ['amount', 'commission', 'sellerPayout', 'paymentStatus',
+                'itemSubtotal', 'deliveryFee', 'platformCommissionRate',
+                'platformCommissionAmount', 'sellerPayableAmount',
+                'releasedAmount', 'refundAmount', 'adjustmentAmount',
+                'transactionReference', 'releasedAt', 'releasedBy', 'paidAt',
+                'paidToPlatformAt', 'providerTransactionId', 'paymentId'];
+      }
+
+      function curOrderStatus() {
+        return resource.data.get('orderStatus', 'pending');
+      }
+
+      // Seller advances fulfillment while the payment is held (or it's COD).
+      // Only shipping fields change; the money state (`status`/`paymentStatus`)
+      // stays frozen. Shipping requires a courier + tracking number.
+      function sellerShippingChange() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['orderStatus', 'courierName', 'trackingNumber',
+                           'trackingUrl', 'shippedAt', 'deliveredAt',
+                           'sellerNote', 'updatedAt'])
+               && !request.resource.data.diff(resource.data)
+                    .affectedKeys().hasAny(orderMoneyFields())
+               && (resource.data.status == 'in_escrow'
+                   || resource.data.get('paymentMethod', '') == 'cod')
+               && (
+                 (curOrderStatus() == 'pending'
+                   && request.resource.data.orderStatus == 'accepted')
+                 || (curOrderStatus() == 'accepted'
+                   && request.resource.data.orderStatus in ['processing',
+                                                            'shipped'])
+                 || (curOrderStatus() == 'processing'
+                   && request.resource.data.orderStatus == 'shipped')
+                 || (curOrderStatus() == 'shipped'
+                   && request.resource.data.orderStatus == 'delivered')
+               )
+               && (request.resource.data.orderStatus != 'shipped'
+                   || (request.resource.data.get('courierName', '') != ''
+                       && request.resource.data.get('trackingNumber', '') != ''));
+      }
+
+      // Buyer confirms delivery after the order has shipped/delivered (or on a
+      // legacy held order with no shipping flow). Sets orderStatus only; the
+      // Cloud Function derives the money consequence (release_pending + payout).
+      function buyerConfirmChange() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['orderStatus', 'buyerConfirmed', 'buyerConfirmedAt',
+                           'buyerConfirmedBy'])
+               && request.resource.data.status == resource.data.status
+               && request.resource.data.buyerConfirmed == true
+               && request.resource.data.orderStatus == 'buyer_confirmed'
+               && resource.data.status == 'in_escrow'
+               && (resource.data.get('orderStatus', 'legacy')
+                     in ['shipped', 'delivered', 'legacy']);
       }
     }
 
@@ -399,6 +513,28 @@ service cloud.firestore {
     match /ledger/{entryId} {
       allow read: if isAdmin();
       allow write: if false;
+    }
+
+    // Per-order seller payout records (doc id == orderId → one payout per
+    // order, the idempotency key). Created and settled ONLY by Cloud Functions:
+    // sellerPayableAmount, releaseStatus, transactionReference and releasedAmount
+    // are all backend-owned, so a seller can neither pay themselves nor edit the
+    // amount. A seller reads their OWN payout; payments admins read all; buyers
+    // never see them.
+    match /sellerPayouts/{payoutId} {
+      allow read: if isSignedIn()
+                  && (resource.data.sellerId == request.auth.uid
+                      || can('payments'));
+      allow write: if false; // Cloud Functions only
+    }
+
+    // Immutable financial audit trail (section 12) — payment held, buyer
+    // confirmed, commission calculated, payout released/held/rejected, refund,
+    // dispute, adjustment. Written only by Cloud Functions; payments admins may
+    // read; no client may ever write, edit or delete.
+    match /financialAuditLog/{auditId} {
+      allow read: if can('payments');
+      allow write: if false; // Cloud Functions only
     }
 
     // ---------------------------------------------------------------------
@@ -448,6 +584,25 @@ service cloud.firestore {
                   && (resource.data.userId == request.auth.uid
                       || can('feedback'));
       allow update, delete: if can('feedback');
+    }
+
+    // Review-prompt funnel analytics — anonymous events (no star rating, no PII
+    // beyond the uid). Users may only append their own events; admins read.
+    match /reviewPromptEvents/{eventId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Immutable audit log of payout-account changes (add/update/delete by the
+    // seller; verify/reject/suspend by admins). Never editable by any client.
+    match /payoutAccountAudit/{auditId} {
+      allow create: if isSignedIn()
+                    && (request.resource.data.sellerId == request.auth.uid
+                        || can('payments'));
+      allow read: if can('payments');
+      allow update, delete: if false;
     }
 
     // ---------------------------------------------------------------------
@@ -570,6 +725,7 @@ service cloud.firestore {
       // The featuring master switch → featured staff. Anything else → super
       // admin. (A featured/marketing role must NOT change the payout account.)
       allow write: if (docId == 'paymentAccount' && can('paymentAccount'))
+                   || (docId == 'commission' && can('payments'))
                    || (docId == 'featuring' && can('featured'))
                    || (docId == 'verification' && can('verifyId'))
                    || (docId == 'customerCare' && can('support'))

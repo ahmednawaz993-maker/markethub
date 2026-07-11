@@ -20,6 +20,7 @@ const {
   Timestamp,
 } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
+const { getAuth } = require("firebase-admin/auth");
 const { defineSecret } = require("firebase-functions/params");
 const sgMail = require("@sendgrid/mail");
 
@@ -62,6 +63,175 @@ function parsePrice(price) {
 // Round to 2 decimals (paisa) the same way the escrow release does.
 function round2(n) {
   return Math.round(n * 100) / 100;
+}
+
+// ---------------------------------------------------------------------------
+// Platform-held payment: configurable commission, payout records, audit log.
+//
+// Money is NEVER moved by client code. The commission rate is configurable at
+// config/commission (global + per-category + per-seller override) and falls
+// back to the built-in free-launch schedule. sellerPayouts/{orderId} holds one
+// payout record per order (doc id == orderId, so a seller order can never be
+// paid twice — the idempotency key). financialAuditLog is an append-only trail
+// of every money event. See the platform-held-payment spec (sections 1-14).
+//
+// Wording rule: we say "held by platform / seller settlement / payout /
+// payment release" — NEVER "regulated escrow" — because PakBazar does not yet
+// hold a payment-provider/regulatory licence. Real provider money movement
+// stays behind this trusted backend (currently wallet-settled).
+// ---------------------------------------------------------------------------
+
+const ADMIN_EMAIL = "ahmednawaz993@gmail.com";
+
+// Resolve the effective commission for one order. Reads config/commission once
+// per call. Precedence: seller override > category rate > global rate; the
+// free-launch window (config.freeUntil or FREE_UNTIL) forces 0. Falls back to
+// commissionRate() when the config doc is absent. Nothing is hardcoded twice —
+// this is the single server-side source of truth for the rate.
+async function resolveCommission(db, opts) {
+  opts = opts || {};
+  let cfg = null;
+  try {
+    const snap = await db.collection("config").doc("commission").get();
+    cfg = snap.exists ? snap.data() : null;
+  } catch (_) {
+    cfg = null;
+  }
+  const freeUntil = cfg && cfg.freeUntil ? Date.parse(cfg.freeUntil) : FREE_UNTIL;
+  if (Number.isFinite(freeUntil) && Date.now() < freeUntil) {
+    return { rate: 0, fixedFee: 0, source: "free_launch" };
+  }
+  if (!cfg) return { rate: commissionRate(), fixedFee: 0, source: "default" };
+  let rate = typeof cfg.globalRate === "number" ? cfg.globalRate : 0.02;
+  let source = "global";
+  const cats = cfg.categoryRates || {};
+  if (opts.category && typeof cats[opts.category] === "number") {
+    rate = cats[opts.category];
+    source = "category";
+  }
+  const overrides = cfg.sellerOverrides || {};
+  if (opts.sellerId && typeof overrides[opts.sellerId] === "number") {
+    rate = overrides[opts.sellerId];
+    source = "seller";
+  }
+  const fixedFee = typeof cfg.fixedFee === "number" ? cfg.fixedFee : 0;
+  return { rate, fixedFee, source };
+}
+
+// Compute the full server-authoritative payout breakdown for an order.
+// itemSubtotal = amount − deliveryFee (commission is on the product only; the
+// delivery fee passes through to the seller in full). refund/adjustment reduce
+// the seller-payable amount. Never trusts client-submitted totals (section 6).
+async function computePayoutBreakdown(db, order, extra) {
+  extra = extra || {};
+  const amount = Number(order.amount) || 0;
+  const deliveryFee = Number(order.deliveryFee) || 0;
+  const itemSubtotal = Math.max(0, amount - deliveryFee);
+  const { rate, fixedFee, source } = await resolveCommission(db, {
+    category: order.category || order.listingCategory || "",
+    sellerId: order.sellerId || "",
+  });
+  const platformCommissionAmount = round2(
+    itemSubtotal * rate + (rate > 0 ? fixedFee : 0)
+  );
+  const buyerDiscount = Number(order.discount) || 0;
+  const refundAmount =
+    Number(extra.refundAmount != null ? extra.refundAmount : order.refundAmount) || 0;
+  const adjustmentAmount =
+    Number(extra.adjustmentAmount != null ? extra.adjustmentAmount : order.adjustmentAmount) || 0;
+  const sellerPayableAmount = round2(
+    amount - platformCommissionAmount - refundAmount - adjustmentAmount
+  );
+  return {
+    itemSubtotal,
+    deliveryFee,
+    buyerDiscount,
+    platformCommissionRate: rate,
+    platformCommissionAmount,
+    fixedFee: rate > 0 ? fixedFee : 0,
+    refundAmount,
+    adjustmentAmount,
+    sellerPayableAmount: Math.max(0, sellerPayableAmount),
+    currency: "PKR",
+    calculationVersion: 2,
+    commissionSource: source,
+  };
+}
+
+// Append an immutable financial audit record (section 12). Best-effort: an
+// audit-write failure must never break the money operation that triggered it.
+async function writeAudit(db, rec) {
+  try {
+    await db.collection("financialAuditLog").add({
+      action: rec.action || "",
+      entityType: rec.entityType || "order",
+      entityId: String(rec.entityId || ""),
+      actorId: rec.actorId || "system",
+      actorRole: rec.actorRole || "system",
+      previousStatus: rec.previousStatus || "",
+      newStatus: rec.newStatus || "",
+      amount: Number(rec.amount) || 0,
+      reason: rec.reason || "",
+      metadata: rec.metadata || {},
+      createdAt: Timestamp.now(),
+    });
+  } catch (e) {
+    console.error("writeAudit failed", rec.action, e);
+  }
+}
+
+// Create/refresh the payout record for one seller order. Doc id == orderId so a
+// seller order can never spawn two payout records (idempotency key, section 8).
+// Never overwrites a record that has already been released.
+async function upsertSellerPayout(db, orderId, order, patch) {
+  patch = patch || {};
+  const ref = db.collection("sellerPayouts").doc(String(orderId));
+  const breakdown = await computePayoutBreakdown(db, order, patch);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const existing = snap.exists ? snap.data() : null;
+    if (existing && existing.releaseStatus === "released") return; // frozen
+    const base = existing
+      ? {}
+      : {
+          sellerId: order.sellerId || "",
+          orderId: String(orderId),
+          parentOrderId: order.parentOrderId || String(orderId),
+          payoutAccountId: order.payoutAccountId || "",
+          createdAt: Timestamp.now(),
+        };
+    const keep = (k, d) => (patch[k] != null ? patch[k] : existing ? existing[k] : d);
+    tx.set(
+      ref,
+      Object.assign(base, breakdown, {
+        paymentStatus: keep("paymentStatus", "held_by_platform"),
+        releaseStatus: keep("releaseStatus", "not_eligible"),
+        buyerConfirmedAt: order.buyerConfirmedAt || (existing && existing.buyerConfirmedAt) || null,
+        eligibleForReleaseAt: keep("eligibleForReleaseAt", null),
+        releasedAmount: keep("releasedAmount", 0),
+        transactionReference: keep("transactionReference", ""),
+        holdReason: keep("holdReason", ""),
+        rejectionReason: keep("rejectionReason", ""),
+        failureReason: keep("failureReason", ""),
+        releasedAt: keep("releasedAt", null),
+        releasedBy: keep("releasedBy", null),
+        updatedAt: Timestamp.now(),
+      }),
+      { merge: true }
+    );
+  });
+  return breakdown;
+}
+
+// Best-effort push to the super admin (resolved by email → uid). Used to alert
+// the admin that a payout is eligible / a dispute was opened, etc. (section 13).
+async function notifyAdmins(db, notification, data) {
+  try {
+    const u = await getAuth().getUserByEmail(ADMIN_EMAIL);
+    if (u && u.uid) await pushToUser(db, u.uid, notification, data);
+  } catch (e) {
+    console.error("notifyAdmins failed", e);
+  }
 }
 
 // PayFast (gopayfast, Pakistan) credentials — read from process.env so the
@@ -226,92 +396,175 @@ exports.onReviewWrite = onDocumentWritten(
 );
 
 // Notify users whose saved search matches a newly posted ad.
+// ---------------------------------------------------------------------------
+// New-listing notifications: opt-in, interest-matched, deduped, rate-limited.
+// Users only hear about a listing once it is APPROVED and in stock, and only
+// when it matches a saved search, their saved interests, or a seller they
+// follow — never a blanket blast.
+// ---------------------------------------------------------------------------
+
+// Max immediate new-listing pushes per user per rolling 24h.
+const NEW_LISTING_DAILY_CAP = 5;
+
+// First human-readable reason a listing matches a user's interest prefs, or
+// null. Price range is a filter (must pass) rather than a match reason itself.
+function listingMatchesInterests(listing, prefs) {
+  if (!prefs) return null;
+  const price = parsePrice(listing.price);
+  const min = Number(prefs.priceMin) || 0;
+  const max = Number(prefs.priceMax) || 0;
+  if ((min > 0 && price < min) || (max > 0 && price > max)) return null;
+
+  const cat = String(listing.category || "");
+  const city = String(listing.city || "");
+  const title = String(listing.title || "").toLowerCase();
+  const cats = Array.isArray(prefs.categories) ? prefs.categories : [];
+  const cities = Array.isArray(prefs.cities) ? prefs.cities : [];
+  const kws = Array.isArray(prefs.keywords) ? prefs.keywords : [];
+  const sellers = Array.isArray(prefs.favoriteSellers)
+    ? prefs.favoriteSellers
+    : [];
+
+  if (cats.includes(cat)) return `new in ${cat}`;
+  if (listing.userId && sellers.includes(listing.userId)) {
+    return "a seller you follow";
+  }
+  for (const kw of kws) {
+    if (kw && title.includes(String(kw).toLowerCase())) return `keyword "${kw}"`;
+  }
+  if (cities.includes(city)) return `new in ${city}`;
+  return null;
+}
+
+function titleForListing(listing, info) {
+  if (info.type === "savedSearch") return `New ad matches ${info.reason}`;
+  if (info.type === "follow") return `New ad from ${info.reason}`;
+  return `New listing: ${info.reason}`;
+}
+
+// Delivers one new-listing alert to a user, honouring their notification prefs,
+// idempotency (one alert per user+listing, deterministic id) and a rolling
+// daily rate limit. Writes a per-user listingAlerts/{listingId} analytics
+// record (section I fields: userId, listingId, notificationType, matchReason,
+// sentAt, deliveryStatus).
+async function deliverListingAlert(db, uid, listing, listingId, info) {
+  const userSnap = await db.collection("users").doc(uid).get();
+  if (!userSnap.exists) return;
+  const prefs = (userSnap.data() || {}).notifPrefs || {};
+
+  if (prefs.newListing === false) return; // global opt-out
+  if ((prefs.mode || "all") !== "all") return; // daily/weekly/off => no push now
+
+  const alertRef = db
+    .collection("users").doc(uid)
+    .collection("listingAlerts").doc(String(listingId));
+  if ((await alertRef.get()).exists) return; // idempotent
+
+  const since = Timestamp.fromMillis(Date.now() - 24 * 3600 * 1000);
+  const recent = await db
+    .collection("users").doc(uid)
+    .collection("listingAlerts")
+    .where("sentAt", ">=", since)
+    .get();
+  const record = {
+    userId: uid,
+    listingId: String(listingId),
+    notificationType: info.type,
+    matchReason: info.reason,
+    sentAt: Timestamp.now(),
+  };
+  if (recent.size >= NEW_LISTING_DAILY_CAP) {
+    await alertRef.set({ ...record, deliveryStatus: "rate_limited" });
+    return;
+  }
+  await alertRef.set({ ...record, deliveryStatus: "sent" });
+
+  const title = titleForListing(listing, info);
+  const body = `${listing.title} — Rs ${listing.price}`;
+  await recordNotification(db, uid, title, body, info.type, String(listingId));
+
+  if (prefs.push === false) return; // in-app inbox only
+  const tokensSnap = await db
+    .collection("users").doc(uid).collection("fcmTokens").get();
+  const tokens = tokensSnap.docs.map((d) => d.id);
+  if (tokens.length === 0) return;
+  const response = await getMessaging().sendEachForMulticast({
+    tokens,
+    notification: { title, body },
+    data: { type: info.type, listingId: String(listingId) },
+    android: ANDROID_ALERT,
+    apns: APNS_ALERT,
+    webpush: {
+      notification: { icon: "/icons/Icon-192.png" },
+      fcmOptions: { link: "/" },
+    },
+  });
+  await pruneInvalidTokens(db, uid, tokens, response);
+}
+
+// Collects recipients (saved-search matches, opted-in interest matches, and the
+// poster's followers), dedupes, and delivers — only for approved, in-stock ads.
+async function dispatchNewListing(db, listing, listingId) {
+  const status = String(listing.approvalStatus || "");
+  if (status === "pending" || status === "rejected") return; // not public yet
+  if (listing.status && listing.status !== "in_stock") return; // not buyable
+
+  const recipients = new Map(); // uid -> { reason, type }
+
+  const searches = await db.collectionGroup("savedSearches").get();
+  searches.forEach((doc) => {
+    const userDoc = doc.ref.parent.parent;
+    if (!userDoc) return;
+    const uid = userDoc.id;
+    if (uid === listing.userId || recipients.has(uid)) return;
+    if (matchesSavedSearch(listing, doc.data())) {
+      recipients.set(uid, {
+        reason: `your saved search "${doc.data().label || "search"}"`,
+        type: "savedSearch",
+      });
+    }
+  });
+
+  const prefUsers = await db
+    .collection("users")
+    .where("notifPrefs.newListing", "==", true)
+    .get();
+  prefUsers.forEach((u) => {
+    const uid = u.id;
+    if (uid === listing.userId || recipients.has(uid)) return;
+    const reason = listingMatchesInterests(listing, (u.data() || {}).notifPrefs);
+    if (reason) recipients.set(uid, { reason, type: "newListing" });
+  });
+
+  for (const [uid, info] of recipients) {
+    await deliverListingAlert(db, uid, listing, listingId, info);
+  }
+
+  if (listing.userId) {
+    const sellerName = listing.sellerName || "a seller";
+    const followersSnap = await db
+      .collection("users").doc(listing.userId)
+      .collection("followers").get();
+    for (const f of followersSnap.docs) {
+      const uid = f.id;
+      if (uid === listing.userId || recipients.has(uid)) continue;
+      await deliverListingAlert(db, uid, listing, listingId, {
+        reason: `${sellerName} you follow`,
+        type: "follow",
+      });
+    }
+  }
+}
+
+// A listing created already-approved (demo/admin auto-approve) is public
+// immediately. The normal pending->approved path is handled in the update
+// trigger (notifyOnPriceDrop) to avoid a second per-update function.
 exports.notifyOnNewListing = onDocumentCreated(
   "listings/{listingId}",
   async (event) => {
     const listing = event.data && event.data.data();
     if (!listing) return;
-
-    const db = getFirestore();
-    const searches = await db.collectionGroup("savedSearches").get();
-
-    // One notification per user (dedupe), carrying the matched search label.
-    const toNotify = new Map();
-    searches.forEach((doc) => {
-      const userDoc = doc.ref.parent.parent;
-      if (!userDoc) return;
-      const uid = userDoc.id;
-      if (uid === listing.userId) return; // don't notify the poster
-      if (toNotify.has(uid)) return; // already queued for this user
-      if (matchesSavedSearch(listing, doc.data())) {
-        toNotify.set(uid, doc.data().label || "your saved search");
-      }
-    });
-
-    for (const [uid, label] of toNotify) {
-      await recordNotification(
-        db,
-        uid,
-        `New ad matches "${label}"`,
-        `${listing.title} — Rs ${listing.price}`,
-        "savedSearch",
-        event.params.listingId
-      );
-
-      const tokensSnap = await db
-        .collection("users")
-        .doc(uid)
-        .collection("fcmTokens")
-        .get();
-      const tokens = tokensSnap.docs.map((d) => d.id);
-      if (tokens.length === 0) continue;
-
-      const response = await getMessaging().sendEachForMulticast({
-        tokens,
-        notification: {
-          title: `New ad matches "${label}"`,
-          body: `${listing.title} — Rs ${listing.price}`,
-        },
-        data: {
-          type: "savedSearch",
-          listingId: event.params.listingId,
-        },
-        android: ANDROID_ALERT,
-        apns: APNS_ALERT,
-        webpush: {
-          notification: { icon: "/icons/Icon-192.png" },
-          fcmOptions: { link: "/" },
-        },
-      });
-
-      await pruneInvalidTokens(db, uid, tokens, response);
-    }
-
-    // Also notify everyone who follows the poster (skipping anyone already
-    // alerted via a saved-search match above, to avoid a double ping).
-    if (listing.userId) {
-      const sellerName = listing.sellerName || "A seller you follow";
-      const followersSnap = await db
-        .collection("users")
-        .doc(listing.userId)
-        .collection("followers")
-        .get();
-
-      for (const f of followersSnap.docs) {
-        const uid = f.id;
-        if (uid === listing.userId) continue; // shouldn't happen, be safe
-        if (toNotify.has(uid)) continue; // already pinged for this ad
-        await pushToUser(
-          db,
-          uid,
-          {
-            title: `New ad from ${sellerName}`,
-            body: `${listing.title} — Rs ${listing.price}`,
-          },
-          { type: "follow", listingId: event.params.listingId }
-        );
-      }
-    }
+    await dispatchNewListing(getFirestore(), listing, event.params.listingId);
   }
 );
 
@@ -322,6 +575,16 @@ exports.notifyOnPriceDrop = onDocumentUpdated(
     const before = event.data && event.data.before.data();
     const after = event.data && event.data.after.data();
     if (!before || !after) return;
+
+    // New-listing alerts fire when a listing becomes public — i.e. its
+    // approvalStatus transitions to 'approved' (normal path: user posts pending,
+    // an admin approves). Handled here to avoid a second per-update trigger.
+    if (
+      before.approvalStatus !== "approved" &&
+      after.approvalStatus === "approved"
+    ) {
+      await dispatchNewListing(getFirestore(), after, event.params.listingId);
+    }
 
     // Only act when a fresh price drop was just recorded by the app.
     const beforeDrop = before.priceDropAt;
@@ -423,6 +686,23 @@ exports.notifyOnNewOrder = onDocumentCreated(
     if (!order) return;
 
     const db = getFirestore();
+
+    // Seed the separate order-progress and payment-status fields (section 2) if
+    // the client didn't set them. Order progress and money status are tracked in
+    // DIFFERENT fields: a COD order is unpaid but processing; a paid escrow order
+    // is held_by_platform while it ships. paymentStatus is Cloud-Function-owned
+    // (clients can't write it — enforced by the Firestore rules).
+    if (order.paymentStatus == null || order.orderStatus == null) {
+      const isCodInit = order.status === "cod_pending";
+      await snap.ref.set(
+        {
+          orderStatus: order.orderStatus || "pending",
+          paymentStatus:
+            order.paymentStatus || (isCodInit ? "unpaid" : "payment_pending"),
+        },
+        { merge: true }
+      );
+    }
 
     // Normalize money fields against the authoritative listing. The buyer
     // creates the order client-side, so without this they could set their own
@@ -903,6 +1183,7 @@ exports.emailStaffOnNewTicket = onDocumentCreated(
 // status). Used by the TEST provider and by the verified PayFast IPN webhook.
 async function confirmPaymentIntoEscrow(db, orderId, paymentRef, provider) {
   const orderRef = db.collection("orders").doc(String(orderId));
+  let held = null; // set to the order data when the payment is actually held
   await db.runTransaction(async (tx) => {
     const orderSnap = await tx.get(orderRef);
     if (!orderSnap.exists) {
@@ -917,11 +1198,6 @@ async function confirmPaymentIntoEscrow(db, orderId, paymentRef, provider) {
       if (paymentRef) tx.update(paymentRef, { status: "ignored" });
       return;
     }
-    const listingRef = order.listingId
-      ? db.collection("listings").doc(String(order.listingId))
-      : null;
-    const listingSnap = listingRef ? await tx.get(listingRef) : null;
-
     if (paymentRef) {
       tx.update(paymentRef, {
         status: "paid",
@@ -929,14 +1205,21 @@ async function confirmPaymentIntoEscrow(db, orderId, paymentRef, provider) {
         confirmedAt: Timestamp.now(),
       });
     }
+    // The money is now received AND held by the platform. Order progress stays
+    // "pending" (awaiting the seller to accept & ship); only the payment side
+    // advances — the two are deliberately separate fields (section 2).
     tx.update(orderRef, {
       status: "in_escrow",
+      paymentStatus: "held_by_platform",
+      orderStatus: order.orderStatus || "pending",
+      providerTransactionId: order.providerTransactionId || (paymentRef ? paymentRef.id : ""),
+      paymentProvider: provider || "test",
       paymentId: paymentRef ? paymentRef.id : null,
+      paidToPlatformAt: Timestamp.now(),
       paidAt: Timestamp.now(),
     });
-    if (listingSnap && listingSnap.exists) {
-      tx.update(listingRef, { isSold: true });
-    }
+    // Inventory is seller-controlled: paying for an order no longer
+    // auto-marks the listing sold (the seller sets status in My Ads).
     tx.set(db.collection("ledger").doc(), {
       type: "escrow_hold",
       orderId: String(orderId),
@@ -945,7 +1228,45 @@ async function confirmPaymentIntoEscrow(db, orderId, paymentRef, provider) {
       sellerId: order.sellerId || "",
       createdAt: Timestamp.now(),
     });
+    held = order;
   });
+
+  // Post-transaction side effects (audit + notifications). Only when the hold
+  // actually happened — never on an ignored/duplicate confirmation.
+  if (!held) return;
+  await writeAudit(db, {
+    action: "payment_held",
+    entityType: "order",
+    entityId: String(orderId),
+    actorId: held.buyerId || "",
+    actorRole: "buyer",
+    previousStatus: "pending_payment",
+    newStatus: "held_by_platform",
+    amount: Number(held.amount) || 0,
+    metadata: { provider: provider || "test" },
+  });
+  if (held.buyerId) {
+    await pushToUser(
+      db,
+      held.buyerId,
+      {
+        title: "Payment received by PakBazar",
+        body: "The seller will be paid after successful delivery confirmation.",
+      },
+      { type: "order", orderId: String(orderId) }
+    );
+  }
+  if (held.sellerId) {
+    await pushToUser(
+      db,
+      held.sellerId,
+      {
+        title: "Payment secured by PakBazar",
+        body: "Please process and ship the order.",
+      },
+      { type: "order", orderId: String(orderId) }
+    );
+  }
 }
 
 exports.onPaymentCreated = onDocumentCreated(
@@ -1063,7 +1384,85 @@ exports.onEscrowAction = onDocumentCreated(
 
     const db = getFirestore();
     const orderRef = db.collection("orders").doc(act.orderId);
+    const payoutRef = db.collection("sellerPayouts").doc(String(act.orderId));
     const actRef = event.data.ref;
+    const adminId = act.by || "admin";
+
+    // Payout queue management (no money movement): an admin can HOLD a payout
+    // (park it with a reason) or REJECT it (won't be paid) without touching the
+    // held funds. These update only the payout record + audit trail.
+    if (act.type === "hold" || act.type === "reject") {
+      const oSnap = await orderRef.get();
+      const order = oSnap.exists ? oSnap.data() : {};
+      await upsertSellerPayout(db, act.orderId, order, {
+        releaseStatus: act.type === "hold" ? "on_hold" : "rejected",
+        holdReason: act.type === "hold" ? act.reason || "" : "",
+        rejectionReason: act.type === "reject" ? act.reason || "" : "",
+      });
+      await writeAudit(db, {
+        action: act.type === "hold" ? "payout_held" : "payout_rejected",
+        entityType: "payout",
+        entityId: String(act.orderId),
+        actorId: adminId,
+        actorRole: "admin",
+        newStatus: act.type === "hold" ? "on_hold" : "rejected",
+        amount: Number(order.sellerPayableAmount || order.sellerPayout) || 0,
+        reason: act.reason || "",
+      });
+      return actRef.update({ status: "done", processedAt: Timestamp.now() });
+    }
+
+    // Pre-release safety checks (section 5). Firestore transactions can't run
+    // queries, so we verify these here first; the transaction below still
+    // guards on order status ("in_escrow") so a double release is impossible.
+    let releaseBreakdown = null;
+    if (act.type === "release") {
+      const s = await orderRef.get();
+      if (!s.exists) return actRef.update({ status: "order_missing" });
+      const o = s.data();
+      if (o.status !== "in_escrow") {
+        return actRef.update({ status: "not_in_escrow" });
+      }
+      if ((Number(o.amount) || 0) <= 0) {
+        return actRef.update({ status: "blocked_zero_amount" });
+      }
+      // Buyer must have confirmed delivery before a payout (section 5). An admin
+      // can override in exceptional cases (act.override === true), which is
+      // itself recorded in the audit log via metadata below.
+      if (o.buyerConfirmed !== true && act.override !== true) {
+        return actRef.update({ status: "blocked_not_confirmed" });
+      }
+      // Do NOT release while an active dispute exists for this order.
+      const disp = await db
+        .collection("disputes")
+        .where("orderId", "==", act.orderId)
+        .get();
+      if (disp.docs.some((d) => (d.data().status || "open") === "open")) {
+        return actRef.update({ status: "blocked_dispute" });
+      }
+      // A payout can only go to a VERIFIED seller account.
+      if (o.sellerId) {
+        const verified = await db
+          .collection("users")
+          .doc(o.sellerId)
+          .collection("payoutAccounts")
+          .where("verificationStatus", "==", "verified")
+          .limit(1)
+          .get();
+        if (verified.empty) {
+          return actRef.update({ status: "blocked_no_verified_account" });
+        }
+      }
+      // Server-authoritative breakdown (reads config/commission). Computed here
+      // (outside the transaction) because it does an async config read.
+      releaseBreakdown = await computePayoutBreakdown(db, o, {});
+      if ((releaseBreakdown.sellerPayableAmount || 0) <= 0) {
+        return actRef.update({ status: "blocked_zero_payable" });
+      }
+    }
+
+    // The value moved this run — captured for post-transaction audit/payout.
+    let moved = null;
 
     await db.runTransaction(async (tx) => {
       const orderSnap = await tx.get(orderRef);
@@ -1080,14 +1479,9 @@ exports.onEscrowAction = onDocumentCreated(
       const amount = Number(order.amount) || 0;
 
       if (act.type === "release") {
-        // Commission/payout are recomputed here (server-authoritative) rather
-        // than trusting whatever the client stored on the order.
-        // Commission is on the product only; the delivery fee (part of amount)
-        // passes through to the seller in full.
-        const delivery = Number(order.deliveryFee) || 0;
-        const commission =
-          Math.round((amount - delivery) * commissionRate() * 100) / 100;
-        const payout = amount - commission;
+        const b = releaseBreakdown;
+        const payout = b.sellerPayableAmount;
+        const txnRef = act.transactionReference || `PB-${act.orderId}`;
         const sellerRef = db.collection("users").doc(order.sellerId);
         const sellerSnap = await tx.get(sellerRef);
         const bal = Number(sellerSnap.get("walletBalance")) || 0;
@@ -1095,32 +1489,68 @@ exports.onEscrowAction = onDocumentCreated(
         tx.update(sellerRef, { walletBalance: bal + payout });
         tx.update(orderRef, {
           status: "released",
-          commission,
+          orderStatus: "completed",
+          paymentStatus: "released_to_seller",
+          commission: b.platformCommissionAmount,
           sellerPayout: payout,
+          itemSubtotal: b.itemSubtotal,
+          deliveryFee: b.deliveryFee,
+          platformCommissionRate: b.platformCommissionRate,
+          platformCommissionAmount: b.platformCommissionAmount,
+          sellerPayableAmount: payout,
+          refundAmount: b.refundAmount,
+          adjustmentAmount: b.adjustmentAmount,
+          releasedAmount: payout,
+          currency: "PKR",
+          calculationVersion: b.calculationVersion,
+          transactionReference: txnRef,
+          releasedBy: adminId,
           releasedAt: Timestamp.now(),
         });
         tx.set(db.collection("ledger").doc(), {
           type: "escrow_release",
           orderId: act.orderId,
           amount: payout,
-          commission,
+          commission: b.platformCommissionAmount,
           sellerId: order.sellerId || "",
           createdAt: Timestamp.now(),
         });
+        moved = { kind: "release", order, breakdown: b, payout, txnRef };
       } else if (act.type === "refund") {
+        // Full refund by default; a partial refund (act.refundAmount < amount)
+        // credits the buyer part of the held money and keeps the rest held so a
+        // later release nets it out (computePayoutBreakdown subtracts it).
+        const requested = Number(act.refundAmount) || 0;
+        const partial = requested > 0 && requested < amount;
+        const refundValue = partial ? requested : amount;
         const buyerRef = db.collection("users").doc(order.buyerId);
         const buyerSnap = await tx.get(buyerRef);
         const bal = Number(buyerSnap.get("walletBalance")) || 0;
 
-        tx.update(buyerRef, { walletBalance: bal + amount });
-        tx.update(orderRef, { status: "refunded", refundedAt: Timestamp.now() });
+        tx.update(buyerRef, { walletBalance: bal + refundValue });
+        if (partial) {
+          tx.update(orderRef, {
+            paymentStatus: "partially_refunded",
+            refundAmount: refundValue,
+            refundedAt: Timestamp.now(),
+          });
+        } else {
+          tx.update(orderRef, {
+            status: "refunded",
+            orderStatus: "cancelled",
+            paymentStatus: "refunded",
+            refundAmount: refundValue,
+            refundedAt: Timestamp.now(),
+          });
+        }
         tx.set(db.collection("ledger").doc(), {
-          type: "escrow_refund",
+          type: partial ? "escrow_refund_partial" : "escrow_refund",
           orderId: act.orderId,
-          amount,
+          amount: refundValue,
           buyerId: order.buyerId || "",
           createdAt: Timestamp.now(),
         });
+        moved = { kind: "refund", order, refundValue, partial };
       } else {
         tx.update(actRef, { status: "unknown_type" });
         return;
@@ -1128,6 +1558,236 @@ exports.onEscrowAction = onDocumentCreated(
 
       tx.update(actRef, { status: "done", processedAt: Timestamp.now() });
     });
+
+    // Post-transaction side effects: payout record, audit trail, notifications.
+    if (!moved) return;
+    if (moved.kind === "release") {
+      await upsertSellerPayout(db, act.orderId, moved.order, {
+        paymentStatus: "released_to_seller",
+        releaseStatus: "released",
+        releasedAmount: moved.payout,
+        releasedAt: Timestamp.now(),
+        releasedBy: adminId,
+        transactionReference: moved.txnRef,
+      });
+      await writeAudit(db, {
+        action: "payout_released",
+        entityType: "payout",
+        entityId: String(act.orderId),
+        actorId: adminId,
+        actorRole: "admin",
+        previousStatus: "release_pending",
+        newStatus: "released_to_seller",
+        amount: moved.payout,
+        reason: act.override === true ? "admin_override" : "",
+        metadata: {
+          commission: moved.breakdown.platformCommissionAmount,
+          rate: moved.breakdown.platformCommissionRate,
+          transactionReference: moved.txnRef,
+        },
+      });
+      if (moved.order.sellerId) {
+        await pushToUser(
+          db,
+          moved.order.sellerId,
+          {
+            title: "Payout released",
+            body: `PKR ${moved.payout} has been released to your wallet.`,
+          },
+          { type: "payout", orderId: String(act.orderId) }
+        );
+      }
+    } else {
+      await upsertSellerPayout(db, act.orderId, moved.order, {
+        paymentStatus: moved.partial ? "partially_refunded" : "refunded",
+        releaseStatus: moved.partial ? "not_eligible" : "refunded",
+        refundAmount: moved.refundValue,
+      });
+      await writeAudit(db, {
+        action: moved.partial ? "refund_partial" : "refund_issued",
+        entityType: "order",
+        entityId: String(act.orderId),
+        actorId: adminId,
+        actorRole: "admin",
+        newStatus: moved.partial ? "partially_refunded" : "refunded",
+        amount: moved.refundValue,
+        reason: act.reason || "",
+      });
+      if (moved.order.buyerId) {
+        await pushToUser(
+          db,
+          moved.order.buyerId,
+          {
+            title: "Refund issued",
+            body: `PKR ${moved.refundValue} has been refunded to your wallet.`,
+          },
+          { type: "order", orderId: String(act.orderId) }
+        );
+      }
+    }
+  }
+);
+
+// Alert the seller when a buyer opens a dispute / problem report. The payout is
+// already blocked server-side while the dispute is open (see onEscrowAction);
+// this only notifies. Admins see disputes in the dashboard.
+exports.notifyOnDispute = onDocumentCreated(
+  "disputes/{disputeId}",
+  async (event) => {
+    const d = event.data && event.data.data();
+    if (!d || !d.sellerId) return;
+    const db = getFirestore();
+    const title =
+      d.type === "dispute" ? "A dispute was opened" : "A problem was reported";
+    const body = `Order: ${d.listingTitle || "your item"}${
+      d.reason ? ` — ${d.reason}` : ""
+    }`;
+    // Mark the order disputed so the seller payout is visibly blocked (the hard
+    // block is already enforced in onEscrowAction's pre-release checks). Money
+    // status is not changed — the funds simply stay held pending resolution.
+    if (d.orderId) {
+      try {
+        await db
+          .collection("orders")
+          .doc(String(d.orderId))
+          .set({ orderStatus: "disputed", hasOpenDispute: true }, { merge: true });
+        await db
+          .collection("sellerPayouts")
+          .doc(String(d.orderId))
+          .set({ releaseStatus: "on_hold", holdReason: "dispute_open", updatedAt: Timestamp.now() }, { merge: true });
+      } catch (_) {
+        // best-effort — the pre-release query is the authoritative block
+      }
+    }
+    await writeAudit(db, {
+      action: "dispute_opened",
+      entityType: "order",
+      entityId: String(d.orderId || ""),
+      actorId: d.buyerId || "",
+      actorRole: "buyer",
+      newStatus: "disputed",
+      reason: d.reason || "",
+      metadata: { type: d.type || "problem" },
+    });
+    await pushToUser(
+      db,
+      d.sellerId,
+      { title, body },
+      { type: "dispute", orderId: String(d.orderId || "") }
+    );
+    await notifyAdmins(
+      db,
+      { title: "Dispute opened", body },
+      { type: "dispute", orderId: String(d.orderId || "") }
+    );
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Order fulfillment progress → server-authoritative money effects.
+//
+// Clients advance the FULFILLMENT side (seller ships; buyer confirms delivery)
+// with rules-validated writes, but the MONEY side (payment_status, payout
+// records) is owned by this backend. When the buyer confirms delivery on a
+// platform-held order, we move payment_status to release_pending and open a
+// payout record for admin verification — the buyer app never releases money.
+// ---------------------------------------------------------------------------
+exports.onOrderProgress = onDocumentUpdated(
+  "orders/{orderId}",
+  async (event) => {
+    const before = (event.data.before && event.data.before.data()) || {};
+    const after = (event.data.after && event.data.after.data()) || {};
+    const orderId = event.params.orderId;
+    const db = getFirestore();
+
+    const nowConfirmed =
+      (after.orderStatus === "buyer_confirmed" &&
+        before.orderStatus !== "buyer_confirmed") ||
+      (after.buyerConfirmed === true && before.buyerConfirmed !== true);
+
+    // Buyer confirmed delivery on a held (escrow) order → open the payout for
+    // admin verification. Idempotent: skip if we've already moved to
+    // release_pending (this function also fires on its own write below).
+    if (
+      nowConfirmed &&
+      after.status === "in_escrow" &&
+      before.paymentStatus !== "release_pending" &&
+      after.paymentStatus !== "released_to_seller"
+    ) {
+      await db.collection("orders").doc(orderId).set(
+        {
+          orderStatus: "buyer_confirmed",
+          paymentStatus: "release_pending",
+          buyerConfirmed: true,
+          buyerConfirmedBy: after.buyerId || before.buyerId || "",
+          buyerConfirmedAt: after.buyerConfirmedAt || Timestamp.now(),
+        },
+        { merge: true }
+      );
+      await upsertSellerPayout(db, orderId, after, {
+        paymentStatus: "release_pending",
+        releaseStatus: "eligible",
+        eligibleForReleaseAt: Timestamp.now(),
+      });
+      await writeAudit(db, {
+        action: "buyer_confirmed_delivery",
+        entityType: "order",
+        entityId: orderId,
+        actorId: after.buyerId || "",
+        actorRole: "buyer",
+        previousStatus: before.orderStatus || before.status || "",
+        newStatus: "buyer_confirmed",
+        amount: Number(after.amount) || 0,
+      });
+      await writeAudit(db, {
+        action: "commission_calculated",
+        entityType: "payout",
+        entityId: orderId,
+        actorRole: "system",
+        amount: Number(after.amount) || 0,
+      });
+      if (after.sellerId) {
+        await pushToUser(
+          db,
+          after.sellerId,
+          {
+            title: "Buyer confirmed delivery",
+            body: "Your payout is pending platform verification.",
+          },
+          { type: "payout", orderId }
+        );
+      }
+      await notifyAdmins(
+        db,
+        {
+          title: "Payout eligible",
+          body: `Order "${after.listingTitle || orderId}" is ready for payout review.`,
+        },
+        { type: "payout", orderId }
+      );
+      return;
+    }
+
+    // Buyer-facing fulfillment notifications (seller advanced the order).
+    if (after.orderStatus !== before.orderStatus && after.buyerId) {
+      const msg = {
+        accepted: "The seller accepted your order.",
+        processing: "Your order is being prepared.",
+        shipped: `Your order has shipped${
+          after.courierName ? ` via ${after.courierName}` : ""
+        }.`,
+        delivered:
+          "Your order is marked delivered — please confirm once you've received and checked it.",
+      }[after.orderStatus];
+      if (msg) {
+        await pushToUser(
+          db,
+          after.buyerId,
+          { title: "Order update", body: msg },
+          { type: "order", orderId }
+        );
+      }
+    }
   }
 );
 

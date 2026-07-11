@@ -703,19 +703,23 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                   ],
                 ],
                 const SizedBox(height: 16),
-                if (listing.isSold)
+                if (!listing.isAvailableForSale)
                   Container(
                     width: double.infinity,
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: Colors.red.shade700,
+                      color: switch (listing.status) {
+                        'sold' => Colors.red.shade700,
+                        'out_of_stock' => Colors.orange.shade800,
+                        _ => Colors.blueGrey.shade600,
+                      },
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Text(
-                      'SOLD',
-                      style: TextStyle(
+                    child: Text(
+                      listing.statusLabel.toUpperCase(),
+                      style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 18,
@@ -1066,7 +1070,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                 const _SafetyTips(),
                 const SizedBox(height: 24),
                 if (!isOwnAd) ...[
-                  if (!listing.isSold && isBuyable(listing)) ...[
+                  if (listing.isAvailableForSale && isBuyable(listing)) ...[
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(

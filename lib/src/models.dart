@@ -2,6 +2,23 @@ part of '../main.dart';
 
 // Core data models and in-memory state.
 
+/// The four seller-controlled inventory states.
+const Set<String> kValidListingStatuses = {
+  'in_stock',
+  'out_of_stock',
+  'sold',
+  'inactive',
+};
+
+/// Derives a listing's inventory status: honour a valid explicit [rawStatus],
+/// otherwise migrate from the legacy [isSoldLegacy] bool ('sold' when it was
+/// sold, else 'in_stock'). Pure and unit-tested — the single migration point.
+String listingStatusFrom(String? rawStatus, bool isSoldLegacy) {
+  final s = rawStatus ?? '';
+  if (kValidListingStatuses.contains(s)) return s;
+  return isSoldLegacy ? 'sold' : 'in_stock';
+}
+
 class Listing {
   String id;
   String title;
@@ -32,6 +49,11 @@ class Listing {
   int chats;
   bool isFeatured;
   bool isSold;
+  // Seller-controlled inventory state: 'in_stock' | 'out_of_stock' | 'sold' |
+  // 'inactive'. Legacy listings without this field are migrated on read from
+  // isSold (see fromDoc). isSold is kept in sync (true iff status=='sold') so
+  // the many existing `!isSold` feed filters keep working unchanged.
+  String status;
   Timestamp? featuredUntil;
   Timestamp? createdAt;
   String previousPrice; // the price before the most recent reduction (optional)
@@ -68,6 +90,7 @@ class Listing {
     this.chats = 0,
     this.isFeatured = false,
     this.isSold = false,
+    this.status = 'in_stock',
     this.featuredUntil,
     this.createdAt,
     this.previousPrice = '',
@@ -82,6 +105,23 @@ class Listing {
   /// before moderation existed have no status and are treated as approved.
   bool get isApproved =>
       approvalStatus != 'pending' && approvalStatus != 'rejected';
+
+  /// Only an in-stock listing can be purchased. Sold / out-of-stock / inactive
+  /// all block checkout (enforced again server-side in placeListingOrder).
+  bool get isAvailableForSale => status == 'in_stock';
+
+  /// Whether the listing should appear in public discovery feeds. Inactive
+  /// listings are hidden (seller paused them) without being deleted; sold and
+  /// out-of-stock still show (with a badge) so buyers see the seller's catalog.
+  bool get isPubliclyVisible => status != 'inactive';
+
+  /// Short, buyer-facing label for a non-purchasable status ('' when in stock).
+  String get statusLabel => switch (status) {
+    'sold' => 'Sold',
+    'out_of_stock' => 'Out of stock',
+    'inactive' => 'Inactive',
+    _ => '',
+  };
 
   /// True if the price was reduced within the last 30 days — drives the
   /// "Price dropped" badge and the struck-through old price on cards.
@@ -136,6 +176,7 @@ class Listing {
       'chats': chats,
       'isFeatured': isFeatured,
       'isSold': isSold,
+      'status': status,
       'previousPrice': previousPrice,
       'approvalStatus': approvalStatus,
       if (featuredUntil != null) 'featuredUntil': featuredUntil,
@@ -159,6 +200,14 @@ class Listing {
     final imagesList = rawImages is List
         ? rawImages.map((e) => e.toString()).toList()
         : <String>[];
+
+    // Inventory status, migrated on read: honour an explicit valid `status`,
+    // else derive from the legacy `isSold` bool (sold -> 'sold', else
+    // 'in_stock'). No write needed — existing docs migrate transparently.
+    final invStatus = listingStatusFrom(
+      data['status']?.toString(),
+      data['isSold'] == true,
+    );
 
     return Listing(
       id: doc.id,
@@ -194,7 +243,10 @@ class Listing {
       whatsapps: asNum(data['whatsapps'])?.toInt() ?? 0,
       chats: asNum(data['chats'])?.toInt() ?? 0,
       isFeatured: data['isFeatured'] == true,
-      isSold: data['isSold'] == true,
+      // Keep isSold in sync with the migrated status so all existing `!isSold`
+      // feed filters keep hiding sold items.
+      isSold: invStatus == 'sold',
+      status: invStatus,
       featuredUntil: data['featuredUntil'] is Timestamp
           ? data['featuredUntil'] as Timestamp
           : null,

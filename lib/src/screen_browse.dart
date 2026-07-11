@@ -569,6 +569,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
           matchesNegotiable &&
           matchesColor &&
           notBlocked &&
+          listing.isPubliclyVisible &&
           listing.isApproved;
     }).toList();
 

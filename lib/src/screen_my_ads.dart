@@ -757,32 +757,18 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                         onPressed: () => showPromoteSheet(context, listing),
                       ),
                       IconButton(
-                        tooltip: listing.isSold
-                            ? 'Mark as available'
-                            : 'Mark as sold',
+                        tooltip:
+                            'Inventory status'
+                            '${listing.statusLabel.isEmpty ? '' : ' · ${listing.statusLabel}'}',
                         icon: Icon(
-                          listing.isSold
-                              ? Icons.check_circle
-                              : Icons.check_circle_outline,
-                          color: listing.isSold ? Colors.red : Colors.grey,
+                          listing.isAvailableForSale
+                              ? Icons.inventory_2_outlined
+                              : Icons.inventory_2,
+                          color: listing.isAvailableForSale
+                              ? Colors.grey
+                              : Colors.red,
                         ),
-                        onPressed: () async {
-                          await FirebaseFirestore.instance
-                              .collection('listings')
-                              .doc(listing.id)
-                              .update({'isSold': !listing.isSold});
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  listing.isSold
-                                      ? 'Marked as available'
-                                      : 'Marked as sold',
-                                ),
-                              ),
-                            );
-                          }
-                        },
+                        onPressed: () => showInventorySheet(context, listing),
                       ),
                       PopupMenuButton<String>(
                         tooltip: 'More',

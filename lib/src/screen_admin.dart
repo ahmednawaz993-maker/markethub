@@ -429,89 +429,111 @@ class _AdminEscrowTab extends StatelessWidget {
         return ListView.builder(
           padding: const EdgeInsets.all(12),
           itemCount: docs.length,
-          itemBuilder: (context, i) {
-            final d = docs[i].data() as Map<String, dynamic>;
-            final amount = (d['amount'] as num?)?.toDouble() ?? 0;
-            final commission =
-                (d['commission'] as num?)?.toDouble() ??
-                (amount * commissionRate);
-            final payout = amount - commission;
-            final confirmed = d['buyerConfirmed'] == true;
-            return Card(
-              margin: const EdgeInsets.only(bottom: 10),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      d['listingTitle']?.toString() ?? '',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Buyer: ${d['buyerName'] ?? ''}   ·   '
-                      'Seller: ${d['sellerName'] ?? ''}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Held ${formatPrice(amount.toStringAsFixed(0))}  ·  '
-                      'payout ${formatPrice(payout.toStringAsFixed(0))}  ·  '
-                      'fee ${formatPrice(commission.toStringAsFixed(0))}',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          confirmed ? Icons.check_circle : Icons.hourglass_top,
-                          size: 15,
-                          color: confirmed ? Colors.green : Colors.orange,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          confirmed
-                              ? 'Buyer confirmed receipt'
-                              : 'Buyer has not confirmed yet',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: confirmed ? Colors.green : Colors.orange,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    _EscrowActions(orderId: docs[i].id),
-                  ],
-                ),
-              ),
-            );
-          },
+          itemBuilder: (context, i) => _PayoutReviewCard(
+            orderId: docs[i].id,
+            data: docs[i].data() as Map<String, dynamic>,
+          ),
         );
       },
     );
   }
 }
 
-/// Release / refund buttons for one escrowed order. Stateful so both disable
-/// while the instruction is written — a double-tap can't queue two actions
-/// (the Cloud Function also guards on order status, so it stays idempotent).
-class _EscrowActions extends StatefulWidget {
-  const _EscrowActions({required this.orderId});
+/// Full payout-verification card for one held order (spec section 5). Shows the
+/// server-authoritative money breakdown, the live pre-release checklist, and the
+/// admin actions (release / hold / reject / refund). Every action is written to
+/// `escrowActions` and applied server-side by onEscrowAction — the client never
+/// moves money. Release requires an explicit confirmation dialog.
+class _PayoutReviewCard extends StatefulWidget {
+  const _PayoutReviewCard({required this.orderId, required this.data});
 
   final String orderId;
+  final Map<String, dynamic> data;
 
   @override
-  State<_EscrowActions> createState() => _EscrowActionsState();
+  State<_PayoutReviewCard> createState() => _PayoutReviewCardState();
 }
 
-class _EscrowActionsState extends State<_EscrowActions> {
+class _PayoutReviewCardState extends State<_PayoutReviewCard> {
   bool busy = false;
 
-  Future<void> _act(String type) async {
+  // ---- live pre-release checks -------------------------------------------
+  bool? _disputeOpen; // null while loading
+  bool? _accountVerified;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChecks();
+  }
+
+  Future<void> _loadChecks() async {
+    final fs = FirebaseFirestore.instance;
+    final orderId = widget.orderId;
+    final sellerId = widget.data['sellerId']?.toString() ?? '';
+    try {
+      final disp = await fs
+          .collection('disputes')
+          .where('orderId', isEqualTo: orderId)
+          .get();
+      final open = disp.docs.any(
+        (d) => (d.data()['status']?.toString() ?? 'open') == 'open',
+      );
+      bool verified = false;
+      if (sellerId.isNotEmpty) {
+        final v = await fs
+            .collection('users')
+            .doc(sellerId)
+            .collection('payoutAccounts')
+            .where('verificationStatus', isEqualTo: 'verified')
+            .limit(1)
+            .get();
+        verified = v.docs.isNotEmpty;
+      }
+      if (!mounted) return;
+      setState(() {
+        _disputeOpen = open;
+        _accountVerified = verified;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _disputeOpen = false;
+        _accountVerified = false;
+      });
+    }
+  }
+
+  double get _amount => (widget.data['amount'] as num?)?.toDouble() ?? 0;
+  double get _delivery => (widget.data['deliveryFee'] as num?)?.toDouble() ?? 0;
+  double get _subtotal =>
+      (widget.data['itemSubtotal'] as num?)?.toDouble() ??
+      (_amount - _delivery);
+  double get _commission =>
+      (widget.data['platformCommissionAmount'] as num?)?.toDouble() ??
+      (widget.data['commission'] as num?)?.toDouble() ??
+      (_subtotal * commissionRate);
+  double get _refundedAmount =>
+      (widget.data['refundAmount'] as num?)?.toDouble() ?? 0;
+  double get _payable =>
+      (widget.data['sellerPayableAmount'] as num?)?.toDouble() ??
+      (_amount - _commission - _refundedAmount);
+  bool get _buyerConfirmed => widget.data['buyerConfirmed'] == true;
+
+  bool get _canRelease =>
+      !busy &&
+      _buyerConfirmed &&
+      _disputeOpen == false &&
+      _accountVerified == true &&
+      _payable > 0;
+
+  Future<void> _queue(
+    String type, {
+    Map<String, dynamic> extra = const {},
+  }) async {
     if (busy) return;
     setState(() => busy = true);
+    final messenger = ScaffoldMessenger.of(context);
     try {
       await FirebaseFirestore.instance.collection('escrowActions').add({
         'orderId': widget.orderId,
@@ -519,35 +541,293 @@ class _EscrowActionsState extends State<_EscrowActions> {
         'by': FirebaseAuth.instance.currentUser?.uid ?? '',
         'status': 'pending',
         'createdAt': Timestamp.now(),
+        ...extra,
       });
+      messenger.showSnackBar(
+        SnackBar(content: Text('Payout $type queued — applying…')),
+      );
     } finally {
       if (mounted) setState(() => busy = false);
     }
   }
 
+  Future<void> _confirmRelease() async {
+    final txn = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('Release payout to seller?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'PakBazar will pay ${formatPrice(_payable.toStringAsFixed(0))} '
+              'to the seller (commission '
+              '${formatPrice(_commission.toStringAsFixed(0))} retained). '
+              'This cannot be undone.',
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: txn,
+              decoration: const InputDecoration(
+                labelText: 'Transaction reference (optional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: const Text('Release'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await _queue(
+        'release',
+        extra: {
+          if (txn.text.trim().isNotEmpty)
+            'transactionReference': txn.text.trim(),
+        },
+      );
+    }
+    txn.dispose();
+  }
+
+  Future<void> _reasonAction(String type, String title) async {
+    final reason = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: reason,
+          decoration: const InputDecoration(
+            labelText: 'Reason',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await _queue(type, extra: {'reason': reason.text.trim()});
+    }
+    reason.dispose();
+  }
+
+  Future<void> _refundBuyer() async {
+    final amt = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('Refund buyer'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Leave blank for a FULL refund of '
+              '${formatPrice(_amount.toStringAsFixed(0))}, or enter a partial '
+              'amount.',
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: amt,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Partial amount (optional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: const Text('Refund'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      final partial = double.tryParse(
+        amt.text.replaceAll(RegExp(r'[^0-9.]'), ''),
+      );
+      await _queue(
+        'refund',
+        extra: {if (partial != null && partial > 0) 'refundAmount': partial},
+      );
+    }
+    amt.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        TextButton(
-          onPressed: busy ? null : () => _act('refund'),
-          child: const Text('Refund buyer'),
+    final d = widget.data;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              d['listingTitle']?.toString() ?? '',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            Text(
+              'Order ${widget.orderId}',
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Buyer: ${d['buyerName'] ?? ''}   ·   Seller: ${d['sellerName'] ?? ''}',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const Divider(height: 16),
+            _row('Item subtotal', _subtotal),
+            _row('Delivery fee', _delivery),
+            _row('Platform commission', -_commission),
+            if (_refundedAmount > 0) _row('Refunded', -_refundedAmount),
+            _row('Seller payable', _payable, bold: true),
+            const SizedBox(height: 8),
+            // Pre-release checklist.
+            _check('Buyer confirmed delivery', _buyerConfirmed),
+            _check(
+              'No open dispute',
+              _disputeOpen == false,
+              loading: _disputeOpen == null,
+            ),
+            _check(
+              'Seller has a verified payout account',
+              _accountVerified == true,
+              loading: _accountVerified == null,
+            ),
+            _check('Seller payable is greater than zero', _payable > 0),
+            const SizedBox(height: 8),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 4,
+              runSpacing: 4,
+              children: [
+                TextButton(
+                  onPressed: busy ? null : _refundBuyer,
+                  child: const Text('Refund'),
+                ),
+                TextButton(
+                  onPressed: busy
+                      ? null
+                      : () => _reasonAction('reject', 'Reject payout'),
+                  child: const Text('Reject'),
+                ),
+                TextButton(
+                  onPressed: busy
+                      ? null
+                      : () => _reasonAction('hold', 'Hold payout'),
+                  child: const Text('Hold'),
+                ),
+                ElevatedButton(
+                  onPressed: _canRelease ? _confirmRelease : null,
+                  child: busy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Release to seller'),
+                ),
+              ],
+            ),
+            if (!_canRelease && !busy)
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text(
+                  'Release is enabled only when every check above passes.',
+                  style: TextStyle(fontSize: 11, color: Colors.orange),
+                ),
+              ),
+          ],
         ),
-        const SizedBox(width: 4),
-        ElevatedButton(
-          onPressed: busy ? null : () => _act('release'),
-          child: busy
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Release to seller'),
-        ),
-      ],
+      ),
     );
   }
+
+  Widget _row(String k, double v, {bool bold = false}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 1),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          k,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        Text(
+          formatPrice(v.toStringAsFixed(0)),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+            color: bold ? kPakGreen : null,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _check(String label, bool ok, {bool loading = false}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 1),
+    child: Row(
+      children: [
+        if (loading)
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        else
+          Icon(
+            ok ? Icons.check_circle : Icons.cancel,
+            size: 15,
+            color: ok ? Colors.green : Colors.red,
+          ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: loading
+                  ? Colors.grey
+                  : (ok ? Colors.green.shade800 : Colors.red),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 /// Edits the platform's receiving account (bank / JazzCash / EasyPaisa) shown

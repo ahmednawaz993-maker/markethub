@@ -20,6 +20,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:in_app_review/in_app_review.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -38,6 +39,9 @@ part 'src/catalog.dart';
 part 'src/push.dart';
 part 'src/commerce.dart';
 part 'src/addresses.dart';
+part 'src/review_prompt.dart';
+part 'src/screen_notif_prefs.dart';
+part 'src/screen_payout_accounts.dart';
 part 'src/widgets.dart';
 part 'src/presence.dart';
 part 'src/app.dart';
@@ -54,6 +58,7 @@ part 'src/screen_favorites.dart';
 part 'src/screen_profile.dart';
 part 'src/screen_wallet.dart';
 part 'src/screen_orders.dart';
+part 'src/order_fulfillment.dart';
 part 'src/screen_checkout.dart';
 part 'src/screen_addresses.dart';
 part 'src/screen_offers.dart';
@@ -70,6 +75,7 @@ Future<void> main() async {
   await loadFeaturingFlag();
   await loadVerificationFlag();
   await loadMonetizationFlag();
+  await recordAppSession();
 
   runApp(const PakBazarApp());
 }

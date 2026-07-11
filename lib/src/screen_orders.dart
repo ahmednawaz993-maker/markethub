@@ -35,7 +35,7 @@ Future<void> _payOrderEscrow(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'Pay & hold in escrow',
+                'Pay & hold securely',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
@@ -124,6 +124,124 @@ Future<void> _payOrderEscrow(
   from.dispose();
 }
 
+/// Lets a buyer report a problem or open a formal dispute on their order. Both
+/// create an `open` dispute which blocks the seller payout until an admin
+/// resolves it (enforced server-side in onEscrowAction).
+Future<void> showDisputeSheet(
+  BuildContext context,
+  String orderId,
+  Map<String, dynamic> order,
+) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return;
+  final messenger = ScaffoldMessenger.of(context);
+  final reason = TextEditingController();
+  String type = 'problem';
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (sheetCtx) => Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+      ),
+      child: StatefulBuilder(
+        builder: (sheetCtx, setSheet) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Report a problem',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Tell us what went wrong. Opening a dispute pauses any seller '
+                  'payout until our team reviews it.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 8),
+                RadioGroup<String>(
+                  groupValue: type,
+                  onChanged: (v) => setSheet(() => type = v ?? 'problem'),
+                  child: const Column(
+                    children: [
+                      RadioListTile<String>(
+                        value: 'problem',
+                        title: Text('Report a problem'),
+                        contentPadding: EdgeInsets.zero,
+                        activeColor: kPakGreen,
+                      ),
+                      RadioListTile<String>(
+                        value: 'dispute',
+                        title: Text('Open a dispute'),
+                        contentPadding: EdgeInsets.zero,
+                        activeColor: kPakGreen,
+                      ),
+                    ],
+                  ),
+                ),
+                TextField(
+                  controller: reason,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'What happened?',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (reason.text.trim().isEmpty) {
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('Please describe the problem.'),
+                        ),
+                      );
+                      return;
+                    }
+                    try {
+                      await FirebaseFirestore.instance
+                          .collection('disputes')
+                          .add({
+                            'orderId': orderId,
+                            'buyerId': uid,
+                            'sellerId': order['sellerId'] ?? '',
+                            'listingTitle': order['listingTitle'] ?? '',
+                            'type': type,
+                            'reason': reason.text.trim(),
+                            'status': 'open',
+                            'createdAt': Timestamp.now(),
+                          });
+                    } catch (_) {
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('Could not submit. Please try again.'),
+                        ),
+                      );
+                      return;
+                    }
+                    if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('Submitted — our team will review it.'),
+                      ),
+                    );
+                  },
+                  child: const Text('Submit'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  reason.dispose();
+}
+
 class OrdersScreen extends StatelessWidget {
   const OrdersScreen({super.key});
 
@@ -200,11 +318,10 @@ class _OrdersList extends StatelessWidget {
             final img = d['listingImage']?.toString() ?? '';
             final amount = (d['amount'] as num?)?.toDouble() ?? 0;
             final payout = (d['sellerPayout'] as num?)?.toDouble() ?? 0;
-            final buyerConfirmed = d['buyerConfirmed'] == true;
             final (label, color) = switch (status) {
               'cod_pending' => ('Cash on Delivery', Colors.indigo),
               'payment_review' => ('Payment under review', Colors.orange),
-              'in_escrow' => ('Paid · in escrow', kPakGreen),
+              'in_escrow' => ('Paid · held by PakBazar', kPakGreen),
               'released' => ('Completed · paid out', Colors.green),
               'completed' => ('Completed', Colors.green),
               'refunded' => ('Refunded', Colors.blueGrey),
@@ -298,6 +415,22 @@ class _OrdersList extends StatelessWidget {
                       ],
                     ),
                     _OrderDeliveryPanel(data: d, asSeller: asSeller),
+                    if (!asSeller &&
+                        (status == 'in_escrow' ||
+                            status == 'completed' ||
+                            status == 'cod_pending'))
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () =>
+                              showDisputeSheet(context, docs[i].id, d),
+                          icon: const Icon(
+                            Icons.report_problem_outlined,
+                            size: 16,
+                          ),
+                          label: const Text('Report a problem'),
+                        ),
+                      ),
                     if (status == 'pending_payment') ...[
                       const SizedBox(height: 8),
                       if (!asSeller)
@@ -315,7 +448,7 @@ class _OrdersList extends StatelessWidget {
                               onPressed: () =>
                                   _payOrderEscrow(context, docs[i].id, d),
                               icon: const Icon(Icons.lock, size: 18),
-                              label: const Text('Pay & hold in escrow'),
+                              label: const Text('Pay & hold securely'),
                             ),
                           ],
                         )
@@ -368,17 +501,29 @@ class _OrdersList extends StatelessWidget {
                           else
                             ElevatedButton(
                               onPressed: () async {
+                                final messenger = ScaffoldMessenger.of(context);
                                 await docs[i].reference.update({
                                   'status': 'completed',
                                   'completedAt': Timestamp.now(),
                                 });
+                                // Seller controls inventory — delivering an
+                                // order no longer auto-marks the listing sold.
+                                // Offer a one-tap shortcut instead.
                                 final lid = d['listingId']?.toString() ?? '';
-                                if (lid.isNotEmpty) {
-                                  await FirebaseFirestore.instance
-                                      .collection('listings')
-                                      .doc(lid)
-                                      .update({'isSold': true});
-                                }
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    content: const Text(
+                                      'Order marked delivered.',
+                                    ),
+                                    action: lid.isEmpty
+                                        ? null
+                                        : SnackBarAction(
+                                            label: 'Mark sold',
+                                            onPressed: () =>
+                                                setListingStatus(lid, 'sold'),
+                                          ),
+                                  ),
+                                );
                               },
                               child: const Text('Mark delivered'),
                             ),
@@ -423,49 +568,24 @@ class _OrdersList extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 asSeller
-                                    ? 'Payment is held in escrow. It is paid to '
-                                          'your wallet once released.'
-                                    : 'Your payment is held safely. Confirm once '
-                                          'you have received the item.',
+                                    ? 'Payment is held by PakBazar and will be '
+                                          'released after the buyer confirms '
+                                          'delivery and the platform approves '
+                                          'the payout.'
+                                    : 'Your payment is held safely by PakBazar. '
+                                          'Confirm delivery once you have '
+                                          'received and checked the item.',
                                 style: const TextStyle(fontSize: 12),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      if (!asSeller && !buyerConfirmed) ...[
-                        const SizedBox(height: 6),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: ElevatedButton.icon(
-                            onPressed: () => docs[i].reference.update({
-                              'buyerConfirmed': true,
-                              'buyerConfirmedAt': Timestamp.now(),
-                            }),
-                            icon: const Icon(Icons.check_circle, size: 18),
-                            label: const Text('Confirm received'),
-                          ),
-                        ),
-                      ],
-                      if (buyerConfirmed) ...[
-                        const SizedBox(height: 6),
-                        const Row(
-                          children: [
-                            Icon(Icons.verified, size: 16, color: kPakGreen),
-                            SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                'Receipt confirmed — awaiting payout to seller.',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: kPakGreen,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                      OrderFulfillmentPanel(
+                        data: d,
+                        orderId: docs[i].id,
+                        asSeller: asSeller,
+                      ),
                     ],
                     if (status == 'released' || status == 'completed') ...[
                       const SizedBox(height: 8),

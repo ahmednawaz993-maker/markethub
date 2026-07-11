@@ -92,6 +92,16 @@ class NotificationsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Notifications'),
         actions: [
+          IconButton(
+            tooltip: 'Notification settings',
+            icon: const Icon(Icons.settings),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const NotificationPreferencesScreen(),
+              ),
+            ),
+          ),
           if (col != null)
             TextButton(
               onPressed: () async {

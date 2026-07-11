@@ -84,12 +84,13 @@ jobs:
 
       - name: Compute versionCode
         id: vc
-        # 19 = highest versionCode already on Play (vc19, uploaded manually
-        # 2026-07-11). run_number is monotonic, so 19 + run_number always
-        # exceeds it — keep this base in sync with the highest versionCode ever
-        # shipped to Play (including manual scripts/play_upload.py uploads),
-        # otherwise the Play upload step is rejected for a duplicate/lower code.
-        run: echo "code=$((19 + GITHUB_RUN_NUMBER))" >> "$GITHUB_OUTPUT"
+        # 22 = highest versionCode already on Play (vc22, uploaded manually
+        # 2026-07-11 with the platform-held payment & payout workflow). run_number
+        # is monotonic, so 22 + run_number always exceeds it — keep this base in
+        # sync with the highest versionCode ever shipped to Play (including manual
+        # scripts/play_upload.py uploads), otherwise the Play upload step is
+        # rejected for a duplicate/lower code.
+        run: echo "code=$((22 + GITHUB_RUN_NUMBER))" >> "$GITHUB_OUTPUT"
 
       - name: Build signed AAB
         run: flutter build appbundle --release --build-number=${{ steps.vc.outputs.code }}

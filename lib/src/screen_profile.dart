@@ -1895,6 +1895,17 @@ class ProfileScreen extends StatelessWidget {
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(
+                          builder: (_) => const PayoutAccountsScreen(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.account_balance_outlined),
+                      label: const Text('Payout accounts'),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
                           builder: (_) => const SalesDashboardScreen(),
                         ),
                       ),
