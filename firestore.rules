@@ -472,7 +472,11 @@ service cloud.firestore {
                  || (curOrderStatus() == 'shipped'
                    && request.resource.data.orderStatus == 'delivered')
                )
+               // Dispatching an ESCROW order requires a courier + tracking
+               // number so the buyer can follow the held-payment delivery. COD
+               // orders may be hand-delivered, so tracking is optional there.
                && (request.resource.data.orderStatus != 'shipped'
+                   || resource.data.get('paymentMethod', '') == 'cod'
                    || (request.resource.data.get('courierName', '') != ''
                        && request.resource.data.get('trackingNumber', '') != ''));
       }

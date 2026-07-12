@@ -328,25 +328,33 @@ class OrderFulfillmentPanel extends StatelessWidget {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'Enter the courier and tracking number so the buyer can '
-                  'follow the delivery. Marking dispatched notifies the buyer.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                Text(
+                  _isCod
+                      ? 'Add a courier and tracking number if you are using a '
+                            'courier, or leave them blank for a hand delivery. '
+                            'Marking dispatched notifies the buyer.'
+                      : 'Enter the courier and tracking number so the buyer can '
+                            'follow the delivery. Marking dispatched notifies '
+                            'the buyer.',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: courier,
-                  decoration: const InputDecoration(
-                    labelText: 'Courier (e.g. TCS, Leopards)',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: _isCod
+                        ? 'Courier (optional)'
+                        : 'Courier (e.g. TCS, Leopards)',
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: tracking,
-                  decoration: const InputDecoration(
-                    labelText: 'Tracking number',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText:
+                        _isCod ? 'Tracking number (optional)' : 'Tracking number',
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -361,8 +369,11 @@ class OrderFulfillmentPanel extends StatelessWidget {
                 const SizedBox(height: 14),
                 ElevatedButton.icon(
                   onPressed: () async {
-                    if (courier.text.trim().isEmpty ||
-                        tracking.text.trim().isEmpty) {
+                    // Escrow dispatch needs courier + tracking; COD may be
+                    // hand-delivered, so they're optional there.
+                    if (!_isCod &&
+                        (courier.text.trim().isEmpty ||
+                            tracking.text.trim().isEmpty)) {
                       messenger.showSnackBar(
                         const SnackBar(
                           content: Text(
