@@ -346,9 +346,18 @@ Future<bool> addListingToCart(Listing l, {int qty = 1}) async {
 /// Sets the quantity for a line item (removes it when [qty] < 1).
 Future<void> updateCartQty(String listingId, int qty) async {
   if (qty < 1) return removeFromCart(listingId);
+  // Clamp to a sane upper bound (stock is boolean, not numeric) so a stuck
+  // stepper can't create an absurd line total.
+  final n = qty > 99 ? 99 : qty;
   final col = _cartCol();
   if (col != null) {
-    await col.doc(listingId).update({'quantity': qty});
+    try {
+      await col.doc(listingId).update({'quantity': n});
+    } on FirebaseException catch (e) {
+      // The line was removed in another session/tab between render and tap —
+      // updating a missing doc throws not-found; ignore it rather than crash.
+      if (e.code != 'not-found') rethrow;
+    }
   } else {
     final items = await _guestLoad();
     final i = items.indexWhere((e) => e.listingId == listingId);

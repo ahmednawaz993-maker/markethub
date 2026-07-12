@@ -197,6 +197,35 @@ class _AuthScreenState extends State<AuthScreen> {
 
   /// Turns a Firebase phone-auth error code into a short, user-facing message
   /// instead of leaking the raw exception.
+  // Map email/password auth codes to friendly text. Deliberately does NOT
+  // reveal whether an email exists (uses one generic message for
+  // wrong-password / user-not-found / invalid-credential) to avoid account
+  // enumeration and to keep raw Firebase strings off the screen.
+  String _friendlyEmailError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-email':
+        return 'That email address looks invalid.';
+      case 'user-disabled':
+        return 'This account has been disabled. Please contact support.';
+      case 'wrong-password':
+      case 'user-not-found':
+      case 'invalid-credential':
+        return 'Incorrect email or password. Please try again.';
+      case 'email-already-in-use':
+        return 'An account already exists for this email. Please log in.';
+      case 'weak-password':
+        return 'Please choose a stronger password (at least 6 characters).';
+      case 'operation-not-allowed':
+        return 'Email sign-in is unavailable right now. Please try again later.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please try again in a few minutes.';
+      case 'network-request-failed':
+        return 'No internet connection. Please try again.';
+      default:
+        return 'Authentication failed. Please try again.';
+    }
+  }
+
   String _friendlyPhoneError(FirebaseAuthException e) {
     switch (e.code) {
       case 'invalid-phone-number':
@@ -263,7 +292,7 @@ class _AuthScreenState extends State<AuthScreen> {
       // AuthGate listens to authStateChanges and navigates automatically.
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      setState(() => errorMessage = e.message ?? 'Authentication failed');
+      setState(() => errorMessage = _friendlyEmailError(e));
     } finally {
       if (mounted) {
         setState(() => isLoading = false);

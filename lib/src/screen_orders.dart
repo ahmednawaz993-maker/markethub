@@ -6,6 +6,138 @@ part of '../main.dart';
 /// they transfer to the platform's receiving account, enter their transaction
 /// reference as proof, and submit. The order moves to "payment under review";
 /// an admin confirms it (onPaymentAction) and it then enters escrow.
+/// Shared manual "I have paid" proof sheet for both single-order and master
+/// (multi-seller) escrow payments. Guards against double submission (a second
+/// tap during the network gap would create a duplicate payments doc), disables
+/// the inputs while submitting, and shows a friendly error instead of the raw
+/// exception. [buildPayment] returns the payments-doc body (it must carry either
+/// orderId or masterOrderId + amount).
+Future<void> _submitPaymentProofSheet(
+  BuildContext context, {
+  required double amount,
+  required String description,
+  required Map<String, dynamic> Function(String proofRef, String proofFrom)
+  buildPayment,
+}) async {
+  if (FirebaseAuth.instance.currentUser == null) return;
+  final messenger = ScaffoldMessenger.of(context);
+  final ref = TextEditingController();
+  final from = TextEditingController();
+  var submitting = false;
+
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (sheetContext) {
+      return StatefulBuilder(
+        builder: (context, setSheet) {
+          Future<void> submit() async {
+            if (submitting) return;
+            if (ref.text.trim().isEmpty) {
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text('Enter your transaction reference'),
+                ),
+              );
+              return;
+            }
+            setSheet(() => submitting = true);
+            try {
+              await FirebaseFirestore.instance
+                  .collection('payments')
+                  .add(buildPayment(ref.text.trim(), from.text.trim()));
+              if (sheetContext.mounted) Navigator.pop(sheetContext);
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Payment submitted — an admin will confirm it shortly.',
+                  ),
+                ),
+              );
+            } catch (_) {
+              setSheet(() => submitting = false);
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Could not submit your payment. Please try again.',
+                  ),
+                ),
+              );
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Pay & hold securely',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Amount: ${formatPrice(amount.toStringAsFixed(0))}',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  const _PaymentAccountInfo(),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: ref,
+                    enabled: !submitting,
+                    decoration: const InputDecoration(
+                      labelText: 'Transaction ID / reference',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: from,
+                    enabled: !submitting,
+                    decoration: const InputDecoration(
+                      labelText: 'Paid from (your account / number, optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: submitting ? null : submit,
+                    icon: submitting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.lock),
+                    label: Text(submitting ? 'Submitting…' : 'I have paid — submit'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+  ref.dispose();
+  from.dispose();
+}
+
 Future<void> _payOrderEscrow(
   BuildContext context,
   String orderId,
@@ -14,114 +146,27 @@ Future<void> _payOrderEscrow(
   final uid = FirebaseAuth.instance.currentUser?.uid;
   if (uid == null) return;
   final amount = (order['amount'] as num?)?.toDouble() ?? 0;
-  final messenger = ScaffoldMessenger.of(context);
-  final ref = TextEditingController();
-  final from = TextEditingController();
-
-  await showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    builder: (context) {
-      return Padding(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 16,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Pay & hold securely',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Amount: ${formatPrice(amount.toStringAsFixed(0))}',
-                style: const TextStyle(color: Colors.grey),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Transfer the amount to the account below, then enter your '
-                'transaction reference. An admin confirms it and your payment '
-                'is held safely in escrow until you confirm you received the '
-                'item.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const _PaymentAccountInfo(),
-              const SizedBox(height: 12),
-              TextField(
-                controller: ref,
-                decoration: const InputDecoration(
-                  labelText: 'Transaction ID / reference',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: from,
-                decoration: const InputDecoration(
-                  labelText: 'Paid from (your account / number, optional)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  if (ref.text.trim().isEmpty) {
-                    messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text('Enter your transaction reference'),
-                      ),
-                    );
-                    return;
-                  }
-                  try {
-                    await FirebaseFirestore.instance
-                        .collection('payments')
-                        .add({
-                          'orderId': orderId,
-                          'buyerId': uid,
-                          'buyerEmail':
-                              FirebaseAuth.instance.currentUser?.email ?? '',
-                          'sellerId': order['sellerId'] ?? '',
-                          'listingTitle': order['listingTitle'] ?? '',
-                          'amount': amount,
-                          'provider': 'manual',
-                          'status': 'initiated',
-                          'proofRef': ref.text.trim(),
-                          'proofFrom': from.text.trim(),
-                          'createdAt': Timestamp.now(),
-                        });
-                    if (context.mounted) Navigator.pop(context);
-                    messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Payment submitted — an admin will confirm it '
-                          'shortly.',
-                        ),
-                      ),
-                    );
-                  } catch (e) {
-                    messenger.showSnackBar(
-                      SnackBar(content: Text('Failed: $e')),
-                    );
-                  }
-                },
-                icon: const Icon(Icons.lock),
-                label: const Text('I have paid — submit'),
-              ),
-            ],
-          ),
-        ),
-      );
+  await _submitPaymentProofSheet(
+    context,
+    amount: amount,
+    description:
+        'Transfer the amount to the account below, then enter your '
+        'transaction reference. An admin confirms it and your payment is held '
+        'safely in escrow until you confirm you received the item.',
+    buildPayment: (proofRef, proofFrom) => {
+      'orderId': orderId,
+      'buyerId': uid,
+      'buyerEmail': FirebaseAuth.instance.currentUser?.email ?? '',
+      'sellerId': order['sellerId'] ?? '',
+      'listingTitle': order['listingTitle'] ?? '',
+      'amount': amount,
+      'provider': 'manual',
+      'status': 'initiated',
+      'proofRef': proofRef,
+      'proofFrom': proofFrom,
+      'createdAt': Timestamp.now(),
     },
   );
-  ref.dispose();
-  from.dispose();
 }
 
 /// Phase 6: a buyer pays ONCE for a whole multi-seller (master) order. The
@@ -138,116 +183,30 @@ Future<void> _payMasterEscrow(
 ) async {
   final uid = FirebaseAuth.instance.currentUser?.uid;
   if (uid == null) return;
-  final messenger = ScaffoldMessenger.of(context);
-  final ref = TextEditingController();
-  final from = TextEditingController();
-
-  await showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    builder: (context) {
-      return Padding(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 16,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Pay & hold securely',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Amount: ${formatPrice(amount.toStringAsFixed(0))}',
-                style: const TextStyle(color: Colors.grey),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'One payment covers all $packages packages'
-                '${masterNumber.isEmpty ? '' : ' in order $masterNumber'}. '
-                'Transfer the amount to the account below, then enter your '
-                'transaction reference. Each seller is paid only after you '
-                'confirm you received their package.',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const _PaymentAccountInfo(),
-              const SizedBox(height: 12),
-              TextField(
-                controller: ref,
-                decoration: const InputDecoration(
-                  labelText: 'Transaction ID / reference',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: from,
-                decoration: const InputDecoration(
-                  labelText: 'Paid from (your account / number, optional)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  if (ref.text.trim().isEmpty) {
-                    messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text('Enter your transaction reference'),
-                      ),
-                    );
-                    return;
-                  }
-                  try {
-                    await FirebaseFirestore.instance
-                        .collection('payments')
-                        .add({
-                          'masterOrderId': masterId,
-                          'buyerId': uid,
-                          'buyerEmail':
-                              FirebaseAuth.instance.currentUser?.email ?? '',
-                          'listingTitle': masterNumber.isEmpty
-                              ? 'Multi-seller order · $packages packages'
-                              : 'Order $masterNumber · $packages packages',
-                          'amount': amount,
-                          'provider': 'manual',
-                          'status': 'initiated',
-                          'proofRef': ref.text.trim(),
-                          'proofFrom': from.text.trim(),
-                          'createdAt': Timestamp.now(),
-                        });
-                    if (context.mounted) Navigator.pop(context);
-                    messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Payment submitted — an admin will confirm it '
-                          'shortly.',
-                        ),
-                      ),
-                    );
-                  } catch (e) {
-                    messenger.showSnackBar(
-                      SnackBar(content: Text('Failed: $e')),
-                    );
-                  }
-                },
-                icon: const Icon(Icons.lock),
-                label: const Text('I have paid — submit'),
-              ),
-            ],
-          ),
-        ),
-      );
+  await _submitPaymentProofSheet(
+    context,
+    amount: amount,
+    description:
+        'One payment covers all $packages packages'
+        '${masterNumber.isEmpty ? '' : ' in order $masterNumber'}. '
+        'Transfer the amount to the account below, then enter your transaction '
+        'reference. Each seller is paid only after you confirm you received '
+        'their package.',
+    buildPayment: (proofRef, proofFrom) => {
+      'masterOrderId': masterId,
+      'buyerId': uid,
+      'buyerEmail': FirebaseAuth.instance.currentUser?.email ?? '',
+      'listingTitle': masterNumber.isEmpty
+          ? 'Multi-seller order · $packages packages'
+          : 'Order $masterNumber · $packages packages',
+      'amount': amount,
+      'provider': 'manual',
+      'status': 'initiated',
+      'proofRef': proofRef,
+      'proofFrom': proofFrom,
+      'createdAt': Timestamp.now(),
     },
   );
-  ref.dispose();
-  from.dispose();
 }
 
 /// Lets a buyer report a problem or open a formal dispute on their order. Both
@@ -263,6 +222,7 @@ Future<void> showDisputeSheet(
   final messenger = ScaffoldMessenger.of(context);
   final reason = TextEditingController();
   String type = 'problem';
+  var submitting = false;
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -319,44 +279,52 @@ Future<void> showDisputeSheet(
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton(
-                  onPressed: () async {
-                    if (reason.text.trim().isEmpty) {
-                      messenger.showSnackBar(
-                        const SnackBar(
-                          content: Text('Please describe the problem.'),
-                        ),
-                      );
-                      return;
-                    }
-                    try {
-                      await FirebaseFirestore.instance
-                          .collection('disputes')
-                          .add({
-                            'orderId': orderId,
-                            'buyerId': uid,
-                            'sellerId': order['sellerId'] ?? '',
-                            'listingTitle': order['listingTitle'] ?? '',
-                            'type': type,
-                            'reason': reason.text.trim(),
-                            'status': 'open',
-                            'createdAt': Timestamp.now(),
-                          });
-                    } catch (_) {
-                      messenger.showSnackBar(
-                        const SnackBar(
-                          content: Text('Could not submit. Please try again.'),
-                        ),
-                      );
-                      return;
-                    }
-                    if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                    messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text('Submitted — our team will review it.'),
-                      ),
-                    );
-                  },
-                  child: const Text('Submit'),
+                  onPressed: submitting
+                      ? null
+                      : () async {
+                          if (reason.text.trim().isEmpty) {
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Please describe the problem.'),
+                              ),
+                            );
+                            return;
+                          }
+                          setSheet(() => submitting = true);
+                          try {
+                            await FirebaseFirestore.instance
+                                .collection('disputes')
+                                .add({
+                                  'orderId': orderId,
+                                  'buyerId': uid,
+                                  'sellerId': order['sellerId'] ?? '',
+                                  'listingTitle': order['listingTitle'] ?? '',
+                                  'type': type,
+                                  'reason': reason.text.trim(),
+                                  'status': 'open',
+                                  'createdAt': Timestamp.now(),
+                                });
+                          } catch (_) {
+                            setSheet(() => submitting = false);
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Could not submit. Please try again.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                          if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Submitted — our team will review it.',
+                              ),
+                            ),
+                          );
+                        },
+                  child: Text(submitting ? 'Submitting…' : 'Submit'),
                 ),
               ],
             ),
@@ -411,6 +379,13 @@ class _OrdersList extends StatelessWidget {
           .where(asSeller ? 'sellerId' : 'buyerId', isEqualTo: uid)
           .snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const EmptyState(
+            icon: Icons.error_outline,
+            title: 'Couldn’t load your orders',
+            subtitle: 'Please check your connection and try again.',
+          );
+        }
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }

@@ -84,7 +84,11 @@ async function cleanup({ masterId, listingIds, uids }) {
   }
   dels.push(db.collection("masterOrders").doc(masterId).delete());
   const pays = await db.collection("payments").where("masterOrderId", "==", masterId).get();
-  pays.forEach((p) => dels.push(p.ref.delete()));
+  for (const p of pays.docs) {
+    dels.push(p.ref.delete());
+    const acts = await db.collection("paymentActions").where("paymentId", "==", p.id).get();
+    acts.forEach((a) => dels.push(a.ref.delete()));
+  }
   for (const lid of listingIds) dels.push(db.collection("listings").doc(lid).delete());
   // Throwaway UIDs only — order notifications carry no orderId in refId, so we
   // clear the whole (test-only) notifications subcollection for each. The admin
@@ -158,15 +162,28 @@ async function escrowMultiSeller() {
     got: subs.map((d) => d.data().status),
   });
 
-  // (B) Pay ONCE for the whole master (TEST provider auto-captures).
+  // (B) Pay ONCE for the whole master via the real manual flow: submit proof
+  // (-> awaiting_confirmation) then an admin confirm action fans the hold out.
   const total = byAmt[s1] + byAmt[s2];
-  await db.collection("payments").add({
+  const payRef = await db.collection("payments").add({
     masterOrderId: masterId,
     buyerId: buyer,
     amount: total,
-    provider: "test",
+    provider: "manual",
     status: "initiated",
     proofRef: "SMOKE",
+    createdAt: Timestamp.now(),
+  });
+  const awaiting = await waitFor(async () => {
+    const p = await payRef.get();
+    return p.get("status") === "awaiting_confirmation" ? true : null;
+  }, "payment awaiting_confirmation");
+  check("manual master payment → awaiting_confirmation (no self-capture)", !!awaiting);
+  await db.collection("paymentActions").add({
+    paymentId: payRef.id,
+    type: "confirm",
+    by: "smoke_admin",
+    status: "pending",
     createdAt: Timestamp.now(),
   });
   const held = await waitFor(async () => {

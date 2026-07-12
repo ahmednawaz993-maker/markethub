@@ -719,12 +719,35 @@ exports.onMasterOrderCreated = onDocumentCreated(
   async (event) => {
     const master = event.data && event.data.data();
     if (!master) return;
-    // Only process a fresh intent once (idempotent against retries / re-fires).
+    // Only process a fresh intent once. The top-level check is a cheap early-out;
+    // the authoritative guard is the transactional claim below.
     if (master.status !== "pending" || master.sellerOrderIds) return;
 
     const db = getFirestore();
     const masterRef = event.data.ref;
     const masterId = event.params.masterId;
+
+    // Atomically CLAIM the intent before any sub-order is written. A duplicate
+    // event delivery (Firestore triggers are at-least-once) or a retry would
+    // otherwise both pass the top-level guard and each create a full set of
+    // sub-orders. Flipping status to "processing" in a transaction lets exactly
+    // one invocation proceed; the rest bail here.
+    try {
+      const claimed = await db.runTransaction(async (tx) => {
+        const cur = await tx.get(masterRef);
+        if (!cur.exists) return false;
+        if (cur.get("status") !== "pending" || cur.get("sellerOrderIds")) {
+          return false;
+        }
+        tx.update(masterRef, { status: "processing" });
+        return true;
+      });
+      if (!claimed) return;
+    } catch (e) {
+      console.error("master claim failed:", (e && e.message) || e);
+      return;
+    }
+
     const items = Array.isArray(master.items) ? master.items : [];
 
     if (items.length === 0) {
@@ -821,15 +844,21 @@ exports.onMasterOrderCreated = onDocumentCreated(
       });
       sellerOrderIds.push(orderRef.id);
 
-      await pushToUser(
-        db,
-        g.sellerId,
-        {
-          title: "New order received",
-          body: `New order ${orderNumber} for Rs ${totals.amount}. Review the buyer's delivery details and accept when ready.`,
-        },
-        { type: "order", orderId: orderRef.id }
-      );
+      // Best-effort: a notification failure must not abort the fan-out and
+      // orphan the sub-orders already written for other sellers.
+      try {
+        await pushToUser(
+          db,
+          g.sellerId,
+          {
+            title: "New order received",
+            body: `New order ${orderNumber} for Rs ${totals.amount}. Review the buyer's delivery details and accept when ready.`,
+          },
+          { type: "order", orderId: orderRef.id }
+        );
+      } catch (e) {
+        console.error("seller notify failed:", (e && e.message) || e);
+      }
       await writeAudit(db, {
         action: "order_placed",
         entityType: "order",
@@ -928,11 +957,19 @@ exports.notifyOnNewOrder = onDocumentCreated(
     // protected by the offers rules.
     let amount = order.amount;
     let sellerId = order.sellerId;
-    if (
-      order.fromOffer !== true &&
-      (order.status === "cod_pending" || order.status === "pending_payment") &&
-      order.listingId
-    ) {
+    const payable =
+      order.status === "cod_pending" || order.status === "pending_payment";
+    // A payable, non-negotiated order with no listing can't be price-validated
+    // against trusted data, so a client-set amount could stand. Void it rather
+    // than trust it (legit single orders always carry a listingId).
+    if (order.fromOffer !== true && payable && !order.listingId) {
+      await snap.ref.set(
+        { status: "cancelled", voidReason: "invalid_order" },
+        { merge: true }
+      );
+      return;
+    }
+    if (order.fromOffer !== true && payable && order.listingId) {
       const listingSnap = await db
         .collection("listings")
         .doc(order.listingId)
@@ -1154,11 +1191,20 @@ exports.processPurchase = onDocumentCreated("purchases/{id}", async (event) => {
   const purchaseRef = event.data.ref;
   const userRef = db.collection("users").doc(p.userId);
   const amount = Number(p.amount) || 0;
-  const days = Number(p.days) || 7;
+  // Clamp the client-supplied benefit window to a sane range so a tiny payment
+  // can never buy an absurdly long feature (defence in depth; the price itself
+  // is still debited from the buyer's own wallet).
+  const days = Math.min(Math.max(1, Number(p.days) || 7), 365);
   const until = Timestamp.fromMillis(Date.now() + days * 86400000);
 
   try {
     await db.runTransaction(async (tx) => {
+      // Idempotency: a redelivered/duplicate purchase event must not debit the
+      // wallet twice. Purchases start unset/pending; anything already resolved
+      // has run.
+      const purchaseSnap = await tx.get(purchaseRef);
+      const pstatus = purchaseSnap.get("status");
+      if (pstatus && pstatus !== "pending") return;
       const userSnap = await tx.get(userRef);
       const balance = Number(userSnap.get("walletBalance")) || 0;
       if (amount <= 0 || balance < amount) {
@@ -1554,13 +1600,15 @@ exports.onPaymentCreated = onDocumentCreated(
   async (event) => {
     const pay = event.data && event.data.data();
     if (!pay || (!pay.orderId && !pay.masterOrderId)) return;
-    const provider = pay.provider || "test";
+    // SECURITY: never default to a self-capturing provider. A missing provider
+    // is treated as a manual bank transfer that still requires an admin to
+    // confirm the money was actually received before the order enters escrow.
+    const provider = pay.provider || "manual";
     const db = getFirestore();
     const payRef = event.data.ref;
 
     // Multi-seller: one payment for a whole master order (no single orderId).
-    // Manual proof waits for admin confirmation; TEST captures immediately.
-    // PayFast hosted checkout is single-order only for now.
+    // Manual proof waits for admin confirmation; PayFast is single-order only.
     if (pay.masterOrderId) {
       const mRef = db.collection("masterOrders").doc(pay.masterOrderId);
       const mSnap = await mRef.get();
@@ -1585,8 +1633,11 @@ exports.onPaymentCreated = onDocumentCreated(
         await mRef.set({ paymentStatus: "review" }, { merge: true });
         return;
       }
-      // TEST provider: capture immediately.
-      await confirmMasterPaymentIntoEscrow(db, pay.masterOrderId, payRef, "test");
+      // No other provider is valid for a master payment. The escrow hold is
+      // only ever fanned out from an admin-confirmed manual payment
+      // (onPaymentAction -> confirmMasterPaymentIntoEscrow); a client can never
+      // self-capture with no money received.
+      await payRef.update({ status: "invalid_provider" });
       return;
     }
 
@@ -1639,8 +1690,11 @@ exports.onPaymentCreated = onDocumentCreated(
       return;
     }
 
-    // TEST provider: capture immediately.
-    await confirmPaymentIntoEscrow(db, pay.orderId, payRef, "test");
+    // SECURITY: only manual (admin-confirmed) and payfast (gateway-verified,
+    // once its IPN signature check is live) may move an order into escrow. Any
+    // other/unknown provider is rejected outright — a client must never be able
+    // to self-capture a payment with no money received.
+    await payRef.update({ status: "invalid_provider" });
   }
 );
 
@@ -1803,6 +1857,17 @@ exports.onEscrowAction = onDocumentCreated(
     let moved = null;
 
     await db.runTransaction(async (tx) => {
+      // Idempotency: a redelivered or duplicate action doc must never re-apply
+      // money. Actions are created with status 'pending'; once processed the
+      // status is changed, so anything non-pending here has already run.
+      const actSnap = await tx.get(actRef);
+      if (
+        actSnap.exists &&
+        actSnap.get("status") &&
+        actSnap.get("status") !== "pending"
+      ) {
+        return;
+      }
       const orderSnap = await tx.get(orderRef);
       if (!orderSnap.exists) {
         tx.update(actRef, { status: "order_missing" });
@@ -1858,18 +1923,33 @@ exports.onEscrowAction = onDocumentCreated(
         // Full refund by default; a partial refund (act.refundAmount < amount)
         // credits the buyer part of the held money and keeps the rest held so a
         // later release nets it out (computePayoutBreakdown subtracts it).
+        // Cap every refund at the still-held remainder so repeated and/or
+        // partial-then-full refunds can never exceed the order amount. Prior
+        // refunds accumulate in refundAmount rather than being overwritten.
+        const alreadyRefunded = Number(order.refundAmount) || 0;
+        const remaining = round2(amount - alreadyRefunded);
+        if (remaining <= 0) {
+          tx.update(actRef, { status: "already_refunded" });
+          return;
+        }
         const requested = Number(act.refundAmount) || 0;
-        const partial = requested > 0 && requested < amount;
-        const refundValue = partial ? requested : amount;
+        // requested <= 0 means "refund the rest"; otherwise refund the requested
+        // value but never more than what is still held.
+        const refundValue =
+          requested > 0 ? Math.min(round2(requested), remaining) : remaining;
+        const newRefundTotal = round2(alreadyRefunded + refundValue);
+        // Once cumulative refunds reach the amount the order is fully refunded;
+        // otherwise the balance stays held (partially refunded).
+        const fullyRefunded = newRefundTotal >= amount;
         const buyerRef = db.collection("users").doc(order.buyerId);
         const buyerSnap = await tx.get(buyerRef);
         const bal = Number(buyerSnap.get("walletBalance")) || 0;
 
-        tx.update(buyerRef, { walletBalance: bal + refundValue });
-        if (partial) {
+        tx.update(buyerRef, { walletBalance: round2(bal + refundValue) });
+        if (!fullyRefunded) {
           tx.update(orderRef, {
             paymentStatus: "partially_refunded",
-            refundAmount: refundValue,
+            refundAmount: newRefundTotal,
             refundedAt: Timestamp.now(),
           });
         } else {
@@ -1878,18 +1958,18 @@ exports.onEscrowAction = onDocumentCreated(
             // Cancellations set 'cancelled'; a return refund sets 'returned'.
             orderStatus: act.resultOrderStatus || "cancelled",
             paymentStatus: "refunded",
-            refundAmount: refundValue,
+            refundAmount: newRefundTotal,
             refundedAt: Timestamp.now(),
           });
         }
         tx.set(db.collection("ledger").doc(), {
-          type: partial ? "escrow_refund_partial" : "escrow_refund",
+          type: fullyRefunded ? "escrow_refund" : "escrow_refund_partial",
           orderId: act.orderId,
           amount: refundValue,
           buyerId: order.buyerId || "",
           createdAt: Timestamp.now(),
         });
-        moved = { kind: "refund", order, refundValue, partial };
+        moved = { kind: "refund", order, refundValue, partial: !fullyRefunded };
       } else {
         tx.update(actRef, { status: "unknown_type" });
         return;
@@ -2729,6 +2809,9 @@ async function refreshMasterProgress(db, masterId) {
     if (doneStates.has(os)) delivered++;
   });
   const allDelivered = active > 0 && delivered === active;
+  // Every package ended cancelled/returned/rejected → the whole order is
+  // resolved; give it a terminal state instead of a perpetual "placed".
+  const allResolved = active === 0 && subs.size > 0;
   const mRef = db.collection("masterOrders").doc(String(masterId));
   let notify = null;
   await db.runTransaction(async (tx) => {
@@ -2743,6 +2826,7 @@ async function refreshMasterProgress(db, masterId) {
         packageCount: subs.size,
         allDelivered,
         progressUpdatedAt: Timestamp.now(),
+        ...(allResolved ? { status: "cancelled", allResolved: true } : {}),
       },
       { merge: true }
     );
@@ -2841,6 +2925,9 @@ exports.onOrderProgress = onDocumentUpdated(
       nowConfirmed &&
       after.status === "in_escrow" &&
       before.paymentStatus !== "release_pending" &&
+      // This block writes paymentStatus:release_pending, which re-fires this
+      // trigger; without this guard it would run twice (duplicate audits/pushes).
+      after.paymentStatus !== "release_pending" &&
       after.paymentStatus !== "released_to_seller"
     ) {
       await db.collection("orders").doc(orderId).set(
@@ -2956,6 +3043,10 @@ exports.onWithdrawalCreated = onDocumentCreated(
     const amount = Number(w.amount) || 0;
 
     await db.runTransaction(async (tx) => {
+      // Idempotency: a redelivered event must not reserve (deduct) twice.
+      const wSnap = await tx.get(wRef);
+      const wstatus = wSnap.get("status");
+      if (wstatus && wstatus !== "pending") return;
       const userSnap = await tx.get(userRef);
       const bal = Number(userSnap.get("walletBalance")) || 0;
       if (amount <= 0 || bal < amount) {
@@ -3137,6 +3228,31 @@ async function initiatePayfastCheckout(db, basketId, order) {
   return { redirectUrl: `${cfg.txnUrl}?${params.toString()}`, mode: cfg.mode };
 }
 
+// Verify a PayFast IPN callback is authentic before trusting it to move money.
+// Fails CLOSED: returns false unless the merchant secured key is configured AND
+// the callback carries a SIGNATURE that matches the recomputed validation hash.
+// Because PayFast is not live yet (the app settles via the manual admin flow),
+// this guarantees no unauthenticated caller can settle an order into escrow.
+// NOTE: confirm the exact hash field order against your PayFast onboarding pack
+// before enabling live payments.
+function verifyPayfastIpn(req) {
+  const securedKey = process.env.PAYFAST_SECURED_KEY;
+  const merchantId = process.env.PAYFAST_MERCHANT_ID;
+  if (!securedKey || !merchantId) return false; // not configured → never trust
+  const body = req.body || {};
+  const provided = String(body.SIGNATURE || body.signature || "");
+  if (!provided) return false;
+  const basketId = String(body.BASKET_ID || body.basket_id || "");
+  const amount = String(body.TXNAMT || body.transaction_amount || "");
+  const expected = crypto
+    .createHash("md5")
+    .update(`${merchantId}:${amount}:${basketId}:${securedKey}`)
+    .digest("hex");
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 // PayFast posts the transaction result here (the IPN/ITN). Configure this
 // function's URL as the IPN / CHECKOUT_URL in the PayFast dashboard.
 exports.payfastIpn = onRequest(async (req, res) => {
@@ -3157,9 +3273,14 @@ exports.payfastIpn = onRequest(async (req, res) => {
       return;
     }
 
-    // TODO: verify the IPN signature/authenticity per your PayFast pack before
-    // trusting it (recompute the validation hash and compare) — do not settle
-    // money on an unverified callback in production.
+    // SECURITY (C4): never settle money on an unverified callback. Fails closed
+    // — acknowledge (200 so PayFast doesn't retry-storm) but move no money —
+    // until a verified signature check is configured and passes.
+    if (!verifyPayfastIpn(req)) {
+      console.warn("payfastIpn: unverified callback ignored", { basketId });
+      res.status(200).send("ok");
+      return;
+    }
 
     const db = getFirestore();
     const payRef = db.collection("payments").doc(String(basketId));

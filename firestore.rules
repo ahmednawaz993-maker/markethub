@@ -590,9 +590,13 @@ service cloud.firestore {
     // confirm it and settle the order. Clients never write money state.
     // ---------------------------------------------------------------------
     match /payments/{paymentId} {
+      // provider is restricted so a client can never submit a self-capturing
+      // provider; only manual (admin-confirmed) and payfast (gateway-verified)
+      // ever move money, and both still require a server-side confirmation step.
       allow create: if isSignedIn()
                     && request.resource.data.buyerId == request.auth.uid
-                    && request.resource.data.status == 'initiated';
+                    && request.resource.data.status == 'initiated'
+                    && request.resource.data.provider in ['manual', 'payfast'];
       allow read: if isSignedIn()
                   && (resource.data.buyerId == request.auth.uid
                       || can('payments'));
