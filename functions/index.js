@@ -2704,6 +2704,70 @@ exports.notifyOnDispute = onDocumentCreated(
 // platform-held order, we move payment_status to release_pending and open a
 // payout record for admin verification — the buyer app never releases money.
 // ---------------------------------------------------------------------------
+// Multi-seller (Phase 7): recompute a master order's aggregate delivery
+// progress from its sub-orders and, the first time every live package is
+// delivered, notify the buyer once. Idempotent — the allDelivered flip is
+// guarded inside a transaction so concurrent sub-order updates notify only
+// once. Cancelled/returned/refunded packages drop out of the "active" set so
+// a partly-cancelled order can still reach "all delivered".
+async function refreshMasterProgress(db, masterId) {
+  if (!masterId) return;
+  const subs = await db
+    .collection("orders")
+    .where("masterOrderId", "==", String(masterId))
+    .get();
+  if (subs.empty) return;
+  const doneStates = new Set(["delivered", "buyer_confirmed", "completed"]);
+  const deadStates = new Set(["cancelled", "returned", "rejected"]);
+  let delivered = 0;
+  let active = 0;
+  subs.forEach((d) => {
+    const os = d.get("orderStatus") || "";
+    const st = d.get("status") || "";
+    if (deadStates.has(os) || st === "cancelled" || st === "refunded") return;
+    active++;
+    if (doneStates.has(os)) delivered++;
+  });
+  const allDelivered = active > 0 && delivered === active;
+  const mRef = db.collection("masterOrders").doc(String(masterId));
+  let notify = null;
+  await db.runTransaction(async (tx) => {
+    const m = await tx.get(mRef);
+    if (!m.exists) return;
+    const wasAll = m.get("allDelivered") === true;
+    tx.set(
+      mRef,
+      {
+        deliveredCount: delivered,
+        activeCount: active,
+        packageCount: subs.size,
+        allDelivered,
+        progressUpdatedAt: Timestamp.now(),
+      },
+      { merge: true }
+    );
+    if (allDelivered && !wasAll) {
+      notify = {
+        buyerId: m.get("buyerId") || "",
+        number: m.get("orderNumber") || "",
+      };
+    }
+  });
+  if (notify && notify.buyerId) {
+    await pushToUser(
+      db,
+      notify.buyerId,
+      {
+        title: "All packages delivered",
+        body: `Every package in order ${
+          notify.number || "your order"
+        } is delivered. Confirm receipt of each package to release the sellers' payments.`,
+      },
+      { type: "order", orderId: String(masterId) }
+    );
+  }
+}
+
 exports.onOrderProgress = onDocumentUpdated(
   "orders/{orderId}",
   async (event) => {
@@ -2711,6 +2775,12 @@ exports.onOrderProgress = onDocumentUpdated(
     const after = (event.data.after && event.data.after.data()) || {};
     const orderId = event.params.orderId;
     const db = getFirestore();
+    const masterId = after.masterOrderId || before.masterOrderId || "";
+    // Any fulfillment/status change on a sub-order can shift the master's
+    // aggregate delivery progress.
+    const progressChanged =
+      before.orderStatus !== after.orderStatus ||
+      before.status !== after.status;
 
     // Direct buyer cancellation of an UNPAID order (client write, no request
     // doc). The paid/refund and request-approval paths emit their own
@@ -2755,6 +2825,7 @@ exports.onOrderProgress = onDocumentUpdated(
         },
         { type: "order", orderId }
       );
+      if (masterId) await refreshMasterProgress(db, masterId);
       return;
     }
 
@@ -2823,20 +2894,32 @@ exports.onOrderProgress = onDocumentUpdated(
         },
         { type: "payout", orderId }
       );
+      if (masterId) await refreshMasterProgress(db, masterId);
       return;
     }
 
-    // Buyer-facing fulfillment notifications (seller advanced the order).
+    // Buyer-facing fulfillment notifications (seller advanced the order). For a
+    // multi-seller order each sub-order is one package, so name the package so
+    // the buyer knows which shipment moved; single Buy Now wording is unchanged.
     if (after.orderStatus !== before.orderStatus && after.buyerId) {
-      const msg = {
-        accepted: "The seller accepted your order.",
-        processing: "Your order is being prepared.",
-        shipped: `Your order has shipped${
-          after.courierName ? ` via ${after.courierName}` : ""
-        }.`,
-        delivered:
-          "Your order is marked delivered — please confirm once you've received and checked it.",
-      }[after.orderStatus];
+      const isPkg = !!after.masterOrderId;
+      const courier = after.courierName ? ` via ${after.courierName}` : "";
+      const msg = isPkg
+        ? {
+            accepted: `Package ${after.orderNumber || ""} was accepted by the seller.`,
+            processing: `Package ${after.orderNumber || ""} is being prepared.`,
+            shipped: `Package ${after.orderNumber || ""} has shipped${courier}.`,
+            delivered: `Package ${
+              after.orderNumber || ""
+            } is marked delivered — please confirm once you've received and checked it.`,
+          }[after.orderStatus]
+        : {
+            accepted: "The seller accepted your order.",
+            processing: "Your order is being prepared.",
+            shipped: `Your order has shipped${courier}.`,
+            delivered:
+              "Your order is marked delivered — please confirm once you've received and checked it.",
+          }[after.orderStatus];
       if (msg) {
         await pushToUser(
           db,
@@ -2846,6 +2929,8 @@ exports.onOrderProgress = onDocumentUpdated(
         );
       }
     }
+
+    if (masterId && progressChanged) await refreshMasterProgress(db, masterId);
   }
 );
 

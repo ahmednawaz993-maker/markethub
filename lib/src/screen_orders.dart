@@ -443,6 +443,8 @@ class _OrdersList extends StatelessWidget {
         final masterCounts = <String, int>{};
         final masterTotals = <String, double>{};
         final masterLeader = <String, int>{};
+        final masterDelivered = <String, int>{};
+        const kDoneStates = {'delivered', 'buyer_confirmed', 'completed'};
         if (!asSeller) {
           for (var idx = 0; idx < docs.length; idx++) {
             final dd = docs[idx].data() as Map<String, dynamic>;
@@ -452,6 +454,9 @@ class _OrdersList extends StatelessWidget {
             masterTotals[m] =
                 (masterTotals[m] ?? 0) + ((dd['amount'] as num?)?.toDouble() ?? 0);
             masterLeader.putIfAbsent(m, () => idx);
+            if (kDoneStates.contains(orderStatusOf(dd))) {
+              masterDelivered[m] = (masterDelivered[m] ?? 0) + 1;
+            }
           }
         }
         return ListView.builder(
@@ -491,6 +496,7 @@ class _OrdersList extends StatelessWidget {
                       _MultiPackageBanner(
                         orderNumber: d['orderNumber']?.toString() ?? '',
                         packages: pkgCount,
+                        delivered: masterDelivered[masterId] ?? 0,
                       ),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -845,11 +851,17 @@ class _OrdersList extends StatelessWidget {
 class _MultiPackageBanner extends StatelessWidget {
   final String orderNumber;
   final int packages;
-  const _MultiPackageBanner({required this.orderNumber, required this.packages});
+  final int delivered;
+  const _MultiPackageBanner({
+    required this.orderNumber,
+    required this.packages,
+    this.delivered = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
     final master = orderNumber.replaceAll(RegExp(r'-S\d+$'), '');
+    final allDone = delivered >= packages && packages > 0;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(10),
@@ -868,15 +880,32 @@ class _MultiPackageBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  master.isEmpty
-                      ? 'Package $packages of a multi-seller order'
-                      : 'Order $master · $packages packages',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.deepPurple,
-                    fontSize: 13,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        master.isEmpty
+                            ? 'Package $packages of a multi-seller order'
+                            : 'Order $master · $packages packages',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.deepPurple,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      allDone
+                          ? 'All delivered'
+                          : '$delivered/$packages delivered',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: allDone ? kPakGreen : Colors.deepPurple,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 2),
                 const Text(
