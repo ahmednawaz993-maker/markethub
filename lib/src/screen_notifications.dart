@@ -120,17 +120,24 @@ class NotificationsScreen extends StatelessWidget {
                     }
                     await batch.commit();
                   }
-                } catch (e) {
+                } catch (_) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Could not mark all read: $e')),
+                      const SnackBar(
+                        content: Text(
+                          'Could not mark all read. Please try again.',
+                        ),
+                      ),
                     );
                   }
                 }
               },
               child: const Text(
                 'Mark all read',
-                style: TextStyle(color: Colors.white),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
         ],
@@ -161,41 +168,154 @@ class NotificationsScreen extends StatelessWidget {
                     subtitle: 'Messages, offers and orders will show up here.',
                   );
                 }
-                return ListView.separated(
-                  itemCount: docs.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, i) {
-                    final d = docs[i].data() as Map<String, dynamic>;
-                    final read = d['read'] == true;
-                    final type = d['type']?.toString() ?? '';
-                    final accent = _notificationColor(type);
-                    return ListTile(
-                      tileColor: read ? null : accent.withValues(alpha: 0.06),
-                      leading: CircleAvatar(
-                        backgroundColor: accent.withValues(alpha: 0.12),
-                        child: Icon(_notificationIcon(type), color: accent),
-                      ),
-                      title: Text(
-                        d['title']?.toString() ?? '',
-                        style: TextStyle(
-                          fontWeight: read
-                              ? FontWeight.normal
-                              : FontWeight.bold,
+                // The list sits on a white surface so the dark notification
+                // text is high-contrast (it was previously rendered directly on
+                // the navy gradient, making titles/bodies hard to read).
+                return SurfacePanel(
+                  margin: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                  child: ListView.separated(
+                    padding: EdgeInsets.zero,
+                    itemCount: docs.length,
+                    separatorBuilder: (_, _) => Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: AppColors.divider,
+                    ),
+                    itemBuilder: (context, i) {
+                      final d = docs[i].data() as Map<String, dynamic>;
+                      final read = d['read'] == true;
+                      final type = d['type']?.toString() ?? '';
+                      final accent = _notificationColor(type);
+                      final title = d['title']?.toString() ?? '';
+                      return Semantics(
+                        button: true,
+                        label:
+                            '${read ? '' : 'Unread. '}$title. ${d['body']?.toString() ?? ''}',
+                        child: InkWell(
+                          onTap: read
+                              ? null
+                              : () => docs[i].reference.update({'read': true}),
+                          child: Container(
+                            // Unread rows get a subtle tint AND (below) a dot +
+                            // bold title — never colour alone.
+                            color: read
+                                ? Colors.transparent
+                                : accent.withValues(alpha: 0.06),
+                            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: accent.withValues(
+                                    alpha: 0.14,
+                                  ),
+                                  child: Icon(
+                                    _notificationIcon(type),
+                                    color: accent,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          // Non-colour unread indicator: a dot.
+                                          if (!read) ...[
+                                            Container(
+                                              width: 8,
+                                              height: 8,
+                                              margin: const EdgeInsets.only(
+                                                right: 6,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: accent,
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                          ],
+                                          Expanded(
+                                            child: Text(
+                                              title,
+                                              style: TextStyle(
+                                                fontSize: 14.5,
+                                                color: AppColors.textPrimary,
+                                                fontWeight: read
+                                                    ? FontWeight.w500
+                                                    : FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        d['body']?.toString() ?? '',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          height: 1.3,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.schedule,
+                                            size: 12,
+                                            color: AppColors.textMuted,
+                                          ),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            timeAgo(
+                                              d['createdAt'] as Timestamp?,
+                                            ),
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              color: AppColors.textMuted,
+                                            ),
+                                          ),
+                                          if (!read) ...[
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 1,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: accent.withValues(
+                                                  alpha: 0.14,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                'New',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: accent,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
-                      subtitle: Text(d['body']?.toString() ?? ''),
-                      trailing: Text(
-                        timeAgo(d['createdAt'] as Timestamp?),
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      onTap: read
-                          ? null
-                          : () => docs[i].reference.update({'read': true}),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 );
               },
             ),

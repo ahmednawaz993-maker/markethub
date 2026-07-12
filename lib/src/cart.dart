@@ -198,9 +198,8 @@ class MasterOrder {
   });
 
   factory MasterOrder.fromMap(String id, Map<String, dynamic> m) {
-    final ids = (m['sellerOrderIds'] as List?)
-            ?.map((e) => e.toString())
-            .toList() ??
+    final ids =
+        (m['sellerOrderIds'] as List?)?.map((e) => e.toString()).toList() ??
         const <String>[];
     return MasterOrder(
       id: id,
@@ -215,22 +214,22 @@ class MasterOrder {
       // packageCount (Phase 7) is authoritative once written; before that we
       // fall back to sellerCount, then to the fan-out id list length.
       sellerCount: (m['sellerCount'] as num?)?.toInt() ?? ids.length,
-      packageCount: (m['packageCount'] as num?)?.toInt() ??
+      packageCount:
+          (m['packageCount'] as num?)?.toInt() ??
           (m['sellerCount'] as num?)?.toInt() ??
           ids.length,
       deliveredCount: (m['deliveredCount'] as num?)?.toInt() ?? 0,
       activeCount: (m['activeCount'] as num?)?.toInt() ?? 0,
       allDelivered: m['allDelivered'] == true,
-      createdAtMs:
-          (m['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0,
+      createdAtMs: (m['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0,
     );
   }
 
   /// Convenience for a Firestore document snapshot.
   factory MasterOrder.fromDoc(DocumentSnapshot doc) => MasterOrder.fromMap(
-        doc.id,
-        (doc.data() as Map<String, dynamic>?) ?? const {},
-      );
+    doc.id,
+    (doc.data() as Map<String, dynamic>?) ?? const {},
+  );
 
   bool get isCod => paymentMethod == 'cod';
   bool get isMultiPackage => packageCount > 1;
@@ -238,15 +237,16 @@ class MasterOrder {
   bool get isPaid => paymentStatus == 'held';
 
   MasterPayState get payState => switch (paymentStatus) {
-        'unpaid' => MasterPayState.unpaid,
-        'review' => MasterPayState.review,
-        'held' => MasterPayState.held,
-        _ => MasterPayState.unknown,
-      };
+    'unpaid' => MasterPayState.unpaid,
+    'review' => MasterPayState.review,
+    'held' => MasterPayState.held,
+    _ => MasterPayState.unknown,
+  };
 
   /// Short progress label, e.g. "1/3 delivered" → "All delivered".
-  String get progressLabel =>
-      allDelivered ? 'All delivered' : '$deliveredCount/$packageCount delivered';
+  String get progressLabel => allDelivered
+      ? 'All delivered'
+      : '$deliveredCount/$packageCount delivered';
 
   /// One-line payment descriptor for admin/buyer summaries.
   String get paymentLabel {
@@ -264,15 +264,23 @@ class MasterOrder {
 Widget _multiSellerBanner(String text) => Container(
   margin: const EdgeInsets.only(bottom: 10),
   padding: const EdgeInsets.all(10),
+  // Opaque light surface (not a translucent tint) so the text is readable over
+  // the navy gradient rather than dark-on-navy.
   decoration: BoxDecoration(
-    color: kPakGreen.withValues(alpha: 0.08),
+    color: AppColors.surface,
     borderRadius: BorderRadius.circular(8),
+    border: Border.all(color: kPakGreen.withValues(alpha: 0.30)),
   ),
   child: Row(
     children: [
       const Icon(Icons.local_shipping_outlined, size: 16, color: kPakGreen),
       const SizedBox(width: 6),
-      Expanded(child: Text(text, style: const TextStyle(fontSize: 12))),
+      Expanded(
+        child: Text(
+          text,
+          style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+        ),
+      ),
     ],
   ),
 );
@@ -695,37 +703,46 @@ class _CartScreenState extends State<CartScreen> {
   );
 
   Widget _totalBar(double total) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Cart total',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  Text(
-                    formatPrice(total.toStringAsFixed(0)),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: kPakGreen,
+    // Opaque white bar so the label and the navy total are readable (they were
+    // grey / navy directly on the navy gradient).
+    return Material(
+      color: AppColors.surface,
+      elevation: 12,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Cart total',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
                     ),
-                  ),
-                ],
+                    Text(
+                      formatPrice(total.toStringAsFixed(0)),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: kPakGreen,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            ElevatedButton.icon(
-              onPressed: () => openCartCheckout(context, _items),
-              icon: const Icon(Icons.shopping_cart_checkout, size: 18),
-              label: const Text('Checkout'),
-            ),
-          ],
+              ElevatedButton.icon(
+                onPressed: () => openCartCheckout(context, _items),
+                icon: const Icon(Icons.shopping_cart_checkout, size: 18),
+                label: const Text('Checkout'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -935,54 +952,62 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
           _paymentCard(),
           _notesCard(),
           const SizedBox(height: 8),
+          // Summary lines sit on the navy gradient → light text.
           Text(
             'Item total: ${formatPrice(total.toStringAsFixed(0))}',
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
+            style: const TextStyle(fontSize: 12, color: AppColors.onNavyMuted),
           ),
           const Text(
             'A delivery fee (if any) is added per seller and shown on each '
             'order.',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
+            style: TextStyle(fontSize: 12, color: AppColors.onNavyMuted),
           ),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Items',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    Text(
-                      formatPrice(total.toStringAsFixed(0)),
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: kPakGreen,
+      bottomNavigationBar: Material(
+        color: AppColors.surface,
+        elevation: 12,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Items',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
                       ),
-                    ),
-                  ],
+                      Text(
+                        formatPrice(total.toStringAsFixed(0)),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: kPakGreen,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              ElevatedButton.icon(
-                onPressed: _canPlace ? _place : null,
-                icon: _submitting
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.lock, size: 18),
-                label: const Text('Place Order'),
-              ),
-            ],
+                ElevatedButton.icon(
+                  onPressed: _canPlace ? _place : null,
+                  icon: _submitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.lock, size: 18),
+                  label: const Text('Place Order'),
+                ),
+              ],
+            ),
           ),
         ),
       ),

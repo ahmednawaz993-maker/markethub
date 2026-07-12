@@ -22,10 +22,11 @@ class FreeDeliveryBanner extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
+      // Opaque light surface so text is readable over the navy gradient.
       decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.10),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: accent.withValues(alpha: 0.45)),
+        border: Border.all(color: accent.withValues(alpha: 0.55)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -48,7 +49,7 @@ class FreeDeliveryBanner extends StatelessWidget {
                             'to get FREE delivery.',
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
-                    color: qualifies ? kPakGreen : Colors.brown.shade800,
+                    color: qualifies ? AppColors.success : AppColors.warning,
                   ),
                 ),
               ),
@@ -70,7 +71,7 @@ class FreeDeliveryBanner extends StatelessWidget {
           Text(
             'Your order will be delivered free when you shop for '
             '${formatPrice(freeDeliveryThreshold.toStringAsFixed(0))} or more.',
-            style: const TextStyle(fontSize: 11, color: Colors.grey),
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
           ),
         ],
       ),
@@ -574,19 +575,23 @@ class OrderConfirmationScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           const SizedBox(height: 8),
-          const Icon(Icons.check_circle, color: kPakGreen, size: 64),
+          const Icon(Icons.check_circle, color: AppColors.success, size: 64),
           const SizedBox(height: 8),
           const Center(
             child: Text(
               'Order placed successfully!',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.onNavy,
+              ),
             ),
           ),
           const SizedBox(height: 4),
           Center(
             child: Text(
               'Order #$_orderNo',
-              style: const TextStyle(color: Colors.grey),
+              style: const TextStyle(color: AppColors.onNavyMuted),
             ),
           ),
           const SizedBox(height: 16),
@@ -644,8 +649,9 @@ class OrderConfirmationScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: kPakGreen.withValues(alpha: 0.08),
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: kPakGreen.withValues(alpha: 0.25)),
             ),
             child: Row(
               children: [
@@ -662,7 +668,10 @@ class OrderConfirmationScreen extends StatelessWidget {
                               'delivered. Track it in Profile → My Orders.'
                         : 'Pay online — open Profile → My Orders to pay and hold '
                               'the amount safely in escrow.',
-                    style: const TextStyle(fontSize: 12),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
               ],

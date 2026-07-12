@@ -330,8 +330,8 @@ class SellerProfileScreen extends StatelessWidget {
                 if (snapshot.hasError) {
                   return Center(
                     child: Text(
-                      'Error loading ads: ${snapshot.error}',
-                      style: const TextStyle(color: Colors.white70),
+                      'Couldn’t load ads. Please try again.',
+                      style: const TextStyle(color: AppColors.onNavyMuted),
                     ),
                   );
                 }
@@ -575,7 +575,11 @@ class FollowingScreen extends StatelessWidget {
                   builder: (context, ls) {
                     if (ls.hasError) {
                       return Center(
-                        child: Text('Error loading ads: ${ls.error}'),
+                        child: Text(
+                          'Couldn’t load ads. Please try again.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: AppColors.onNavyMuted),
+                        ),
                       );
                     }
                     if (!ls.hasData) {

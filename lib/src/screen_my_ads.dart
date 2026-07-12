@@ -30,10 +30,12 @@ class SalesDashboardScreen extends StatelessWidget {
     return Container(
       width: 150,
       padding: const EdgeInsets.all(14),
+      // Opaque light tile so the value + label are readable over the navy
+      // gradient (a translucent tint let the navy bleed through).
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -49,7 +51,10 @@ class SalesDashboardScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 2),
-          Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+          ),
         ],
       ),
     );
@@ -61,7 +66,12 @@ class SalesDashboardScreen extends StatelessWidget {
     if (uid == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Sales & Earnings')),
-        body: const Center(child: Text('Please log in')),
+        body: const Center(
+          child: Text(
+            'Please log in',
+            style: TextStyle(color: AppColors.onNavyMuted),
+          ),
+        ),
       );
     }
     return Scaffold(
@@ -73,7 +83,13 @@ class SalesDashboardScreen extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return const Center(
+              child: Text(
+                'Couldn’t load your sales. Please try again.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.onNavyMuted),
+              ),
+            );
           }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -238,7 +254,11 @@ class SalesDashboardScreen extends StatelessWidget {
               const SizedBox(height: 16),
               const Text(
                 'Earnings — last 6 months',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: AppColors.onNavy,
+                ),
               ),
               const SizedBox(height: 10),
               if (sold == 0)
@@ -247,7 +267,7 @@ class SalesDashboardScreen extends StatelessWidget {
                   child: Center(
                     child: Text(
                       'No completed sales yet. Your earnings will show here.',
-                      style: TextStyle(color: Colors.grey),
+                      style: TextStyle(color: AppColors.onNavyMuted),
                     ),
                   ),
                 )
@@ -326,7 +346,10 @@ class _MonthBar extends StatelessWidget {
         children: [
           SizedBox(
             width: 56,
-            child: Text(label, style: const TextStyle(fontSize: 12)),
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: AppColors.onNavy),
+            ),
           ),
           Expanded(
             child: LayoutBuilder(
@@ -358,7 +381,7 @@ class _MonthBar extends StatelessWidget {
               money
                   ? formatPrice(value.toStringAsFixed(0))
                   : '${value.toInt()}',
-              style: const TextStyle(fontSize: 11),
+              style: const TextStyle(fontSize: 11, color: AppColors.onNavy),
               textAlign: TextAlign.right,
             ),
           ),
@@ -645,7 +668,13 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('Error loading ads: ${snapshot.error}'));
+            return const Center(
+              child: Text(
+                'Couldn’t load your ads. Please try again.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.onNavyMuted),
+              ),
+            );
           }
 
           if (!snapshot.hasData) {
@@ -1052,9 +1081,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Update failed. Please try again.')),
       );
     } finally {

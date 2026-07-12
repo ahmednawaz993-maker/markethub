@@ -31,7 +31,11 @@ class ChatsScreen extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(
-              child: Text('Error loading chats: ${snapshot.error}'),
+              child: Text(
+                'Couldn’t load chats. Please try again.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.onNavyMuted),
+              ),
             );
           }
 
@@ -435,16 +439,24 @@ class _ChatScreenState extends State<ChatScreen> {
           if (widget.adminView)
             Container(
               width: double.infinity,
-              color: kGold.withValues(alpha: 0.18),
+              // Opaque light gold so the notice is readable over navy.
+              color: const Color(0xFFFBF3D5),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
                 children: const [
-                  Icon(Icons.visibility_outlined, size: 18, color: kPakGreen),
+                  Icon(
+                    Icons.visibility_outlined,
+                    size: 18,
+                    color: AppColors.warning,
+                  ),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Admin monitoring — read only. You cannot send messages here.',
-                      style: TextStyle(fontSize: 12, color: kPakGreen),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
                 ],

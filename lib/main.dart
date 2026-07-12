@@ -13,7 +13,9 @@ import 'package:flutter/services.dart'
         LogicalKeyboardKey,
         KeyEvent,
         KeyDownEvent,
-        KeyRepeatEvent;
+        KeyRepeatEvent,
+        SystemChrome,
+        SystemUiOverlayStyle;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
@@ -73,6 +75,19 @@ part 'src/screen_support.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // The app is drawn over a dark navy gradient, so the status/navigation bars
+  // use a transparent background with LIGHT icons for a consistent, readable
+  // system chrome that matches the theme.
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark, // iOS
+      systemNavigationBarColor: kPakGreenDeep,
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+  );
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await loadSavedLocale();
