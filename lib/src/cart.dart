@@ -146,6 +146,120 @@ double cartTotal(List<CartItem> items) =>
 int cartUnitCount(List<CartItem> items) =>
     items.fold(0, (a, i) => a + i.quantity);
 
+// ---------------------------------------------------------------------------
+// Master order model (Phase 9).
+//
+// A `masterOrders/{id}` document is the buyer's single multi-seller checkout
+// intent. The onMasterOrderCreated Cloud Function fans it out into one
+// `orders/{id}` sub-order per seller (each an ordinary order, so all
+// fulfillment / escrow / payout logic is reused) and then stamps the master
+// with the order number, seller/package counts and — as packages progress —
+// aggregate delivery counts (Phase 7). This typed view makes that Firestore
+// mapping explicit and testable; it is read-only (the function owns writes).
+// ---------------------------------------------------------------------------
+
+/// Payment lifecycle of a master order, mirrored from `paymentStatus`.
+/// unpaid → review (proof submitted) → held (all sub-orders in escrow).
+enum MasterPayState { unpaid, review, held, unknown }
+
+class MasterOrder {
+  final String id;
+  final String orderNumber;
+  final String buyerId;
+  final String buyerName;
+  final double itemsTotal;
+  final String paymentMethod; // 'cod' | 'escrow'
+  final String paymentStatus; // 'unpaid' | 'review' | 'held' | ''
+  final String status; // 'pending' | 'placed' | 'in_escrow' | 'failed' | ...
+  final List<String> sellerOrderIds;
+  final int sellerCount;
+  final int packageCount;
+  final int deliveredCount;
+  final int activeCount;
+  final bool allDelivered;
+  final int createdAtMs;
+
+  const MasterOrder({
+    required this.id,
+    this.orderNumber = '',
+    this.buyerId = '',
+    this.buyerName = '',
+    this.itemsTotal = 0,
+    this.paymentMethod = '',
+    this.paymentStatus = '',
+    this.status = '',
+    this.sellerOrderIds = const [],
+    this.sellerCount = 0,
+    this.packageCount = 0,
+    this.deliveredCount = 0,
+    this.activeCount = 0,
+    this.allDelivered = false,
+    this.createdAtMs = 0,
+  });
+
+  factory MasterOrder.fromMap(String id, Map<String, dynamic> m) {
+    final ids = (m['sellerOrderIds'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        const <String>[];
+    return MasterOrder(
+      id: id,
+      orderNumber: m['orderNumber']?.toString() ?? '',
+      buyerId: m['buyerId']?.toString() ?? '',
+      buyerName: m['buyerName']?.toString() ?? '',
+      itemsTotal: (m['itemsTotal'] as num?)?.toDouble() ?? 0,
+      paymentMethod: m['paymentMethod']?.toString() ?? '',
+      paymentStatus: m['paymentStatus']?.toString() ?? '',
+      status: m['status']?.toString() ?? '',
+      sellerOrderIds: ids,
+      // packageCount (Phase 7) is authoritative once written; before that we
+      // fall back to sellerCount, then to the fan-out id list length.
+      sellerCount: (m['sellerCount'] as num?)?.toInt() ?? ids.length,
+      packageCount: (m['packageCount'] as num?)?.toInt() ??
+          (m['sellerCount'] as num?)?.toInt() ??
+          ids.length,
+      deliveredCount: (m['deliveredCount'] as num?)?.toInt() ?? 0,
+      activeCount: (m['activeCount'] as num?)?.toInt() ?? 0,
+      allDelivered: m['allDelivered'] == true,
+      createdAtMs:
+          (m['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0,
+    );
+  }
+
+  /// Convenience for a Firestore document snapshot.
+  factory MasterOrder.fromDoc(DocumentSnapshot doc) => MasterOrder.fromMap(
+        doc.id,
+        (doc.data() as Map<String, dynamic>?) ?? const {},
+      );
+
+  bool get isCod => paymentMethod == 'cod';
+  bool get isMultiPackage => packageCount > 1;
+  bool get isFailed => status == 'failed';
+  bool get isPaid => paymentStatus == 'held';
+
+  MasterPayState get payState => switch (paymentStatus) {
+        'unpaid' => MasterPayState.unpaid,
+        'review' => MasterPayState.review,
+        'held' => MasterPayState.held,
+        _ => MasterPayState.unknown,
+      };
+
+  /// Short progress label, e.g. "1/3 delivered" → "All delivered".
+  String get progressLabel =>
+      allDelivered ? 'All delivered' : '$deliveredCount/$packageCount delivered';
+
+  /// One-line payment descriptor for admin/buyer summaries.
+  String get paymentLabel {
+    if (isCod) return 'COD';
+    return switch (payState) {
+      MasterPayState.held => 'Online · held',
+      MasterPayState.review => 'Online · under review',
+      MasterPayState.unpaid => 'Online · unpaid',
+      MasterPayState.unknown => 'Online',
+    };
+  }
+}
+
 /// A green info strip used when a cart/checkout spans multiple sellers.
 Widget _multiSellerBanner(String text) => Container(
   margin: const EdgeInsets.only(bottom: 10),

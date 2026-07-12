@@ -2905,7 +2905,7 @@ class _MasterOrdersPanel extends StatelessWidget {
       builder: (context, snap) {
         if (!snap.hasData) return const SizedBox.shrink();
         final docs = snap.data!.docs
-            .where((d) => (d.data() as Map)['status'] != 'failed')
+            .where((d) => !MasterOrder.fromDoc(d).isFailed)
             .toList();
         if (docs.isEmpty) return const SizedBox.shrink();
         return Card(
@@ -2948,19 +2948,9 @@ class _MasterOrderTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final m = master.data() as Map<String, dynamic>;
-    final number = m['orderNumber']?.toString() ?? master.id;
-    final buyer = m['buyerName']?.toString() ?? '';
-    final total = (m['itemsTotal'] as num?)?.toDouble() ?? 0;
-    final packages =
-        (m['packageCount'] as num?)?.toInt() ??
-        (m['sellerCount'] as num?)?.toInt() ??
-        0;
-    final delivered = (m['deliveredCount'] as num?)?.toInt() ?? 0;
-    final allDelivered = m['allDelivered'] == true;
-    final payMethod = m['paymentMethod']?.toString() ?? '';
-    final payStatus = m['paymentStatus']?.toString() ?? '';
-    final status = m['status']?.toString() ?? '';
+    final mo = MasterOrder.fromDoc(master);
+    final number = mo.orderNumber.isEmpty ? master.id : mo.orderNumber;
+    final packages = mo.packageCount;
 
     return ExpansionTile(
       dense: true,
@@ -2971,17 +2961,16 @@ class _MasterOrderTile extends StatelessWidget {
         style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
       ),
       subtitle: Text(
-        '$buyer · ${formatPrice(total.toStringAsFixed(0))} · '
-        '${payMethod == 'cod' ? 'COD' : 'Online'}'
-        '${payStatus.isEmpty ? '' : ' ($payStatus)'}',
+        '${mo.buyerName} · ${formatPrice(mo.itemsTotal.toStringAsFixed(0))} · '
+        '${mo.paymentLabel}',
         style: const TextStyle(fontSize: 12),
       ),
       trailing: Text(
-        allDelivered ? 'All delivered' : '$delivered/$packages',
+        mo.allDelivered ? 'All delivered' : '${mo.deliveredCount}/$packages',
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: allDelivered ? kPakGreen : Colors.deepPurple,
+          color: mo.allDelivered ? kPakGreen : Colors.deepPurple,
         ),
       ),
       children: [
@@ -3002,7 +2991,7 @@ class _MasterOrderTile extends StatelessWidget {
               return Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: Text(
-                  status == 'pending'
+                  mo.status == 'pending'
                       ? 'Awaiting fan-out…'
                       : 'No sub-orders found.',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),

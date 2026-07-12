@@ -430,4 +430,64 @@ void main() {
       expect(allCod([codItem(true), codItem(false)]), isFalse);
     });
   });
+
+  group('MasterOrder model (Phase 9)', () {
+    test('fromMap maps fields and derives payment/progress labels', () {
+      final mo = MasterOrder.fromMap('m1', {
+        'orderNumber': 'PB-1001',
+        'buyerId': 'b1',
+        'buyerName': 'Ali',
+        'itemsTotal': 4500,
+        'paymentMethod': 'escrow',
+        'paymentStatus': 'held',
+        'status': 'in_escrow',
+        'sellerOrderIds': ['o1', 'o2', 'o3'],
+        'packageCount': 3,
+        'deliveredCount': 1,
+        'allDelivered': false,
+      });
+      expect(mo.id, 'm1');
+      expect(mo.orderNumber, 'PB-1001');
+      expect(mo.buyerName, 'Ali');
+      expect(mo.itemsTotal, 4500);
+      expect(mo.isMultiPackage, isTrue);
+      expect(mo.isCod, isFalse);
+      expect(mo.isPaid, isTrue);
+      expect(mo.payState, MasterPayState.held);
+      expect(mo.paymentLabel, 'Online · held');
+      expect(mo.progressLabel, '1/3 delivered');
+    });
+
+    test('packageCount falls back to sellerCount then id list length', () {
+      // Pre-Phase-7 master (no packageCount) → sellerCount.
+      final a = MasterOrder.fromMap('m', {
+        'sellerCount': 2,
+        'sellerOrderIds': ['o1', 'o2'],
+      });
+      expect(a.packageCount, 2);
+      // No counts at all → derive from the fan-out id list.
+      final b = MasterOrder.fromMap('m', {
+        'sellerOrderIds': ['o1', 'o2', 'o3', 'o4'],
+      });
+      expect(b.packageCount, 4);
+    });
+
+    test('allDelivered flips the progress label; COD payment label', () {
+      final mo = MasterOrder.fromMap('m', {
+        'paymentMethod': 'cod',
+        'packageCount': 2,
+        'deliveredCount': 2,
+        'allDelivered': true,
+      });
+      expect(mo.isCod, isTrue);
+      expect(mo.paymentLabel, 'COD');
+      expect(mo.progressLabel, 'All delivered');
+    });
+
+    test('failed intent is flagged', () {
+      final mo = MasterOrder.fromMap('m', {'status': 'failed'});
+      expect(mo.isFailed, isTrue);
+      expect(mo.isMultiPackage, isFalse);
+    });
+  });
 }
