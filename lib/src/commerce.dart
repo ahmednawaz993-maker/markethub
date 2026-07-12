@@ -547,18 +547,30 @@ Future<void> setOrderShipping(
       .update(data);
 }
 
-/// Buyer confirms they received and checked the order. Sets the fulfillment
-/// fields only; a Cloud Function (onOrderProgress) derives the money
-/// consequence (payment → release_pending, opens the payout record). The buyer
-/// app never releases money.
-Future<void> confirmOrderDelivery(String orderId) async {
+/// Buyer confirms they received and checked the order, marking it Delivered.
+///
+/// For an escrow (held-payment) order this sets the fulfillment fields only; a
+/// Cloud Function (onOrderProgress) derives the money consequence (payment →
+/// release_pending, opens the payout record) — the buyer app never releases
+/// money. For a COD order there is no held payment (cash was collected on
+/// delivery), so the order completes immediately; this is permitted by the
+/// firestore rules' onlySafeOrderChange (cod_pending → completed).
+Future<void> confirmOrderDelivery(String orderId, {bool isCod = false}) async {
   final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-  await FirebaseFirestore.instance.collection('orders').doc(orderId).update({
-    'orderStatus': 'buyer_confirmed',
+  final data = <String, dynamic>{
+    'orderStatus': isCod ? 'delivered' : 'buyer_confirmed',
     'buyerConfirmed': true,
     'buyerConfirmedAt': Timestamp.now(),
     'buyerConfirmedBy': uid,
-  });
+  };
+  if (isCod) {
+    data['status'] = 'completed';
+    data['completedAt'] = Timestamp.now();
+  }
+  await FirebaseFirestore.instance
+      .collection('orders')
+      .doc(orderId)
+      .update(data);
 }
 
 // The old "Buy now" confirmation bottom sheet was replaced by the full

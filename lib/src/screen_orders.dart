@@ -688,40 +688,14 @@ class _OrdersList extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          if (asSeller)
-                            ElevatedButton(
-                              onPressed: () async {
-                                final messenger = ScaffoldMessenger.of(context);
-                                await docs[i].reference.update({
-                                  'status': 'completed',
-                                  'completedAt': Timestamp.now(),
-                                });
-                                // Seller controls inventory — delivering an
-                                // order no longer auto-marks the listing sold.
-                                // Offer a one-tap shortcut instead.
-                                final lid = d['listingId']?.toString() ?? '';
-                                messenger.showSnackBar(
-                                  SnackBar(
-                                    content: const Text(
-                                      'Order marked delivered.',
-                                    ),
-                                    action: lid.isEmpty
-                                        ? null
-                                        : SnackBarAction(
-                                            label: 'Mark sold',
-                                            onPressed: () =>
-                                                setListingStatus(lid, 'sold'),
-                                          ),
-                                  ),
-                                );
-                              },
-                              child: const Text('Mark delivered'),
-                            ),
-                        ],
+                      // COD orders get the same Accepted → Ready to dispatch →
+                      // Dispatched → Delivered tracking as escrow orders. The
+                      // buyer confirming receipt completes the order (cash was
+                      // collected on delivery — no escrow payout to release).
+                      OrderFulfillmentPanel(
+                        data: d,
+                        orderId: docs[i].id,
+                        asSeller: asSeller,
                       ),
                     ],
                     if (status == 'payment_review') ...[

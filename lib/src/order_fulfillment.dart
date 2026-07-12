@@ -36,6 +36,13 @@ class OrderFulfillmentPanel extends StatelessWidget {
     required this.asSeller,
   });
 
+  /// COD orders share the same Accepted→Ready→Dispatched→Delivered tracking, but
+  /// there is no held payment: confirming receipt completes the order (cash was
+  /// collected on delivery) rather than releasing an escrow payout.
+  bool get _isCod =>
+      data['paymentMethod']?.toString() == 'cod' ||
+      data['status']?.toString() == 'cod_pending';
+
   @override
   Widget build(BuildContext context) {
     final orderStatus = orderStatusOf(data);
@@ -137,12 +144,15 @@ class OrderFulfillmentPanel extends StatelessWidget {
   Widget _sellerActions(BuildContext context, String orderStatus) {
     // After dispatch the seller is done — the buyer confirms receipt next.
     if (orderStatus == 'shipped' || orderStatus == 'delivered') {
-      return const Padding(
-        padding: EdgeInsets.only(top: 6),
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
         child: Text(
-          'Dispatched — waiting for the buyer to confirm they received it, '
-          'which releases your payout for settlement.',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
+          _isCod
+              ? 'Dispatched — waiting for the buyer to confirm they received it '
+                    '(cash collected on delivery).'
+              : 'Dispatched — waiting for the buyer to confirm they received it, '
+                    'which releases your payout for settlement.',
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
         ),
       );
     }
@@ -179,18 +189,22 @@ class OrderFulfillmentPanel extends StatelessWidget {
     String orderStatus,
     bool buyerConfirmed,
   ) {
-    if (buyerConfirmed || orderStatus == 'buyer_confirmed') {
-      return const Padding(
-        padding: EdgeInsets.only(top: 6),
+    if (buyerConfirmed ||
+        orderStatus == 'buyer_confirmed' ||
+        (_isCod && orderStatus == 'delivered')) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
         child: Row(
           children: [
-            Icon(Icons.verified, size: 16, color: kPakGreen),
-            SizedBox(width: 4),
+            const Icon(Icons.verified, size: 16, color: kPakGreen),
+            const SizedBox(width: 4),
             Expanded(
               child: Text(
-                'Delivered — you confirmed receipt. The seller payout is '
-                'pending platform settlement.',
-                style: TextStyle(
+                _isCod
+                    ? 'Delivered — you confirmed receipt. This order is complete.'
+                    : 'Delivered — you confirmed receipt. The seller payout is '
+                          'pending platform settlement.',
+                style: const TextStyle(
                   fontSize: 12,
                   color: kPakGreen,
                   fontWeight: FontWeight.w600,
@@ -205,12 +219,15 @@ class OrderFulfillmentPanel extends StatelessWidget {
     // legacy held order that never entered the fulfillment flow).
     final canConfirm = orderStatus == 'shipped' || orderStatus == 'delivered';
     if (!canConfirm) {
-      return const Padding(
-        padding: EdgeInsets.only(top: 6),
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
         child: Text(
-          'The seller is preparing your order. You can confirm receipt once '
-          'it has been dispatched.',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
+          _isCod
+              ? 'The seller is preparing your order. Pay cash to the courier on '
+                    'delivery, then confirm receipt once it has been dispatched.'
+              : 'The seller is preparing your order. You can confirm receipt '
+                    'once it has been dispatched.',
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
         ),
       );
     }
@@ -247,10 +264,14 @@ class OrderFulfillmentPanel extends StatelessWidget {
       context: context,
       builder: (dCtx) => AlertDialog(
         title: const Text('Confirm receipt'),
-        content: const Text(
-          'Confirm only after you have received and checked your order. This '
-          'marks it Delivered and lets PakBazar settle the payment to the '
-          'seller.',
+        content: Text(
+          _isCod
+              ? 'Confirm only after you have received and checked your order '
+                    'and paid the courier. This marks it Delivered and '
+                    'completes the order.'
+              : 'Confirm only after you have received and checked your order. '
+                    'This marks it Delivered and lets PakBazar settle the '
+                    'payment to the seller.',
         ),
         actions: [
           TextButton(
@@ -266,10 +287,14 @@ class OrderFulfillmentPanel extends StatelessWidget {
     );
     if (ok != true) return;
     try {
-      await confirmOrderDelivery(orderId);
+      await confirmOrderDelivery(orderId, isCod: _isCod);
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Thank you — the seller payout is now under review.'),
+        SnackBar(
+          content: Text(
+            _isCod
+                ? 'Thank you — your order is marked delivered.'
+                : 'Thank you — the seller payout is now under review.',
+          ),
         ),
       );
     } catch (_) {
