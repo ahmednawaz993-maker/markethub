@@ -2788,6 +2788,7 @@ class _AdminOrdersTab extends StatelessWidget {
                 ),
               ),
             ),
+            const _MasterOrdersPanel(),
             const _PendingCancellationsPanel(),
             const _PendingReturnsPanel(),
             Expanded(
@@ -2879,6 +2880,187 @@ class _AdminOrdersTab extends StatelessWidget {
           style: const TextStyle(color: Colors.white70, fontSize: 12),
         ),
       ],
+    );
+  }
+}
+
+/// Phase 8: admin view of multi-seller (master) orders. Each master groups the
+/// per-seller sub-orders created from one cart checkout. Shows the buyer, order
+/// number, combined total, package count, aggregate delivery progress and
+/// payment state; expanding lists each package (seller, amount, status). The
+/// individual sub-orders still appear in the flat list below for per-order
+/// actions — this panel is the grouped, read-oriented overview. Collapses to
+/// nothing when there are no master orders.
+class _MasterOrdersPanel extends StatelessWidget {
+  const _MasterOrdersPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('masterOrders')
+          .orderBy('createdAt', descending: true)
+          .limit(25)
+          .snapshots(),
+      builder: (context, snap) {
+        if (!snap.hasData) return const SizedBox.shrink();
+        final docs = snap.data!.docs
+            .where((d) => (d.data() as Map)['status'] != 'failed')
+            .toList();
+        if (docs.isEmpty) return const SizedBox.shrink();
+        return Card(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.local_shipping_outlined,
+                          size: 18, color: Colors.deepPurple),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Multi-seller orders (${docs.length})',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.deepPurple,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                for (final d in docs) _MasterOrderTile(master: d),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MasterOrderTile extends StatelessWidget {
+  final QueryDocumentSnapshot master;
+  const _MasterOrderTile({required this.master});
+
+  @override
+  Widget build(BuildContext context) {
+    final m = master.data() as Map<String, dynamic>;
+    final number = m['orderNumber']?.toString() ?? master.id;
+    final buyer = m['buyerName']?.toString() ?? '';
+    final total = (m['itemsTotal'] as num?)?.toDouble() ?? 0;
+    final packages =
+        (m['packageCount'] as num?)?.toInt() ??
+        (m['sellerCount'] as num?)?.toInt() ??
+        0;
+    final delivered = (m['deliveredCount'] as num?)?.toInt() ?? 0;
+    final allDelivered = m['allDelivered'] == true;
+    final payMethod = m['paymentMethod']?.toString() ?? '';
+    final payStatus = m['paymentStatus']?.toString() ?? '';
+    final status = m['status']?.toString() ?? '';
+
+    return ExpansionTile(
+      dense: true,
+      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+      childrenPadding: const EdgeInsets.only(bottom: 8),
+      title: Text(
+        '$number · $packages package${packages == 1 ? '' : 's'}',
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+      ),
+      subtitle: Text(
+        '$buyer · ${formatPrice(total.toStringAsFixed(0))} · '
+        '${payMethod == 'cod' ? 'COD' : 'Online'}'
+        '${payStatus.isEmpty ? '' : ' ($payStatus)'}',
+        style: const TextStyle(fontSize: 12),
+      ),
+      trailing: Text(
+        allDelivered ? 'All delivered' : '$delivered/$packages',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: allDelivered ? kPakGreen : Colors.deepPurple,
+        ),
+      ),
+      children: [
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('orders')
+              .where('masterOrderId', isEqualTo: master.id)
+              .snapshots(),
+          builder: (context, s) {
+            if (!s.hasData) {
+              return const Padding(
+                padding: EdgeInsets.all(12),
+                child: LinearProgressIndicator(),
+              );
+            }
+            final subs = s.data!.docs;
+            if (subs.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  status == 'pending'
+                      ? 'Awaiting fan-out…'
+                      : 'No sub-orders found.',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              );
+            }
+            return Column(
+              children: [
+                for (final o in subs)
+                  _MasterSubOrderRow(data: o.data() as Map<String, dynamic>),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _MasterSubOrderRow extends StatelessWidget {
+  final Map<String, dynamic> data;
+  const _MasterSubOrderRow({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final seller = data['sellerName']?.toString() ?? 'Seller';
+    final number = data['orderNumber']?.toString() ?? '';
+    final amount = (data['amount'] as num?)?.toDouble() ?? 0;
+    final os = orderStatusOf(data);
+    final courier = data['courierName']?.toString() ?? '';
+    final tracking = data['trackingNumber']?.toString() ?? '';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.inventory_2_outlined, size: 14, color: Colors.grey),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$seller${number.isEmpty ? '' : ' · $number'}',
+                  style: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  '${formatPrice(amount.toStringAsFixed(0))} · ${orderStatusLabel(os)}'
+                  '${courier.isEmpty ? '' : ' · $courier'}'
+                  '${tracking.isEmpty ? '' : ' ($tracking)'}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
