@@ -34,6 +34,7 @@ const {
   computeSellerTotals,
   sellerOrderNumber,
 } = require("./multiseller_logic");
+const { refundAllocation } = require("./escrow_logic");
 
 initializeApp();
 
@@ -1924,23 +1925,21 @@ exports.onEscrowAction = onDocumentCreated(
         // credits the buyer part of the held money and keeps the rest held so a
         // later release nets it out (computePayoutBreakdown subtracts it).
         // Cap every refund at the still-held remainder so repeated and/or
-        // partial-then-full refunds can never exceed the order amount. Prior
-        // refunds accumulate in refundAmount rather than being overwritten.
-        const alreadyRefunded = Number(order.refundAmount) || 0;
-        const remaining = round2(amount - alreadyRefunded);
-        if (remaining <= 0) {
+        // partial-then-full refunds can never exceed the order amount (pure,
+        // unit-tested in escrow_logic.test.js). Prior refunds accumulate in
+        // refundAmount rather than being overwritten.
+        const alloc = refundAllocation(
+          amount,
+          Number(order.refundAmount) || 0,
+          Number(act.refundAmount) || 0
+        );
+        if (alloc.skip) {
           tx.update(actRef, { status: "already_refunded" });
           return;
         }
-        const requested = Number(act.refundAmount) || 0;
-        // requested <= 0 means "refund the rest"; otherwise refund the requested
-        // value but never more than what is still held.
-        const refundValue =
-          requested > 0 ? Math.min(round2(requested), remaining) : remaining;
-        const newRefundTotal = round2(alreadyRefunded + refundValue);
-        // Once cumulative refunds reach the amount the order is fully refunded;
-        // otherwise the balance stays held (partially refunded).
-        const fullyRefunded = newRefundTotal >= amount;
+        const refundValue = alloc.refundValue;
+        const newRefundTotal = alloc.newRefundTotal;
+        const fullyRefunded = alloc.fullyRefunded;
         const buyerRef = db.collection("users").doc(order.buyerId);
         const buyerSnap = await tx.get(buyerRef);
         const bal = Number(buyerSnap.get("walletBalance")) || 0;
