@@ -78,12 +78,21 @@ async function directCancelUnpaid() {
   const sellerId = `smoke_seller_${ts}`;
   const buyerId = `smoke_buyer_${ts}`;
   const orderId = `smoke_cancel_cod_${ts}`;
+  const listingId = `smoke_cancelL_${ts}`;
   console.log(`\n[A: direct cancel of unpaid COD]  order=${orderId}`);
   await seedParties(sellerId, buyerId);
+  // A real COD order always references an in-stock, COD-enabled listing;
+  // notifyOnNewOrder now voids payable orders that have no listingId.
+  await db.collection("listings").doc(listingId).set({
+    title: "Smoke COD Item", price: "1500", images: ["x"], status: "in_stock",
+    userId: sellerId, deliveryAvailable: false, deliveryFee: "0",
+    codAvailable: true, smokeTest: true, createdAt: Timestamp.now(),
+  });
   await db.collection("orders").doc(orderId).set({
-    listingTitle: "Smoke COD Item", sellerId, buyerId, buyerName: "Smoke Buyer",
-    amount: 1500, status: "cod_pending", orderStatus: "processing",
-    paymentMethod: "cod", smokeTest: true, createdAt: Timestamp.now(),
+    listingTitle: "Smoke COD Item", listingId, sellerId, buyerId,
+    buyerName: "Smoke Buyer", amount: 1500, status: "cod_pending",
+    orderStatus: "processing", paymentMethod: "cod", smokeTest: true,
+    createdAt: Timestamp.now(),
   });
   // Client-equivalent direct cancel write (admin SDK bypasses rules).
   await db.collection("orders").doc(orderId).set({
@@ -102,6 +111,7 @@ async function directCancelUnpaid() {
     return s.empty ? null : true;
   }, "seller cancel notification");
   check("seller notified of buyer cancel", !!note);
+  await db.collection("listings").doc(listingId).delete().catch(() => {});
   await cleanup({ orderId, sellerId, buyerId });
 }
 
