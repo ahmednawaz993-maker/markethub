@@ -383,5 +383,20 @@ void main() {
       // Advertise-only category is never buyable even if 'in_stock'.
       expect(canCart(withStock('in_stock', category: 'Properties')), isFalse);
     });
+
+    test('COD is offered at checkout only when every item supports it', () {
+      CartItem codItem(bool cod) => CartItem(
+        listingId: 'i${cod ? 1 : 0}',
+        title: 't',
+        imageUrl: '',
+        price: '100',
+        sellerId: 's',
+        sellerName: 'S',
+        codAvailable: cod,
+      );
+      bool allCod(List<CartItem> items) => items.every((i) => i.codAvailable);
+      expect(allCod([codItem(true), codItem(true)]), isTrue);
+      expect(allCod([codItem(true), codItem(false)]), isFalse);
+    });
   });
 }

@@ -27,6 +27,11 @@ const {
   cancelReasonText,
   cancellationEligibility,
 } = require("./cancellation_logic");
+const {
+  groupItemsBySeller,
+  computeSellerTotals,
+  sellerOrderNumber,
+} = require("./multiseller_logic");
 
 initializeApp();
 
@@ -681,6 +686,204 @@ async function pruneInvalidTokens(db, uid, tokens, response) {
 // freeDeliveryThreshold in lib/src/commerce.dart — keep the two in sync.
 const FREE_DELIVERY_THRESHOLD = 3000;
 
+// Allocates the next human-readable order sequence (PB-{n}) from a counter doc,
+// atomically. Starts at 1001.
+async function nextOrderNumber(db) {
+  const ref = db.collection("counters").doc("orderNumber");
+  return db.runTransaction(async (tx) => {
+    const s = await tx.get(ref);
+    const cur = s.exists ? Number(s.data().value) || 1000 : 1000;
+    const next = cur + 1;
+    tx.set(ref, { value: next, updatedAt: Timestamp.now() }, { merge: true });
+    return next;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Multi-seller checkout fan-out (Phase 3)
+//
+// The buyer writes ONE masterOrders/{id} "checkout intent" (cart items +
+// address snapshot + payment method). This trigger validates each listing
+// against trusted server data, groups the items by seller, and creates one
+// orders/{orderId} sub-order per seller — reusing the existing order collection
+// so all fulfillment / cancellation / escrow / payout logic applies unchanged.
+// Each sub-order carries masterOrderId + a unique orderNumber (PB-1001-S1) and
+// the SAME immutable delivery-address snapshot. Sellers only ever read their
+// own sub-order (orders rules scope by sellerId), so one seller can't see
+// another's items.
+// ---------------------------------------------------------------------------
+exports.onMasterOrderCreated = onDocumentCreated(
+  "masterOrders/{masterId}",
+  async (event) => {
+    const master = event.data && event.data.data();
+    if (!master) return;
+    // Only process a fresh intent once (idempotent against retries / re-fires).
+    if (master.status !== "pending" || master.sellerOrderIds) return;
+
+    const db = getFirestore();
+    const masterRef = event.data.ref;
+    const masterId = event.params.masterId;
+    const items = Array.isArray(master.items) ? master.items : [];
+
+    if (items.length === 0) {
+      await masterRef.set(
+        { status: "failed", failReason: "empty_cart" },
+        { merge: true }
+      );
+      return;
+    }
+
+    const orderNo = await nextOrderNumber(db);
+    const masterNumber = `PB-${orderNo}`;
+    const isCod = master.paymentMethod === "cod";
+    const rate = commissionRate();
+    const address = master.deliveryAddress || {};
+    const buyerName =
+      master.buyerName || address.fullName || "A buyer";
+    const buyerPhone = master.buyerPhone || address.phone || "";
+
+    const groups = groupItemsBySeller(items);
+    const sellerOrderIds = [];
+    let sIndex = 0;
+
+    for (const g of groups) {
+      // Re-validate each listing against trusted current data (existence,
+      // availability, current price). Skip anything no longer buyable.
+      const lines = [];
+      const lineItems = [];
+      for (const it of g.items) {
+        const ls = await db.collection("listings").doc(it.listingId).get();
+        if (!ls.exists) continue;
+        const l = ls.data();
+        const status = l.status || (l.isSold ? "sold" : "in_stock");
+        if (status !== "in_stock") continue;
+        const unitPrice = parsePrice(l.price);
+        if (unitPrice <= 0) continue;
+        const qty = Math.max(1, Number(it.quantity) || 1);
+        lines.push({
+          unitPrice,
+          quantity: qty,
+          deliveryAvailable: l.deliveryAvailable === true,
+          deliveryFee: parsePrice(l.deliveryFee),
+        });
+        lineItems.push({
+          listingId: it.listingId,
+          title: l.title || "",
+          image: (l.images && l.images[0]) || l.imageUrl || "",
+          unitPrice,
+          quantity: qty,
+          lineTotal: round2(unitPrice * qty),
+        });
+      }
+      if (lineItems.length === 0) continue;
+
+      sIndex++;
+      const totals = computeSellerTotals(lines, {
+        isCod,
+        rate,
+        freeThreshold: FREE_DELIVERY_THRESHOLD,
+      });
+      const orderNumber = sellerOrderNumber(masterNumber, sIndex);
+      const orderRef = db.collection("orders").doc();
+      const unitCount = lineItems.reduce((a, i) => a + i.quantity, 0);
+      await orderRef.set({
+        masterOrderId: masterId,
+        orderNumber,
+        sellerId: g.sellerId,
+        sellerName: g.sellerName || "",
+        buyerId: master.buyerId,
+        buyerName,
+        buyerPhone,
+        items: lineItems,
+        itemCount: unitCount,
+        listingTitle:
+          lineItems.length === 1
+            ? lineItems[0].title
+            : `${lineItems.length} items`,
+        listingImage: lineItems[0].image,
+        itemSubtotal: totals.itemSubtotal,
+        amount: totals.amount,
+        deliveryFee: totals.deliveryFee,
+        discount: 0,
+        qualifiesForFreeDelivery: totals.qualifiesForFreeDelivery,
+        freeDeliveryThreshold: FREE_DELIVERY_THRESHOLD,
+        commission: totals.commission,
+        sellerPayout: totals.sellerPayout,
+        deliveryAddress: address,
+        paymentMethod: isCod ? "cod" : "escrow",
+        notes: master.notes || "",
+        status: isCod ? "cod_pending" : "pending_payment",
+        orderStatus: "pending",
+        paymentStatus: isCod ? "unpaid" : "payment_pending",
+        createdAt: Timestamp.now(),
+      });
+      sellerOrderIds.push(orderRef.id);
+
+      await pushToUser(
+        db,
+        g.sellerId,
+        {
+          title: "New order received",
+          body: `New order ${orderNumber} for Rs ${totals.amount}. Review the buyer's delivery details and accept when ready.`,
+        },
+        { type: "order", orderId: orderRef.id }
+      );
+      await writeAudit(db, {
+        action: "order_placed",
+        entityType: "order",
+        entityId: orderRef.id,
+        actorId: master.buyerId || "",
+        actorRole: "buyer",
+        newStatus: "pending",
+        amount: totals.amount,
+        reason: "",
+        metadata: { masterOrderId: masterId, orderNumber },
+      });
+    }
+
+    if (sellerOrderIds.length === 0) {
+      await masterRef.set(
+        { status: "failed", failReason: "no_items_available", orderNumber: masterNumber },
+        { merge: true }
+      );
+      if (master.buyerId) {
+        await pushToUser(
+          db,
+          master.buyerId,
+          {
+            title: "Order could not be placed",
+            body: "The items in your cart are no longer available.",
+          },
+          { type: "order", orderId: masterId }
+        );
+      }
+      return;
+    }
+
+    await masterRef.set(
+      {
+        orderNumber: masterNumber,
+        sellerOrderIds,
+        sellerCount: sellerOrderIds.length,
+        status: "placed",
+        placedAt: Timestamp.now(),
+      },
+      { merge: true }
+    );
+    if (master.buyerId) {
+      await pushToUser(
+        db,
+        master.buyerId,
+        {
+          title: "Order placed",
+          body: `Your order ${masterNumber} was submitted to ${sellerOrderIds.length} seller(s).`,
+        },
+        { type: "order", orderId: masterId }
+      );
+    }
+  }
+);
+
 exports.notifyOnNewOrder = onDocumentCreated(
   "orders/{orderId}",
   async (event) => {
@@ -688,6 +891,12 @@ exports.notifyOnNewOrder = onDocumentCreated(
     if (!snap) return;
     const order = snap.data();
     if (!order) return;
+
+    // Multi-seller sub-orders are created by onMasterOrderCreated (admin SDK)
+    // with all money fields + status already set authoritatively, and it sends
+    // the seller notification itself. Skip them here so the single-listing
+    // normalizer never touches them and the seller isn't notified twice.
+    if (order.masterOrderId) return;
 
     const db = getFirestore();
 

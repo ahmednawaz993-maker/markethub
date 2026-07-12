@@ -373,6 +373,16 @@ class _OrdersList extends StatelessWidget {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
+                              if ((d['orderNumber']?.toString() ?? '')
+                                  .isNotEmpty)
+                                Text(
+                                  d['orderNumber'].toString(),
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               Text(
                                 asSeller
                                     ? '${d['buyerName'] ?? 'Buyer'}'
@@ -391,6 +401,20 @@ class _OrdersList extends StatelessWidget {
                                   color: kPakGreen,
                                 ),
                               ),
+                              if (d['items'] is List &&
+                                  (d['items'] as List).isNotEmpty)
+                                ...(d['items'] as List).take(4).map((it) {
+                                  final m = (it as Map);
+                                  return Text(
+                                    '• ${m['title']} ×${m['quantity']}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey,
+                                    ),
+                                  );
+                                }),
                             ],
                           ),
                         ),

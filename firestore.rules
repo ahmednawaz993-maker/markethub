@@ -528,6 +528,31 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // Master orders — a buyer's multi-seller checkout intent (Phase 3). The
+    // buyer writes one master; a Cloud Function (onMasterOrderCreated, admin
+    // SDK) fans it out into per-seller orders/{id}. The buyer never writes the
+    // per-seller money fields — those are server-authoritative.
+    // ---------------------------------------------------------------------
+    match /masterOrders/{masterId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.buyerId == request.auth.uid
+                    && isVerifiedUser()
+                    && isNotBlocked()
+                    && request.resource.data.status == 'pending';
+      allow read: if isSignedIn()
+                  && (resource.data.buyerId == request.auth.uid || can('orders'));
+      // Fan-out + admin edits only (the function uses the admin SDK, which
+      // bypasses rules); clients can't mutate a master after creating it.
+      allow update, delete: if can('orders');
+    }
+
+    // Server-only sequence counters (order numbers). Written by Cloud Functions
+    // via the admin SDK; no client access.
+    match /counters/{counterId} {
+      allow read, write: if false;
+    }
+
+    // ---------------------------------------------------------------------
     // Escrow payments — the buyer initiates a payment; Cloud Functions
     // confirm it and settle the order. Clients never write money state.
     // ---------------------------------------------------------------------

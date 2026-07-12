@@ -146,6 +146,23 @@ double cartTotal(List<CartItem> items) =>
 int cartUnitCount(List<CartItem> items) =>
     items.fold(0, (a, i) => a + i.quantity);
 
+/// A green info strip used when a cart/checkout spans multiple sellers.
+Widget _multiSellerBanner(String text) => Container(
+  margin: const EdgeInsets.only(bottom: 10),
+  padding: const EdgeInsets.all(10),
+  decoration: BoxDecoration(
+    color: kPakGreen.withValues(alpha: 0.08),
+    borderRadius: BorderRadius.circular(8),
+  ),
+  child: Row(
+    children: [
+      const Icon(Icons.local_shipping_outlined, size: 16, color: kPakGreen),
+      const SizedBox(width: 6),
+      Expanded(child: Text(text, style: const TextStyle(fontSize: 12))),
+    ],
+  ),
+);
+
 // --- Guest (SharedPreferences) store ---------------------------------------
 
 Future<List<CartItem>> _guestLoad() async {
@@ -424,22 +441,6 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  Widget _multiSellerBanner(String text) => Container(
-    margin: const EdgeInsets.only(bottom: 10),
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(
-      color: kPakGreen.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Row(
-      children: [
-        const Icon(Icons.local_shipping_outlined, size: 16, color: kPakGreen),
-        const SizedBox(width: 6),
-        Expanded(child: Text(text, style: const TextStyle(fontSize: 12))),
-      ],
-    ),
-  );
-
   Widget _sellerGroupCard(SellerGroup g) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -597,13 +598,7 @@ class _CartScreenState extends State<CartScreen> {
               ),
             ),
             ElevatedButton.icon(
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Multi-seller checkout arrives in the next update.',
-                  ),
-                ),
-              ),
+              onPressed: () => openCartCheckout(context, _items),
               icon: const Icon(Icons.shopping_cart_checkout, size: 18),
               label: const Text('Checkout'),
             ),
@@ -635,6 +630,422 @@ class _CartScreenState extends State<CartScreen> {
     await clearCart();
     if (!_signedIn) await _reloadGuest();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Multi-seller checkout (Phase 3)
+// ---------------------------------------------------------------------------
+
+/// Writes a multi-seller checkout intent (masterOrders/{id}). A Cloud Function
+/// (onMasterOrderCreated) validates each listing, splits the cart into one
+/// per-seller order (orders/{id}) with a unique number, and notifies sellers.
+/// The cart is cleared once the intent is safely written. Returns the master id.
+Future<String> placeCartOrder({
+  required List<CartItem> items,
+  required DeliveryAddress address,
+  required String paymentMethod, // 'cod' | 'escrow'
+  String notes = '',
+}) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) throw CheckoutException('Please log in to place an order.');
+  if (items.isEmpty) throw CheckoutException('Your cart is empty.');
+  if (!address.isComplete) {
+    throw CheckoutException(
+      'Please provide a complete delivery address first.',
+    );
+  }
+  final fs = FirebaseFirestore.instance;
+  final masterRef = fs.collection('masterOrders').doc();
+  try {
+    await masterRef.set({
+      'buyerId': user.uid,
+      'buyerName': address.fullName.trim(),
+      'buyerPhone': normalizePakMobile(address.phone),
+      'deliveryAddress': address.snapshotMap(),
+      'items': [
+        for (final i in items)
+          {
+            'listingId': i.listingId,
+            'sellerId': i.sellerId,
+            'sellerName': i.sellerName,
+            'title': i.title,
+            'quantity': i.quantity,
+          },
+      ],
+      'sellerCount': groupBySeller(items).length,
+      'itemsTotal': cartTotal(items),
+      'paymentMethod': paymentMethod == 'cod' ? 'cod' : 'escrow',
+      'notes': notes.trim(),
+      'status': 'pending',
+      'createdAt': Timestamp.now(),
+    });
+  } catch (e) {
+    throw CheckoutException(_friendlyOrderError(e));
+  }
+  await clearCart();
+  return masterRef.id;
+}
+
+/// Gates on ID verification, then opens the multi-seller checkout screen.
+Future<void> openCartCheckout(
+  BuildContext context,
+  List<CartItem> items,
+) async {
+  if (items.isEmpty) return;
+  if (!await ensureVerified(context)) return;
+  if (!context.mounted) return;
+  await Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => CartCheckoutScreen(items: items)),
+  );
+}
+
+/// Multi-seller checkout: delivery address + per-seller item groups + payment
+/// method + notes + Place Order. Reuses the existing address book (Phase 2).
+class CartCheckoutScreen extends StatefulWidget {
+  final List<CartItem> items;
+  const CartCheckoutScreen({super.key, required this.items});
+
+  @override
+  State<CartCheckoutScreen> createState() => _CartCheckoutScreenState();
+}
+
+class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
+  DeliveryAddress? _address;
+  bool _loadingAddress = true;
+  bool _submitting = false;
+  String _payment = 'escrow';
+  final _notes = TextEditingController();
+
+  bool get _allCod => widget.items.every((i) => i.codAvailable);
+
+  @override
+  void initState() {
+    super.initState();
+    loadDefaultAddress().then((a) {
+      if (!mounted) return;
+      setState(() {
+        _address = a;
+        _loadingAddress = false;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _notes.dispose();
+    super.dispose();
+  }
+
+  bool get _canPlace =>
+      !_submitting &&
+      !_loadingAddress &&
+      _address != null &&
+      _address!.isComplete &&
+      widget.items.isNotEmpty &&
+      FirebaseAuth.instance.currentUser != null;
+
+  Future<void> _changeAddress() async {
+    final picked = await Navigator.push<DeliveryAddress>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AddressBookScreen(selectMode: true),
+      ),
+    );
+    if (picked != null && mounted) setState(() => _address = picked);
+  }
+
+  Future<void> _place() async {
+    if (!_canPlace) return;
+    setState(() => _submitting = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      await placeCartOrder(
+        items: widget.items,
+        address: _address!,
+        paymentMethod: _payment,
+        notes: _notes.text,
+      );
+    } on CheckoutException catch (e) {
+      if (mounted) setState(() => _submitting = false);
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      return;
+    } catch (_) {
+      if (mounted) setState(() => _submitting = false);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Could not place the order. Please try again.'),
+        ),
+      );
+      return;
+    }
+    if (!mounted) return;
+    // Cart is cleared; go to the buyer's orders where the sub-orders appear.
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const OrdersScreen()),
+      (r) => r.isFirst,
+    );
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Your order has been submitted to the seller(s).'),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = groupBySeller(widget.items);
+    final total = cartTotal(widget.items);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Checkout')),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          _addressCard(),
+          if (groups.length > 1)
+            _multiSellerBanner(
+              'Your order will arrive in multiple packages because products '
+              'are shipped from different sellers.',
+            ),
+          for (final g in groups) _sellerGroupCard(g),
+          _paymentCard(),
+          _notesCard(),
+          const SizedBox(height: 8),
+          Text(
+            'Item total: ${formatPrice(total.toStringAsFixed(0))}',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          const Text(
+            'A delivery fee (if any) is added per seller and shown on each '
+            'order.',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Items',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    Text(
+                      formatPrice(total.toStringAsFixed(0)),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: kPakGreen,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: _canPlace ? _place : null,
+                icon: _submitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.lock, size: 18),
+                label: const Text('Place Order'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _addressCard() {
+    final a = _address;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.location_on, size: 18, color: kPakGreen),
+                const SizedBox(width: 6),
+                const Expanded(
+                  child: Text(
+                    'Delivery address',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _submitting ? null : _changeAddress,
+                  child: Text(a == null ? 'Add' : 'Change'),
+                ),
+              ],
+            ),
+            if (_loadingAddress)
+              const Padding(
+                padding: EdgeInsets.all(8),
+                child: LinearProgressIndicator(),
+              )
+            else if (a == null)
+              const Text(
+                'Please add a complete delivery address before placing your '
+                'order.',
+                style: TextStyle(color: Colors.red, fontSize: 13),
+              )
+            else ...[
+              Text(
+                '${a.fullName} · ${a.phone}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              Text(
+                [
+                  a.houseOrBuilding,
+                  a.streetAddress,
+                  a.area,
+                  a.city,
+                  a.province,
+                ].where((s) => s.trim().isNotEmpty).join(', '),
+                style: const TextStyle(fontSize: 13),
+              ),
+              if (a.deliveryInstructions.trim().isNotEmpty)
+                Text(
+                  'Note: ${a.deliveryInstructions}',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sellerGroupCard(SellerGroup g) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.storefront, size: 16, color: kPakGreen),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  g.sellerName.isEmpty ? 'Seller' : g.sellerName,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const Divider(),
+          for (final it in g.items)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${it.title}  ×${it.quantity}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(formatPrice(it.lineTotal.toStringAsFixed(0))),
+                ],
+              ),
+            ),
+          const Divider(),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              'Subtotal: ${formatPrice(g.subtotal.toStringAsFixed(0))}',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _paymentCard() => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Payment method',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          RadioGroup<String>(
+            groupValue: _payment,
+            onChanged: (v) {
+              if (_submitting || v == null) return;
+              setState(() => _payment = v);
+            },
+            child: Column(
+              children: [
+                const RadioListTile<String>(
+                  contentPadding: EdgeInsets.zero,
+                  value: 'escrow',
+                  activeColor: kPakGreen,
+                  title: Text('Pay online (held by PakBazar)'),
+                  subtitle: Text(
+                    'Held safely until you confirm delivery from each seller.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+                if (_allCod)
+                  const RadioListTile<String>(
+                    contentPadding: EdgeInsets.zero,
+                    value: 'cod',
+                    activeColor: kPakGreen,
+                    title: Text('Cash on Delivery'),
+                    subtitle: Text(
+                      'Pay cash to each seller when your package arrives.',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (!_allCod)
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Text(
+                'Cash on Delivery is unavailable because some items don\'t '
+                'offer it.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _notesCard() => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: TextField(
+        controller: _notes,
+        maxLines: 2,
+        enabled: !_submitting,
+        decoration: const InputDecoration(
+          labelText: 'Order notes (optional)',
+          border: OutlineInputBorder(),
+        ),
+      ),
+    ),
+  );
 }
 
 /// Reusable "Add to cart" button used on product screens. Shows feedback and,
