@@ -1,10 +1,12 @@
-name: Payout smoke test
+name: Backend smoke tests
 
-# End-to-end health check of the platform-held payout flow against the LIVE
-# markethub-80276 backend. Drives a synthetic order (throwaway `smoke_*` UIDs)
-# through payment-held -> buyer-confirmed -> admin-release and asserts every
-# deployed Cloud Function effect + the security guards (no-verified-account,
-# open-dispute, premature release, double-pay). Cleans up everything it creates.
+# End-to-end health checks of the LIVE markethub-80276 backend. Each test drives
+# synthetic docs (throwaway `smoke_*` UIDs) through the deployed Cloud Functions,
+# asserts every effect + security guard, and cleans up everything it creates:
+#   • payout        — payment-held -> buyer-confirmed -> admin-release (+ guards)
+#   • cancellation  — direct cancel / request+refund / seller-approval / reject
+#   • multi-seller  — master fan-out -> pay-once escrow -> delivery aggregation
+# Failure of any one fails the job (steps run in order; each cleans up its own).
 #
 # Triggers:
 #   - after "Deploy to Google Play" finishes successfully (post-deploy check)
@@ -24,7 +26,7 @@ on:
     - cron: "0 3 * * *" # 03:00 UTC nightly
 
 concurrency:
-  group: payout-smoke
+  group: backend-smoke
   cancel-in-progress: false
 
 jobs:
@@ -53,6 +55,14 @@ jobs:
       - name: Run payout smoke test
         working-directory: functions
         run: node smoke_payout_test.js
+
+      - name: Run cancellation smoke test
+        working-directory: functions
+        run: node smoke_cancellation_test.js
+
+      - name: Run multi-seller smoke test
+        working-directory: functions
+        run: node smoke_multiseller_test.js
 
       - name: Clean up secret on runner
         if: always()

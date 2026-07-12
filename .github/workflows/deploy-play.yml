@@ -16,6 +16,11 @@ on:
     branches: [main]
     paths-ignore:
       - "**.md"
+      # Backend-only test + CI changes never affect the app build, so they
+      # must not ship a new AAB to Play (they still run via smoke-test.yml).
+      - "functions/*smoke*_test.js"
+      - "functions/**/*.test.js"
+      - ".github/workflows/smoke-test.yml"
   workflow_dispatch: {} # allow manual runs from the Actions tab
 
 # Never let two releases race (they'd fight over the versionCode / Play edit).
