@@ -523,7 +523,9 @@ async function dispatchNewListing(db, listing, listingId) {
 
   const recipients = new Map(); // uid -> { reason, type }
 
-  const searches = await db.collectionGroup("savedSearches").get();
+  // Bounded so a single new listing can't scan the entire userbase (cost /
+  // timeout guard). Raise the cap or move to a fan-out queue as PakBazar grows.
+  const searches = await db.collectionGroup("savedSearches").limit(1000).get();
   searches.forEach((doc) => {
     const userDoc = doc.ref.parent.parent;
     if (!userDoc) return;
@@ -540,6 +542,7 @@ async function dispatchNewListing(db, listing, listingId) {
   const prefUsers = await db
     .collection("users")
     .where("notifPrefs.newListing", "==", true)
+    .limit(1000)
     .get();
   prefUsers.forEach((u) => {
     const uid = u.id;
@@ -610,6 +613,7 @@ exports.notifyOnPriceDrop = onDocumentUpdated(
     const saves = await db
       .collectionGroup("favorites")
       .where("savedListingId", "==", event.params.listingId)
+      .limit(1000)
       .get();
 
     const title = "Price drop on a saved ad";
@@ -777,6 +781,10 @@ exports.onMasterOrderCreated = onDocumentCreated(
       // availability, current price). Skip anything no longer buyable.
       const lines = [];
       const lineItems = [];
+      // A sub-order is COD only if EVERY item in it offers COD; otherwise the
+      // whole seller order falls back to online escrow (server-authoritative,
+      // so a tampered client can't force COD on a non-COD item).
+      let groupCodOk = true;
       for (const it of g.items) {
         const ls = await db.collection("listings").doc(it.listingId).get();
         if (!ls.exists) continue;
@@ -785,6 +793,7 @@ exports.onMasterOrderCreated = onDocumentCreated(
         if (status !== "in_stock") continue;
         const unitPrice = parsePrice(l.price);
         if (unitPrice <= 0) continue;
+        if (l.codAvailable !== true) groupCodOk = false;
         const qty = Math.max(1, Number(it.quantity) || 1);
         lines.push({
           unitPrice,
@@ -804,8 +813,9 @@ exports.onMasterOrderCreated = onDocumentCreated(
       if (lineItems.length === 0) continue;
 
       sIndex++;
+      const effectiveCod = isCod && groupCodOk;
       const totals = computeSellerTotals(lines, {
-        isCod,
+        isCod: effectiveCod,
         rate,
         freeThreshold: FREE_DELIVERY_THRESHOLD,
       });
@@ -836,11 +846,11 @@ exports.onMasterOrderCreated = onDocumentCreated(
         commission: totals.commission,
         sellerPayout: totals.sellerPayout,
         deliveryAddress: address,
-        paymentMethod: isCod ? "cod" : "escrow",
+        paymentMethod: effectiveCod ? "cod" : "escrow",
         notes: master.notes || "",
-        status: isCod ? "cod_pending" : "pending_payment",
+        status: effectiveCod ? "cod_pending" : "pending_payment",
         orderStatus: "pending",
-        paymentStatus: isCod ? "unpaid" : "payment_pending",
+        paymentStatus: effectiveCod ? "unpaid" : "payment_pending",
         createdAt: Timestamp.now(),
       });
       sellerOrderIds.push(orderRef.id);
@@ -1000,12 +1010,18 @@ exports.notifyOnNewOrder = onDocumentCreated(
           : 0;
       const delivery = qualifiesFree ? 0 : baseDelivery;
       amount = itemPrice + delivery;
-      const isCod = order.status === "cod_pending";
+      // Re-validate COD server-side: if the buyer requested COD on a listing
+      // that doesn't offer it (tampered client), downgrade to the online escrow
+      // flow rather than committing the seller to a COD they never enabled.
+      const codDowngrade =
+        order.status === "cod_pending" && listing.codAvailable !== true;
+      const isCod = order.status === "cod_pending" && !codDowngrade;
       const commission = isCod ? 0 : round2(itemPrice * commissionRate());
       const sellerPayout = round2(amount - commission);
       sellerId = listing.userId || order.sellerId || "";
 
       if (
+        codDowngrade ||
         order.amount !== amount ||
         order.deliveryFee !== delivery ||
         order.commission !== commission ||
@@ -1024,6 +1040,13 @@ exports.notifyOnNewOrder = onDocumentCreated(
             itemSubtotal: itemPrice,
             qualifiesForFreeDelivery: qualifiesFree,
             freeDeliveryThreshold: FREE_DELIVERY_THRESHOLD,
+            ...(codDowngrade
+              ? {
+                  status: "pending_payment",
+                  paymentStatus: "payment_pending",
+                  paymentMethod: "escrow",
+                }
+              : {}),
           },
           { merge: true }
         );
@@ -1461,6 +1484,22 @@ async function confirmPaymentIntoEscrow(db, orderId, paymentRef, provider, opts)
       if (paymentRef) tx.update(paymentRef, { status: "ignored" });
       return;
     }
+    // Re-validate stock at capture time: an item can sell out between order
+    // placement and payment. Don't hold money for an unavailable item — leave
+    // the order payable and skip the capture. (Sub-orders carry items[] rather
+    // than a listingId and were validated at fan-out.)
+    if (order.listingId) {
+      const lSnap = await tx.get(
+        db.collection("listings").doc(String(order.listingId))
+      );
+      const lStatus = lSnap.exists
+        ? lSnap.get("status") || (lSnap.get("isSold") ? "sold" : "in_stock")
+        : "missing";
+      if (lStatus !== "in_stock") {
+        if (paymentRef) tx.update(paymentRef, { status: "item_unavailable" });
+        return;
+      }
+    }
     if (paymentRef) {
       tx.update(paymentRef, {
         status: "paid",
@@ -1891,6 +1930,15 @@ exports.onEscrowAction = onDocumentCreated(
         const bal = Number(sellerSnap.get("walletBalance")) || 0;
 
         tx.update(sellerRef, { walletBalance: bal + payout });
+        // Record the credit in the seller's wallet history so the balance
+        // change has a matching line item (reconciliation / UX).
+        tx.set(sellerRef.collection("walletTransactions").doc(), {
+          type: "credit",
+          amount: payout,
+          purpose: "Order payout",
+          refId: String(act.orderId),
+          createdAt: Timestamp.now(),
+        });
         tx.update(orderRef, {
           status: "released",
           orderStatus: "completed",
@@ -1945,6 +1993,14 @@ exports.onEscrowAction = onDocumentCreated(
         const bal = Number(buyerSnap.get("walletBalance")) || 0;
 
         tx.update(buyerRef, { walletBalance: round2(bal + refundValue) });
+        // Mirror the refund in the buyer's wallet history.
+        tx.set(buyerRef.collection("walletTransactions").doc(), {
+          type: "credit",
+          amount: refundValue,
+          purpose: fullyRefunded ? "Order refund" : "Partial refund",
+          refId: String(act.orderId),
+          createdAt: Timestamp.now(),
+        });
         if (!fullyRefunded) {
           tx.update(orderRef, {
             paymentStatus: "partially_refunded",

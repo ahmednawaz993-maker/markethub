@@ -1054,7 +1054,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Update failed: $e')));
+      ).showSnackBar(
+        const SnackBar(content: Text('Update failed. Please try again.')),
+      );
     } finally {
       if (mounted) setState(() => isSaving = false);
     }
@@ -1207,8 +1209,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
                       .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                       .toList(),
                   onChanged: (value) {
-                    if (value != null)
+                    if (value != null) {
                       setState(() => selectedCondition = value);
+                    }
                   },
                 ),
                 const SizedBox(height: 12),

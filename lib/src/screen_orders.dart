@@ -426,8 +426,13 @@ class _OrdersList extends StatelessWidget {
             final m = dd['masterOrderId']?.toString() ?? '';
             if (m.isEmpty) continue;
             masterCounts[m] = (masterCounts[m] ?? 0) + 1;
-            masterTotals[m] =
-                (masterTotals[m] ?? 0) + ((dd['amount'] as num?)?.toDouble() ?? 0);
+            // Only still-payable packages count toward the "pay for all" total,
+            // so a buyer is never asked to re-pay a package already in escrow.
+            final st = dd['status']?.toString() ?? '';
+            if (st == 'pending_payment' || st == 'payment_review') {
+              masterTotals[m] = (masterTotals[m] ?? 0) +
+                  ((dd['amount'] as num?)?.toDouble() ?? 0);
+            }
             masterLeader.putIfAbsent(m, () => idx);
             if (kDoneStates.contains(orderStatusOf(dd))) {
               masterDelivered[m] = (masterDelivered[m] ?? 0) + 1;

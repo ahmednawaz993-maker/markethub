@@ -79,6 +79,13 @@ class _OffersList extends StatelessWidget {
           .where(asSeller ? 'sellerId' : 'buyerId', isEqualTo: uid)
           .snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const EmptyState(
+            icon: Icons.error_outline,
+            title: 'Something went wrong',
+            subtitle: 'Please try again.',
+          );
+        }
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
