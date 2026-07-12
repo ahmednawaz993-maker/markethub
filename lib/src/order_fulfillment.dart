@@ -42,6 +42,12 @@ class OrderFulfillmentPanel extends StatelessWidget {
     final courier = data['courierName']?.toString() ?? '';
     final tracking = data['trackingNumber']?.toString() ?? '';
     final trackingUrl = data['trackingUrl']?.toString() ?? '';
+    final shippedAt = data['shippedAt'] as Timestamp?;
+    final deliveredAt = data['deliveredAt'] as Timestamp?;
+    final shipDates = [
+      if (shippedAt != null) 'Shipped ${timeAgo(shippedAt)}',
+      if (deliveredAt != null) 'Delivered ${timeAgo(deliveredAt)}',
+    ].join(' · ');
     final activeIdx = _shipStepIndex(
       buyerConfirmed ? 'buyer_confirmed' : orderStatus,
     );
@@ -103,6 +109,19 @@ class OrderFulfillmentPanel extends StatelessWidget {
                   },
                   child: const Text('Track'),
                 ),
+            ],
+          ),
+        ],
+        if (shipDates.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.event_outlined, size: 14, color: Colors.grey),
+              const SizedBox(width: 4),
+              Text(
+                shipDates,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
             ],
           ),
         ],

@@ -309,11 +309,26 @@ class _OrdersList extends StatelessWidget {
                 : 'Items you buy will appear here.',
           );
         }
+        // Phase 5: count a buyer's sub-orders per master order so each package
+        // card can announce it is one of several shipments.
+        final masterCounts = <String, int>{};
+        if (!asSeller) {
+          for (final doc in docs) {
+            final m = (doc.data()
+                    as Map<String, dynamic>)['masterOrderId']
+                    ?.toString() ??
+                '';
+            if (m.isNotEmpty) masterCounts[m] = (masterCounts[m] ?? 0) + 1;
+          }
+        }
         return ListView.builder(
           padding: const EdgeInsets.all(12),
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
+            final pkgCount = asSeller
+                ? 1
+                : (masterCounts[d['masterOrderId']?.toString() ?? ''] ?? 1);
             final status = d['status']?.toString() ?? 'pending_payment';
             final img = d['listingImage']?.toString() ?? '';
             final amount = (d['amount'] as num?)?.toDouble() ?? 0;
@@ -335,6 +350,11 @@ class _OrdersList extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (!asSeller && pkgCount > 1)
+                      _MultiPackageBanner(
+                        orderNumber: d['orderNumber']?.toString() ?? '',
+                        packages: pkgCount,
+                      ),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -652,6 +672,59 @@ class _OrdersList extends StatelessWidget {
 
 /// Shows the delivery-address snapshot + price breakdown stored on an order.
 /// Renders nothing for legacy orders created before delivery addresses existed.
+// Phase 5: shown on each buyer sub-order that belongs to a multi-seller master
+// order, telling the buyer the order arrives in several separate packages.
+class _MultiPackageBanner extends StatelessWidget {
+  final String orderNumber;
+  final int packages;
+  const _MultiPackageBanner({required this.orderNumber, required this.packages});
+
+  @override
+  Widget build(BuildContext context) {
+    final master = orderNumber.replaceAll(RegExp(r'-S\d+$'), '');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.deepPurple.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.deepPurple.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.local_shipping_outlined,
+              size: 18, color: Colors.deepPurple),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  master.isEmpty
+                      ? 'Package $packages of a multi-seller order'
+                      : 'Order $master · $packages packages',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.deepPurple,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Your order will arrive in multiple packages because '
+                  'products are being shipped from different sellers.',
+                  style: TextStyle(fontSize: 12, color: Colors.black87),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _OrderDeliveryPanel extends StatelessWidget {
   final Map<String, dynamic> data;
   final bool asSeller;
