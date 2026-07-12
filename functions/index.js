@@ -23,6 +23,10 @@ const { getMessaging } = require("firebase-admin/messaging");
 const { getAuth } = require("firebase-admin/auth");
 const { defineSecret } = require("firebase-functions/params");
 const sgMail = require("@sendgrid/mail");
+const {
+  cancelReasonText,
+  cancellationEligibility,
+} = require("./cancellation_logic");
 
 initializeApp();
 
@@ -1628,6 +1632,389 @@ exports.onEscrowAction = onDocumentCreated(
   }
 );
 
+// ---------------------------------------------------------------------------
+// Order cancellation (spec sections 7–8, 11–13)
+//
+// A buyer files a request under orders/{id}/cancellationRequests. The functions
+// below decide it server-side. Direct cancels of UNPAID orders are a client
+// write (guarded by Firestore rules) and handled by onOrderProgress above.
+// Paid cancellations reuse the audited escrow-refund path (onEscrowAction).
+// ---------------------------------------------------------------------------
+
+// Pure decision logic (deriveOrderStatus / cancellationEligibility /
+// cancelReasonText) lives in ./cancellation_logic so it can be unit-tested
+// without Firebase. See cancellation_logic.test.js.
+
+// Approves a cancellation: cancels the order, issues a refund when money is
+// held (reusing the audited escrow-refund path), writes audit + notifications.
+// Idempotent — a deterministic escrowActions id prevents a double refund, and
+// the request's processedAt guards the decision trigger from re-running.
+async function processCancellationApproval(
+  db, orderId, order, reqRef, req, actorId, actorRole
+) {
+  const orderRef = db.collection("orders").doc(orderId);
+  const reason = req.reasonDetails || cancelReasonText(req.reasonCode);
+  const heldInEscrow = order.status === "in_escrow";
+  const manualReview = order.status === "payment_review";
+  const cancelStamp = {
+    cancellationRequested: false,
+    cancellationRequestStatus: "approved",
+    cancelledAt: Timestamp.now(),
+    cancelledBy: actorId || "",
+    cancelledByRole: actorRole,
+    cancelReason: reason,
+    cancelReasonCode: req.reasonCode || "",
+  };
+
+  if (heldInEscrow && (Number(order.amount) || 0) > 0) {
+    // Reuse the audited escrow-refund flow, which credits the buyer's wallet
+    // and sets status:refunded / orderStatus:cancelled. Fixed id → idempotent.
+    try {
+      await db.collection("escrowActions").doc(`cancel_${orderId}`).create({
+        type: "refund",
+        orderId,
+        by: actorId || "system",
+        reason: `cancellation:${req.reasonCode || ""}`,
+        source: "cancellation",
+        createdAt: Timestamp.now(),
+      });
+    } catch (e) {
+      // Already queued/processed — continue idempotently.
+    }
+    // Leave status/orderStatus to the refund flow; only stamp the cancel meta.
+    await orderRef.set(cancelStamp, { merge: true });
+    await reqRef.set(
+      {
+        requestStatus: "approved",
+        refundRequired: true,
+        refundStatus: "pending",
+        reviewedBy: actorId || "",
+        reviewedAt: Timestamp.now(),
+        processedAt: Timestamp.now(),
+      },
+      { merge: true }
+    );
+  } else {
+    // Unpaid / COD (or a not-yet-confirmed manual payment) — cancel directly.
+    await orderRef.set(
+      Object.assign({ status: "cancelled", orderStatus: "cancelled" }, cancelStamp),
+      { merge: true }
+    );
+    await reqRef.set(
+      {
+        requestStatus: "approved",
+        refundRequired: !!manualReview,
+        refundStatus: manualReview ? "manual_review" : "not_required",
+        reviewedBy: actorId || "",
+        reviewedAt: Timestamp.now(),
+        processedAt: Timestamp.now(),
+      },
+      { merge: true }
+    );
+    if (manualReview) {
+      await notifyAdmins(
+        db,
+        {
+          title: "Refund review needed",
+          body: `Cancelled order "${
+            order.listingTitle || orderId
+          }" had a payment under review — confirm whether a refund is owed.`,
+        },
+        { type: "order", orderId }
+      );
+    }
+  }
+
+  await writeAudit(db, {
+    action: "cancellation_approved",
+    entityType: "order",
+    entityId: orderId,
+    actorId: actorId || "",
+    actorRole,
+    previousStatus: order.orderStatus || order.status || "",
+    newStatus: "cancelled",
+    amount: Number(order.amount) || 0,
+    reason: req.reasonCode || "",
+  });
+
+  if (order.buyerId) {
+    await pushToUser(
+      db,
+      order.buyerId,
+      {
+        title: "Order cancelled",
+        body: heldInEscrow
+          ? "Your order was cancelled — your payment is being refunded to your wallet."
+          : "Your order has been cancelled.",
+      },
+      { type: "order", orderId }
+    );
+  }
+  // Tell the seller unless they are the one who approved it.
+  if (order.sellerId && actorRole !== "seller") {
+    await pushToUser(
+      db,
+      order.sellerId,
+      {
+        title: "Order cancelled",
+        body: `Order "${order.listingTitle || orderId}" was cancelled.`,
+      },
+      { type: "order", orderId }
+    );
+  }
+}
+
+// A buyer filed a cancellation request → decide it (auto-approve / auto-reject /
+// leave pending for the seller or admin).
+exports.onCancellationRequestCreated = onDocumentCreated(
+  "orders/{orderId}/cancellationRequests/{requestId}",
+  async (event) => {
+    const req = event.data && event.data.data();
+    if (!req) return;
+    const orderId = event.params.orderId;
+    const requestId = event.params.requestId;
+    const db = getFirestore();
+    const orderRef = db.collection("orders").doc(orderId);
+    const reqRef = event.data.ref;
+
+    const oSnap = await orderRef.get();
+    if (!oSnap.exists) {
+      return reqRef.set(
+        {
+          requestStatus: "rejected",
+          adminDecision: "auto",
+          sellerResponse: "Order not found.",
+          processedAt: Timestamp.now(),
+        },
+        { merge: true }
+      );
+    }
+    const order = oSnap.data();
+
+    // Flag the order so both apps can show the pending-request state.
+    await orderRef.set(
+      {
+        cancellationRequested: true,
+        cancellationRequestId: requestId,
+        cancellationRequestStatus: "pending",
+      },
+      { merge: true }
+    );
+    await writeAudit(db, {
+      action: "cancellation_requested",
+      entityType: "order",
+      entityId: orderId,
+      actorId: req.buyerId || "",
+      actorRole: "buyer",
+      previousStatus: order.orderStatus || order.status || "",
+      newStatus: "cancellation_requested",
+      reason: req.reasonCode || "",
+    });
+
+    const elig = cancellationEligibility(order);
+
+    if (elig.mode === "auto") {
+      await processCancellationApproval(
+        db, orderId, order, reqRef, req, req.buyerId || "", "buyer"
+      );
+      return;
+    }
+
+    if (elig.mode === "reject") {
+      await orderRef.set(
+        { cancellationRequested: false, cancellationRequestStatus: "rejected" },
+        { merge: true }
+      );
+      await reqRef.set(
+        {
+          requestStatus: "rejected",
+          adminDecision: "auto",
+          sellerResponse: elig.reason || "",
+          refundStatus: "not_required",
+          reviewedAt: Timestamp.now(),
+          processedAt: Timestamp.now(),
+        },
+        { merge: true }
+      );
+      await writeAudit(db, {
+        action: "cancellation_rejected",
+        entityType: "order",
+        entityId: orderId,
+        actorRole: "system",
+        reason: elig.reason || "",
+      });
+      if (order.buyerId) {
+        await pushToUser(
+          db,
+          order.buyerId,
+          {
+            title: "Cancellation not available",
+            body: elig.reason || "This order can no longer be cancelled.",
+          },
+          { type: "order", orderId }
+        );
+      }
+      return;
+    }
+
+    // review — needs a seller/admin decision.
+    await reqRef.set(
+      {
+        refundRequired: !!elig.refund,
+        refundStatus: elig.refund ? "pending" : "not_required",
+      },
+      { merge: true }
+    );
+    if (order.sellerId) {
+      await pushToUser(
+        db,
+        order.sellerId,
+        {
+          title: "Cancellation requested",
+          body: `${order.buyerName || "The buyer"} asked to cancel "${
+            order.listingTitle || "an order"
+          }". Review and respond.`,
+        },
+        { type: "order", orderId }
+      );
+    }
+    await notifyAdmins(
+      db,
+      {
+        title: "Cancellation requested",
+        body: `Order "${
+          order.listingTitle || orderId
+        }" has a pending cancellation request.`,
+      },
+      { type: "order", orderId }
+    );
+    if (order.buyerId) {
+      await pushToUser(
+        db,
+        order.buyerId,
+        {
+          title: "Request received",
+          body: "Your cancellation request has been sent for review.",
+        },
+        { type: "order", orderId }
+      );
+    }
+  }
+);
+
+// A pending cancellation request was decided by the seller/admin (or withdrawn
+// by the buyer). Apply the outcome. Guards against loops via processedAt.
+exports.onCancellationRequestDecision = onDocumentUpdated(
+  "orders/{orderId}/cancellationRequests/{requestId}",
+  async (event) => {
+    const before = (event.data.before && event.data.before.data()) || {};
+    const after = (event.data.after && event.data.after.data()) || {};
+    const orderId = event.params.orderId;
+    const db = getFirestore();
+
+    // Only the first pending → decided transition; ignore our own follow-ups.
+    if (before.requestStatus !== "pending") return;
+    if (before.processedAt || after.processedAt) return;
+
+    const orderRef = db.collection("orders").doc(orderId);
+    const reqRef = event.data.after.ref;
+
+    if (after.requestStatus === "approved") {
+      const oSnap = await orderRef.get();
+      if (!oSnap.exists) return;
+      const order = oSnap.data();
+      // Re-check eligibility so a stale approval can't cancel a shipped order.
+      const elig = cancellationEligibility(order);
+      if (elig.mode === "reject") {
+        await reqRef.set(
+          {
+            requestStatus: "rejected",
+            sellerResponse: elig.reason || "",
+            processedAt: Timestamp.now(),
+          },
+          { merge: true }
+        );
+        await orderRef.set(
+          {
+            cancellationRequested: false,
+            cancellationRequestStatus: "rejected",
+          },
+          { merge: true }
+        );
+        if (order.buyerId) {
+          await pushToUser(
+            db,
+            order.buyerId,
+            { title: "Cancellation not available", body: elig.reason || "" },
+            { type: "order", orderId }
+          );
+        }
+        return;
+      }
+      const actorRole =
+        after.decidedByRole || (after.adminDecision ? "admin" : "seller");
+      await processCancellationApproval(
+        db, orderId, order, reqRef, after, after.reviewedBy || "", actorRole
+      );
+      return;
+    }
+
+    if (after.requestStatus === "rejected") {
+      await orderRef.set(
+        {
+          cancellationRequested: false,
+          cancellationRequestStatus: "rejected",
+          cancellationDecisionNote: after.sellerResponse || "",
+        },
+        { merge: true }
+      );
+      await reqRef.set({ processedAt: Timestamp.now() }, { merge: true });
+      await writeAudit(db, {
+        action: "cancellation_rejected",
+        entityType: "order",
+        entityId: orderId,
+        actorId: after.reviewedBy || "",
+        actorRole: after.decidedByRole || "seller",
+        reason: after.sellerResponse || "",
+      });
+      const oSnap = await orderRef.get();
+      const order = oSnap.exists ? oSnap.data() : {};
+      if (order.buyerId) {
+        await pushToUser(
+          db,
+          order.buyerId,
+          {
+            title: "Cancellation declined",
+            body: after.sellerResponse
+              ? `Your cancellation request was declined: ${after.sellerResponse}`
+              : "Your cancellation request was declined.",
+          },
+          { type: "order", orderId }
+        );
+      }
+      return;
+    }
+
+    if (after.requestStatus === "withdrawn") {
+      await orderRef.set(
+        {
+          cancellationRequested: false,
+          cancellationRequestStatus: "withdrawn",
+        },
+        { merge: true }
+      );
+      await reqRef.set({ processedAt: Timestamp.now() }, { merge: true });
+      await writeAudit(db, {
+        action: "cancellation_withdrawn",
+        entityType: "order",
+        entityId: orderId,
+        actorId: after.buyerId || "",
+        actorRole: "buyer",
+      });
+    }
+  }
+);
+
 // Alert the seller when a buyer opens a dispute / problem report. The payout is
 // already blocked server-side while the dispute is open (see onEscrowAction);
 // this only notifies. Admins see disputes in the dashboard.
@@ -1699,6 +2086,52 @@ exports.onOrderProgress = onDocumentUpdated(
     const after = (event.data.after && event.data.after.data()) || {};
     const orderId = event.params.orderId;
     const db = getFirestore();
+
+    // Direct buyer cancellation of an UNPAID order (client write, no request
+    // doc). The paid/refund and request-approval paths emit their own
+    // notifications, so skip those (they carry a cancellationRequestId or land
+    // on status 'refunded').
+    if (
+      after.status === "cancelled" &&
+      before.status !== "cancelled" &&
+      !after.cancellationRequestId
+    ) {
+      await writeAudit(db, {
+        action: "buyer_cancelled_pending",
+        entityType: "order",
+        entityId: orderId,
+        actorId: after.cancelledBy || "",
+        actorRole: after.cancelledByRole || "buyer",
+        previousStatus: before.orderStatus || before.status || "",
+        newStatus: "cancelled",
+        amount: Number(after.amount) || 0,
+        reason: after.cancelReasonCode || after.cancelReason || "",
+      });
+      if (after.sellerId) {
+        await pushToUser(
+          db,
+          after.sellerId,
+          {
+            title: "Order cancelled",
+            body: `${after.buyerName || "The buyer"} cancelled the order for "${
+              after.listingTitle || "an item"
+            }".`,
+          },
+          { type: "order", orderId }
+        );
+      }
+      await notifyAdmins(
+        db,
+        {
+          title: "Order cancelled",
+          body: `Order "${
+            after.listingTitle || orderId
+          }" was cancelled by the buyer.`,
+        },
+        { type: "order", orderId }
+      );
+      return;
+    }
 
     const nowConfirmed =
       (after.orderStatus === "buyer_confirmed" &&

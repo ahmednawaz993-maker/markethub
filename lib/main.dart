@@ -38,6 +38,7 @@ part 'src/models.dart';
 part 'src/catalog.dart';
 part 'src/push.dart';
 part 'src/commerce.dart';
+part 'src/cancellation.dart';
 part 'src/addresses.dart';
 part 'src/review_prompt.dart';
 part 'src/screen_notif_prefs.dart';
