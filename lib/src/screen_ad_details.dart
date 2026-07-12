@@ -1093,6 +1093,11 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                     const SizedBox(height: 8),
                     SizedBox(
                       width: double.infinity,
+                      child: AddToCartButton(listing: listing),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
                       child: OutlinedButton.icon(
                         onPressed: () => showOfferSheet(context, listing),
                         icon: const Icon(Icons.local_offer_outlined),

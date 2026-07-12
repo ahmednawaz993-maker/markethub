@@ -250,7 +250,10 @@ void main() {
         CancelUi.requestApproval,
       );
       // A manual payment under review must also go through approval.
-      expect(cancelUiFor({'status': 'payment_review'}), CancelUi.requestApproval);
+      expect(
+        cancelUiFor({'status': 'payment_review'}),
+        CancelUi.requestApproval,
+      );
     });
 
     test('legacy held order (no explicit orderStatus) is request-only', () {
@@ -288,7 +291,97 @@ void main() {
     });
 
     test('cancellation_requested has a buyer-facing label', () {
-      expect(orderStatusLabel('cancellation_requested'), 'Cancellation requested');
+      expect(
+        orderStatusLabel('cancellation_requested'),
+        'Cancellation requested',
+      );
+    });
+  });
+
+  group('Multi-seller cart', () {
+    CartItem item(String id, String seller, String price, int qty) => CartItem(
+      listingId: id,
+      title: 'Item $id',
+      imageUrl: '',
+      price: price,
+      sellerId: seller,
+      sellerName: 'Seller $seller',
+      quantity: qty,
+    );
+
+    test('line total = unit price * quantity', () {
+      final it = item('a', 's1', '250', 3);
+      expect(it.unitPrice, 250);
+      expect(it.lineTotal, 750);
+    });
+
+    test('fromListing copies seller + price and defaults quantity', () {
+      final l = Listing(
+        id: 'L1',
+        title: 'Widget',
+        price: '1200',
+        location: '',
+        imageUrl: 'http://img/1.jpg',
+        category: 'Electronics',
+        userId: 'seller9',
+        sellerName: 'Acme',
+        deliveryFee: '150',
+        codAvailable: true,
+      );
+      final ci = CartItem.fromListing(l, quantity: 2);
+      expect(ci.listingId, 'L1');
+      expect(ci.sellerId, 'seller9');
+      expect(ci.sellerName, 'Acme');
+      expect(ci.price, '1200');
+      expect(ci.quantity, 2);
+      expect(ci.lineTotal, 2400);
+      expect(ci.codAvailable, isTrue);
+    });
+
+    test('groups by seller, preserves first-seen order, sums subtotals', () {
+      final items = [
+        item('a', 's1', '100', 2), // 200
+        item('b', 's2', '500', 1), // 500
+        item('c', 's1', '50', 4), //  200
+      ];
+      final groups = groupBySeller(items);
+      expect(groups.map((g) => g.sellerId).toList(), ['s1', 's2']);
+      expect(groups[0].items.length, 2);
+      expect(groups[0].subtotal, 400); // 200 + 200
+      expect(groups[0].count, 6); // 2 + 4
+      expect(groups[1].subtotal, 500);
+    });
+
+    test('cart total and unit count across sellers', () {
+      final items = [
+        item('a', 's1', '100', 2),
+        item('b', 's2', '500', 1),
+        item('c', 's1', '50', 4),
+      ];
+      expect(cartTotal(items), 900); // 200 + 500 + 200
+      expect(cartUnitCount(items), 7); // 2 + 1 + 4
+    });
+
+    Listing withStock(String status, {String category = 'Electronics'}) =>
+        Listing(
+          id: 'x',
+          title: 'x',
+          price: '100',
+          location: '',
+          imageUrl: '',
+          category: category,
+          userId: 's',
+          status: status,
+        );
+
+    test('stock gate: only in-stock, buyable listings can be carted', () {
+      // The predicate addListingToCart enforces before writing.
+      bool canCart(Listing l) => l.isAvailableForSale && isBuyable(l);
+      expect(canCart(withStock('in_stock')), isTrue);
+      expect(canCart(withStock('out_of_stock')), isFalse);
+      expect(canCart(withStock('sold')), isFalse);
+      // Advertise-only category is never buyable even if 'in_stock'.
+      expect(canCart(withStock('in_stock', category: 'Properties')), isFalse);
     });
   });
 }

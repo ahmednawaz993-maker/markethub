@@ -231,6 +231,13 @@ service cloud.firestore {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
       }
 
+      // The buyer's shopping cart — private to the owner. One doc per line
+      // item (doc id == listingId). No seller/admin access; carts never hold
+      // money and are converted to orders at checkout.
+      match /cart/{itemId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
       // Seller payout accounts — private to the seller (and payments admins).
       // The seller manages routing details but can NEVER self-verify:
       // verificationStatus is admin/Cloud-Function only. Buyers can't read them

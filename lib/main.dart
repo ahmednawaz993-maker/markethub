@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart'
@@ -39,6 +40,7 @@ part 'src/catalog.dart';
 part 'src/push.dart';
 part 'src/commerce.dart';
 part 'src/cancellation.dart';
+part 'src/cart.dart';
 part 'src/addresses.dart';
 part 'src/review_prompt.dart';
 part 'src/screen_notif_prefs.dart';

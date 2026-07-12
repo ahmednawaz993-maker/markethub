@@ -785,6 +785,10 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) setState(() {});
     });
     setupPushNotifications();
+    // Fold any guest cart (added while logged out) into the account, then keep
+    // the badge in sync. Safe no-op when the guest cart is empty.
+    mergeGuestCartIntoAccount();
+    loadGuestCartCount();
     // Ask for a Play review only when the user is genuinely engaged (see
     // maybeShowReviewPrompt for the configurable eligibility rules). Home is a
     // safe, neutral screen — never checkout / payment / OTP / dispute / error.
@@ -1669,6 +1673,7 @@ class _HomeScreenState extends State<HomeScreen> {
             MaterialPageRoute(builder: (_) => const FavoritesScreen()),
           ),
         ),
+        const CartBell(),
         const NotificationBell(),
       ],
     );
