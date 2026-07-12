@@ -198,10 +198,12 @@ void main() {
       expect(nextShippingStep('pending'), 'accepted');
       expect(nextShippingStep('accepted'), 'processing');
       expect(nextShippingStep('processing'), 'shipped');
-      expect(nextShippingStep('shipped'), 'delivered');
     });
 
-    test('no further seller step after delivered', () {
+    test('no further seller step after dispatch (buyer confirms next)', () {
+      // The seller chain now ends at 'shipped' (Dispatched); the buyer's
+      // receipt confirmation is what marks the order Delivered.
+      expect(nextShippingStep('shipped'), '');
       expect(nextShippingStep('delivered'), '');
       expect(nextShippingStep('buyer_confirmed'), '');
       expect(nextShippingStep('completed'), '');
@@ -488,6 +490,26 @@ void main() {
       final mo = MasterOrder.fromMap('m', {'status': 'failed'});
       expect(mo.isFailed, isTrue);
       expect(mo.isMultiPackage, isFalse);
+    });
+  });
+
+  group('Seller-controlled tracking flow', () {
+    test('labels: accepted → ready to dispatch → dispatched → delivered', () {
+      expect(orderStatusLabel('accepted'), 'Order accepted');
+      expect(orderStatusLabel('processing'), 'Ready to dispatch');
+      expect(orderStatusLabel('shipped'), 'Dispatched');
+      // The buyer confirming receipt is what "Delivered" means.
+      expect(orderStatusLabel('buyer_confirmed'), 'Delivered');
+      expect(orderStatusLabel('delivered'), 'Delivered');
+    });
+
+    test('seller drives up to dispatched, then stops (buyer confirms next)', () {
+      expect(nextShippingStep('pending'), 'accepted');
+      expect(nextShippingStep('accepted'), 'processing');
+      expect(nextShippingStep('processing'), 'shipped');
+      // After dispatch the seller has no further step — the buyer confirms.
+      expect(nextShippingStep('shipped'), '');
+      expect(nextShippingStep('buyer_confirmed'), '');
     });
   });
 }

@@ -6,21 +6,22 @@ part of '../main.dart';
 // (accept → process → ship → deliver) and the buyer confirms receipt; the
 // payout stays server-authoritative (Cloud Functions).
 
-/// The ordered fulfillment steps shown in the little progress strip.
+/// The ordered fulfillment steps shown in the little progress strip. The seller
+/// drives Accepted → Ready → Dispatched; the buyer's receipt confirmation is
+/// the final "Delivered" step.
 const List<({String key, String label})> _shipSteps = [
   (key: 'accepted', label: 'Accepted'),
-  (key: 'processing', label: 'Prep'),
-  (key: 'shipped', label: 'Shipped'),
+  (key: 'processing', label: 'Ready'),
+  (key: 'shipped', label: 'Dispatched'),
   (key: 'delivered', label: 'Delivered'),
-  (key: 'buyer_confirmed', label: 'Confirmed'),
 ];
 
 int _shipStepIndex(String orderStatus) => switch (orderStatus) {
   'accepted' => 0,
   'processing' => 1,
   'shipped' => 2,
-  'delivered' => 3,
-  'buyer_confirmed' || 'completed' => 4,
+  // The buyer confirming receipt (buyer_confirmed) IS the Delivered step.
+  'delivered' || 'buyer_confirmed' || 'completed' => 3,
   _ => -1,
 };
 
@@ -134,52 +135,40 @@ class OrderFulfillmentPanel extends StatelessWidget {
   }
 
   Widget _sellerActions(BuildContext context, String orderStatus) {
-    final next = nextShippingStep(orderStatus);
-    if (orderStatus == 'delivered') {
+    // After dispatch the seller is done — the buyer confirms receipt next.
+    if (orderStatus == 'shipped' || orderStatus == 'delivered') {
       return const Padding(
         padding: EdgeInsets.only(top: 6),
         child: Text(
-          'Delivered — waiting for the buyer to confirm receipt so your '
-          'payout can be released.',
+          'Dispatched — waiting for the buyer to confirm they received it, '
+          'which releases your payout for settlement.',
           style: TextStyle(fontSize: 12, color: Colors.grey),
         ),
       );
     }
+    final next = nextShippingStep(orderStatus);
     if (next.isEmpty) return const SizedBox.shrink();
-    final label = switch (next) {
-      'accepted' => 'Accept order',
-      'processing' => 'Mark preparing',
-      'shipped' => 'Add shipping & mark shipped',
-      'delivered' => 'Mark delivered',
-      _ => 'Advance',
+    final (label, icon) = switch (next) {
+      'accepted' => ('Accept order', Icons.check),
+      'processing' => ('Mark ready to dispatch', Icons.inventory_2_outlined),
+      'shipped' => ('Mark dispatched', Icons.local_shipping),
+      _ => ('Advance', Icons.arrow_forward),
     };
     return Align(
       alignment: Alignment.centerRight,
       child: Padding(
         padding: const EdgeInsets.only(top: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (orderStatus == 'accepted')
-              TextButton(
-                onPressed: () => _advance(context, 'processing'),
-                child: const Text('Mark preparing'),
-              ),
-            ElevatedButton.icon(
-              onPressed: () {
-                if (next == 'shipped') {
-                  _showShipSheet(context);
-                } else {
-                  _advance(context, next);
-                }
-              },
-              icon: Icon(
-                next == 'shipped' ? Icons.local_shipping : Icons.arrow_forward,
-                size: 16,
-              ),
-              label: Text(next == 'accepted' ? 'Accept order' : label),
-            ),
-          ],
+        child: ElevatedButton.icon(
+          onPressed: () {
+            // Dispatching requires courier + tracking (collected in the sheet).
+            if (next == 'shipped') {
+              _showShipSheet(context);
+            } else {
+              _advance(context, next);
+            }
+          },
+          icon: Icon(icon, size: 16),
+          label: Text(label),
         ),
       ),
     );
@@ -199,8 +188,8 @@ class OrderFulfillmentPanel extends StatelessWidget {
             SizedBox(width: 4),
             Expanded(
               child: Text(
-                'Delivery confirmed — the seller payout is pending platform '
-                'verification.',
+                'Delivered — you confirmed receipt. The seller payout is '
+                'pending platform settlement.',
                 style: TextStyle(
                   fontSize: 12,
                   color: kPakGreen,
@@ -212,18 +201,15 @@ class OrderFulfillmentPanel extends StatelessWidget {
         ),
       );
     }
-    // The buyer can confirm once the order has shipped/delivered, or on a
-    // legacy held order that never entered the shipping flow.
-    final canConfirm =
-        orderStatus == 'shipped' ||
-        orderStatus == 'delivered' ||
-        orderStatus == 'accepted';
+    // The buyer confirms receipt once the order has been dispatched (or on a
+    // legacy held order that never entered the fulfillment flow).
+    final canConfirm = orderStatus == 'shipped' || orderStatus == 'delivered';
     if (!canConfirm) {
       return const Padding(
         padding: EdgeInsets.only(top: 6),
         child: Text(
-          'The seller is preparing your order. You can confirm delivery once '
-          'it arrives.',
+          'The seller is preparing your order. You can confirm receipt once '
+          'it has been dispatched.',
           style: TextStyle(fontSize: 12, color: Colors.grey),
         ),
       );
@@ -235,7 +221,7 @@ class OrderFulfillmentPanel extends StatelessWidget {
         child: ElevatedButton.icon(
           onPressed: () => _confirmDelivery(context),
           icon: const Icon(Icons.check_circle, size: 18),
-          label: const Text('Confirm Delivery'),
+          label: const Text('Confirm receipt (mark Delivered)'),
         ),
       ),
     );
@@ -260,10 +246,11 @@ class OrderFulfillmentPanel extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dCtx) => AlertDialog(
-        title: const Text('Confirm Delivery'),
+        title: const Text('Confirm receipt'),
         content: const Text(
-          'Confirm only after you have received and checked your order. '
-          'This lets PakBazar release the payment to the seller.',
+          'Confirm only after you have received and checked your order. This '
+          'marks it Delivered and lets PakBazar settle the payment to the '
+          'seller.',
         ),
         actions: [
           TextButton(
@@ -272,7 +259,7 @@ class OrderFulfillmentPanel extends StatelessWidget {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dCtx, true),
-            child: const Text('Confirm Delivery'),
+            child: const Text('Mark Delivered'),
           ),
         ],
       ),
@@ -312,13 +299,13 @@ class OrderFulfillmentPanel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  'Add shipping details',
+                  'Dispatch order',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
                 const Text(
                   'Enter the courier and tracking number so the buyer can '
-                  'follow the delivery.',
+                  'follow the delivery. Marking dispatched notifies the buyer.',
                   style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 const SizedBox(height: 12),
@@ -378,11 +365,11 @@ class OrderFulfillmentPanel extends StatelessWidget {
                     }
                     if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                     messenger.showSnackBar(
-                      const SnackBar(content: Text('Order marked shipped.')),
+                      const SnackBar(content: Text('Order dispatched.')),
                     );
                   },
                   icon: const Icon(Icons.local_shipping, size: 18),
-                  label: const Text('Mark shipped'),
+                  label: const Text('Mark dispatched'),
                 ),
               ],
             ),
