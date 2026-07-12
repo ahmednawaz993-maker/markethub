@@ -445,6 +445,7 @@ String orderStatusLabel(String s) => switch (s) {
   'buyer_confirmed' => 'Delivery confirmed',
   'completed' => 'Completed',
   'rejected' => 'Rejected',
+  'cancellation_requested' => 'Cancellation requested',
   'cancelled' => 'Cancelled',
   'disputed' => 'Disputed',
   _ => 'Pending',

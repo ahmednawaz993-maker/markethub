@@ -2788,6 +2788,7 @@ class _AdminOrdersTab extends StatelessWidget {
                 ),
               ),
             ),
+            const _PendingCancellationsPanel(),
             Expanded(
               child: docs.isEmpty
                   ? const EmptyState(
@@ -2878,6 +2879,192 @@ class _AdminOrdersTab extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// Admin review of pending buyer cancellation requests across all orders (spec
+/// section 8). Reuses the `orders` permission. Collapses to nothing when the
+/// queue is empty. Approving/rejecting here writes to the request document; the
+/// onCancellationRequestDecision Cloud Function applies the outcome (cancel,
+/// refund, audit, notify).
+class _PendingCancellationsPanel extends StatelessWidget {
+  const _PendingCancellationsPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collectionGroup('cancellationRequests')
+          .where('requestStatus', isEqualTo: 'pending')
+          .orderBy('requestedAt', descending: true)
+          .snapshots(),
+      builder: (context, snap) {
+        final docs = snap.data?.docs ?? const [];
+        if (docs.isEmpty) return const SizedBox.shrink();
+        return Card(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          color: Colors.red.shade50,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.cancel_schedule_send,
+                      color: Colors.red,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Cancellation requests (${docs.length})',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                for (final doc in docs)
+                  _CancellationRequestRow(
+                    orderId: doc.reference.parent.parent?.id ?? '',
+                    requestId: doc.id,
+                    request: doc.data(),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CancellationRequestRow extends StatelessWidget {
+  final String orderId;
+  final String requestId;
+  final Map<String, dynamic> request;
+  const _CancellationRequestRow({
+    required this.orderId,
+    required this.requestId,
+    required this.request,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final reason = cancelReasonLabel(request['reasonCode']?.toString() ?? '');
+    final details = request['reasonDetails']?.toString() ?? '';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            future: FirebaseFirestore.instance
+                .collection('orders')
+                .doc(orderId)
+                .get(),
+            builder: (context, s) {
+              final title =
+                  s.data?.data()?['listingTitle']?.toString() ?? orderId;
+              return Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              );
+            },
+          ),
+          Text(
+            details.isEmpty
+                ? 'Reason: $reason'
+                : 'Reason: $reason — “$details”',
+            style: const TextStyle(fontSize: 12, color: Colors.black87),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => _decide(context, approve: false),
+                child: const Text('Reject'),
+              ),
+              const SizedBox(width: 4),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red.shade700,
+                ),
+                onPressed: () => _decide(context, approve: true),
+                child: const Text('Approve & cancel'),
+              ),
+            ],
+          ),
+          const Divider(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _decide(BuildContext context, {required bool approve}) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final noteCtl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(approve ? 'Approve cancellation?' : 'Reject request?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              approve
+                  ? 'The order will be cancelled and the buyer refunded if a '
+                        'payment is held.'
+                  : 'The order stays active. Add a note for the buyer.',
+              style: const TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: noteCtl,
+              decoration: InputDecoration(
+                labelText: approve ? 'Note (optional)' : 'Reason for the buyer',
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Back'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(approve ? 'Approve' : 'Reject'),
+          ),
+        ],
+      ),
+    );
+    noteCtl.dispose();
+    if (ok != true) return;
+    try {
+      await decideCancellationRequest(
+        orderId,
+        requestId,
+        approve: approve,
+        response: noteCtl.text,
+        asAdmin: true,
+      );
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            approve ? 'Cancellation approved.' : 'Request rejected.',
+          ),
+        ),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not update. Please try again.')),
+      );
+    }
   }
 }
 

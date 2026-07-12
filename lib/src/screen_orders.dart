@@ -415,6 +415,11 @@ class _OrdersList extends StatelessWidget {
                       ],
                     ),
                     _OrderDeliveryPanel(data: d, asSeller: asSeller),
+                    CancellationSection(
+                      orderId: docs[i].id,
+                      data: d,
+                      asSeller: asSeller,
+                    ),
                     if (!asSeller &&
                         (status == 'in_escrow' ||
                             status == 'completed' ||
@@ -437,13 +442,6 @@ class _OrdersList extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            TextButton(
-                              onPressed: () => docs[i].reference.update({
-                                'status': 'cancelled',
-                              }),
-                              child: const Text('Cancel'),
-                            ),
-                            const SizedBox(width: 4),
                             ElevatedButton.icon(
                               onPressed: () =>
                                   _payOrderEscrow(context, docs[i].id, d),
@@ -491,14 +489,7 @@ class _OrdersList extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          if (!asSeller)
-                            TextButton(
-                              onPressed: () => docs[i].reference.update({
-                                'status': 'cancelled',
-                              }),
-                              child: const Text('Cancel'),
-                            )
-                          else
+                          if (asSeller)
                             ElevatedButton(
                               onPressed: () async {
                                 final messenger = ScaffoldMessenger.of(context);

@@ -226,4 +226,69 @@ void main() {
       expect(paymentStatusLabel('released_to_seller'), 'Paid out to seller');
     });
   });
+
+  group('Buyer cancellation policy (cancelUiFor)', () {
+    test('unpaid orders can be cancelled directly', () {
+      expect(cancelUiFor({'status': 'pending_payment'}), CancelUi.directCancel);
+      expect(cancelUiFor({'status': 'cod_pending'}), CancelUi.directCancel);
+    });
+
+    test('paid & not yet accepted → cancel with refund', () {
+      expect(
+        cancelUiFor({'status': 'in_escrow', 'orderStatus': 'pending'}),
+        CancelUi.cancelWithRefund,
+      );
+    });
+
+    test('accepted / preparing → request approval only', () {
+      expect(
+        cancelUiFor({'status': 'in_escrow', 'orderStatus': 'accepted'}),
+        CancelUi.requestApproval,
+      );
+      expect(
+        cancelUiFor({'status': 'in_escrow', 'orderStatus': 'processing'}),
+        CancelUi.requestApproval,
+      );
+      // A manual payment under review must also go through approval.
+      expect(cancelUiFor({'status': 'payment_review'}), CancelUi.requestApproval);
+    });
+
+    test('legacy held order (no explicit orderStatus) is request-only', () {
+      // orderStatusOf derives "accepted" for a bare in_escrow doc, so the buyer
+      // cannot force-cancel a mid-flight legacy order.
+      expect(cancelUiFor({'status': 'in_escrow'}), CancelUi.requestApproval);
+    });
+
+    test('shipped → support only', () {
+      expect(
+        cancelUiFor({'status': 'in_escrow', 'orderStatus': 'shipped'}),
+        CancelUi.supportOnly,
+      );
+    });
+
+    test('delivered / confirmed / terminal → no cancellation path', () {
+      expect(
+        cancelUiFor({'status': 'in_escrow', 'orderStatus': 'delivered'}),
+        CancelUi.none,
+      );
+      expect(
+        cancelUiFor({'status': 'in_escrow', 'orderStatus': 'buyer_confirmed'}),
+        CancelUi.none,
+      );
+      expect(cancelUiFor({'status': 'released'}), CancelUi.none);
+      expect(cancelUiFor({'status': 'completed'}), CancelUi.none);
+      expect(cancelUiFor({'status': 'refunded'}), CancelUi.none);
+      expect(cancelUiFor({'status': 'cancelled'}), CancelUi.none);
+    });
+
+    test('reason labels resolve, unknown codes fall back', () {
+      expect(cancelReasonLabel('ordered_by_mistake'), 'Ordered by mistake');
+      expect(cancelReasonLabel('seller_delay'), 'Seller delay');
+      expect(cancelReasonLabel(''), 'Not specified');
+    });
+
+    test('cancellation_requested has a buyer-facing label', () {
+      expect(orderStatusLabel('cancellation_requested'), 'Cancellation requested');
+    });
+  });
 }

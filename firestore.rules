@@ -407,7 +407,9 @@ service cloud.firestore {
         return request.resource.data.diff(resource.data).affectedKeys()
                  .hasOnly(['buyerConfirmed', 'buyerConfirmedAt',
                            'buyerConfirmedBy', 'orderStatus', 'status',
-                           'completedAt'])
+                           'completedAt', 'cancelledAt', 'cancelledBy',
+                           'cancelledByRole', 'cancelReason',
+                           'cancelReasonCode', 'updatedAt'])
                && (
                  request.resource.data.status == resource.data.status
                  || (resource.data.status == 'pending_payment'
@@ -415,7 +417,13 @@ service cloud.firestore {
                  || (resource.data.status == 'cod_pending'
                      && (request.resource.data.status == 'cancelled'
                          || request.resource.data.status == 'completed'))
-               );
+               )
+               // If a cancel stamp is written, it must name the actor (a buyer
+               // can't attribute the cancellation to someone else). Older
+               // clients that omit the stamp still pass.
+               && (!request.resource.data.diff(resource.data).affectedKeys()
+                     .hasAny(['cancelledBy'])
+                   || request.resource.data.cancelledBy == request.auth.uid);
       }
 
       // Money/payment fields no client may ever write — backend-owned. Note
@@ -475,6 +483,40 @@ service cloud.firestore {
                && resource.data.status == 'in_escrow'
                && (resource.data.get('orderStatus', 'legacy')
                      in ['shipped', 'delivered', 'legacy']);
+      }
+
+      // Buyer cancellation requests (spec section 8). The buyer files a
+      // request; the assigned seller or orders-staff approves/rejects it; the
+      // buyer may withdraw while it is still pending. Every money/status effect
+      // (cancel, refund, audit, notify) is applied by a Cloud Function via the
+      // admin SDK — clients only move requestStatus through its allowed states.
+      match /cancellationRequests/{requestId} {
+        function parentOrder() {
+          return get(/databases/$(database)/documents/orders/$(orderId)).data;
+        }
+        allow read: if isSignedIn() && (
+                      can('orders')
+                      || parentOrder().buyerId == request.auth.uid
+                      || parentOrder().sellerId == request.auth.uid
+                    );
+        allow create: if isSignedIn()
+                      && parentOrder().buyerId == request.auth.uid
+                      && request.resource.data.requestStatus == 'pending'
+                      && request.resource.data.buyerId == request.auth.uid
+                      && request.resource.data.requestedBy == request.auth.uid;
+        allow update: if isSignedIn()
+                      && resource.data.requestStatus == 'pending'
+                      && (
+                        (
+                          (parentOrder().sellerId == request.auth.uid
+                            || can('orders'))
+                          && request.resource.data.requestStatus
+                               in ['approved', 'rejected']
+                        )
+                        || (parentOrder().buyerId == request.auth.uid
+                            && request.resource.data.requestStatus == 'withdrawn')
+                      );
+        allow delete: if false;
       }
     }
 

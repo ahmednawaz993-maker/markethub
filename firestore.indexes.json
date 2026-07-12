@@ -64,6 +64,14 @@
         { "fieldPath": "userId", "order": "ASCENDING" },
         { "fieldPath": "approvalStatus", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "cancellationRequests",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "requestStatus", "order": "ASCENDING" },
+        { "fieldPath": "requestedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [
