@@ -26,6 +26,8 @@ const sgMail = require("@sendgrid/mail");
 const {
   cancelReasonText,
   cancellationEligibility,
+  returnReasonText,
+  returnEligibility,
 } = require("./cancellation_logic");
 const {
   groupItemsBySeller,
@@ -1750,7 +1752,8 @@ exports.onEscrowAction = onDocumentCreated(
         } else {
           tx.update(orderRef, {
             status: "refunded",
-            orderStatus: "cancelled",
+            // Cancellations set 'cancelled'; a return refund sets 'returned'.
+            orderStatus: act.resultOrderStatus || "cancelled",
             paymentStatus: "refunded",
             refundAmount: refundValue,
             refundedAt: Timestamp.now(),
@@ -2215,6 +2218,296 @@ exports.onCancellationRequestDecision = onDocumentUpdated(
       await reqRef.set({ processedAt: Timestamp.now() }, { merge: true });
       await writeAudit(db, {
         action: "cancellation_withdrawn",
+        entityType: "order",
+        entityId: orderId,
+        actorId: after.buyerId || "",
+        actorRole: "buyer",
+      });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Order returns (Phase 4)
+//
+// After delivery the buyer files a returnRequest. It always needs seller/admin
+// approval; on approval, while the money is still held, the audited escrow
+// refund runs with resultOrderStatus 'returned'. Mirrors the cancellation flow.
+// ---------------------------------------------------------------------------
+
+// Approves a return: refunds the held payment (reusing the escrow-refund path,
+// tagged to land the order on orderStatus 'returned') and records it. Idempotent
+// via a deterministic escrowActions id + the request's processedAt.
+async function processReturnApproval(
+  db, orderId, order, reqRef, req, actorId, actorRole
+) {
+  const orderRef = db.collection("orders").doc(orderId);
+  // Only refundable while the money is still held by the platform.
+  if (order.status !== "in_escrow" || (Number(order.amount) || 0) <= 0) {
+    await reqRef.set(
+      {
+        requestStatus: "rejected",
+        sellerResponse: "Order is no longer eligible for an in-app refund.",
+        processedAt: Timestamp.now(),
+      },
+      { merge: true }
+    );
+    await orderRef.set(
+      { returnRequested: false, returnRequestStatus: "rejected" },
+      { merge: true }
+    );
+    return;
+  }
+
+  try {
+    await db.collection("escrowActions").doc(`return_${orderId}`).create({
+      type: "refund",
+      orderId,
+      by: actorId || "system",
+      reason: `return:${req.reasonCode || ""}`,
+      source: "return",
+      resultOrderStatus: "returned",
+      createdAt: Timestamp.now(),
+    });
+  } catch (e) {
+    // Already queued/processed — continue idempotently.
+  }
+  await orderRef.set(
+    {
+      returnRequested: false,
+      returnRequestStatus: "approved",
+      returnedAt: Timestamp.now(),
+      returnedBy: actorId || "",
+      returnReasonCode: req.reasonCode || "",
+    },
+    { merge: true }
+  );
+  await reqRef.set(
+    {
+      requestStatus: "approved",
+      refundStatus: "pending",
+      reviewedBy: actorId || "",
+      reviewedAt: Timestamp.now(),
+      processedAt: Timestamp.now(),
+    },
+    { merge: true }
+  );
+  await writeAudit(db, {
+    action: "return_approved",
+    entityType: "order",
+    entityId: orderId,
+    actorId: actorId || "",
+    actorRole,
+    previousStatus: order.orderStatus || order.status || "",
+    newStatus: "returned",
+    amount: Number(order.amount) || 0,
+    reason: req.reasonCode || "",
+  });
+  if (order.buyerId) {
+    await pushToUser(
+      db,
+      order.buyerId,
+      {
+        title: "Return approved",
+        body: "Your return was approved — your payment is being refunded to your wallet.",
+      },
+      { type: "order", orderId }
+    );
+  }
+  if (order.sellerId && actorRole !== "seller") {
+    await pushToUser(
+      db,
+      order.sellerId,
+      {
+        title: "Return approved",
+        body: `A return on order "${order.listingTitle || orderId}" was approved.`,
+      },
+      { type: "order", orderId }
+    );
+  }
+}
+
+// A buyer filed a return request → validate + route to the seller/admin.
+exports.onReturnRequestCreated = onDocumentCreated(
+  "orders/{orderId}/returnRequests/{requestId}",
+  async (event) => {
+    const req = event.data && event.data.data();
+    if (!req) return;
+    const orderId = event.params.orderId;
+    const requestId = event.params.requestId;
+    const db = getFirestore();
+    const orderRef = db.collection("orders").doc(orderId);
+    const reqRef = event.data.ref;
+
+    const oSnap = await orderRef.get();
+    if (!oSnap.exists) {
+      return reqRef.set(
+        {
+          requestStatus: "rejected",
+          sellerResponse: "Order not found.",
+          processedAt: Timestamp.now(),
+        },
+        { merge: true }
+      );
+    }
+    const order = oSnap.data();
+
+    await orderRef.set(
+      {
+        returnRequested: true,
+        returnRequestId: requestId,
+        returnRequestStatus: "pending",
+      },
+      { merge: true }
+    );
+    await writeAudit(db, {
+      action: "return_requested",
+      entityType: "order",
+      entityId: orderId,
+      actorId: req.buyerId || "",
+      actorRole: "buyer",
+      previousStatus: order.orderStatus || order.status || "",
+      newStatus: "return_requested",
+      reason: req.reasonCode || "",
+    });
+
+    const elig = returnEligibility(order);
+    if (elig.mode === "reject") {
+      await orderRef.set(
+        { returnRequested: false, returnRequestStatus: "rejected" },
+        { merge: true }
+      );
+      await reqRef.set(
+        {
+          requestStatus: "rejected",
+          adminDecision: "auto",
+          sellerResponse: elig.reason || "",
+          processedAt: Timestamp.now(),
+          reviewedAt: Timestamp.now(),
+        },
+        { merge: true }
+      );
+      if (order.buyerId) {
+        await pushToUser(
+          db,
+          order.buyerId,
+          {
+            title: "Return not available",
+            body: elig.reason || "This order can't be returned in the app.",
+          },
+          { type: "order", orderId }
+        );
+      }
+      return;
+    }
+
+    // review — notify seller + admin, ack the buyer.
+    if (order.sellerId) {
+      await pushToUser(
+        db,
+        order.sellerId,
+        {
+          title: "Return requested",
+          body: `${order.buyerName || "The buyer"} requested a return on "${
+            order.listingTitle || "an order"
+          }". Review and respond.`,
+        },
+        { type: "order", orderId }
+      );
+    }
+    await notifyAdmins(
+      db,
+      {
+        title: "Return requested",
+        body: `Order "${order.listingTitle || orderId}" has a pending return request.`,
+      },
+      { type: "order", orderId }
+    );
+    if (order.buyerId) {
+      await pushToUser(
+        db,
+        order.buyerId,
+        {
+          title: "Return request received",
+          body: "Your return request has been sent for review.",
+        },
+        { type: "order", orderId }
+      );
+    }
+  }
+);
+
+// A pending return request was decided (or withdrawn). Apply the outcome.
+exports.onReturnRequestDecision = onDocumentUpdated(
+  "orders/{orderId}/returnRequests/{requestId}",
+  async (event) => {
+    const before = (event.data.before && event.data.before.data()) || {};
+    const after = (event.data.after && event.data.after.data()) || {};
+    const orderId = event.params.orderId;
+    const db = getFirestore();
+
+    if (before.requestStatus !== "pending") return;
+    if (before.processedAt || after.processedAt) return;
+
+    const orderRef = db.collection("orders").doc(orderId);
+    const reqRef = event.data.after.ref;
+
+    if (after.requestStatus === "approved") {
+      const oSnap = await orderRef.get();
+      if (!oSnap.exists) return;
+      const order = oSnap.data();
+      const actorRole =
+        after.decidedByRole || (after.adminDecision ? "admin" : "seller");
+      await processReturnApproval(
+        db, orderId, order, reqRef, after, after.reviewedBy || "", actorRole
+      );
+      return;
+    }
+
+    if (after.requestStatus === "rejected") {
+      await orderRef.set(
+        {
+          returnRequested: false,
+          returnRequestStatus: "rejected",
+          returnDecisionNote: after.sellerResponse || "",
+        },
+        { merge: true }
+      );
+      await reqRef.set({ processedAt: Timestamp.now() }, { merge: true });
+      await writeAudit(db, {
+        action: "return_rejected",
+        entityType: "order",
+        entityId: orderId,
+        actorId: after.reviewedBy || "",
+        actorRole: after.decidedByRole || "seller",
+        reason: after.sellerResponse || "",
+      });
+      const oSnap = await orderRef.get();
+      const order = oSnap.exists ? oSnap.data() : {};
+      if (order.buyerId) {
+        await pushToUser(
+          db,
+          order.buyerId,
+          {
+            title: "Return declined",
+            body: after.sellerResponse
+              ? `Your return request was declined: ${after.sellerResponse}`
+              : "Your return request was declined.",
+          },
+          { type: "order", orderId }
+        );
+      }
+      return;
+    }
+
+    if (after.requestStatus === "withdrawn") {
+      await orderRef.set(
+        { returnRequested: false, returnRequestStatus: "withdrawn" },
+        { merge: true }
+      );
+      await reqRef.set({ processedAt: Timestamp.now() }, { merge: true });
+      await writeAudit(db, {
+        action: "return_withdrawn",
         entityType: "order",
         entityId: orderId,
         actorId: after.buyerId || "",

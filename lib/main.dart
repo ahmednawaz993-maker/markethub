@@ -40,6 +40,7 @@ part 'src/catalog.dart';
 part 'src/push.dart';
 part 'src/commerce.dart';
 part 'src/cancellation.dart';
+part 'src/returns.dart';
 part 'src/cart.dart';
 part 'src/addresses.dart';
 part 'src/review_prompt.dart';

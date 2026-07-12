@@ -298,6 +298,37 @@ void main() {
     });
   });
 
+  group('Order returns (returnUiFor)', () {
+    test('delivered/confirmed while held → request', () {
+      expect(
+        returnUiFor({'status': 'in_escrow', 'orderStatus': 'delivered'}),
+        ReturnUi.request,
+      );
+      expect(
+        returnUiFor({'status': 'in_escrow', 'orderStatus': 'buyer_confirmed'}),
+        ReturnUi.request,
+      );
+    });
+
+    test('released / completed → support only', () {
+      expect(returnUiFor({'status': 'released'}), ReturnUi.supportOnly);
+      expect(returnUiFor({'status': 'completed'}), ReturnUi.supportOnly);
+    });
+
+    test('not yet delivered → no return path (use cancellation)', () {
+      expect(
+        returnUiFor({'status': 'in_escrow', 'orderStatus': 'shipped'}),
+        ReturnUi.none,
+      );
+      expect(returnUiFor({'status': 'pending_payment'}), ReturnUi.none);
+    });
+
+    test('returned label + reason label', () {
+      expect(orderStatusLabel('returned'), 'Returned');
+      expect(returnReasonLabel('damaged'), 'Damaged or defective');
+    });
+  });
+
   group('Multi-seller cart', () {
     CartItem item(String id, String seller, String price, int qty) => CartItem(
       listingId: id,

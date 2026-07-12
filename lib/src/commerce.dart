@@ -432,6 +432,7 @@ const List<String> kOrderStatuses = [
   'completed',
   'rejected',
   'cancelled',
+  'returned',
   'disputed',
 ];
 
@@ -447,6 +448,8 @@ String orderStatusLabel(String s) => switch (s) {
   'rejected' => 'Rejected',
   'cancellation_requested' => 'Cancellation requested',
   'cancelled' => 'Cancelled',
+  'return_requested' => 'Return requested',
+  'returned' => 'Returned',
   'disputed' => 'Disputed',
   _ => 'Pending',
 };

@@ -78,8 +78,41 @@ function cancellationEligibility(o) {
   return { mode: "review", refund: false };
 }
 
+// Human text for a stored return reason code.
+function returnReasonText(code) {
+  return (
+    {
+      damaged: "Damaged or defective",
+      not_as_described: "Not as described",
+      wrong_item: "Wrong item received",
+      missing_parts: "Missing parts or accessories",
+      no_longer_needed: "No longer needed",
+      other: "Other",
+    }[code] || ""
+  );
+}
+
+// Whether a delivered order can be returned through the app. Returns are only
+// self-service while the money is still HELD by the platform (a clean refund,
+// no seller-wallet clawback): status in_escrow + delivered/buyer_confirmed.
+// Once released to the seller (or COD), returns go through support instead.
+function returnEligibility(o) {
+  const status = o.status || "";
+  const os = deriveOrderStatus(o);
+  if (status === "in_escrow" && (os === "delivered" || os === "buyer_confirmed")) {
+    return { mode: "review" };
+  }
+  return {
+    mode: "reject",
+    reason:
+      "This order is not eligible for an in-app return. Please contact support.",
+  };
+}
+
 module.exports = {
   deriveOrderStatus,
   cancelReasonText,
   cancellationEligibility,
+  returnReasonText,
+  returnEligibility,
 };
