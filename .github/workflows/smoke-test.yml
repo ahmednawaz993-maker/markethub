@@ -64,6 +64,17 @@ jobs:
         working-directory: functions
         run: node smoke_multiseller_test.js
 
+      - name: Run multi-seller E2E scenario
+        working-directory: functions
+        run: node smoke_e2e_multiseller_test.js
+
+      - name: Run pure logic unit tests
+        working-directory: functions
+        run: |
+          node cancellation_logic.test.js
+          node multiseller_logic.test.js
+          node escrow_logic.test.js
+
       - name: Clean up secret on runner
         if: always()
         run: rm -f android/play-service-account.json

@@ -23,6 +23,13 @@ class DraftsScreen extends StatelessWidget {
       body: StreamBuilder<QuerySnapshot>(
         stream: col.orderBy('savedAt', descending: true).snapshots(),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const EmptyState(
+              icon: Icons.error_outline,
+              title: 'Couldn’t load drafts',
+              subtitle: 'Please try again.',
+            );
+          }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -431,7 +438,11 @@ class _AddListingScreenState extends State<AddListingScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Failed to post ad: $e')));
+      ).showSnackBar(
+        const SnackBar(
+          content: Text('Couldn’t post your ad. Please try again.'),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -601,8 +612,9 @@ class _AddListingScreenState extends State<AddListingScreen> {
                   onChanged: isSubmitting
                       ? null
                       : (value) {
-                          if (value != null)
+                          if (value != null) {
                             setState(() => selectedUnit = value);
+                          }
                         },
                 ),
                 SwitchListTile(

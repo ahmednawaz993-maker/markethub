@@ -114,8 +114,9 @@ String _fmtDur(Duration d) {
   final due = (t['slaDueAt'] as Timestamp?)?.toDate();
   if (due == null) return ('Open', kPakGreen);
   final now = DateTime.now();
-  if (now.isAfter(due))
+  if (now.isAfter(due)) {
     return ('Overdue by ${_fmtDur(now.difference(due))}', Colors.red);
+  }
   final left = due.difference(now);
   return (
     'Due in ${_fmtDur(left)}',
@@ -193,6 +194,13 @@ class CustomerCareScreen extends StatelessWidget {
                         .where('userId', isEqualTo: uid)
                         .snapshots(),
                     builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return const EmptyState(
+                          icon: Icons.error_outline,
+                          title: 'Something went wrong',
+                          subtitle: 'Please try again.',
+                        );
+                      }
                       if (!snapshot.hasData) {
                         return const Center(child: CircularProgressIndicator());
                       }
