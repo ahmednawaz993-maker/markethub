@@ -439,11 +439,13 @@ const List<String> kOrderStatuses = [
 /// Buyer-facing label for an [orderStatus] value.
 String orderStatusLabel(String s) => switch (s) {
   'pending' => 'Pending',
-  'accepted' => 'Accepted',
-  'processing' => 'Processing',
-  'shipped' => 'Shipped',
+  'accepted' => 'Order accepted',
+  'processing' => 'Ready to dispatch',
+  'shipped' => 'Dispatched',
+  // A buyer-confirmed order is what "Delivered" means in the tracking flow:
+  // the seller dispatches, and the buyer confirming receipt marks it delivered.
   'delivered' => 'Delivered',
-  'buyer_confirmed' => 'Delivery confirmed',
+  'buyer_confirmed' => 'Delivered',
   'completed' => 'Completed',
   'rejected' => 'Rejected',
   'cancellation_requested' => 'Cancellation requested',
@@ -502,14 +504,14 @@ String paymentStatusOf(Map<String, dynamic> o) {
   };
 }
 
-/// The seller's next allowed shipping step for [orderStatus], or '' at the end
-/// of the seller-controlled chain (pending→accepted→processing→shipped→
-/// delivered). Mirrors the transition guard enforced in firestore.rules.
+/// The seller's next allowed fulfillment step for [orderStatus], or '' at the
+/// end of the seller-controlled chain. The seller drives it up to 'shipped'
+/// (Dispatched); after that the BUYER confirms receipt, which marks the order
+/// delivered. Mirrors the transition guard enforced in firestore.rules.
 String nextShippingStep(String orderStatus) => switch (orderStatus) {
   'pending' => 'accepted',
   'accepted' => 'processing',
   'processing' => 'shipped',
-  'shipped' => 'delivered',
   _ => '',
 };
 
