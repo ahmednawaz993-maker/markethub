@@ -124,6 +124,132 @@ Future<void> _payOrderEscrow(
   from.dispose();
 }
 
+/// Phase 6: a buyer pays ONCE for a whole multi-seller (master) order. The
+/// payment doc carries the masterOrderId + the combined total; the Cloud
+/// Function (onPaymentAction -> confirmMasterPaymentIntoEscrow) fans the
+/// confirmed hold out to each seller's sub-order so every share is escrowed
+/// independently. Mirrors _payOrderEscrow's manual-transfer + proof flow.
+Future<void> _payMasterEscrow(
+  BuildContext context,
+  String masterId,
+  String masterNumber,
+  double amount,
+  int packages,
+) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return;
+  final messenger = ScaffoldMessenger.of(context);
+  final ref = TextEditingController();
+  final from = TextEditingController();
+
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) {
+      return Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Pay & hold securely',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Amount: ${formatPrice(amount.toStringAsFixed(0))}',
+                style: const TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'One payment covers all $packages packages'
+                '${masterNumber.isEmpty ? '' : ' in order $masterNumber'}. '
+                'Transfer the amount to the account below, then enter your '
+                'transaction reference. Each seller is paid only after you '
+                'confirm you received their package.',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const _PaymentAccountInfo(),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ref,
+                decoration: const InputDecoration(
+                  labelText: 'Transaction ID / reference',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: from,
+                decoration: const InputDecoration(
+                  labelText: 'Paid from (your account / number, optional)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  if (ref.text.trim().isEmpty) {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('Enter your transaction reference'),
+                      ),
+                    );
+                    return;
+                  }
+                  try {
+                    await FirebaseFirestore.instance
+                        .collection('payments')
+                        .add({
+                          'masterOrderId': masterId,
+                          'buyerId': uid,
+                          'buyerEmail':
+                              FirebaseAuth.instance.currentUser?.email ?? '',
+                          'listingTitle': masterNumber.isEmpty
+                              ? 'Multi-seller order · $packages packages'
+                              : 'Order $masterNumber · $packages packages',
+                          'amount': amount,
+                          'provider': 'manual',
+                          'status': 'initiated',
+                          'proofRef': ref.text.trim(),
+                          'proofFrom': from.text.trim(),
+                          'createdAt': Timestamp.now(),
+                        });
+                    if (context.mounted) Navigator.pop(context);
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Payment submitted — an admin will confirm it '
+                          'shortly.',
+                        ),
+                      ),
+                    );
+                  } catch (e) {
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('Failed: $e')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.lock),
+                label: const Text('I have paid — submit'),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+  ref.dispose();
+  from.dispose();
+}
+
 /// Lets a buyer report a problem or open a formal dispute on their order. Both
 /// create an `open` dispute which blocks the seller payout until an admin
 /// resolves it (enforced server-side in onEscrowAction).
@@ -309,16 +435,23 @@ class _OrdersList extends StatelessWidget {
                 : 'Items you buy will appear here.',
           );
         }
-        // Phase 5: count a buyer's sub-orders per master order so each package
-        // card can announce it is one of several shipments.
+        // Phase 5/6: for a buyer, group sub-orders by their master order so each
+        // package card can announce it is one of several shipments (Phase 5) and
+        // so a single "pay once" action covers the whole order (Phase 6). The
+        // master total is the sum of every sub-order's amount; the leader is the
+        // first sub-order of the group in the list (it hosts the pay action).
         final masterCounts = <String, int>{};
+        final masterTotals = <String, double>{};
+        final masterLeader = <String, int>{};
         if (!asSeller) {
-          for (final doc in docs) {
-            final m = (doc.data()
-                    as Map<String, dynamic>)['masterOrderId']
-                    ?.toString() ??
-                '';
-            if (m.isNotEmpty) masterCounts[m] = (masterCounts[m] ?? 0) + 1;
+          for (var idx = 0; idx < docs.length; idx++) {
+            final dd = docs[idx].data() as Map<String, dynamic>;
+            final m = dd['masterOrderId']?.toString() ?? '';
+            if (m.isEmpty) continue;
+            masterCounts[m] = (masterCounts[m] ?? 0) + 1;
+            masterTotals[m] =
+                (masterTotals[m] ?? 0) + ((dd['amount'] as num?)?.toDouble() ?? 0);
+            masterLeader.putIfAbsent(m, () => idx);
           }
         }
         return ListView.builder(
@@ -326,9 +459,13 @@ class _OrdersList extends StatelessWidget {
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
-            final pkgCount = asSeller
-                ? 1
-                : (masterCounts[d['masterOrderId']?.toString() ?? ''] ?? 1);
+            final masterId = d['masterOrderId']?.toString() ?? '';
+            final pkgCount =
+                asSeller ? 1 : (masterCounts[masterId] ?? 1);
+            final isMasterOrder = !asSeller && masterId.isNotEmpty;
+            final isMasterLeader =
+                isMasterOrder && masterLeader[masterId] == i;
+            final masterTotal = masterTotals[masterId] ?? 0;
             final status = d['status']?.toString() ?? 'pending_payment';
             final img = d['listingImage']?.toString() ?? '';
             final amount = (d['amount'] as num?)?.toDouble() ?? 0;
@@ -487,7 +624,38 @@ class _OrdersList extends StatelessWidget {
                       ),
                     if (status == 'pending_payment') ...[
                       const SizedBox(height: 8),
-                      if (!asSeller)
+                      if (!asSeller && isMasterOrder)
+                        // Phase 6: one payment covers every package in the
+                        // master order. Only the first package hosts the button;
+                        // the rest show a note so the buyer pays exactly once.
+                        (isMasterLeader
+                            ? Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  ElevatedButton.icon(
+                                    onPressed: () => _payMasterEscrow(
+                                      context,
+                                      masterId,
+                                      (d['orderNumber']?.toString() ?? '')
+                                          .replaceAll(RegExp(r'-S\d+$'), ''),
+                                      masterTotal,
+                                      pkgCount,
+                                    ),
+                                    icon: const Icon(Icons.lock, size: 18),
+                                    label: Text(
+                                      'Pay ${formatPrice(masterTotal.toStringAsFixed(0))} '
+                                      'for all $pkgCount packages',
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : const Text(
+                                'Paid together with the other packages in this '
+                                'order — use the first package above to pay.',
+                                style:
+                                    TextStyle(fontSize: 12, color: Colors.grey),
+                              ))
+                      else if (!asSeller)
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [

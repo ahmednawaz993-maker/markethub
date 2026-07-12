@@ -1396,7 +1396,8 @@ exports.emailStaffOnNewTicket = onDocumentCreated(
 // Shared: confirm a captured payment -> move the order into escrow, mark the
 // listing sold, record the hold in the ledger. Idempotent (guards on order
 // status). Used by the TEST provider and by the verified PayFast IPN webhook.
-async function confirmPaymentIntoEscrow(db, orderId, paymentRef, provider) {
+async function confirmPaymentIntoEscrow(db, orderId, paymentRef, provider, opts) {
+  opts = opts || {};
   const orderRef = db.collection("orders").doc(String(orderId));
   let held = null; // set to the order data when the payment is actually held
   await db.runTransaction(async (tx) => {
@@ -1427,9 +1428,11 @@ async function confirmPaymentIntoEscrow(db, orderId, paymentRef, provider) {
       status: "in_escrow",
       paymentStatus: "held_by_platform",
       orderStatus: order.orderStatus || "pending",
-      providerTransactionId: order.providerTransactionId || (paymentRef ? paymentRef.id : ""),
+      providerTransactionId:
+        order.providerTransactionId ||
+        (paymentRef ? paymentRef.id : opts.paymentId || ""),
       paymentProvider: provider || "test",
-      paymentId: paymentRef ? paymentRef.id : null,
+      paymentId: paymentRef ? paymentRef.id : opts.paymentId || null,
       paidToPlatformAt: Timestamp.now(),
       paidAt: Timestamp.now(),
     });
@@ -1460,7 +1463,7 @@ async function confirmPaymentIntoEscrow(db, orderId, paymentRef, provider) {
     amount: Number(held.amount) || 0,
     metadata: { provider: provider || "test" },
   });
-  if (held.buyerId) {
+  if (held.buyerId && !opts.suppressBuyerNotify) {
     await pushToUser(
       db,
       held.buyerId,
@@ -1484,14 +1487,108 @@ async function confirmPaymentIntoEscrow(db, orderId, paymentRef, provider) {
   }
 }
 
+// Multi-seller: the buyer makes ONE payment for the whole master order; this
+// fans the confirmed hold out to every sub-order so each seller's share is
+// escrowed independently (each sub-order already carries its own amount /
+// commission / payout, so allocation is automatic). Idempotent — each
+// confirmPaymentIntoEscrow call guards on its own order status. The buyer gets
+// a single summary notification instead of one per seller.
+async function confirmMasterPaymentIntoEscrow(db, masterId, paymentRef, provider) {
+  const subs = await db
+    .collection("orders")
+    .where("masterOrderId", "==", String(masterId))
+    .get();
+  const payId = paymentRef ? paymentRef.id : null;
+  let heldCount = 0;
+  let buyerId = "";
+  let masterNumber = "";
+  for (const doc of subs.docs) {
+    const st = doc.get("status");
+    buyerId = buyerId || doc.get("buyerId") || "";
+    const on = doc.get("orderNumber") || "";
+    masterNumber =
+      masterNumber || (on ? String(on).replace(/-S\d+$/, "") : "");
+    if (st === "pending_payment" || st === "payment_review") {
+      await confirmPaymentIntoEscrow(db, doc.id, null, provider, {
+        paymentId: payId,
+        suppressBuyerNotify: true,
+      });
+      heldCount++;
+    }
+  }
+  if (paymentRef) {
+    await paymentRef.update({
+      status: heldCount > 0 ? "paid" : "ignored",
+      provider: provider || "manual",
+      confirmedAt: Timestamp.now(),
+    });
+  }
+  await db
+    .collection("masterOrders")
+    .doc(String(masterId))
+    .set(
+      {
+        paymentStatus: heldCount > 0 ? "held" : "unknown",
+        paidAt: Timestamp.now(),
+      },
+      { merge: true }
+    )
+    .catch(() => {});
+  if (heldCount > 0 && buyerId) {
+    await pushToUser(
+      db,
+      buyerId,
+      {
+        title: "Payment received by PakBazar",
+        body: `Your payment for ${
+          masterNumber || "your order"
+        } is held securely. Each seller is paid after you confirm delivery of their package.`,
+      },
+      { type: "order", orderId: String(masterId) }
+    );
+  }
+}
+
 exports.onPaymentCreated = onDocumentCreated(
   "payments/{paymentId}",
   async (event) => {
     const pay = event.data && event.data.data();
-    if (!pay || !pay.orderId) return;
+    if (!pay || (!pay.orderId && !pay.masterOrderId)) return;
     const provider = pay.provider || "test";
     const db = getFirestore();
     const payRef = event.data.ref;
+
+    // Multi-seller: one payment for a whole master order (no single orderId).
+    // Manual proof waits for admin confirmation; TEST captures immediately.
+    // PayFast hosted checkout is single-order only for now.
+    if (pay.masterOrderId) {
+      const mRef = db.collection("masterOrders").doc(pay.masterOrderId);
+      const mSnap = await mRef.get();
+      if (!mSnap.exists || mSnap.get("status") !== "placed") {
+        await payRef.update({ status: "ignored" });
+        return;
+      }
+      if (provider === "manual") {
+        await payRef.update({ status: "awaiting_confirmation" });
+        // Reflect "under review" on each sub-order so the buyer sees progress.
+        const subs = await db
+          .collection("orders")
+          .where("masterOrderId", "==", pay.masterOrderId)
+          .get();
+        const batch = db.batch();
+        subs.forEach((d) => {
+          if (d.get("status") === "pending_payment") {
+            batch.update(d.ref, { status: "payment_review" });
+          }
+        });
+        await batch.commit();
+        await mRef.set({ paymentStatus: "review" }, { merge: true });
+        return;
+      }
+      // TEST provider: capture immediately.
+      await confirmMasterPaymentIntoEscrow(db, pay.masterOrderId, payRef, "test");
+      return;
+    }
 
     if (provider === "payfast") {
       // Initiate the hosted checkout and store the redirect URL on the payment
@@ -1571,12 +1668,38 @@ exports.onPaymentAction = onDocumentCreated(
     }
 
     if (act.type === "confirm") {
-      // confirmPaymentIntoEscrow is idempotent (guards on order status).
-      await confirmPaymentIntoEscrow(db, pay.orderId, payRef, "manual");
+      // Both confirm paths are idempotent (guard on each order's status).
+      if (pay.masterOrderId) {
+        await confirmMasterPaymentIntoEscrow(
+          db,
+          pay.masterOrderId,
+          payRef,
+          "manual"
+        );
+      } else {
+        await confirmPaymentIntoEscrow(db, pay.orderId, payRef, "manual");
+      }
     } else if (act.type === "reject") {
       await payRef.update({ status: "rejected", rejectedAt: Timestamp.now() });
-      // Return the order to payable so the buyer can retry.
-      if (pay.orderId) {
+      // Return the order(s) to payable so the buyer can retry.
+      if (pay.masterOrderId) {
+        const subs = await db
+          .collection("orders")
+          .where("masterOrderId", "==", pay.masterOrderId)
+          .get();
+        const batch = db.batch();
+        subs.forEach((d) => {
+          if (d.get("status") === "payment_review") {
+            batch.update(d.ref, { status: "pending_payment" });
+          }
+        });
+        await batch.commit();
+        await db
+          .collection("masterOrders")
+          .doc(pay.masterOrderId)
+          .set({ paymentStatus: "unpaid" }, { merge: true })
+          .catch(() => {});
+      } else if (pay.orderId) {
         await db
           .collection("orders")
           .doc(pay.orderId)
