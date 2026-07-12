@@ -433,7 +433,10 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
             const SizedBox(height: 8),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Set as default address'),
+              title: const Text(
+                'Set as default address',
+                style: TextStyle(color: AppColors.onNavy),
+              ),
               value: _isDefault,
               activeThumbColor: kPakGreen,
               onChanged: _saving ? null : (v) => setState(() => _isDefault = v),

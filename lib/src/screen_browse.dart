@@ -703,7 +703,11 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Center(
-                  child: Text('Error loading listings: ${snapshot.error}'),
+                  child: Text(
+                    'Couldn’t load listings. Please try again.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.onNavyMuted),
+                  ),
                 );
               }
               if (snapshot.connectionState == ConnectionState.waiting) {

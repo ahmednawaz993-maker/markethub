@@ -718,20 +718,27 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
               final (slaLabel, slaColor) = _slaInfo(d);
               return Container(
                 width: double.infinity,
-                color: sColor.withValues(alpha: 0.07),
+                // Opaque light header so the subject/category read over navy.
+                color: AppColors.surface,
                 padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       d['subject']?.toString() ?? '',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '${d['category'] ?? ''}'
                       '${widget.adminView && (d['userEmail']?.toString().isNotEmpty ?? false) ? ' · ${d['userEmail']}' : ''}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Wrap(
@@ -823,12 +830,13 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                         constraints: BoxConstraints(
                           maxWidth: MediaQuery.of(context).size.width * 0.78,
                         ),
+                        // Opaque bubbles so the text is readable over navy.
                         decoration: BoxDecoration(
                           color: mine
-                              ? kPakGreen.withValues(alpha: 0.12)
+                              ? const Color(0xFFDCE6F5) // light navy tint
                               : (isSupport
-                                    ? kGold.withValues(alpha: 0.14)
-                                    : Colors.grey.withValues(alpha: 0.12)),
+                                    ? const Color(0xFFFBF3D5) // light gold tint
+                                    : AppColors.surface),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
@@ -841,7 +849,9 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
-                                color: isSupport ? kGold : Colors.grey[700],
+                                color: isSupport
+                                    ? AppColors.warning
+                                    : AppColors.textSecondary,
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -853,16 +863,21 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                                 mine: mine,
                               )
                             else
-                              Text(m['text']?.toString() ?? ''),
+                              Text(
+                                m['text']?.toString() ?? '',
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
                             const SizedBox(height: 2),
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
                                   timeAgo(m['createdAt'] as Timestamp?),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 10,
-                                    color: Colors.grey,
+                                    color: AppColors.textMuted,
                                   ),
                                 ),
                                 if (mine) ...[
@@ -1007,8 +1022,9 @@ class _CareNumbersBar extends StatelessWidget {
           snap.data?.data() as Map<String, dynamic>?,
         );
         if (numbers.isEmpty) return const SizedBox.shrink();
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+        return SurfacePanel(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1016,7 +1032,10 @@ class _CareNumbersBar extends StatelessWidget {
                 padding: EdgeInsets.symmetric(vertical: 6),
                 child: Text(
                   'Contact our helpline',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
               for (final n in numbers) _careNumberRow(n),
@@ -1040,6 +1059,7 @@ class _CareNumbersBar extends StatelessWidget {
               label.isNotEmpty ? '$label · $number' : number,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: AppColors.textPrimary),
             ),
           ),
           IconButton(
@@ -1221,39 +1241,45 @@ class CareNumbersAdminScreen extends StatelessWidget {
                         title: 'No helpline numbers',
                         subtitle: 'Add a number for users to call.',
                       )
-                    : ListView.separated(
-                        itemCount: numbers.length,
-                        separatorBuilder: (_, _) => const Divider(height: 1),
-                        itemBuilder: (context, i) {
-                          final n = numbers[i];
-                          final label = n['label']?.toString() ?? '';
-                          final sub = [
-                            if (label.isNotEmpty) label,
-                            if (n['whatsapp'] == true) 'WhatsApp enabled',
-                          ].join(' · ');
-                          return ListTile(
-                            leading: const Icon(Icons.call, color: kPakGreen),
-                            title: Text(n['number']?.toString() ?? ''),
-                            subtitle: sub.isNotEmpty ? Text(sub) : null,
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.edit, size: 20),
-                                  onPressed: () => _edit(context, numbers, i),
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    size: 20,
-                                    color: Colors.red,
+                    : SurfacePanel(
+                        margin: const EdgeInsets.all(12),
+                        child: ListView.separated(
+                          padding: EdgeInsets.zero,
+                          itemCount: numbers.length,
+                          separatorBuilder: (_, _) =>
+                              Divider(height: 1, color: AppColors.divider),
+                          itemBuilder: (context, i) {
+                            final n = numbers[i];
+                            final label = n['label']?.toString() ?? '';
+                            final sub = [
+                              if (label.isNotEmpty) label,
+                              if (n['whatsapp'] == true) 'WhatsApp enabled',
+                            ].join(' · ');
+                            return ListTile(
+                              leading: const Icon(Icons.call, color: kPakGreen),
+                              title: Text(n['number']?.toString() ?? ''),
+                              subtitle: sub.isNotEmpty ? Text(sub) : null,
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit, size: 20),
+                                    onPressed: () => _edit(context, numbers, i),
                                   ),
-                                  onPressed: () => _delete(context, numbers, i),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.delete,
+                                      size: 20,
+                                      color: Colors.red,
+                                    ),
+                                    onPressed: () =>
+                                        _delete(context, numbers, i),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
                       ),
               ),
             ],

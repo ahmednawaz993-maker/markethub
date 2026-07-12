@@ -271,7 +271,10 @@ class PayoutAccountsScreen extends StatelessWidget {
                   child: Text(
                     'Only a Verified account can receive a payout. Verification '
                     'is done by our team — you cannot verify your own account.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.onNavyMuted,
+                    ),
                   ),
                 );
               }
@@ -567,7 +570,10 @@ class _PayoutAccountFormScreenState extends State<PayoutAccountFormScreen> {
             const SizedBox(height: 8),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Set as default payout account'),
+              title: const Text(
+                'Set as default payout account',
+                style: TextStyle(color: AppColors.onNavy),
+              ),
               value: _isDefault,
               activeThumbColor: kPakGreen,
               onChanged: _saving ? null : (v) => setState(() => _isDefault = v),
@@ -575,15 +581,36 @@ class _PayoutAccountFormScreenState extends State<PayoutAccountFormScreen> {
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(10),
+              // Opaque light surface so the safety note is readable over navy.
               decoration: BoxDecoration(
-                color: Colors.blueGrey.withValues(alpha: 0.08),
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AppColors.info.withValues(alpha: 0.4),
+                ),
               ),
-              child: const Text(
-                'Never enter your PIN, password, or any OTP here. We only need '
-                'your account routing details to send payouts. Our team reviews '
-                'and verifies the account before it can receive money.',
-                style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: AppColors.info,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Never enter your PIN, password, or any OTP here. We only '
+                      'need your account routing details to send payouts. Our '
+                      'team reviews and verifies the account before it can '
+                      'receive money.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),

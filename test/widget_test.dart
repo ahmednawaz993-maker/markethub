@@ -1,5 +1,6 @@
 // Unit tests for PakBazar pure helpers.
 
+import 'package:flutter/widgets.dart' show Color, IconData;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markethub/main.dart';
 
@@ -510,6 +511,49 @@ void main() {
       // After dispatch the seller has no further step — the buyer confirms.
       expect(nextShippingStep('shipped'), '');
       expect(nextShippingStep('buyer_confirmed'), '');
+    });
+  });
+
+  group('Theme & status colour system (accessibility)', () {
+    test('every order/payment status maps to a colour and a glyph', () {
+      const statuses = [
+        ...kOrderStatuses,
+        'released',
+        'released_to_seller',
+        'paid',
+        'unpaid',
+        'held_by_platform',
+        'payment_pending',
+        'release_pending',
+        'refunded',
+        'partially_refunded',
+        'failed',
+      ];
+      for (final s in statuses) {
+        expect(statusColor(s), isA<Color>());
+        expect(statusIcon(s), isA<IconData>());
+      }
+    });
+
+    test('opposite meanings use distinct colours AND distinct icons', () {
+      // Status is never communicated by colour alone — the icon differs too.
+      expect(statusColor('completed'), isNot(statusColor('cancelled')));
+      expect(statusColor('shipped'), isNot(statusColor('pending')));
+      expect(statusIcon('completed'), isNot(statusIcon('cancelled')));
+      expect(statusIcon('shipped'), isNot(statusIcon('processing')));
+    });
+
+    test('primary text is high-contrast against the light surface', () {
+      // A large luminance gap ⇒ well above the WCAG AA threshold on white.
+      final gap =
+          AppColors.surface.computeLuminance() -
+          AppColors.textPrimary.computeLuminance();
+      expect(gap, greaterThan(0.6));
+      // Secondary/muted text still sit clearly below the surface luminance.
+      expect(
+        AppColors.textSecondary.computeLuminance(),
+        lessThan(AppColors.surface.computeLuminance() - 0.4),
+      );
     });
   });
 }

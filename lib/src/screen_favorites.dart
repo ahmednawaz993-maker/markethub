@@ -37,7 +37,11 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(
-              child: Text('Error loading favorites: ${snapshot.error}'),
+              child: Text(
+                'Couldn’t load favorites. Please try again.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.onNavyMuted),
+              ),
             );
           }
 

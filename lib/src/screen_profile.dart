@@ -989,7 +989,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     'and sellers trust. Use your camera to take a live selfie and a '
                     'photo of your CNIC — uploads from the gallery are not allowed. '
                     'Our team checks that the face matches the ID.',
-                    style: TextStyle(color: Colors.grey),
+                    style: TextStyle(color: AppColors.onNavyMuted),
                   ),
                 ),
                 _uploadTile(
@@ -1009,7 +1009,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   padding: EdgeInsets.fromLTRB(4, 4, 4, 6),
                   child: Text(
                     'Your residential address',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.onNavy,
+                    ),
                   ),
                 ),
                 TextField(
@@ -1047,7 +1050,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   child: Text(
                     'Your documents are private — visible only to you and our '
                     'review team, never shown publicly. See the Privacy Policy.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.onNavyMuted,
+                    ),
                   ),
                 ),
               ],
@@ -1113,7 +1119,7 @@ class TrustSafetyScreen extends StatelessWidget {
               'These are the rules every PakBazar member agrees to. Buyers and '
               'sellers each have matching responsibilities at every step of a '
               'deal — follow them to keep the marketplace safe and fair.',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: AppColors.onNavyMuted),
             ),
           ),
           _card(Icons.verified_user, 'For everyone', kPakGreen, const [
@@ -1224,42 +1230,51 @@ class _LegalScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         children: [
-          Text(
-            'Last updated: $updated',
-            style: const TextStyle(color: Colors.grey, fontSize: 12),
-          ),
-          const SizedBox(height: 12),
-          for (final (heading, lines) in sections) ...[
-            Text(
-              heading,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: kPakGreen,
-              ),
+          SurfacePanel(
+            margin: EdgeInsets.zero,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Last updated: $updated',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                for (final (heading, lines) in sections) ...[
+                  Text(
+                    heading,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: kPakGreen,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  for (final line in lines)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: line.startsWith('• ')
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('•  '),
+                                Expanded(child: Text(line.substring(2))),
+                              ],
+                            )
+                          : Text(line, style: const TextStyle(height: 1.4)),
+                    ),
+                  const SizedBox(height: 10),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  'Questions? Contact us at ahmednawaz993@gmail.com.',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
-            for (final line in lines)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: line.startsWith('• ')
-                    ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('•  '),
-                          Expanded(child: Text(line.substring(2))),
-                        ],
-                      )
-                    : Text(line, style: const TextStyle(height: 1.4)),
-              ),
-            const SizedBox(height: 10),
-          ],
-          const SizedBox(height: 8),
-          const Text(
-            'Questions? Contact us at ahmednawaz993@gmail.com.',
-            style: TextStyle(color: Colors.grey, fontSize: 12),
           ),
         ],
       ),
@@ -1551,17 +1566,17 @@ class AboutScreen extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: kPakGreen,
+                    color: AppColors.onNavy,
                   ),
                 ),
                 const Text(
                   'Pakistan ka apna online bazaar',
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(color: AppColors.onNavyMuted),
                 ),
                 const SizedBox(height: 4),
                 const Text(
                   'Version 1.0.0',
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                  style: TextStyle(color: AppColors.onNavyMuted, fontSize: 12),
                 ),
               ],
             ),
@@ -1662,7 +1677,7 @@ class AboutScreen extends StatelessWidget {
           const Center(
             child: Text(
               '© 2026 PakBazar',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
+              style: TextStyle(color: AppColors.onNavyMuted, fontSize: 12),
             ),
           ),
         ],

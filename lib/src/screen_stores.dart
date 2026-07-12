@@ -156,7 +156,9 @@ class AllCategoriesScreen extends StatelessWidget {
           final c = cats[i];
           final accent = _categoryAccent(c.title, i);
           return Material(
-            color: accent.withValues(alpha: isDark ? 0.16 : 0.08),
+            // Opaque light tile so the title/subtitle are readable over the
+            // navy gradient (a translucent tint let the navy bleed through).
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(16),
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
@@ -214,6 +216,7 @@ class AllCategoriesScreen extends StatelessWidget {
                         fontSize: 12.5,
                         fontWeight: FontWeight.bold,
                         height: 1.1,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -224,7 +227,7 @@ class AllCategoriesScreen extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 10,
-                        color: isDark ? Colors.white60 : Colors.black54,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],

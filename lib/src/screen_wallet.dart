@@ -96,7 +96,12 @@ class WalletScreen extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: Text(
                 'Transactions',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                // Section header sits on the navy gradient → light text.
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: AppColors.onNavy,
+                ),
               ),
             ),
           ),
@@ -108,6 +113,13 @@ class WalletScreen extends StatelessWidget {
                   .limit(50)
                   .snapshots(),
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return const EmptyState(
+                    icon: Icons.error_outline,
+                    title: 'Couldn’t load transactions',
+                    subtitle: 'Please try again.',
+                  );
+                }
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
@@ -119,31 +131,40 @@ class WalletScreen extends StatelessWidget {
                     subtitle: 'Top-ups and purchases appear here.',
                   );
                 }
-                return ListView.separated(
-                  itemCount: docs.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, i) {
-                    final d = docs[i].data() as Map<String, dynamic>;
-                    final credit = d['type'] == 'credit';
-                    final amount = (d['amount'] as num?)?.toInt() ?? 0;
-                    return ListTile(
-                      leading: Icon(
-                        credit ? Icons.south_west : Icons.north_east,
-                        color: credit ? Colors.green : Colors.red,
-                      ),
-                      title: Text(
-                        credit ? 'Top-up' : 'Purchase: ${d['purpose'] ?? ''}',
-                      ),
-                      subtitle: Text(timeAgo(d['createdAt'] as Timestamp?)),
-                      trailing: Text(
-                        '${credit ? '+' : '-'} ${formatPrice('$amount')}',
-                        style: TextStyle(
-                          color: credit ? Colors.green : Colors.red,
-                          fontWeight: FontWeight.bold,
+                return SurfacePanel(
+                  margin: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                  child: ListView.separated(
+                    padding: EdgeInsets.zero,
+                    itemCount: docs.length,
+                    separatorBuilder: (_, _) =>
+                        Divider(height: 1, color: AppColors.divider),
+                    itemBuilder: (context, i) {
+                      final d = docs[i].data() as Map<String, dynamic>;
+                      final credit = d['type'] == 'credit';
+                      final amount = (d['amount'] as num?)?.toInt() ?? 0;
+                      return ListTile(
+                        leading: Icon(
+                          credit ? Icons.south_west : Icons.north_east,
+                          color: credit ? AppColors.success : AppColors.error,
                         ),
-                      ),
-                    );
-                  },
+                        title: Text(
+                          credit ? 'Top-up' : 'Purchase: ${d['purpose'] ?? ''}',
+                          style: const TextStyle(color: AppColors.textPrimary),
+                        ),
+                        subtitle: Text(
+                          timeAgo(d['createdAt'] as Timestamp?),
+                          style: TextStyle(color: AppColors.textMuted),
+                        ),
+                        trailing: Text(
+                          '${credit ? '+' : '-'} ${formatPrice('$amount')}',
+                          style: TextStyle(
+                            color: credit ? AppColors.success : AppColors.error,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 );
               },
             ),
