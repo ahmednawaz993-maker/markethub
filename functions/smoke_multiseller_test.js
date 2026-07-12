@@ -62,6 +62,7 @@ async function seedListing(id, sellerId, price) {
     userId: sellerId,
     deliveryAvailable: false,
     deliveryFee: "0",
+    codAvailable: true, // server now downgrades non-COD listings off cod_pending
     smokeTest: true,
     createdAt: Timestamp.now(),
   });
