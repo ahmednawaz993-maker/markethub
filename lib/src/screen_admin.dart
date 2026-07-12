@@ -2788,7 +2788,9 @@ class _AdminOrdersTab extends StatelessWidget {
                 ),
               ),
             ),
+            const _MasterOrdersPanel(),
             const _PendingCancellationsPanel(),
+            const _PendingReturnsPanel(),
             Expanded(
               child: docs.isEmpty
                   ? const EmptyState(
@@ -2878,6 +2880,176 @@ class _AdminOrdersTab extends StatelessWidget {
           style: const TextStyle(color: Colors.white70, fontSize: 12),
         ),
       ],
+    );
+  }
+}
+
+/// Phase 8: admin view of multi-seller (master) orders. Each master groups the
+/// per-seller sub-orders created from one cart checkout. Shows the buyer, order
+/// number, combined total, package count, aggregate delivery progress and
+/// payment state; expanding lists each package (seller, amount, status). The
+/// individual sub-orders still appear in the flat list below for per-order
+/// actions — this panel is the grouped, read-oriented overview. Collapses to
+/// nothing when there are no master orders.
+class _MasterOrdersPanel extends StatelessWidget {
+  const _MasterOrdersPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('masterOrders')
+          .orderBy('createdAt', descending: true)
+          .limit(25)
+          .snapshots(),
+      builder: (context, snap) {
+        if (!snap.hasData) return const SizedBox.shrink();
+        final docs = snap.data!.docs
+            .where((d) => !MasterOrder.fromDoc(d).isFailed)
+            .toList();
+        if (docs.isEmpty) return const SizedBox.shrink();
+        return Card(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.local_shipping_outlined,
+                          size: 18, color: Colors.deepPurple),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Multi-seller orders (${docs.length})',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.deepPurple,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                for (final d in docs) _MasterOrderTile(master: d),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MasterOrderTile extends StatelessWidget {
+  final QueryDocumentSnapshot master;
+  const _MasterOrderTile({required this.master});
+
+  @override
+  Widget build(BuildContext context) {
+    final mo = MasterOrder.fromDoc(master);
+    final number = mo.orderNumber.isEmpty ? master.id : mo.orderNumber;
+    final packages = mo.packageCount;
+
+    return ExpansionTile(
+      dense: true,
+      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+      childrenPadding: const EdgeInsets.only(bottom: 8),
+      title: Text(
+        '$number · $packages package${packages == 1 ? '' : 's'}',
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+      ),
+      subtitle: Text(
+        '${mo.buyerName} · ${formatPrice(mo.itemsTotal.toStringAsFixed(0))} · '
+        '${mo.paymentLabel}',
+        style: const TextStyle(fontSize: 12),
+      ),
+      trailing: Text(
+        mo.allDelivered ? 'All delivered' : '${mo.deliveredCount}/$packages',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: mo.allDelivered ? kPakGreen : Colors.deepPurple,
+        ),
+      ),
+      children: [
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('orders')
+              .where('masterOrderId', isEqualTo: master.id)
+              .snapshots(),
+          builder: (context, s) {
+            if (!s.hasData) {
+              return const Padding(
+                padding: EdgeInsets.all(12),
+                child: LinearProgressIndicator(),
+              );
+            }
+            final subs = s.data!.docs;
+            if (subs.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  mo.status == 'pending'
+                      ? 'Awaiting fan-out…'
+                      : 'No sub-orders found.',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              );
+            }
+            return Column(
+              children: [
+                for (final o in subs)
+                  _MasterSubOrderRow(data: o.data() as Map<String, dynamic>),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _MasterSubOrderRow extends StatelessWidget {
+  final Map<String, dynamic> data;
+  const _MasterSubOrderRow({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final seller = data['sellerName']?.toString() ?? 'Seller';
+    final number = data['orderNumber']?.toString() ?? '';
+    final amount = (data['amount'] as num?)?.toDouble() ?? 0;
+    final os = orderStatusOf(data);
+    final courier = data['courierName']?.toString() ?? '';
+    final tracking = data['trackingNumber']?.toString() ?? '';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.inventory_2_outlined, size: 14, color: Colors.grey),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$seller${number.isEmpty ? '' : ' · $number'}',
+                  style: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  '${formatPrice(amount.toStringAsFixed(0))} · ${orderStatusLabel(os)}'
+                  '${courier.isEmpty ? '' : ' · $courier'}'
+                  '${tracking.isEmpty ? '' : ' ($tracking)'}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -3058,6 +3230,188 @@ class _CancellationRequestRow extends StatelessWidget {
           content: Text(
             approve ? 'Cancellation approved.' : 'Request rejected.',
           ),
+        ),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not update. Please try again.')),
+      );
+    }
+  }
+}
+
+/// Admin review of pending buyer RETURN requests (Phase 4). Reuses the `orders`
+/// permission; approving refunds the buyer and marks the order returned via the
+/// onReturnRequestDecision Cloud Function. Collapses when the queue is empty.
+class _PendingReturnsPanel extends StatelessWidget {
+  const _PendingReturnsPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collectionGroup('returnRequests')
+          .where('requestStatus', isEqualTo: 'pending')
+          .orderBy('requestedAt', descending: true)
+          .snapshots(),
+      builder: (context, snap) {
+        final docs = snap.data?.docs ?? const [];
+        if (docs.isEmpty) return const SizedBox.shrink();
+        return Card(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          color: Colors.blueGrey.shade50,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.assignment_return,
+                      color: Colors.blueGrey,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Return requests (${docs.length})',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                for (final doc in docs)
+                  _ReturnRequestRow(
+                    orderId: doc.reference.parent.parent?.id ?? '',
+                    requestId: doc.id,
+                    request: doc.data(),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ReturnRequestRow extends StatelessWidget {
+  final String orderId;
+  final String requestId;
+  final Map<String, dynamic> request;
+  const _ReturnRequestRow({
+    required this.orderId,
+    required this.requestId,
+    required this.request,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final reason = returnReasonLabel(request['reasonCode']?.toString() ?? '');
+    final details = request['reasonDetails']?.toString() ?? '';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            future: FirebaseFirestore.instance
+                .collection('orders')
+                .doc(orderId)
+                .get(),
+            builder: (context, s) {
+              final title =
+                  s.data?.data()?['listingTitle']?.toString() ?? orderId;
+              return Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              );
+            },
+          ),
+          Text(
+            details.isEmpty
+                ? 'Reason: $reason'
+                : 'Reason: $reason — “$details”',
+            style: const TextStyle(fontSize: 12, color: Colors.black87),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => _decide(context, approve: false),
+                child: const Text('Reject'),
+              ),
+              const SizedBox(width: 4),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueGrey,
+                ),
+                onPressed: () => _decide(context, approve: true),
+                child: const Text('Approve & refund'),
+              ),
+            ],
+          ),
+          const Divider(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _decide(BuildContext context, {required bool approve}) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final noteCtl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(approve ? 'Approve return?' : 'Reject return?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              approve
+                  ? 'The buyer is refunded and the order marked returned '
+                        '(only while the payment is still held).'
+                  : 'The order stays as-is. Add a note for the buyer.',
+              style: const TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: noteCtl,
+              decoration: InputDecoration(
+                labelText: approve ? 'Note (optional)' : 'Reason for the buyer',
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Back'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(approve ? 'Approve' : 'Reject'),
+          ),
+        ],
+      ),
+    );
+    noteCtl.dispose();
+    if (ok != true) return;
+    try {
+      await decideReturnRequest(
+        orderId,
+        requestId,
+        approve: approve,
+        response: noteCtl.text,
+        asAdmin: true,
+      );
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(approve ? 'Return approved.' : 'Return rejected.'),
         ),
       );
     } catch (_) {

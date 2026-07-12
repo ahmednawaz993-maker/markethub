@@ -124,6 +124,132 @@ Future<void> _payOrderEscrow(
   from.dispose();
 }
 
+/// Phase 6: a buyer pays ONCE for a whole multi-seller (master) order. The
+/// payment doc carries the masterOrderId + the combined total; the Cloud
+/// Function (onPaymentAction -> confirmMasterPaymentIntoEscrow) fans the
+/// confirmed hold out to each seller's sub-order so every share is escrowed
+/// independently. Mirrors _payOrderEscrow's manual-transfer + proof flow.
+Future<void> _payMasterEscrow(
+  BuildContext context,
+  String masterId,
+  String masterNumber,
+  double amount,
+  int packages,
+) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return;
+  final messenger = ScaffoldMessenger.of(context);
+  final ref = TextEditingController();
+  final from = TextEditingController();
+
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) {
+      return Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Pay & hold securely',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Amount: ${formatPrice(amount.toStringAsFixed(0))}',
+                style: const TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'One payment covers all $packages packages'
+                '${masterNumber.isEmpty ? '' : ' in order $masterNumber'}. '
+                'Transfer the amount to the account below, then enter your '
+                'transaction reference. Each seller is paid only after you '
+                'confirm you received their package.',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const _PaymentAccountInfo(),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ref,
+                decoration: const InputDecoration(
+                  labelText: 'Transaction ID / reference',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: from,
+                decoration: const InputDecoration(
+                  labelText: 'Paid from (your account / number, optional)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  if (ref.text.trim().isEmpty) {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('Enter your transaction reference'),
+                      ),
+                    );
+                    return;
+                  }
+                  try {
+                    await FirebaseFirestore.instance
+                        .collection('payments')
+                        .add({
+                          'masterOrderId': masterId,
+                          'buyerId': uid,
+                          'buyerEmail':
+                              FirebaseAuth.instance.currentUser?.email ?? '',
+                          'listingTitle': masterNumber.isEmpty
+                              ? 'Multi-seller order · $packages packages'
+                              : 'Order $masterNumber · $packages packages',
+                          'amount': amount,
+                          'provider': 'manual',
+                          'status': 'initiated',
+                          'proofRef': ref.text.trim(),
+                          'proofFrom': from.text.trim(),
+                          'createdAt': Timestamp.now(),
+                        });
+                    if (context.mounted) Navigator.pop(context);
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Payment submitted — an admin will confirm it '
+                          'shortly.',
+                        ),
+                      ),
+                    );
+                  } catch (e) {
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('Failed: $e')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.lock),
+                label: const Text('I have paid — submit'),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+  ref.dispose();
+  from.dispose();
+}
+
 /// Lets a buyer report a problem or open a formal dispute on their order. Both
 /// create an `open` dispute which blocks the seller payout until an admin
 /// resolves it (enforced server-side in onEscrowAction).
@@ -309,11 +435,42 @@ class _OrdersList extends StatelessWidget {
                 : 'Items you buy will appear here.',
           );
         }
+        // Phase 5/6: for a buyer, group sub-orders by their master order so each
+        // package card can announce it is one of several shipments (Phase 5) and
+        // so a single "pay once" action covers the whole order (Phase 6). The
+        // master total is the sum of every sub-order's amount; the leader is the
+        // first sub-order of the group in the list (it hosts the pay action).
+        final masterCounts = <String, int>{};
+        final masterTotals = <String, double>{};
+        final masterLeader = <String, int>{};
+        final masterDelivered = <String, int>{};
+        const kDoneStates = {'delivered', 'buyer_confirmed', 'completed'};
+        if (!asSeller) {
+          for (var idx = 0; idx < docs.length; idx++) {
+            final dd = docs[idx].data() as Map<String, dynamic>;
+            final m = dd['masterOrderId']?.toString() ?? '';
+            if (m.isEmpty) continue;
+            masterCounts[m] = (masterCounts[m] ?? 0) + 1;
+            masterTotals[m] =
+                (masterTotals[m] ?? 0) + ((dd['amount'] as num?)?.toDouble() ?? 0);
+            masterLeader.putIfAbsent(m, () => idx);
+            if (kDoneStates.contains(orderStatusOf(dd))) {
+              masterDelivered[m] = (masterDelivered[m] ?? 0) + 1;
+            }
+          }
+        }
         return ListView.builder(
           padding: const EdgeInsets.all(12),
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
+            final masterId = d['masterOrderId']?.toString() ?? '';
+            final pkgCount =
+                asSeller ? 1 : (masterCounts[masterId] ?? 1);
+            final isMasterOrder = !asSeller && masterId.isNotEmpty;
+            final isMasterLeader =
+                isMasterOrder && masterLeader[masterId] == i;
+            final masterTotal = masterTotals[masterId] ?? 0;
             final status = d['status']?.toString() ?? 'pending_payment';
             final img = d['listingImage']?.toString() ?? '';
             final amount = (d['amount'] as num?)?.toDouble() ?? 0;
@@ -335,6 +492,12 @@ class _OrdersList extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (!asSeller && pkgCount > 1)
+                      _MultiPackageBanner(
+                        orderNumber: d['orderNumber']?.toString() ?? '',
+                        packages: pkgCount,
+                        delivered: masterDelivered[masterId] ?? 0,
+                      ),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -373,6 +536,16 @@ class _OrdersList extends StatelessWidget {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
+                              if ((d['orderNumber']?.toString() ?? '')
+                                  .isNotEmpty)
+                                Text(
+                                  d['orderNumber'].toString(),
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               Text(
                                 asSeller
                                     ? '${d['buyerName'] ?? 'Buyer'}'
@@ -391,6 +564,20 @@ class _OrdersList extends StatelessWidget {
                                   color: kPakGreen,
                                 ),
                               ),
+                              if (d['items'] is List &&
+                                  (d['items'] as List).isNotEmpty)
+                                ...(d['items'] as List).take(4).map((it) {
+                                  final m = (it as Map);
+                                  return Text(
+                                    '• ${m['title']} ×${m['quantity']}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey,
+                                    ),
+                                  );
+                                }),
                             ],
                           ),
                         ),
@@ -420,6 +607,11 @@ class _OrdersList extends StatelessWidget {
                       data: d,
                       asSeller: asSeller,
                     ),
+                    ReturnSection(
+                      orderId: docs[i].id,
+                      data: d,
+                      asSeller: asSeller,
+                    ),
                     if (!asSeller &&
                         (status == 'in_escrow' ||
                             status == 'completed' ||
@@ -438,7 +630,38 @@ class _OrdersList extends StatelessWidget {
                       ),
                     if (status == 'pending_payment') ...[
                       const SizedBox(height: 8),
-                      if (!asSeller)
+                      if (!asSeller && isMasterOrder)
+                        // Phase 6: one payment covers every package in the
+                        // master order. Only the first package hosts the button;
+                        // the rest show a note so the buyer pays exactly once.
+                        (isMasterLeader
+                            ? Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  ElevatedButton.icon(
+                                    onPressed: () => _payMasterEscrow(
+                                      context,
+                                      masterId,
+                                      (d['orderNumber']?.toString() ?? '')
+                                          .replaceAll(RegExp(r'-S\d+$'), ''),
+                                      masterTotal,
+                                      pkgCount,
+                                    ),
+                                    icon: const Icon(Icons.lock, size: 18),
+                                    label: Text(
+                                      'Pay ${formatPrice(masterTotal.toStringAsFixed(0))} '
+                                      'for all $pkgCount packages',
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : const Text(
+                                'Paid together with the other packages in this '
+                                'order — use the first package above to pay.',
+                                style:
+                                    TextStyle(fontSize: 12, color: Colors.grey),
+                              ))
+                      else if (!asSeller)
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
@@ -623,6 +846,82 @@ class _OrdersList extends StatelessWidget {
 
 /// Shows the delivery-address snapshot + price breakdown stored on an order.
 /// Renders nothing for legacy orders created before delivery addresses existed.
+// Phase 5: shown on each buyer sub-order that belongs to a multi-seller master
+// order, telling the buyer the order arrives in several separate packages.
+class _MultiPackageBanner extends StatelessWidget {
+  final String orderNumber;
+  final int packages;
+  final int delivered;
+  const _MultiPackageBanner({
+    required this.orderNumber,
+    required this.packages,
+    this.delivered = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final master = orderNumber.replaceAll(RegExp(r'-S\d+$'), '');
+    final allDone = delivered >= packages && packages > 0;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.deepPurple.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.deepPurple.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.local_shipping_outlined,
+              size: 18, color: Colors.deepPurple),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        master.isEmpty
+                            ? 'Package $packages of a multi-seller order'
+                            : 'Order $master · $packages packages',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.deepPurple,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      allDone
+                          ? 'All delivered'
+                          : '$delivered/$packages delivered',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: allDone ? kPakGreen : Colors.deepPurple,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Your order will arrive in multiple packages because '
+                  'products are being shipped from different sellers.',
+                  style: TextStyle(fontSize: 12, color: Colors.black87),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _OrderDeliveryPanel extends StatelessWidget {
   final Map<String, dynamic> data;
   final bool asSeller;

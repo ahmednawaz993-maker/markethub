@@ -9,6 +9,8 @@ const {
   deriveOrderStatus,
   cancelReasonText,
   cancellationEligibility,
+  returnReasonText,
+  returnEligibility,
 } = require("./cancellation_logic");
 
 let pass = 0;
@@ -103,6 +105,42 @@ t("cancelReasonText resolves known codes and blanks unknown", () => {
   assert.strictEqual(cancelReasonText("ordered_by_mistake"), "Ordered by mistake");
   assert.strictEqual(cancelReasonText("seller_delay"), "Seller delay");
   assert.strictEqual(cancelReasonText("nope"), "");
+});
+
+// Returns: only self-service while money is held + delivered/buyer_confirmed.
+t("returnEligibility: delivered & held → review", () => {
+  assert.strictEqual(
+    returnEligibility({ status: "in_escrow", orderStatus: "delivered" }).mode,
+    "review"
+  );
+  assert.strictEqual(
+    returnEligibility({ status: "in_escrow", orderStatus: "buyer_confirmed" })
+      .mode,
+    "review"
+  );
+});
+t("returnEligibility: not-yet-delivered → reject", () => {
+  assert.strictEqual(
+    returnEligibility({ status: "in_escrow", orderStatus: "shipped" }).mode,
+    "reject"
+  );
+  assert.strictEqual(
+    returnEligibility({ status: "in_escrow", orderStatus: "pending" }).mode,
+    "reject"
+  );
+});
+t("returnEligibility: released/COD → reject (support only)", () => {
+  assert.strictEqual(returnEligibility({ status: "released" }).mode, "reject");
+  assert.strictEqual(returnEligibility({ status: "completed" }).mode, "reject");
+  assert.strictEqual(
+    returnEligibility({ status: "cod_pending", orderStatus: "delivered" }).mode,
+    "reject"
+  );
+});
+t("returnReasonText resolves known codes and blanks unknown", () => {
+  assert.strictEqual(returnReasonText("damaged"), "Damaged or defective");
+  assert.strictEqual(returnReasonText("wrong_item"), "Wrong item received");
+  assert.strictEqual(returnReasonText("nope"), "");
 });
 
 console.log(`\n${pass} checks passed${process.exitCode ? " (with failures)" : ""}`);

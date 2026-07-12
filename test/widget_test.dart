@@ -250,7 +250,10 @@ void main() {
         CancelUi.requestApproval,
       );
       // A manual payment under review must also go through approval.
-      expect(cancelUiFor({'status': 'payment_review'}), CancelUi.requestApproval);
+      expect(
+        cancelUiFor({'status': 'payment_review'}),
+        CancelUi.requestApproval,
+      );
     });
 
     test('legacy held order (no explicit orderStatus) is request-only', () {
@@ -288,7 +291,203 @@ void main() {
     });
 
     test('cancellation_requested has a buyer-facing label', () {
-      expect(orderStatusLabel('cancellation_requested'), 'Cancellation requested');
+      expect(
+        orderStatusLabel('cancellation_requested'),
+        'Cancellation requested',
+      );
+    });
+  });
+
+  group('Order returns (returnUiFor)', () {
+    test('delivered/confirmed while held → request', () {
+      expect(
+        returnUiFor({'status': 'in_escrow', 'orderStatus': 'delivered'}),
+        ReturnUi.request,
+      );
+      expect(
+        returnUiFor({'status': 'in_escrow', 'orderStatus': 'buyer_confirmed'}),
+        ReturnUi.request,
+      );
+    });
+
+    test('released / completed → support only', () {
+      expect(returnUiFor({'status': 'released'}), ReturnUi.supportOnly);
+      expect(returnUiFor({'status': 'completed'}), ReturnUi.supportOnly);
+    });
+
+    test('not yet delivered → no return path (use cancellation)', () {
+      expect(
+        returnUiFor({'status': 'in_escrow', 'orderStatus': 'shipped'}),
+        ReturnUi.none,
+      );
+      expect(returnUiFor({'status': 'pending_payment'}), ReturnUi.none);
+    });
+
+    test('returned label + reason label', () {
+      expect(orderStatusLabel('returned'), 'Returned');
+      expect(returnReasonLabel('damaged'), 'Damaged or defective');
+    });
+  });
+
+  group('Multi-seller cart', () {
+    CartItem item(String id, String seller, String price, int qty) => CartItem(
+      listingId: id,
+      title: 'Item $id',
+      imageUrl: '',
+      price: price,
+      sellerId: seller,
+      sellerName: 'Seller $seller',
+      quantity: qty,
+    );
+
+    test('line total = unit price * quantity', () {
+      final it = item('a', 's1', '250', 3);
+      expect(it.unitPrice, 250);
+      expect(it.lineTotal, 750);
+    });
+
+    test('fromListing copies seller + price and defaults quantity', () {
+      final l = Listing(
+        id: 'L1',
+        title: 'Widget',
+        price: '1200',
+        location: '',
+        imageUrl: 'http://img/1.jpg',
+        category: 'Electronics',
+        userId: 'seller9',
+        sellerName: 'Acme',
+        deliveryFee: '150',
+        codAvailable: true,
+      );
+      final ci = CartItem.fromListing(l, quantity: 2);
+      expect(ci.listingId, 'L1');
+      expect(ci.sellerId, 'seller9');
+      expect(ci.sellerName, 'Acme');
+      expect(ci.price, '1200');
+      expect(ci.quantity, 2);
+      expect(ci.lineTotal, 2400);
+      expect(ci.codAvailable, isTrue);
+    });
+
+    test('groups by seller, preserves first-seen order, sums subtotals', () {
+      final items = [
+        item('a', 's1', '100', 2), // 200
+        item('b', 's2', '500', 1), // 500
+        item('c', 's1', '50', 4), //  200
+      ];
+      final groups = groupBySeller(items);
+      expect(groups.map((g) => g.sellerId).toList(), ['s1', 's2']);
+      expect(groups[0].items.length, 2);
+      expect(groups[0].subtotal, 400); // 200 + 200
+      expect(groups[0].count, 6); // 2 + 4
+      expect(groups[1].subtotal, 500);
+    });
+
+    test('cart total and unit count across sellers', () {
+      final items = [
+        item('a', 's1', '100', 2),
+        item('b', 's2', '500', 1),
+        item('c', 's1', '50', 4),
+      ];
+      expect(cartTotal(items), 900); // 200 + 500 + 200
+      expect(cartUnitCount(items), 7); // 2 + 1 + 4
+    });
+
+    Listing withStock(String status, {String category = 'Electronics'}) =>
+        Listing(
+          id: 'x',
+          title: 'x',
+          price: '100',
+          location: '',
+          imageUrl: '',
+          category: category,
+          userId: 's',
+          status: status,
+        );
+
+    test('stock gate: only in-stock, buyable listings can be carted', () {
+      // The predicate addListingToCart enforces before writing.
+      bool canCart(Listing l) => l.isAvailableForSale && isBuyable(l);
+      expect(canCart(withStock('in_stock')), isTrue);
+      expect(canCart(withStock('out_of_stock')), isFalse);
+      expect(canCart(withStock('sold')), isFalse);
+      // Advertise-only category is never buyable even if 'in_stock'.
+      expect(canCart(withStock('in_stock', category: 'Properties')), isFalse);
+    });
+
+    test('COD is offered at checkout only when every item supports it', () {
+      CartItem codItem(bool cod) => CartItem(
+        listingId: 'i${cod ? 1 : 0}',
+        title: 't',
+        imageUrl: '',
+        price: '100',
+        sellerId: 's',
+        sellerName: 'S',
+        codAvailable: cod,
+      );
+      bool allCod(List<CartItem> items) => items.every((i) => i.codAvailable);
+      expect(allCod([codItem(true), codItem(true)]), isTrue);
+      expect(allCod([codItem(true), codItem(false)]), isFalse);
+    });
+  });
+
+  group('MasterOrder model (Phase 9)', () {
+    test('fromMap maps fields and derives payment/progress labels', () {
+      final mo = MasterOrder.fromMap('m1', {
+        'orderNumber': 'PB-1001',
+        'buyerId': 'b1',
+        'buyerName': 'Ali',
+        'itemsTotal': 4500,
+        'paymentMethod': 'escrow',
+        'paymentStatus': 'held',
+        'status': 'in_escrow',
+        'sellerOrderIds': ['o1', 'o2', 'o3'],
+        'packageCount': 3,
+        'deliveredCount': 1,
+        'allDelivered': false,
+      });
+      expect(mo.id, 'm1');
+      expect(mo.orderNumber, 'PB-1001');
+      expect(mo.buyerName, 'Ali');
+      expect(mo.itemsTotal, 4500);
+      expect(mo.isMultiPackage, isTrue);
+      expect(mo.isCod, isFalse);
+      expect(mo.isPaid, isTrue);
+      expect(mo.payState, MasterPayState.held);
+      expect(mo.paymentLabel, 'Online · held');
+      expect(mo.progressLabel, '1/3 delivered');
+    });
+
+    test('packageCount falls back to sellerCount then id list length', () {
+      // Pre-Phase-7 master (no packageCount) → sellerCount.
+      final a = MasterOrder.fromMap('m', {
+        'sellerCount': 2,
+        'sellerOrderIds': ['o1', 'o2'],
+      });
+      expect(a.packageCount, 2);
+      // No counts at all → derive from the fan-out id list.
+      final b = MasterOrder.fromMap('m', {
+        'sellerOrderIds': ['o1', 'o2', 'o3', 'o4'],
+      });
+      expect(b.packageCount, 4);
+    });
+
+    test('allDelivered flips the progress label; COD payment label', () {
+      final mo = MasterOrder.fromMap('m', {
+        'paymentMethod': 'cod',
+        'packageCount': 2,
+        'deliveredCount': 2,
+        'allDelivered': true,
+      });
+      expect(mo.isCod, isTrue);
+      expect(mo.paymentLabel, 'COD');
+      expect(mo.progressLabel, 'All delivered');
+    });
+
+    test('failed intent is flagged', () {
+      final mo = MasterOrder.fromMap('m', {'status': 'failed'});
+      expect(mo.isFailed, isTrue);
+      expect(mo.isMultiPackage, isFalse);
     });
   });
 }

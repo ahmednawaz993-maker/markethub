@@ -26,7 +26,14 @@ const sgMail = require("@sendgrid/mail");
 const {
   cancelReasonText,
   cancellationEligibility,
+  returnReasonText,
+  returnEligibility,
 } = require("./cancellation_logic");
+const {
+  groupItemsBySeller,
+  computeSellerTotals,
+  sellerOrderNumber,
+} = require("./multiseller_logic");
 
 initializeApp();
 
@@ -681,6 +688,204 @@ async function pruneInvalidTokens(db, uid, tokens, response) {
 // freeDeliveryThreshold in lib/src/commerce.dart — keep the two in sync.
 const FREE_DELIVERY_THRESHOLD = 3000;
 
+// Allocates the next human-readable order sequence (PB-{n}) from a counter doc,
+// atomically. Starts at 1001.
+async function nextOrderNumber(db) {
+  const ref = db.collection("counters").doc("orderNumber");
+  return db.runTransaction(async (tx) => {
+    const s = await tx.get(ref);
+    const cur = s.exists ? Number(s.data().value) || 1000 : 1000;
+    const next = cur + 1;
+    tx.set(ref, { value: next, updatedAt: Timestamp.now() }, { merge: true });
+    return next;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Multi-seller checkout fan-out (Phase 3)
+//
+// The buyer writes ONE masterOrders/{id} "checkout intent" (cart items +
+// address snapshot + payment method). This trigger validates each listing
+// against trusted server data, groups the items by seller, and creates one
+// orders/{orderId} sub-order per seller — reusing the existing order collection
+// so all fulfillment / cancellation / escrow / payout logic applies unchanged.
+// Each sub-order carries masterOrderId + a unique orderNumber (PB-1001-S1) and
+// the SAME immutable delivery-address snapshot. Sellers only ever read their
+// own sub-order (orders rules scope by sellerId), so one seller can't see
+// another's items.
+// ---------------------------------------------------------------------------
+exports.onMasterOrderCreated = onDocumentCreated(
+  "masterOrders/{masterId}",
+  async (event) => {
+    const master = event.data && event.data.data();
+    if (!master) return;
+    // Only process a fresh intent once (idempotent against retries / re-fires).
+    if (master.status !== "pending" || master.sellerOrderIds) return;
+
+    const db = getFirestore();
+    const masterRef = event.data.ref;
+    const masterId = event.params.masterId;
+    const items = Array.isArray(master.items) ? master.items : [];
+
+    if (items.length === 0) {
+      await masterRef.set(
+        { status: "failed", failReason: "empty_cart" },
+        { merge: true }
+      );
+      return;
+    }
+
+    const orderNo = await nextOrderNumber(db);
+    const masterNumber = `PB-${orderNo}`;
+    const isCod = master.paymentMethod === "cod";
+    const rate = commissionRate();
+    const address = master.deliveryAddress || {};
+    const buyerName =
+      master.buyerName || address.fullName || "A buyer";
+    const buyerPhone = master.buyerPhone || address.phone || "";
+
+    const groups = groupItemsBySeller(items);
+    const sellerOrderIds = [];
+    let sIndex = 0;
+
+    for (const g of groups) {
+      // Re-validate each listing against trusted current data (existence,
+      // availability, current price). Skip anything no longer buyable.
+      const lines = [];
+      const lineItems = [];
+      for (const it of g.items) {
+        const ls = await db.collection("listings").doc(it.listingId).get();
+        if (!ls.exists) continue;
+        const l = ls.data();
+        const status = l.status || (l.isSold ? "sold" : "in_stock");
+        if (status !== "in_stock") continue;
+        const unitPrice = parsePrice(l.price);
+        if (unitPrice <= 0) continue;
+        const qty = Math.max(1, Number(it.quantity) || 1);
+        lines.push({
+          unitPrice,
+          quantity: qty,
+          deliveryAvailable: l.deliveryAvailable === true,
+          deliveryFee: parsePrice(l.deliveryFee),
+        });
+        lineItems.push({
+          listingId: it.listingId,
+          title: l.title || "",
+          image: (l.images && l.images[0]) || l.imageUrl || "",
+          unitPrice,
+          quantity: qty,
+          lineTotal: round2(unitPrice * qty),
+        });
+      }
+      if (lineItems.length === 0) continue;
+
+      sIndex++;
+      const totals = computeSellerTotals(lines, {
+        isCod,
+        rate,
+        freeThreshold: FREE_DELIVERY_THRESHOLD,
+      });
+      const orderNumber = sellerOrderNumber(masterNumber, sIndex);
+      const orderRef = db.collection("orders").doc();
+      const unitCount = lineItems.reduce((a, i) => a + i.quantity, 0);
+      await orderRef.set({
+        masterOrderId: masterId,
+        orderNumber,
+        sellerId: g.sellerId,
+        sellerName: g.sellerName || "",
+        buyerId: master.buyerId,
+        buyerName,
+        buyerPhone,
+        items: lineItems,
+        itemCount: unitCount,
+        listingTitle:
+          lineItems.length === 1
+            ? lineItems[0].title
+            : `${lineItems.length} items`,
+        listingImage: lineItems[0].image,
+        itemSubtotal: totals.itemSubtotal,
+        amount: totals.amount,
+        deliveryFee: totals.deliveryFee,
+        discount: 0,
+        qualifiesForFreeDelivery: totals.qualifiesForFreeDelivery,
+        freeDeliveryThreshold: FREE_DELIVERY_THRESHOLD,
+        commission: totals.commission,
+        sellerPayout: totals.sellerPayout,
+        deliveryAddress: address,
+        paymentMethod: isCod ? "cod" : "escrow",
+        notes: master.notes || "",
+        status: isCod ? "cod_pending" : "pending_payment",
+        orderStatus: "pending",
+        paymentStatus: isCod ? "unpaid" : "payment_pending",
+        createdAt: Timestamp.now(),
+      });
+      sellerOrderIds.push(orderRef.id);
+
+      await pushToUser(
+        db,
+        g.sellerId,
+        {
+          title: "New order received",
+          body: `New order ${orderNumber} for Rs ${totals.amount}. Review the buyer's delivery details and accept when ready.`,
+        },
+        { type: "order", orderId: orderRef.id }
+      );
+      await writeAudit(db, {
+        action: "order_placed",
+        entityType: "order",
+        entityId: orderRef.id,
+        actorId: master.buyerId || "",
+        actorRole: "buyer",
+        newStatus: "pending",
+        amount: totals.amount,
+        reason: "",
+        metadata: { masterOrderId: masterId, orderNumber },
+      });
+    }
+
+    if (sellerOrderIds.length === 0) {
+      await masterRef.set(
+        { status: "failed", failReason: "no_items_available", orderNumber: masterNumber },
+        { merge: true }
+      );
+      if (master.buyerId) {
+        await pushToUser(
+          db,
+          master.buyerId,
+          {
+            title: "Order could not be placed",
+            body: "The items in your cart are no longer available.",
+          },
+          { type: "order", orderId: masterId }
+        );
+      }
+      return;
+    }
+
+    await masterRef.set(
+      {
+        orderNumber: masterNumber,
+        sellerOrderIds,
+        sellerCount: sellerOrderIds.length,
+        status: "placed",
+        placedAt: Timestamp.now(),
+      },
+      { merge: true }
+    );
+    if (master.buyerId) {
+      await pushToUser(
+        db,
+        master.buyerId,
+        {
+          title: "Order placed",
+          body: `Your order ${masterNumber} was submitted to ${sellerOrderIds.length} seller(s).`,
+        },
+        { type: "order", orderId: masterId }
+      );
+    }
+  }
+);
+
 exports.notifyOnNewOrder = onDocumentCreated(
   "orders/{orderId}",
   async (event) => {
@@ -688,6 +893,12 @@ exports.notifyOnNewOrder = onDocumentCreated(
     if (!snap) return;
     const order = snap.data();
     if (!order) return;
+
+    // Multi-seller sub-orders are created by onMasterOrderCreated (admin SDK)
+    // with all money fields + status already set authoritatively, and it sends
+    // the seller notification itself. Skip them here so the single-listing
+    // normalizer never touches them and the seller isn't notified twice.
+    if (order.masterOrderId) return;
 
     const db = getFirestore();
 
@@ -1185,7 +1396,8 @@ exports.emailStaffOnNewTicket = onDocumentCreated(
 // Shared: confirm a captured payment -> move the order into escrow, mark the
 // listing sold, record the hold in the ledger. Idempotent (guards on order
 // status). Used by the TEST provider and by the verified PayFast IPN webhook.
-async function confirmPaymentIntoEscrow(db, orderId, paymentRef, provider) {
+async function confirmPaymentIntoEscrow(db, orderId, paymentRef, provider, opts) {
+  opts = opts || {};
   const orderRef = db.collection("orders").doc(String(orderId));
   let held = null; // set to the order data when the payment is actually held
   await db.runTransaction(async (tx) => {
@@ -1216,9 +1428,11 @@ async function confirmPaymentIntoEscrow(db, orderId, paymentRef, provider) {
       status: "in_escrow",
       paymentStatus: "held_by_platform",
       orderStatus: order.orderStatus || "pending",
-      providerTransactionId: order.providerTransactionId || (paymentRef ? paymentRef.id : ""),
+      providerTransactionId:
+        order.providerTransactionId ||
+        (paymentRef ? paymentRef.id : opts.paymentId || ""),
       paymentProvider: provider || "test",
-      paymentId: paymentRef ? paymentRef.id : null,
+      paymentId: paymentRef ? paymentRef.id : opts.paymentId || null,
       paidToPlatformAt: Timestamp.now(),
       paidAt: Timestamp.now(),
     });
@@ -1249,7 +1463,7 @@ async function confirmPaymentIntoEscrow(db, orderId, paymentRef, provider) {
     amount: Number(held.amount) || 0,
     metadata: { provider: provider || "test" },
   });
-  if (held.buyerId) {
+  if (held.buyerId && !opts.suppressBuyerNotify) {
     await pushToUser(
       db,
       held.buyerId,
@@ -1273,14 +1487,108 @@ async function confirmPaymentIntoEscrow(db, orderId, paymentRef, provider) {
   }
 }
 
+// Multi-seller: the buyer makes ONE payment for the whole master order; this
+// fans the confirmed hold out to every sub-order so each seller's share is
+// escrowed independently (each sub-order already carries its own amount /
+// commission / payout, so allocation is automatic). Idempotent — each
+// confirmPaymentIntoEscrow call guards on its own order status. The buyer gets
+// a single summary notification instead of one per seller.
+async function confirmMasterPaymentIntoEscrow(db, masterId, paymentRef, provider) {
+  const subs = await db
+    .collection("orders")
+    .where("masterOrderId", "==", String(masterId))
+    .get();
+  const payId = paymentRef ? paymentRef.id : null;
+  let heldCount = 0;
+  let buyerId = "";
+  let masterNumber = "";
+  for (const doc of subs.docs) {
+    const st = doc.get("status");
+    buyerId = buyerId || doc.get("buyerId") || "";
+    const on = doc.get("orderNumber") || "";
+    masterNumber =
+      masterNumber || (on ? String(on).replace(/-S\d+$/, "") : "");
+    if (st === "pending_payment" || st === "payment_review") {
+      await confirmPaymentIntoEscrow(db, doc.id, null, provider, {
+        paymentId: payId,
+        suppressBuyerNotify: true,
+      });
+      heldCount++;
+    }
+  }
+  if (paymentRef) {
+    await paymentRef.update({
+      status: heldCount > 0 ? "paid" : "ignored",
+      provider: provider || "manual",
+      confirmedAt: Timestamp.now(),
+    });
+  }
+  await db
+    .collection("masterOrders")
+    .doc(String(masterId))
+    .set(
+      {
+        paymentStatus: heldCount > 0 ? "held" : "unknown",
+        paidAt: Timestamp.now(),
+      },
+      { merge: true }
+    )
+    .catch(() => {});
+  if (heldCount > 0 && buyerId) {
+    await pushToUser(
+      db,
+      buyerId,
+      {
+        title: "Payment received by PakBazar",
+        body: `Your payment for ${
+          masterNumber || "your order"
+        } is held securely. Each seller is paid after you confirm delivery of their package.`,
+      },
+      { type: "order", orderId: String(masterId) }
+    );
+  }
+}
+
 exports.onPaymentCreated = onDocumentCreated(
   "payments/{paymentId}",
   async (event) => {
     const pay = event.data && event.data.data();
-    if (!pay || !pay.orderId) return;
+    if (!pay || (!pay.orderId && !pay.masterOrderId)) return;
     const provider = pay.provider || "test";
     const db = getFirestore();
     const payRef = event.data.ref;
+
+    // Multi-seller: one payment for a whole master order (no single orderId).
+    // Manual proof waits for admin confirmation; TEST captures immediately.
+    // PayFast hosted checkout is single-order only for now.
+    if (pay.masterOrderId) {
+      const mRef = db.collection("masterOrders").doc(pay.masterOrderId);
+      const mSnap = await mRef.get();
+      if (!mSnap.exists || mSnap.get("status") !== "placed") {
+        await payRef.update({ status: "ignored" });
+        return;
+      }
+      if (provider === "manual") {
+        await payRef.update({ status: "awaiting_confirmation" });
+        // Reflect "under review" on each sub-order so the buyer sees progress.
+        const subs = await db
+          .collection("orders")
+          .where("masterOrderId", "==", pay.masterOrderId)
+          .get();
+        const batch = db.batch();
+        subs.forEach((d) => {
+          if (d.get("status") === "pending_payment") {
+            batch.update(d.ref, { status: "payment_review" });
+          }
+        });
+        await batch.commit();
+        await mRef.set({ paymentStatus: "review" }, { merge: true });
+        return;
+      }
+      // TEST provider: capture immediately.
+      await confirmMasterPaymentIntoEscrow(db, pay.masterOrderId, payRef, "test");
+      return;
+    }
 
     if (provider === "payfast") {
       // Initiate the hosted checkout and store the redirect URL on the payment
@@ -1360,12 +1668,38 @@ exports.onPaymentAction = onDocumentCreated(
     }
 
     if (act.type === "confirm") {
-      // confirmPaymentIntoEscrow is idempotent (guards on order status).
-      await confirmPaymentIntoEscrow(db, pay.orderId, payRef, "manual");
+      // Both confirm paths are idempotent (guard on each order's status).
+      if (pay.masterOrderId) {
+        await confirmMasterPaymentIntoEscrow(
+          db,
+          pay.masterOrderId,
+          payRef,
+          "manual"
+        );
+      } else {
+        await confirmPaymentIntoEscrow(db, pay.orderId, payRef, "manual");
+      }
     } else if (act.type === "reject") {
       await payRef.update({ status: "rejected", rejectedAt: Timestamp.now() });
-      // Return the order to payable so the buyer can retry.
-      if (pay.orderId) {
+      // Return the order(s) to payable so the buyer can retry.
+      if (pay.masterOrderId) {
+        const subs = await db
+          .collection("orders")
+          .where("masterOrderId", "==", pay.masterOrderId)
+          .get();
+        const batch = db.batch();
+        subs.forEach((d) => {
+          if (d.get("status") === "payment_review") {
+            batch.update(d.ref, { status: "pending_payment" });
+          }
+        });
+        await batch.commit();
+        await db
+          .collection("masterOrders")
+          .doc(pay.masterOrderId)
+          .set({ paymentStatus: "unpaid" }, { merge: true })
+          .catch(() => {});
+      } else if (pay.orderId) {
         await db
           .collection("orders")
           .doc(pay.orderId)
@@ -1541,7 +1875,8 @@ exports.onEscrowAction = onDocumentCreated(
         } else {
           tx.update(orderRef, {
             status: "refunded",
-            orderStatus: "cancelled",
+            // Cancellations set 'cancelled'; a return refund sets 'returned'.
+            orderStatus: act.resultOrderStatus || "cancelled",
             paymentStatus: "refunded",
             refundAmount: refundValue,
             refundedAt: Timestamp.now(),
@@ -2015,6 +2350,296 @@ exports.onCancellationRequestDecision = onDocumentUpdated(
   }
 );
 
+// ---------------------------------------------------------------------------
+// Order returns (Phase 4)
+//
+// After delivery the buyer files a returnRequest. It always needs seller/admin
+// approval; on approval, while the money is still held, the audited escrow
+// refund runs with resultOrderStatus 'returned'. Mirrors the cancellation flow.
+// ---------------------------------------------------------------------------
+
+// Approves a return: refunds the held payment (reusing the escrow-refund path,
+// tagged to land the order on orderStatus 'returned') and records it. Idempotent
+// via a deterministic escrowActions id + the request's processedAt.
+async function processReturnApproval(
+  db, orderId, order, reqRef, req, actorId, actorRole
+) {
+  const orderRef = db.collection("orders").doc(orderId);
+  // Only refundable while the money is still held by the platform.
+  if (order.status !== "in_escrow" || (Number(order.amount) || 0) <= 0) {
+    await reqRef.set(
+      {
+        requestStatus: "rejected",
+        sellerResponse: "Order is no longer eligible for an in-app refund.",
+        processedAt: Timestamp.now(),
+      },
+      { merge: true }
+    );
+    await orderRef.set(
+      { returnRequested: false, returnRequestStatus: "rejected" },
+      { merge: true }
+    );
+    return;
+  }
+
+  try {
+    await db.collection("escrowActions").doc(`return_${orderId}`).create({
+      type: "refund",
+      orderId,
+      by: actorId || "system",
+      reason: `return:${req.reasonCode || ""}`,
+      source: "return",
+      resultOrderStatus: "returned",
+      createdAt: Timestamp.now(),
+    });
+  } catch (e) {
+    // Already queued/processed — continue idempotently.
+  }
+  await orderRef.set(
+    {
+      returnRequested: false,
+      returnRequestStatus: "approved",
+      returnedAt: Timestamp.now(),
+      returnedBy: actorId || "",
+      returnReasonCode: req.reasonCode || "",
+    },
+    { merge: true }
+  );
+  await reqRef.set(
+    {
+      requestStatus: "approved",
+      refundStatus: "pending",
+      reviewedBy: actorId || "",
+      reviewedAt: Timestamp.now(),
+      processedAt: Timestamp.now(),
+    },
+    { merge: true }
+  );
+  await writeAudit(db, {
+    action: "return_approved",
+    entityType: "order",
+    entityId: orderId,
+    actorId: actorId || "",
+    actorRole,
+    previousStatus: order.orderStatus || order.status || "",
+    newStatus: "returned",
+    amount: Number(order.amount) || 0,
+    reason: req.reasonCode || "",
+  });
+  if (order.buyerId) {
+    await pushToUser(
+      db,
+      order.buyerId,
+      {
+        title: "Return approved",
+        body: "Your return was approved — your payment is being refunded to your wallet.",
+      },
+      { type: "order", orderId }
+    );
+  }
+  if (order.sellerId && actorRole !== "seller") {
+    await pushToUser(
+      db,
+      order.sellerId,
+      {
+        title: "Return approved",
+        body: `A return on order "${order.listingTitle || orderId}" was approved.`,
+      },
+      { type: "order", orderId }
+    );
+  }
+}
+
+// A buyer filed a return request → validate + route to the seller/admin.
+exports.onReturnRequestCreated = onDocumentCreated(
+  "orders/{orderId}/returnRequests/{requestId}",
+  async (event) => {
+    const req = event.data && event.data.data();
+    if (!req) return;
+    const orderId = event.params.orderId;
+    const requestId = event.params.requestId;
+    const db = getFirestore();
+    const orderRef = db.collection("orders").doc(orderId);
+    const reqRef = event.data.ref;
+
+    const oSnap = await orderRef.get();
+    if (!oSnap.exists) {
+      return reqRef.set(
+        {
+          requestStatus: "rejected",
+          sellerResponse: "Order not found.",
+          processedAt: Timestamp.now(),
+        },
+        { merge: true }
+      );
+    }
+    const order = oSnap.data();
+
+    await orderRef.set(
+      {
+        returnRequested: true,
+        returnRequestId: requestId,
+        returnRequestStatus: "pending",
+      },
+      { merge: true }
+    );
+    await writeAudit(db, {
+      action: "return_requested",
+      entityType: "order",
+      entityId: orderId,
+      actorId: req.buyerId || "",
+      actorRole: "buyer",
+      previousStatus: order.orderStatus || order.status || "",
+      newStatus: "return_requested",
+      reason: req.reasonCode || "",
+    });
+
+    const elig = returnEligibility(order);
+    if (elig.mode === "reject") {
+      await orderRef.set(
+        { returnRequested: false, returnRequestStatus: "rejected" },
+        { merge: true }
+      );
+      await reqRef.set(
+        {
+          requestStatus: "rejected",
+          adminDecision: "auto",
+          sellerResponse: elig.reason || "",
+          processedAt: Timestamp.now(),
+          reviewedAt: Timestamp.now(),
+        },
+        { merge: true }
+      );
+      if (order.buyerId) {
+        await pushToUser(
+          db,
+          order.buyerId,
+          {
+            title: "Return not available",
+            body: elig.reason || "This order can't be returned in the app.",
+          },
+          { type: "order", orderId }
+        );
+      }
+      return;
+    }
+
+    // review — notify seller + admin, ack the buyer.
+    if (order.sellerId) {
+      await pushToUser(
+        db,
+        order.sellerId,
+        {
+          title: "Return requested",
+          body: `${order.buyerName || "The buyer"} requested a return on "${
+            order.listingTitle || "an order"
+          }". Review and respond.`,
+        },
+        { type: "order", orderId }
+      );
+    }
+    await notifyAdmins(
+      db,
+      {
+        title: "Return requested",
+        body: `Order "${order.listingTitle || orderId}" has a pending return request.`,
+      },
+      { type: "order", orderId }
+    );
+    if (order.buyerId) {
+      await pushToUser(
+        db,
+        order.buyerId,
+        {
+          title: "Return request received",
+          body: "Your return request has been sent for review.",
+        },
+        { type: "order", orderId }
+      );
+    }
+  }
+);
+
+// A pending return request was decided (or withdrawn). Apply the outcome.
+exports.onReturnRequestDecision = onDocumentUpdated(
+  "orders/{orderId}/returnRequests/{requestId}",
+  async (event) => {
+    const before = (event.data.before && event.data.before.data()) || {};
+    const after = (event.data.after && event.data.after.data()) || {};
+    const orderId = event.params.orderId;
+    const db = getFirestore();
+
+    if (before.requestStatus !== "pending") return;
+    if (before.processedAt || after.processedAt) return;
+
+    const orderRef = db.collection("orders").doc(orderId);
+    const reqRef = event.data.after.ref;
+
+    if (after.requestStatus === "approved") {
+      const oSnap = await orderRef.get();
+      if (!oSnap.exists) return;
+      const order = oSnap.data();
+      const actorRole =
+        after.decidedByRole || (after.adminDecision ? "admin" : "seller");
+      await processReturnApproval(
+        db, orderId, order, reqRef, after, after.reviewedBy || "", actorRole
+      );
+      return;
+    }
+
+    if (after.requestStatus === "rejected") {
+      await orderRef.set(
+        {
+          returnRequested: false,
+          returnRequestStatus: "rejected",
+          returnDecisionNote: after.sellerResponse || "",
+        },
+        { merge: true }
+      );
+      await reqRef.set({ processedAt: Timestamp.now() }, { merge: true });
+      await writeAudit(db, {
+        action: "return_rejected",
+        entityType: "order",
+        entityId: orderId,
+        actorId: after.reviewedBy || "",
+        actorRole: after.decidedByRole || "seller",
+        reason: after.sellerResponse || "",
+      });
+      const oSnap = await orderRef.get();
+      const order = oSnap.exists ? oSnap.data() : {};
+      if (order.buyerId) {
+        await pushToUser(
+          db,
+          order.buyerId,
+          {
+            title: "Return declined",
+            body: after.sellerResponse
+              ? `Your return request was declined: ${after.sellerResponse}`
+              : "Your return request was declined.",
+          },
+          { type: "order", orderId }
+        );
+      }
+      return;
+    }
+
+    if (after.requestStatus === "withdrawn") {
+      await orderRef.set(
+        { returnRequested: false, returnRequestStatus: "withdrawn" },
+        { merge: true }
+      );
+      await reqRef.set({ processedAt: Timestamp.now() }, { merge: true });
+      await writeAudit(db, {
+        action: "return_withdrawn",
+        entityType: "order",
+        entityId: orderId,
+        actorId: after.buyerId || "",
+        actorRole: "buyer",
+      });
+    }
+  }
+);
+
 // Alert the seller when a buyer opens a dispute / problem report. The payout is
 // already blocked server-side while the dispute is open (see onEscrowAction);
 // this only notifies. Admins see disputes in the dashboard.
@@ -2079,6 +2704,70 @@ exports.notifyOnDispute = onDocumentCreated(
 // platform-held order, we move payment_status to release_pending and open a
 // payout record for admin verification — the buyer app never releases money.
 // ---------------------------------------------------------------------------
+// Multi-seller (Phase 7): recompute a master order's aggregate delivery
+// progress from its sub-orders and, the first time every live package is
+// delivered, notify the buyer once. Idempotent — the allDelivered flip is
+// guarded inside a transaction so concurrent sub-order updates notify only
+// once. Cancelled/returned/refunded packages drop out of the "active" set so
+// a partly-cancelled order can still reach "all delivered".
+async function refreshMasterProgress(db, masterId) {
+  if (!masterId) return;
+  const subs = await db
+    .collection("orders")
+    .where("masterOrderId", "==", String(masterId))
+    .get();
+  if (subs.empty) return;
+  const doneStates = new Set(["delivered", "buyer_confirmed", "completed"]);
+  const deadStates = new Set(["cancelled", "returned", "rejected"]);
+  let delivered = 0;
+  let active = 0;
+  subs.forEach((d) => {
+    const os = d.get("orderStatus") || "";
+    const st = d.get("status") || "";
+    if (deadStates.has(os) || st === "cancelled" || st === "refunded") return;
+    active++;
+    if (doneStates.has(os)) delivered++;
+  });
+  const allDelivered = active > 0 && delivered === active;
+  const mRef = db.collection("masterOrders").doc(String(masterId));
+  let notify = null;
+  await db.runTransaction(async (tx) => {
+    const m = await tx.get(mRef);
+    if (!m.exists) return;
+    const wasAll = m.get("allDelivered") === true;
+    tx.set(
+      mRef,
+      {
+        deliveredCount: delivered,
+        activeCount: active,
+        packageCount: subs.size,
+        allDelivered,
+        progressUpdatedAt: Timestamp.now(),
+      },
+      { merge: true }
+    );
+    if (allDelivered && !wasAll) {
+      notify = {
+        buyerId: m.get("buyerId") || "",
+        number: m.get("orderNumber") || "",
+      };
+    }
+  });
+  if (notify && notify.buyerId) {
+    await pushToUser(
+      db,
+      notify.buyerId,
+      {
+        title: "All packages delivered",
+        body: `Every package in order ${
+          notify.number || "your order"
+        } is delivered. Confirm receipt of each package to release the sellers' payments.`,
+      },
+      { type: "order", orderId: String(masterId) }
+    );
+  }
+}
+
 exports.onOrderProgress = onDocumentUpdated(
   "orders/{orderId}",
   async (event) => {
@@ -2086,6 +2775,12 @@ exports.onOrderProgress = onDocumentUpdated(
     const after = (event.data.after && event.data.after.data()) || {};
     const orderId = event.params.orderId;
     const db = getFirestore();
+    const masterId = after.masterOrderId || before.masterOrderId || "";
+    // Any fulfillment/status change on a sub-order can shift the master's
+    // aggregate delivery progress.
+    const progressChanged =
+      before.orderStatus !== after.orderStatus ||
+      before.status !== after.status;
 
     // Direct buyer cancellation of an UNPAID order (client write, no request
     // doc). The paid/refund and request-approval paths emit their own
@@ -2130,6 +2825,7 @@ exports.onOrderProgress = onDocumentUpdated(
         },
         { type: "order", orderId }
       );
+      if (masterId) await refreshMasterProgress(db, masterId);
       return;
     }
 
@@ -2198,20 +2894,32 @@ exports.onOrderProgress = onDocumentUpdated(
         },
         { type: "payout", orderId }
       );
+      if (masterId) await refreshMasterProgress(db, masterId);
       return;
     }
 
-    // Buyer-facing fulfillment notifications (seller advanced the order).
+    // Buyer-facing fulfillment notifications (seller advanced the order). For a
+    // multi-seller order each sub-order is one package, so name the package so
+    // the buyer knows which shipment moved; single Buy Now wording is unchanged.
     if (after.orderStatus !== before.orderStatus && after.buyerId) {
-      const msg = {
-        accepted: "The seller accepted your order.",
-        processing: "Your order is being prepared.",
-        shipped: `Your order has shipped${
-          after.courierName ? ` via ${after.courierName}` : ""
-        }.`,
-        delivered:
-          "Your order is marked delivered — please confirm once you've received and checked it.",
-      }[after.orderStatus];
+      const isPkg = !!after.masterOrderId;
+      const courier = after.courierName ? ` via ${after.courierName}` : "";
+      const msg = isPkg
+        ? {
+            accepted: `Package ${after.orderNumber || ""} was accepted by the seller.`,
+            processing: `Package ${after.orderNumber || ""} is being prepared.`,
+            shipped: `Package ${after.orderNumber || ""} has shipped${courier}.`,
+            delivered: `Package ${
+              after.orderNumber || ""
+            } is marked delivered — please confirm once you've received and checked it.`,
+          }[after.orderStatus]
+        : {
+            accepted: "The seller accepted your order.",
+            processing: "Your order is being prepared.",
+            shipped: `Your order has shipped${courier}.`,
+            delivered:
+              "Your order is marked delivered — please confirm once you've received and checked it.",
+          }[after.orderStatus];
       if (msg) {
         await pushToUser(
           db,
@@ -2221,6 +2929,8 @@ exports.onOrderProgress = onDocumentUpdated(
         );
       }
     }
+
+    if (masterId && progressChanged) await refreshMasterProgress(db, masterId);
   }
 );
 

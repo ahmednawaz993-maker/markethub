@@ -231,6 +231,13 @@ service cloud.firestore {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
       }
 
+      // The buyer's shopping cart — private to the owner. One doc per line
+      // item (doc id == listingId). No seller/admin access; carts never hold
+      // money and are converted to orders at checkout.
+      match /cart/{itemId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
       // Seller payout accounts — private to the seller (and payments admins).
       // The seller manages routing details but can NEVER self-verify:
       // verificationStatus is admin/Cloud-Function only. Buyers can't read them
@@ -518,6 +525,64 @@ service cloud.firestore {
                       );
         allow delete: if false;
       }
+
+      // Buyer return requests (Phase 4). Same shape/authority as cancellation
+      // requests: buyer files, seller/orders-staff decides, buyer withdraws
+      // while pending. The refund + 'returned' status are applied by a Cloud
+      // Function (admin SDK); clients only move requestStatus.
+      match /returnRequests/{requestId} {
+        function parentOrder() {
+          return get(/databases/$(database)/documents/orders/$(orderId)).data;
+        }
+        allow read: if isSignedIn() && (
+                      can('orders')
+                      || parentOrder().buyerId == request.auth.uid
+                      || parentOrder().sellerId == request.auth.uid
+                    );
+        allow create: if isSignedIn()
+                      && parentOrder().buyerId == request.auth.uid
+                      && request.resource.data.requestStatus == 'pending'
+                      && request.resource.data.buyerId == request.auth.uid
+                      && request.resource.data.requestedBy == request.auth.uid;
+        allow update: if isSignedIn()
+                      && resource.data.requestStatus == 'pending'
+                      && (
+                        (
+                          (parentOrder().sellerId == request.auth.uid
+                            || can('orders'))
+                          && request.resource.data.requestStatus
+                               in ['approved', 'rejected']
+                        )
+                        || (parentOrder().buyerId == request.auth.uid
+                            && request.resource.data.requestStatus == 'withdrawn')
+                      );
+        allow delete: if false;
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // Master orders — a buyer's multi-seller checkout intent (Phase 3). The
+    // buyer writes one master; a Cloud Function (onMasterOrderCreated, admin
+    // SDK) fans it out into per-seller orders/{id}. The buyer never writes the
+    // per-seller money fields — those are server-authoritative.
+    // ---------------------------------------------------------------------
+    match /masterOrders/{masterId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.buyerId == request.auth.uid
+                    && isVerifiedUser()
+                    && isNotBlocked()
+                    && request.resource.data.status == 'pending';
+      allow read: if isSignedIn()
+                  && (resource.data.buyerId == request.auth.uid || can('orders'));
+      // Fan-out + admin edits only (the function uses the admin SDK, which
+      // bypasses rules); clients can't mutate a master after creating it.
+      allow update, delete: if can('orders');
+    }
+
+    // Server-only sequence counters (order numbers). Written by Cloud Functions
+    // via the admin SDK; no client access.
+    match /counters/{counterId} {
+      allow read, write: if false;
     }
 
     // ---------------------------------------------------------------------
