@@ -940,7 +940,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final categories = appCategories.where((c) => c.title != 'All').toList();
 
     return Container(
-      color: const Color(0xFFEFF1F2),
+      color: AppColors.surfaceVariant,
       child: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('listings')
@@ -1681,7 +1681,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _navItem(IconData icon, String label, int index) {
     final selected = selectedIndex == index;
-    final color = selected ? kPakGreen : Colors.grey;
+    final color = selected ? kPakGreen : AppColors.textMuted;
     return Expanded(
       child: InkWell(
         onTap: () => setState(() => selectedIndex = index),
@@ -1736,7 +1736,7 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
         height: 62,
-        color: Colors.white,
+        color: AppColors.surface,
         elevation: 16,
         shape: const CircularNotchedRectangle(),
         notchMargin: 6,
