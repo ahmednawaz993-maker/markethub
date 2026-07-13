@@ -144,7 +144,7 @@ class AddressBookScreen extends StatelessWidget {
                         ),
                         Text(
                           a.phone,
-                          style: const TextStyle(color: Colors.grey),
+                          style: TextStyle(color: AppColors.textMuted),
                         ),
                         const SizedBox(height: 2),
                         Text(a.shortSummary),

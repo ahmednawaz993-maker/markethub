@@ -1,6 +1,6 @@
 // Unit tests for PakBazar pure helpers.
 
-import 'package:flutter/widgets.dart' show Color, IconData;
+import 'package:flutter/widgets.dart' show Brightness, Color, IconData;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markethub/main.dart';
 
@@ -541,6 +541,35 @@ void main() {
       expect(statusColor('shipped'), isNot(statusColor('pending')));
       expect(statusIcon('completed'), isNot(statusIcon('cancelled')));
       expect(statusIcon('shipped'), isNot(statusIcon('processing')));
+    });
+
+    test('AppColors flip between light and dark, staying high-contrast', () {
+      final original = appBrightnessValue;
+      appBrightnessValue = Brightness.light;
+      final lightSurface = AppColors.surface;
+      final lightText = AppColors.textPrimary;
+      appBrightnessValue = Brightness.dark;
+      final darkSurface = AppColors.surface;
+      final darkText = AppColors.textPrimary;
+      appBrightnessValue = original;
+
+      // Surfaces and text actually change between modes.
+      expect(lightSurface, isNot(darkSurface));
+      expect(lightText, isNot(darkText));
+      // Light mode: light surface, dark text. Dark mode: dark surface, light text.
+      expect(lightSurface.computeLuminance(), greaterThan(0.8));
+      expect(lightText.computeLuminance(), lessThan(0.15));
+      expect(darkSurface.computeLuminance(), lessThan(0.15));
+      expect(darkText.computeLuminance(), greaterThan(0.6));
+      // Each mode keeps a big text/surface contrast gap.
+      expect(
+        (lightSurface.computeLuminance() - lightText.computeLuminance()).abs(),
+        greaterThan(0.6),
+      );
+      expect(
+        (darkText.computeLuminance() - darkSurface.computeLuminance()).abs(),
+        greaterThan(0.5),
+      );
     });
 
     test('primary text is high-contrast against the light surface', () {

@@ -96,7 +96,7 @@ class OrderFulfillmentPanel extends StatelessWidget {
           const SizedBox(height: 6),
           Row(
             children: [
-              const Icon(Icons.local_shipping, size: 14, color: Colors.grey),
+              Icon(Icons.local_shipping, size: 14, color: AppColors.textMuted),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
@@ -124,11 +124,11 @@ class OrderFulfillmentPanel extends StatelessWidget {
           const SizedBox(height: 4),
           Row(
             children: [
-              const Icon(Icons.event_outlined, size: 14, color: Colors.grey),
+              Icon(Icons.event_outlined, size: 14, color: AppColors.textMuted),
               const SizedBox(width: 4),
               Text(
                 shipDates,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
             ],
           ),
@@ -152,7 +152,7 @@ class OrderFulfillmentPanel extends StatelessWidget {
                     '(cash collected on delivery).'
               : 'Dispatched — waiting for the buyer to confirm they received it, '
                     'which releases your payout for settlement.',
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
+          style: TextStyle(fontSize: 12, color: AppColors.textMuted),
         ),
       );
     }
@@ -227,7 +227,7 @@ class OrderFulfillmentPanel extends StatelessWidget {
                     'delivery, then confirm receipt once it has been dispatched.'
               : 'The seller is preparing your order. You can confirm receipt '
                     'once it has been dispatched.',
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
+          style: TextStyle(fontSize: 12, color: AppColors.textMuted),
         ),
       );
     }
@@ -336,7 +336,7 @@ class OrderFulfillmentPanel extends StatelessWidget {
                       : 'Enter the courier and tracking number so the buyer can '
                             'follow the delivery. Marking dispatched notifies '
                             'the buyer.',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -352,8 +352,9 @@ class OrderFulfillmentPanel extends StatelessWidget {
                 TextField(
                   controller: tracking,
                   decoration: InputDecoration(
-                    labelText:
-                        _isCod ? 'Tracking number (optional)' : 'Tracking number',
+                    labelText: _isCod
+                        ? 'Tracking number (optional)'
+                        : 'Tracking number',
                     border: const OutlineInputBorder(),
                   ),
                 ),

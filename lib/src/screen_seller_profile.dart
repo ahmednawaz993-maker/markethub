@@ -205,8 +205,8 @@ class SellerProfileScreen extends StatelessWidget {
                               if (memberSince.isNotEmpty)
                                 Text(
                                   memberSince,
-                                  style: const TextStyle(
-                                    color: Colors.grey,
+                                  style: TextStyle(
+                                    color: AppColors.textMuted,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -523,7 +523,7 @@ class _FollowButtonState extends State<_FollowButton> {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   '$count follower${count == 1 ? '' : 's'}',
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                 ),
               ),
           ],

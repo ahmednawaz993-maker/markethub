@@ -113,7 +113,9 @@ class _SummaryRow extends StatelessWidget {
             style: TextStyle(
               fontWeight: bold || isFree ? FontWeight.bold : FontWeight.normal,
               fontSize: bold ? 16 : 14,
-              color: isFree ? kPakGreen : (bold ? kPakGreen : Colors.black87),
+              color: isFree
+                  ? kPakGreen
+                  : (bold ? kPakGreen : AppColors.textSecondary),
             ),
           ),
         ],
@@ -372,9 +374,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ),
                   if (a.isDefault) ...[
                     const SizedBox(width: 6),
-                    const Text(
+                    Text(
                       'Default',
-                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textMuted,
+                      ),
                     ),
                   ],
                 ],
@@ -384,18 +389,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 a.fullName,
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
-              Text(a.phone, style: const TextStyle(color: Colors.grey)),
+              Text(a.phone, style: TextStyle(color: AppColors.textMuted)),
               const SizedBox(height: 2),
               Text(a.shortSummary),
               if (a.landmark.trim().isNotEmpty)
                 Text(
                   'Landmark: ${a.landmark}',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
               if (a.postalCode.trim().isNotEmpty)
                 Text(
                   'Postal code: ${a.postalCode}',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
             ],
           ],
@@ -575,7 +580,7 @@ class OrderConfirmationScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           const SizedBox(height: 8),
-          const Icon(Icons.check_circle, color: AppColors.success, size: 64),
+          Icon(Icons.check_circle, color: AppColors.success, size: 64),
           const SizedBox(height: 8),
           const Center(
             child: Text(
@@ -632,14 +637,17 @@ class OrderConfirmationScreen extends StatelessWidget {
                   ),
                   Text(
                     address.phone,
-                    style: const TextStyle(color: Colors.grey),
+                    style: TextStyle(color: AppColors.textMuted),
                   ),
                   const SizedBox(height: 2),
                   Text(address.shortSummary),
                   if (address.landmark.trim().isNotEmpty)
                     Text(
                       'Landmark: ${address.landmark}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
                     ),
                 ],
               ),
@@ -668,7 +676,7 @@ class OrderConfirmationScreen extends StatelessWidget {
                               'delivered. Track it in Profile → My Orders.'
                         : 'Pay online — open Profile → My Orders to pay and hold '
                               'the amount safely in escrow.',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       color: AppColors.textPrimary,
                     ),

@@ -52,9 +52,9 @@ Future<void> showPromoteSheet(BuildContext context, Listing listing) async {
                 ],
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Get a FEATURED badge and top placement — free for 3 months.',
-                style: TextStyle(color: Colors.grey),
+                style: TextStyle(color: AppColors.textMuted),
               ),
               const SizedBox(height: 16),
               if (active)
@@ -383,7 +383,7 @@ Future<void> showInventorySheet(BuildContext context, Listing listing) async {
               child: Text(
                 'You control availability. Placing, paying for, or delivering '
                 'an order never changes this automatically.',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
             ),
             const SizedBox(height: 8),
@@ -630,7 +630,7 @@ Future<void> showOfferSheet(BuildContext context, Listing listing) async {
                   const SizedBox(height: 4),
                   Text(
                     'Asking price: ${formatPrice(listing.price)}',
-                    style: const TextStyle(color: Colors.grey),
+                    style: TextStyle(color: AppColors.textMuted),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -794,13 +794,13 @@ Future<void> showTopupSheet(BuildContext context) async {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
                 'Pay to the account below via bank transfer / JazzCash / '
                 'EasyPaisa, then tap your amount to request credit. An admin '
                 'confirms the payment and credits your wallet.',
-                style: TextStyle(color: Colors.grey),
+                style: TextStyle(color: AppColors.textMuted),
               ),
             ),
             const _PaymentAccountInfo(),
@@ -875,7 +875,10 @@ class _PaymentAccountInfo extends StatelessWidget {
                     width: 104,
                     child: Text(
                       label,
-                      style: const TextStyle(color: Colors.grey, fontSize: 13),
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                   Expanded(
@@ -923,7 +926,7 @@ class _PaymentAccountInfo extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
                     note,
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                   ),
                 ),
             ],

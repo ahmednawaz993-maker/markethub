@@ -11,49 +11,104 @@ const Color kPakGreen = Color(
 const Color kPakGreenLight = Color(0xFF2E5AA0); // lighter navy accent
 const Color kGold = Color(0xFFC9A227); // premium gold accent
 
-/// Centralised semantic colours. Screens should reference these instead of
-/// hardcoding raw values, so contrast stays consistent everywhere.
+// ── Theme mode (light / dark / system) ──────────────────────────────────────
+//
+// Light mode  = navy gradient chrome + WHITE cards + dark card text (the
+//               original look).
+// Dark mode   = a darker navy gradient + DARK-SLATE cards + light card text.
+// The gradient stays navy in both, so on-navy white text/icons are correct in
+// both modes and never change — only surfaces and their text flip.
+
+/// Current theme mode; persisted and listened to by PakBazarApp. Defaults to
+/// LIGHT (the established look) so no existing user's experience changes — dark
+/// mode is strictly opt-in via the Appearance selector in settings.
+final ValueNotifier<ThemeMode> appThemeMode = ValueNotifier<ThemeMode>(
+  ThemeMode.light,
+);
+const String _themeModePrefKey = 'app_theme_mode';
+
+/// The brightness actually in effect this frame. MaterialApp's builder writes
+/// it from the resolved Theme, so [AppColors] getters can return the right
+/// family without every call site needing a BuildContext.
+Brightness appBrightnessValue = Brightness.light;
+bool get _dark => appBrightnessValue == Brightness.dark;
+
+Future<void> loadSavedThemeMode() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    switch (prefs.getString(_themeModePrefKey)) {
+      case 'light':
+        appThemeMode.value = ThemeMode.light;
+      case 'dark':
+        appThemeMode.value = ThemeMode.dark;
+      case 'system':
+        appThemeMode.value = ThemeMode.system;
+    }
+  } catch (_) {}
+}
+
+Future<void> setThemeMode(ThemeMode mode) async {
+  appThemeMode.value = mode;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themeModePrefKey, mode.name);
+  } catch (_) {}
+}
+
+/// Centralised, theme-aware semantic colours. Screens reference these instead of
+/// hardcoding raw values, so both light and dark modes stay readable.
 ///
-/// The app renders content over a dark navy gradient (see [AppBackground]).
 /// Two text families exist:
-///  • `on-surface`  → dark text used on a white Card/surface ([textPrimary] …)
-///  • `on-navy`     → light text used directly on the navy gradient ([onNavy] …)
-/// Using the wrong family is exactly the low-contrast bug this system prevents.
+///  • `on-surface`  → [textPrimary]… : dark in light mode, light in dark mode.
+///  • `on-navy`     → [onNavy]…       : always light (the gradient is navy in
+///    both modes). Using the wrong family is the low-contrast bug to avoid.
 abstract final class AppColors {
-  // Brand
+  // Brand (constant)
   static const Color primary = kPakGreen;
   static const Color primaryDeep = kPakGreenDeep;
   static const Color secondary = kGold;
 
-  // Light surfaces (Cards, sheets, dialogs)
-  static const Color surface = Colors.white;
-  static Color surfaceVariant = const Color(0xFFF3F5F9); // subtle grey panel
-  static const Color card = Colors.white;
+  // Surfaces — white in light, dark slate in dark (distinct from the gradient).
+  static Color get surface => _dark ? const Color(0xFF17253F) : Colors.white;
+  static Color get card => surface;
+  static Color get surfaceVariant =>
+      _dark ? const Color(0xFF0F1C33) : const Color(0xFFF3F5F9);
 
-  // Text ON a light surface (WCAG AA on white)
-  static const Color textPrimary = Color(0xFF17223B); // ~15:1 on white
-  static Color textSecondary = const Color(0xFF4A5568); // ~7:1 on white
-  static Color textMuted = const Color(0xFF6B7280); // ~5:1 on white
+  // Text on a surface — flips with the surface.
+  static Color get textPrimary =>
+      _dark ? const Color(0xFFEAF0FA) : const Color(0xFF17223B);
+  static Color get textSecondary =>
+      _dark ? const Color(0xFFB4C1D8) : const Color(0xFF4A5568);
+  static Color get textMuted =>
+      _dark ? const Color(0xFF8B99B2) : const Color(0xFF6B7280);
   static const Color textOnPrimary = Colors.white;
-  static const Color link = kPakGreenLight;
+  static Color get link => _dark ? const Color(0xFF83ABE8) : kPakGreenLight;
 
-  // Text ON the navy gradient (light family)
+  // Text ON the navy gradient — always light (gradient is navy in both modes).
   static const Color onNavy = Colors.white;
   static const Color onNavyMuted = Colors.white70;
   static const Color onNavyFaint = Colors.white60;
 
   // Lines
-  static Color border = const Color(0xFFD8DEE9);
-  static Color divider = const Color(0xFFE2E8F0);
-  static Color disabled = const Color(0xFF9AA5B1);
+  static Color get border =>
+      _dark ? const Color(0xFF2D3F60) : const Color(0xFFD8DEE9);
+  static Color get divider =>
+      _dark ? const Color(0xFF25344F) : const Color(0xFFE2E8F0);
+  static Color get disabled =>
+      _dark ? const Color(0xFF5E6C88) : const Color(0xFF9AA5B1);
 
-  // Status / feedback (readable on white, distinguishable for colour-blind
-  // users when paired with the status icon + text label helpers below)
-  static const Color success = Color(0xFF1E7E45);
-  static const Color warning = Color(0xFFB26A00);
-  static const Color error = Color(0xFFC62828);
-  static const Color info = Color(0xFF1565C0);
-  static Color overlay = Colors.black.withValues(alpha: 0.45);
+  // Status — lighter in dark mode so it stays legible on dark surfaces. Always
+  // paired with statusIcon + a text label (never colour alone).
+  static Color get success =>
+      _dark ? const Color(0xFF55C98A) : const Color(0xFF1E7E45);
+  static Color get warning =>
+      _dark ? const Color(0xFFE7A23C) : const Color(0xFFB26A00);
+  static Color get error =>
+      _dark ? const Color(0xFFF08C8C) : const Color(0xFFC62828);
+  static Color get info =>
+      _dark ? const Color(0xFF6FA8E8) : const Color(0xFF1565C0);
+  static Color get overlay =>
+      Colors.black.withValues(alpha: _dark ? 0.6 : 0.45);
 }
 
 /// Brand colour for an order/payment status. Never the ONLY signal — always
@@ -225,21 +280,109 @@ class SurfacePanel extends StatelessWidget {
   }
 }
 
-ThemeData buildAppTheme() {
+/// A Light / Dark / System appearance selector for the settings screen.
+class ThemeTile extends StatelessWidget {
+  const ThemeTile({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: appThemeMode,
+      builder: (context, mode, _) {
+        Widget chip(String label, ThemeMode m, IconData icon) => ChoiceChip(
+          avatar: Icon(
+            icon,
+            size: 16,
+            color: mode == m ? Colors.white : AppColors.textMuted,
+          ),
+          label: Text(
+            label,
+            style: TextStyle(
+              color: mode == m ? Colors.white : AppColors.textSecondary,
+            ),
+          ),
+          selected: mode == m,
+          onSelected: (_) => setThemeMode(m),
+        );
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.brightness_6, color: kPakGreen),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Appearance',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    chip('System', ThemeMode.system, Icons.brightness_auto),
+                    chip('Light', ThemeMode.light, Icons.light_mode),
+                    chip('Dark', ThemeMode.dark, Icons.dark_mode),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Builds the light or dark theme. Because it is constructed once per mode
+/// (not per frame), it uses explicit [brightness]-derived colours rather than
+/// the live [AppColors] getters.
+ThemeData buildAppTheme(Brightness brightness) {
+  final dark = brightness == Brightness.dark;
+  final surface = dark ? const Color(0xFF17253F) : Colors.white;
+  final onSurface = dark ? const Color(0xFFEAF0FA) : const Color(0xFF17223B);
+  final onSurfaceMuted = dark
+      ? const Color(0xFFB4C1D8)
+      : const Color(0xFF4A5568);
+  final onSurfaceFaint = dark
+      ? const Color(0xFF8B99B2)
+      : const Color(0xFF6B7280);
+  final borderCol = dark ? const Color(0xFF2D3F60) : const Color(0xFFD8DEE9);
+  final dividerCol = dark ? const Color(0xFF25344F) : const Color(0xFFE2E8F0);
+  final errorCol = dark ? const Color(0xFFF08C8C) : const Color(0xFFC62828);
+
   final base = ThemeData(
+    brightness: brightness,
     primaryColor: kPakGreen,
     useMaterial3: false,
     scaffoldBackgroundColor: Colors.transparent,
     colorScheme: ColorScheme.fromSeed(
       seedColor: kPakGreen,
+      brightness: brightness,
       primary: kPakGreen,
       secondary: kGold,
+      surface: surface,
+      onSurface: onSurface,
+      error: errorCol,
     ),
     fontFamily: 'Roboto',
   );
 
   return base.copyWith(
+    // Card text should be readable on the (mode-dependent) surface.
+    textTheme: base.textTheme.apply(
+      bodyColor: onSurface,
+      displayColor: onSurface,
+    ),
     appBarTheme: const AppBarTheme(
+      // The app bar sits on the navy gradient in both modes → white text.
       backgroundColor: Colors.transparent,
       foregroundColor: Colors.white,
       elevation: 0,
@@ -252,9 +395,9 @@ ThemeData buildAppTheme() {
       ),
     ),
     cardTheme: CardThemeData(
-      color: Colors.white,
+      color: surface,
       elevation: 8,
-      shadowColor: Colors.black.withValues(alpha: 0.35),
+      shadowColor: Colors.black.withValues(alpha: dark ? 0.5 : 0.35),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       clipBehavior: Clip.antiAlias,
     ),
@@ -286,54 +429,53 @@ ThemeData buildAppTheme() {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: AppColors.surface,
+      fillColor: surface,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      // Readable label / placeholder / error text on the white field.
-      labelStyle: TextStyle(color: AppColors.textSecondary),
-      floatingLabelStyle: const TextStyle(
-        color: kPakGreen,
+      // Readable label / placeholder / error text on the field, both modes.
+      labelStyle: TextStyle(color: onSurfaceMuted),
+      floatingLabelStyle: TextStyle(
+        color: dark ? const Color(0xFF83ABE8) : kPakGreen,
         fontWeight: FontWeight.w600,
       ),
-      hintStyle: TextStyle(color: AppColors.textMuted),
-      errorStyle: const TextStyle(
-        color: AppColors.error,
-        fontWeight: FontWeight.w600,
-      ),
-      prefixIconColor: AppColors.textSecondary,
-      suffixIconColor: AppColors.textSecondary,
+      hintStyle: TextStyle(color: onSurfaceFaint),
+      errorStyle: TextStyle(color: errorCol, fontWeight: FontWeight.w600),
+      prefixIconColor: onSurfaceMuted,
+      suffixIconColor: onSurfaceMuted,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: AppColors.border),
+        borderSide: BorderSide(color: borderCol),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: AppColors.border),
+        borderSide: BorderSide(color: borderCol),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: kPakGreen, width: 2),
+        borderSide: BorderSide(
+          color: dark ? const Color(0xFF83ABE8) : kPakGreen,
+          width: 2,
+        ),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+        borderSide: BorderSide(color: errorCol, width: 1.5),
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.error, width: 2),
+        borderSide: BorderSide(color: errorCol, width: 2),
       ),
     ),
     chipTheme: base.chipTheme.copyWith(
       selectedColor: kPakGreen,
       secondarySelectedColor: kPakGreen,
-      labelStyle: const TextStyle(fontWeight: FontWeight.w500),
+      labelStyle: TextStyle(color: onSurface, fontWeight: FontWeight.w500),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     ),
     bottomNavigationBarTheme: BottomNavigationBarThemeData(
-      backgroundColor: AppColors.surface,
-      selectedItemColor: kPakGreen,
-      // Darker than the old Colors.grey so unselected tabs meet the 4.5:1 AA
-      // target instead of washing out.
-      unselectedItemColor: AppColors.textMuted,
+      backgroundColor: surface,
+      selectedItemColor: dark ? const Color(0xFF83ABE8) : kPakGreen,
+      // Meets the 4.5:1 AA target for unselected tabs in both modes.
+      unselectedItemColor: onSurfaceFaint,
       type: BottomNavigationBarType.fixed,
       elevation: 16,
       // Smaller labels so all 5 items fit comfortably on narrow phones.
@@ -345,22 +487,22 @@ ThemeData buildAppTheme() {
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      backgroundColor: AppColors.primaryDeep,
+      backgroundColor: kPakGreenDeep,
       contentTextStyle: const TextStyle(color: Colors.white),
       actionTextColor: kGold,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ),
     dialogTheme: DialogThemeData(
-      backgroundColor: AppColors.surface,
-      titleTextStyle: const TextStyle(
-        color: AppColors.textPrimary,
+      backgroundColor: surface,
+      titleTextStyle: TextStyle(
+        color: onSurface,
         fontSize: 18,
         fontWeight: FontWeight.bold,
       ),
-      contentTextStyle: TextStyle(color: AppColors.textSecondary, height: 1.35),
+      contentTextStyle: TextStyle(color: onSurfaceMuted, height: 1.35),
     ),
-    dividerColor: AppColors.divider,
-    disabledColor: AppColors.disabled,
+    dividerColor: dividerCol,
+    disabledColor: dark ? const Color(0xFF5E6C88) : const Color(0xFF9AA5B1),
   );
 }
 

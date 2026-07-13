@@ -492,9 +492,9 @@ class SellerAnalyticsScreen extends StatelessWidget {
                         Text(
                           '${a.views} views · $l leads '
                           '(📞 ${a.calls}  💬 ${a.chats}  🟢 ${a.whatsapps})',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey,
+                            color: AppColors.textMuted,
                           ),
                         ),
                       ],
@@ -528,7 +528,7 @@ class SellerAnalyticsScreen extends StatelessWidget {
               ),
               Text(
                 label,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
             ],
           ),
@@ -565,13 +565,13 @@ Future<void> showLowerPriceSheet(BuildContext context, Listing listing) async {
                 const SizedBox(height: 4),
                 Text(
                   'Current price: ${formatPrice(listing.price)}',
-                  style: const TextStyle(color: Colors.grey),
+                  style: TextStyle(color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   'A lower price shows a "Price dropped" badge and alerts '
                   'everyone who saved this ad or follows you.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 12),
                 TextField(

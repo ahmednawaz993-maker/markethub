@@ -770,9 +770,9 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                     if (listing.hasRecentPriceDrop) ...[
                       Text(
                         formatPrice(listing.previousPrice),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
-                          color: Colors.grey,
+                          color: AppColors.textMuted,
                           decoration: TextDecoration.lineThrough,
                         ),
                       ),
@@ -1013,7 +1013,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                             width: 150,
                             child: Text(
                               e.key,
-                              style: const TextStyle(color: Colors.grey),
+                              style: TextStyle(color: AppColors.textMuted),
                             ),
                           ),
                           Expanded(
@@ -1139,10 +1139,10 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                     ),
                   ),
                 ] else
-                  const Center(
+                  Center(
                     child: Text(
                       'This is your ad',
-                      style: TextStyle(color: Colors.grey),
+                      style: TextStyle(color: AppColors.textMuted),
                     ),
                   ),
                 _SimilarAds(listing: listing),
@@ -1251,9 +1251,9 @@ class _PriceInsight extends StatelessWidget {
                       'Similar $scope ads sell for '
                       '${formatPrice(low.toStringAsFixed(0))}–'
                       '${formatPrice(high.toStringAsFixed(0))}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Colors.black54,
+                        color: AppColors.textMuted,
                       ),
                     ),
                   ],
@@ -1341,10 +1341,10 @@ class _IconText extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: Colors.grey[700]),
+        Icon(icon, size: 16, color: AppColors.textSecondary),
         const SizedBox(width: 4),
         Flexible(
-          child: Text(text, style: TextStyle(color: Colors.grey[800])),
+          child: Text(text, style: TextStyle(color: AppColors.textSecondary)),
         ),
       ],
     );

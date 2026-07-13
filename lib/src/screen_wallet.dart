@@ -149,7 +149,7 @@ class WalletScreen extends StatelessWidget {
                         ),
                         title: Text(
                           credit ? 'Top-up' : 'Purchase: ${d['purpose'] ?? ''}',
-                          style: const TextStyle(color: AppColors.textPrimary),
+                          style: TextStyle(color: AppColors.textPrimary),
                         ),
                         subtitle: Text(
                           timeAgo(d['createdAt'] as Timestamp?),
@@ -219,7 +219,7 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
               const SizedBox(height: 4),
               Text(
                 'Available: ${formatPrice('$balance')}',
-                style: const TextStyle(color: Colors.grey),
+                style: TextStyle(color: AppColors.textMuted),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -316,10 +316,10 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
                 label: const Text('Request withdrawal'),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Your balance is held while the payout is processed. If it is '
                 'rejected, the amount is refunded to your wallet.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
             ],
           ),
@@ -427,9 +427,9 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
+                Text(
                   'Promote your business with a banner on the home screen.',
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 12),
                 AspectRatio(
@@ -511,9 +511,9 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
                   child: Text(submitting ? 'Sending…' : 'Submit request'),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Paid instantly from your PakBazar Wallet (Profile → Wallet).',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
               ],
             ),

@@ -328,7 +328,7 @@ class PayoutAccountsScreen extends StatelessWidget {
                       Text(a.accountTitle),
                       Text(
                         a.maskedIdentifier,
-                        style: const TextStyle(color: Colors.grey),
+                        style: TextStyle(color: AppColors.textMuted),
                       ),
                       Row(
                         children: [
@@ -592,11 +592,7 @@ class _PayoutAccountFormScreenState extends State<PayoutAccountFormScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
-                    Icons.info_outline,
-                    size: 16,
-                    color: AppColors.info,
-                  ),
+                  Icon(Icons.info_outline, size: 16, color: AppColors.info),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
