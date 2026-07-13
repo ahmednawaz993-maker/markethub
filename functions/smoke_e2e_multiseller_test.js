@@ -189,8 +189,15 @@ const subOrders = async (masterId) =>
     check("seller 3 order remains active (in_escrow)", s3.status === "in_escrow", { got: s3.status });
 
     // (11) admin allocation: master held; live sub-orders sum to total.
-    const m2 = (await db.collection("masterOrders").doc(masterId).get()).data();
-    check("master paymentStatus=held (admin allocation)", m2.paymentStatus === "held", { got: m2.paymentStatus });
+    // The seller-2 refund fires refreshMasterProgress asynchronously, so poll
+    // for the master to settle back on paymentStatus=held rather than read once.
+    const m2 = await waitFor(async () => {
+      const m = (await db.collection("masterOrders").doc(masterId).get()).data();
+      return m && m.paymentStatus === "held" ? m : null;
+    }, "master paymentStatus=held (admin allocation)");
+    check("master paymentStatus=held (admin allocation)", !!m2, {
+      got: m2 && m2.paymentStatus,
+    });
     const sumAll = subs.reduce((a, d) => a + (d.data().amount || 0), 0);
     check("sub-order amounts sum to the paid total", sumAll === total, { got: sumAll, expected: total });
 

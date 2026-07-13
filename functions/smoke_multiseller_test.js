@@ -197,8 +197,15 @@ async function escrowMultiSeller() {
     held && held.every((d) => d.data().paymentStatus === "held_by_platform"),
     { got: held && held.map((d) => d.data().paymentStatus) }
   );
-  const mPaid = (await db.collection("masterOrders").doc(masterId).get()).data();
-  check("master paymentStatus=held", mPaid.paymentStatus === "held", { got: mPaid.paymentStatus });
+  // The master's own paymentStatus is set by a trigger that fires just after
+  // the sub-orders reach escrow, so poll for it rather than reading once.
+  const mPaid = await waitFor(async () => {
+    const m = (await db.collection("masterOrders").doc(masterId).get()).data();
+    return m && m.paymentStatus === "held" ? m : null;
+  }, "master paymentStatus=held");
+  check("master paymentStatus=held", !!mPaid, {
+    got: mPaid && mPaid.paymentStatus,
+  });
 
   // (C) Deliver both packages → per-package push + aggregate "all delivered".
   for (const d of held || []) {
