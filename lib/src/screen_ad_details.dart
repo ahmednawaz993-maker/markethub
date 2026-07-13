@@ -1356,8 +1356,9 @@ class _SafetyTips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Card(
-      color: Colors.amber.shade50,
+      color: dark ? const Color(0xFF33301E) : Colors.amber.shade50,
       child: ExpansionTile(
         leading: const Icon(Icons.shield_outlined, color: Colors.amber),
         title: const Text('Safety tips'),
