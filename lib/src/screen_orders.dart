@@ -85,12 +85,12 @@ Future<void> _submitPaymentProofSheet(
                   const SizedBox(height: 4),
                   Text(
                     'Amount: ${formatPrice(amount.toStringAsFixed(0))}',
-                    style: const TextStyle(color: Colors.grey),
+                    style: TextStyle(color: AppColors.textMuted),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     description,
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                   ),
                   const _PaymentAccountInfo(),
                   const SizedBox(height: 12),
@@ -124,7 +124,9 @@ Future<void> _submitPaymentProofSheet(
                             ),
                           )
                         : const Icon(Icons.lock),
-                    label: Text(submitting ? 'Submitting…' : 'I have paid — submit'),
+                    label: Text(
+                      submitting ? 'Submitting…' : 'I have paid — submit',
+                    ),
                   ),
                 ],
               ),
@@ -243,10 +245,10 @@ Future<void> showDisputeSheet(
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'Tell us what went wrong. Opening a dispute pauses any seller '
                   'payout until our team reviews it.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 8),
                 RadioGroup<String>(
@@ -430,7 +432,8 @@ class _OrdersList extends StatelessWidget {
             // so a buyer is never asked to re-pay a package already in escrow.
             final st = dd['status']?.toString() ?? '';
             if (st == 'pending_payment' || st == 'payment_review') {
-              masterTotals[m] = (masterTotals[m] ?? 0) +
+              masterTotals[m] =
+                  (masterTotals[m] ?? 0) +
                   ((dd['amount'] as num?)?.toDouble() ?? 0);
             }
             masterLeader.putIfAbsent(m, () => idx);
@@ -445,11 +448,9 @@ class _OrdersList extends StatelessWidget {
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
             final masterId = d['masterOrderId']?.toString() ?? '';
-            final pkgCount =
-                asSeller ? 1 : (masterCounts[masterId] ?? 1);
+            final pkgCount = asSeller ? 1 : (masterCounts[masterId] ?? 1);
             final isMasterOrder = !asSeller && masterId.isNotEmpty;
-            final isMasterLeader =
-                isMasterOrder && masterLeader[masterId] == i;
+            final isMasterLeader = isMasterOrder && masterLeader[masterId] == i;
             final masterTotal = masterTotals[masterId] ?? 0;
             final status = d['status']?.toString() ?? 'pending_payment';
             final img = d['listingImage']?.toString() ?? '';
@@ -520,9 +521,9 @@ class _OrdersList extends StatelessWidget {
                                   .isNotEmpty)
                                 Text(
                                   d['orderNumber'].toString(),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 11,
-                                    color: Colors.grey,
+                                    color: AppColors.textMuted,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -530,8 +531,8 @@ class _OrdersList extends StatelessWidget {
                                 asSeller
                                     ? '${d['buyerName'] ?? 'Buyer'}'
                                     : '${d['sellerName'] ?? 'Seller'}',
-                                style: const TextStyle(
-                                  color: Colors.grey,
+                                style: TextStyle(
+                                  color: AppColors.textMuted,
                                   fontSize: 12,
                                 ),
                               ),
@@ -552,9 +553,9 @@ class _OrdersList extends StatelessWidget {
                                     '• ${m['title']} ×${m['quantity']}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 11,
-                                      color: Colors.grey,
+                                      color: AppColors.textMuted,
                                     ),
                                   );
                                 }),
@@ -635,11 +636,13 @@ class _OrdersList extends StatelessWidget {
                                   ),
                                 ],
                               )
-                            : const Text(
+                            : Text(
                                 'Paid together with the other packages in this '
                                 'order — use the first package above to pay.',
-                                style:
-                                    TextStyle(fontSize: 12, color: Colors.grey),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textMuted,
+                                ),
                               ))
                       else if (!asSeller)
                         Row(
@@ -654,9 +657,12 @@ class _OrdersList extends StatelessWidget {
                           ],
                         )
                       else
-                        const Text(
+                        Text(
                           'Waiting for the buyer to pay.',
-                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textMuted,
+                          ),
                         ),
                     ],
                     if (status == 'cod_pending') ...[
@@ -827,8 +833,11 @@ class _MultiPackageBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.local_shipping_outlined,
-              size: 18, color: Colors.deepPurple),
+          const Icon(
+            Icons.local_shipping_outlined,
+            size: 18,
+            color: Colors.deepPurple,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -862,10 +871,13 @@ class _MultiPackageBanner extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 2),
-                const Text(
+                Text(
                   'Your order will arrive in multiple packages because '
                   'products are being shipped from different sellers.',
-                  style: TextStyle(fontSize: 12, color: Colors.black87),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -953,18 +965,18 @@ class _OrderDeliveryPanel extends StatelessWidget {
               if (phone.isNotEmpty)
                 Text(
                   phone,
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                 ),
               Text(summary, style: const TextStyle(fontSize: 12)),
               if (line('landmark').isNotEmpty)
                 Text(
                   'Landmark: ${line('landmark')}',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
               if (line('deliveryInstructions').isNotEmpty)
                 Text(
                   'Instructions: ${line('deliveryInstructions')}',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
             ],
             if (payMethod.isNotEmpty) ...[
@@ -972,13 +984,13 @@ class _OrderDeliveryPanel extends StatelessWidget {
               Text(
                 'Payment: '
                 '${payMethod == 'cod' ? 'Cash on Delivery' : 'Online (escrow)'}',
-                style: const TextStyle(fontSize: 11, color: Colors.grey),
+                style: TextStyle(fontSize: 11, color: AppColors.textMuted),
               ),
             ],
             if (notes.isNotEmpty)
               Text(
                 'Order notes: $notes',
-                style: const TextStyle(fontSize: 11, color: Colors.grey),
+                style: TextStyle(fontSize: 11, color: AppColors.textMuted),
               ),
           ],
         ),

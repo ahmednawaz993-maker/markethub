@@ -287,7 +287,7 @@ class _TicketCard extends StatelessWidget {
             Text(
               '${data['category'] ?? ''}'
               '${showUser && (data['userEmail']?.toString().isNotEmpty ?? false) ? ' · ${data['userEmail']}' : ''}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
             const SizedBox(height: 4),
             Text(
@@ -726,7 +726,7 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                   children: [
                     Text(
                       d['subject']?.toString() ?? '',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
                       ),
@@ -865,9 +865,7 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                             else
                               Text(
                                 m['text']?.toString() ?? '',
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                ),
+                                style: TextStyle(color: AppColors.textPrimary),
                               ),
                             const SizedBox(height: 2),
                             Row(
@@ -1028,8 +1026,8 @@ class _CareNumbersBar extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 6),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Text(
                   'Contact our helpline',
                   style: TextStyle(
@@ -1059,7 +1057,7 @@ class _CareNumbersBar extends StatelessWidget {
               label.isNotEmpty ? '$label · $number' : number,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(color: AppColors.textPrimary),
             ),
           ),
           IconButton(

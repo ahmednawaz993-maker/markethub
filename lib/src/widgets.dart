@@ -179,13 +179,19 @@ class AppBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Navy gradient in both modes (the brand chrome), but darker in dark mode
+    // so the dark-slate cards stand out against it.
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final gradientColors = dark
+        ? const [Color(0xFF05080F), Color(0xFF0C1A31), Color(0xFF05080F)]
+        : const [kPakGreenDeep, kPakGreen, kPakGreenDeep];
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [kPakGreenDeep, kPakGreen, kPakGreenDeep],
-          stops: [0.0, 0.45, 1.0],
+          colors: gradientColors,
+          stops: const [0.0, 0.45, 1.0],
         ),
       ),
       child: Stack(
@@ -254,7 +260,10 @@ class StarRating extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             count == 0 ? 'No reviews' : '${rating.toStringAsFixed(1)} ($count)',
-            style: TextStyle(fontSize: size * 0.8, color: Colors.grey[700]),
+            style: TextStyle(
+              fontSize: size * 0.8,
+              color: AppColors.textSecondary,
+            ),
           ),
         ],
       ],
@@ -470,7 +479,7 @@ class CitySelector extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.location_city, size: 20, color: Colors.grey),
+            Icon(Icons.location_city, size: 20, color: AppColors.textMuted),
             const SizedBox(width: 8),
             Expanded(child: Text(value)),
             const Icon(Icons.arrow_drop_down),
@@ -1094,10 +1103,10 @@ class _FeedAdCardState extends State<FeedAdCard> {
                           priceLabel(l),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ),
@@ -1107,9 +1116,9 @@ class _FeedAdCardState extends State<FeedAdCard> {
                           formatPrice(l.previousPrice),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey,
+                            color: AppColors.textMuted,
                             decoration: TextDecoration.lineThrough,
                           ),
                         ),
@@ -1141,7 +1150,7 @@ class _FeedAdCardState extends State<FeedAdCard> {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 12.5,
-                            color: Colors.grey[800],
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ),
@@ -1180,7 +1189,10 @@ class _FeedAdCardState extends State<FeedAdCard> {
                       l.attributes.values.take(2).join(' · '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 10.5, color: Colors.grey[700]),
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                   if (l.deliveryAvailable) ...[
@@ -1206,7 +1218,7 @@ class _FeedAdCardState extends State<FeedAdCard> {
                       Icon(
                         Icons.location_on,
                         size: 11,
-                        color: Colors.grey[500],
+                        color: AppColors.textMuted,
                       ),
                       const SizedBox(width: 1),
                       Expanded(
@@ -1216,7 +1228,7 @@ class _FeedAdCardState extends State<FeedAdCard> {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 10.5,
-                            color: Colors.grey[600],
+                            color: AppColors.textMuted,
                           ),
                         ),
                       ),
@@ -1225,7 +1237,7 @@ class _FeedAdCardState extends State<FeedAdCard> {
                           posted,
                           style: TextStyle(
                             fontSize: 10,
-                            color: Colors.grey[500],
+                            color: AppColors.textMuted,
                           ),
                         ),
                     ],

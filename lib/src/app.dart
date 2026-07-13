@@ -12,21 +12,32 @@ class PakBazarApp extends StatelessWidget {
     return ValueListenableBuilder<Locale>(
       valueListenable: appLocale,
       builder: (context, locale, _) {
-        return MaterialApp(
-          title: 'PakBazar',
-          debugShowCheckedModeBanner: false,
-          scaffoldMessengerKey: rootMessengerKey,
-          theme: buildAppTheme(),
-          locale: locale,
-          supportedLocales: const [kEnglish, kUrdu],
-          localizationsDelegates: const [
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          builder: (context, child) =>
-              AppBackground(child: child ?? const SizedBox()),
-          home: const SecurityGate(child: AuthGate()),
+        return ValueListenableBuilder<ThemeMode>(
+          valueListenable: appThemeMode,
+          builder: (context, mode, _) {
+            return MaterialApp(
+              title: 'PakBazar',
+              debugShowCheckedModeBanner: false,
+              scaffoldMessengerKey: rootMessengerKey,
+              theme: buildAppTheme(Brightness.light),
+              darkTheme: buildAppTheme(Brightness.dark),
+              themeMode: mode,
+              locale: locale,
+              supportedLocales: const [kEnglish, kUrdu],
+              localizationsDelegates: const [
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              builder: (context, child) {
+                // Record the resolved brightness so AppColors getters (read in
+                // screens further down) return the matching light/dark family.
+                appBrightnessValue = Theme.of(context).brightness;
+                return AppBackground(child: child ?? const SizedBox());
+              },
+              home: const SecurityGate(child: AuthGate()),
+            );
+          },
         );
       },
     );

@@ -1521,9 +1521,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 category.title == 'All'
                                     ? 'Browse all ads'
                                     : '${category.subcategories.length} subcategories',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey,
+                                  color: AppColors.textMuted,
                                 ),
                               ),
                             ],

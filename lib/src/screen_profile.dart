@@ -32,10 +32,10 @@ Future<void> showSupportSheet(BuildContext context) async {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'Need help or have an idea to improve PakBazar? Send it to our '
                   'team — we read every message.',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
                 ),
                 const SizedBox(height: 12),
                 Wrap(
@@ -596,20 +596,20 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                               style: const TextStyle(fontSize: 13),
                             )
                           else if (featuredTrialUsed)
-                            const Text(
+                            Text(
                               'Your free 3-month trial has ended.',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: Colors.grey,
+                                color: AppColors.textMuted,
                               ),
                             )
                           else ...[
-                            const Text(
+                            Text(
                               'Get a Featured Business spot on the home screen '
                               '— free for 3 months.',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: Colors.grey,
+                                color: AppColors.textMuted,
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -1701,7 +1701,7 @@ class _FollowStatsRow extends StatelessWidget {
           color: kPakGreen,
         ),
       ),
-      Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      Text(label, style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
     ],
   );
 
@@ -1865,6 +1865,8 @@ class ProfileScreen extends StatelessWidget {
               ],
               const SizedBox(height: 16),
               const LanguageTile(),
+              const SizedBox(height: 12),
+              const ThemeTile(),
               const SizedBox(height: 12),
               // White outline/text so these options are clearly visible on the
               // dark navy background.

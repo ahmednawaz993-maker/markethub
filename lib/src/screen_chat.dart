@@ -120,9 +120,9 @@ class ChatsScreen extends StatelessWidget {
                     children: [
                       Text(
                         data['listingTitle']?.toString() ?? '',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey,
+                          color: AppColors.textMuted,
                         ),
                       ),
                       Text(
@@ -443,13 +443,13 @@ class _ChatScreenState extends State<ChatScreen> {
               color: const Color(0xFFFBF3D5),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
-                children: const [
+                children: [
                   Icon(
                     Icons.visibility_outlined,
                     size: 18,
                     color: AppColors.warning,
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Admin monitoring — read only. You cannot send messages here.',

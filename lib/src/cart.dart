@@ -278,7 +278,7 @@ Widget _multiSellerBanner(String text) => Container(
       Expanded(
         child: Text(
           text,
-          style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+          style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
         ),
       ),
     ],
@@ -1044,10 +1044,10 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
                 child: LinearProgressIndicator(),
               )
             else if (a == null)
-              const Text(
+              Text(
                 'Please add a complete delivery address before placing your '
                 'order.',
-                style: TextStyle(color: Colors.red, fontSize: 13),
+                style: TextStyle(color: AppColors.error, fontSize: 13),
               )
             else ...[
               Text(
@@ -1067,7 +1067,7 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
               if (a.deliveryInstructions.trim().isNotEmpty)
                 Text(
                   'Note: ${a.deliveryInstructions}',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
             ],
           ],
@@ -1167,12 +1167,12 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
             ),
           ),
           if (!_allCod)
-            const Padding(
-              padding: EdgeInsets.only(top: 4),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
               child: Text(
                 'Cash on Delivery is unavailable because some items don\'t '
                 'offer it.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
             ),
         ],

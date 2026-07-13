@@ -173,7 +173,10 @@ class _AdminPaymentsTab extends StatelessWidget {
                     ),
                     Text(
                       d['buyerEmail']?.toString() ?? '',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     SelectableText(
@@ -698,12 +701,12 @@ class _PayoutReviewCardState extends State<_PayoutReviewCard> {
             ),
             Text(
               'Order ${widget.orderId}',
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
             ),
             const SizedBox(height: 2),
             Text(
               'Buyer: ${d['buyerName'] ?? ''}   ·   Seller: ${d['sellerName'] ?? ''}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
             const Divider(height: 16),
             _row('Item subtotal', _subtotal),
@@ -811,7 +814,7 @@ class _PayoutReviewCardState extends State<_PayoutReviewCard> {
           Icon(
             ok ? Icons.check_circle : Icons.cancel,
             size: 15,
-            color: ok ? Colors.green : Colors.red,
+            color: ok ? AppColors.success : AppColors.error,
           ),
         const SizedBox(width: 6),
         Expanded(
@@ -820,8 +823,8 @@ class _PayoutReviewCardState extends State<_PayoutReviewCard> {
             style: TextStyle(
               fontSize: 12,
               color: loading
-                  ? Colors.grey
-                  : (ok ? Colors.green.shade800 : Colors.red),
+                  ? AppColors.textMuted
+                  : (ok ? AppColors.success : AppColors.error),
             ),
           ),
         ),
@@ -1028,7 +1031,10 @@ class _AdminWithdrawalsTab extends StatelessWidget {
                     ),
                     Text(
                       d['userEmail']?.toString() ?? '',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     SelectableText(
@@ -1177,8 +1183,8 @@ class _AdminFeedbackTab extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
                           email,
-                          style: const TextStyle(
-                            color: Colors.grey,
+                          style: TextStyle(
+                            color: AppColors.textMuted,
                             fontSize: 12,
                           ),
                         ),
@@ -1333,13 +1339,13 @@ class _AdminVerificationsTab extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           Row(children: [img(selfie), img(cnic)]),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 4),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
                             child: Text(
                               'Selfie  ·  CNIC  (tap to enlarge)',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: Colors.grey,
+                                color: AppColors.textMuted,
                               ),
                             ),
                           ),
@@ -1384,13 +1390,13 @@ class _AdminVerificationsTab extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 2),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
                               child: Text(
                                 'Address proof (tap to enlarge)',
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: Colors.grey,
+                                  color: AppColors.textMuted,
                                 ),
                               ),
                             ),
@@ -1583,9 +1589,9 @@ class _LiveUsersCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const Text(
+                  Text(
                     'Users online now',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                   ),
                 ],
               ),
@@ -1593,16 +1599,19 @@ class _LiveUsersCard extends StatelessWidget {
             const Spacer(),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
-              children: const [
+              children: [
                 Text(
                   'Customer Care',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 PresenceStatusLine(
                   kSupportPresenceId,
                   onlinePrefix: 'Support is',
-                  style: TextStyle(fontSize: 12, color: Colors.black87),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -1663,9 +1672,9 @@ class _AdminOverviewTab extends StatelessWidget {
                                 ),
                                 Text(
                                   m.label,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey,
+                                    color: AppColors.textMuted,
                                   ),
                                 ),
                               ],
@@ -2405,7 +2414,10 @@ class _AdminReportsTab extends StatelessWidget {
                     ),
                     Text(
                       timeAgo(d['createdAt'] as Timestamp?),
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Row(
@@ -2504,7 +2516,10 @@ class _AdminPromotionsTab extends StatelessWidget {
                     Text('${d['package']} · ${formatPrice('${d['price']}')}'),
                     Text(
                       'Seller: ${d['sellerName'] ?? ''}',
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                      ),
                     ),
                     Text(
                       'Status: $status',
@@ -2649,7 +2664,10 @@ class _AdminTopupsTab extends StatelessWidget {
                     ),
                     Text(
                       '${d['userEmail'] ?? userId}',
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                      ),
                     ),
                     Text(
                       'Status: $status',
@@ -2919,8 +2937,11 @@ class _MasterOrdersPanel extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
                   child: Row(
                     children: [
-                      const Icon(Icons.local_shipping_outlined,
-                          size: 18, color: Colors.deepPurple),
+                      const Icon(
+                        Icons.local_shipping_outlined,
+                        size: 18,
+                        color: Colors.deepPurple,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         'Multi-seller orders (${docs.length})',
@@ -2994,7 +3015,7 @@ class _MasterOrderTile extends StatelessWidget {
                   mo.status == 'pending'
                       ? 'Awaiting fan-out…'
                       : 'No sub-orders found.',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
               );
             }
@@ -3028,7 +3049,11 @@ class _MasterSubOrderRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.inventory_2_outlined, size: 14, color: Colors.grey),
+          Icon(
+            Icons.inventory_2_outlined,
+            size: 14,
+            color: AppColors.textMuted,
+          ),
           const SizedBox(width: 6),
           Expanded(
             child: Column(
@@ -3037,13 +3062,15 @@ class _MasterSubOrderRow extends StatelessWidget {
                 Text(
                   '$seller${number.isEmpty ? '' : ' · $number'}',
                   style: const TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w600),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 Text(
                   '${formatPrice(amount.toStringAsFixed(0))} · ${orderStatusLabel(os)}'
                   '${courier.isEmpty ? '' : ' · $courier'}'
                   '${tracking.isEmpty ? '' : ' ($tracking)'}',
-                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                 ),
               ],
             ),
@@ -3501,9 +3528,9 @@ class _AdminListingsTab extends StatelessWidget {
                                 '${formatPrice(l.price)} · ${l.sellerName}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey,
+                                  color: AppColors.textMuted,
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -3720,9 +3747,9 @@ class _AdminChatsTabState extends State<_AdminChatsTab> {
                         children: [
                           Text(
                             data['listingTitle']?.toString() ?? '',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey,
+                              color: AppColors.textMuted,
                             ),
                           ),
                           Text(
@@ -3733,9 +3760,9 @@ class _AdminChatsTabState extends State<_AdminChatsTab> {
                           if (lastTime != null)
                             Text(
                               timeAgo(lastTime),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 10,
-                                color: Colors.grey,
+                                color: AppColors.textMuted,
                               ),
                             ),
                         ],
@@ -3840,9 +3867,9 @@ class _AdminAppealsTab extends StatelessWidget {
                         ),
                         Text(
                           timeAgo(d['createdAt'] as Timestamp?),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey,
+                            color: AppColors.textMuted,
                           ),
                         ),
                       ],
@@ -4351,9 +4378,9 @@ Future<void> _editStaffDialog(
                     ),
                   ],
                 ),
-                const Text(
+                Text(
                   'Turn on only what this staff member should manage.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
                 for (final area in kAdminAreas)
                   SwitchListTile(
@@ -4593,16 +4620,16 @@ class _AdminDeletionsTab extends StatelessWidget {
                           ),
                           Text(
                             'UID: $uid',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
-                              color: Colors.grey,
+                              color: AppColors.textMuted,
                             ),
                           ),
                           Text(
                             'Requested ${timeAgo(d['createdAt'] as Timestamp?)}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
-                              color: Colors.grey,
+                              color: AppColors.textMuted,
                             ),
                           ),
                           if (reason.isNotEmpty) ...[
