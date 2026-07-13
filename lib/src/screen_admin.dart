@@ -3597,7 +3597,13 @@ class _AdminListingsTab extends StatelessWidget {
                           label: Text(featured ? 'Unfeature' : 'Feature'),
                         ),
                         TextButton.icon(
-                          onPressed: () => ref.update({'isSold': !l.isSold}),
+                          // Route through setListingStatus so `status` and the
+                          // legacy `isSold` bool stay in sync (a bare isSold
+                          // flip left status='in_stock' on a sold item).
+                          onPressed: () => setListingStatus(
+                            l.id,
+                            l.isSold ? 'in_stock' : 'sold',
+                          ),
                           icon: Icon(
                             l.isSold ? Icons.shopping_bag : Icons.sell,
                             size: 18,
