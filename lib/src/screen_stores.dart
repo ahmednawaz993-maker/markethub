@@ -100,6 +100,8 @@ class StoresScreen extends StatelessWidget {
 /// same palette so new categories still get a sensible colour.
 const Map<String, Color> _categoryColors = {
   'Food & Grocery': Color(0xFFF4511E), // deep orange
+  'Dry Fruits': Color(0xFFF9A825), // golden amber
+  'Supplements': Color(0xFF2E7D32), // vitamin green
   'Motors': Color(0xFF1E88E5), // blue
   'Commute & Rides': Color(0xFF00897B), // teal
   'Properties': Color(0xFF43A047), // green
