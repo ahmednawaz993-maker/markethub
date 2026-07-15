@@ -30,6 +30,7 @@ class AdminPanelScreen extends StatelessWidget {
     const entries = <(String, String, Widget)>[
       ('__super', 'Overview', _AdminOverviewTab()),
       ('__super', 'Staff', _AdminStaffTab()),
+      ('activity', 'Activity', _AdminActivityTab()),
       ('approvals', 'Approvals', _AdminApprovalsTab()),
       ('verifyId', 'Verify ID', _AdminVerificationsTab()),
       ('payments', 'Payments', _AdminPaymentsTab()),
@@ -118,6 +119,340 @@ class _Metric {
   final String value;
   final String label;
   const _Metric(this.value, this.label);
+}
+
+/// Platform-wide activity monitor. A read-only, filterable feed over the
+/// server-written `financialAuditLog` (orders, offers, payments, refunds,
+/// cancellations, returns, payouts, disputes) so admins can see everything
+/// that happens between buyers and sellers and step in via the Orders/Escrow
+/// tabs when there's a misunderstanding.
+class _AdminActivityTab extends StatefulWidget {
+  const _AdminActivityTab();
+
+  @override
+  State<_AdminActivityTab> createState() => _AdminActivityTabState();
+}
+
+class _AdminActivityTabState extends State<_AdminActivityTab> {
+  String _filter = 'All';
+
+  static const List<String> _filters = [
+    'All',
+    'Orders',
+    'Offers',
+    'Payments',
+    'Refunds',
+    'Cancellations',
+    'Payouts',
+    'Disputes',
+  ];
+
+  bool _matches(String action, String entityType) {
+    final a = action.toLowerCase();
+    final e = entityType.toLowerCase();
+    switch (_filter) {
+      case 'Orders':
+        return e == 'order' || a.contains('order');
+      case 'Offers':
+        return e == 'offer' || a.contains('offer');
+      case 'Payments':
+        return a.contains('payment') ||
+            a.contains('escrow') ||
+            a.contains('held') ||
+            a.contains('release') ||
+            a.contains('confirm');
+      case 'Refunds':
+        return a.contains('refund');
+      case 'Cancellations':
+        return a.contains('cancel') || a.contains('return');
+      case 'Payouts':
+        return e == 'withdrawal' ||
+            a.contains('payout') ||
+            a.contains('withdrawal');
+      case 'Disputes':
+        return e == 'dispute' || a.contains('dispute');
+      case 'All':
+      default:
+        return true;
+    }
+  }
+
+  static String _humanAction(String a) => a.isEmpty
+      ? 'Activity'
+      : a
+            .split('_')
+            .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+            .join(' ');
+
+  static (IconData, Color) _visual(String action) {
+    final a = action.toLowerCase();
+    if (a.contains('dispute')) return (Icons.gavel, AppColors.warning);
+    if (a.contains('refund') ||
+        a.contains('reject') ||
+        a.contains('hold') ||
+        a.contains('cancel') ||
+        a.contains('return')) {
+      return (Icons.undo, AppColors.error);
+    }
+    if (a.contains('paid') ||
+        a.contains('release') ||
+        a.contains('confirm') ||
+        a.contains('held') ||
+        a.contains('payout')) {
+      return (Icons.check_circle, AppColors.success);
+    }
+    if (a.contains('offer')) return (Icons.local_offer, AppColors.info);
+    if (a.contains('order')) {
+      return (Icons.shopping_bag, const Color(0xFF3949AB));
+    }
+    if (a.contains('withdrawal')) {
+      return (Icons.account_balance_wallet, const Color(0xFF00897B));
+    }
+    return (Icons.history, AppColors.textMuted);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(
+          height: 46,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            children: [
+              for (final f in _filters)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ChoiceChip(
+                    label: Text(f),
+                    selected: _filter == f,
+                    onSelected: (_) => setState(() => _filter = f),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('financialAuditLog')
+                .orderBy('createdAt', descending: true)
+                .limit(200)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text(
+                    'Error: ${snapshot.error}',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                );
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final docs = snapshot.data!.docs.where((d) {
+                final m = d.data() as Map<String, dynamic>;
+                return _matches(
+                  m['action']?.toString() ?? '',
+                  m['entityType']?.toString() ?? '',
+                );
+              }).toList();
+              if (docs.isEmpty) {
+                return EmptyState(
+                  icon: Icons.timeline,
+                  title: 'No activity',
+                  subtitle: _filter == 'All'
+                      ? 'Platform activity will appear here as it happens.'
+                      : 'No $_filter activity in the recent feed.',
+                );
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.fromLTRB(12, 2, 12, 12),
+                itemCount: docs.length,
+                itemBuilder: (context, i) {
+                  final m = docs[i].data() as Map<String, dynamic>;
+                  return _activityCard(context, m);
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _activityCard(BuildContext context, Map<String, dynamic> m) {
+    final action = m['action']?.toString() ?? '';
+    final entityType = m['entityType']?.toString() ?? '';
+    final entityId = m['entityId']?.toString() ?? '';
+    final prev = m['previousStatus']?.toString() ?? '';
+    final next = m['newStatus']?.toString() ?? '';
+    final actorRole = m['actorRole']?.toString() ?? '';
+    final amount = (m['amount'] as num?)?.toDouble() ?? 0;
+    final reason = m['reason']?.toString() ?? '';
+    final meta = (m['metadata'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final listingId = meta['listingId']?.toString() ?? '';
+    final (icon, color) = _visual(action);
+
+    final shortId = entityId.length > 8
+        ? entityId.substring(0, 8)
+        : entityId;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: () => _showDetail(context, m),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: color.withValues(alpha: 0.15),
+                child: Icon(icon, size: 18, color: color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _humanAction(action),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        if (amount > 0)
+                          Text(
+                            formatPrice(amount.toStringAsFixed(0)),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$entityType · #$shortId'
+                      '${actorRole.isNotEmpty ? ' · by $actorRole' : ''}',
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                      ),
+                    ),
+                    if (prev.isNotEmpty || next.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Text(
+                          prev.isNotEmpty
+                              ? '$prev → $next'
+                              : 'set to $next',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    if (reason.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Text(
+                          reason,
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(
+                          timeAgo(m['createdAt'] as Timestamp?),
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 11,
+                          ),
+                        ),
+                        if (listingId.isNotEmpty) ...[
+                          const Spacer(),
+                          InkWell(
+                            onTap: () => _openListingById(context, listingId),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.open_in_new,
+                                  size: 14,
+                                  color: AppColors.link,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'Open ad',
+                                  style: TextStyle(
+                                    color: AppColors.link,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showDetail(BuildContext context, Map<String, dynamic> m) {
+    final meta = (m['metadata'] as Map?)?.cast<String, dynamic>() ?? const {};
+    String row(String k, Object? v) =>
+        (v == null || '$v'.isEmpty) ? '' : '$k: $v\n';
+    final buf = StringBuffer()
+      ..write(row('Action', m['action']))
+      ..write(row('Type', m['entityType']))
+      ..write(row('Entity', m['entityId']))
+      ..write(row('Actor', m['actorId']))
+      ..write(row('Actor role', m['actorRole']))
+      ..write(row('From', m['previousStatus']))
+      ..write(row('To', m['newStatus']))
+      ..write(row('Amount', (m['amount'] as num?) == null ? '' : formatPrice((m['amount'] as num).toStringAsFixed(0))))
+      ..write(row('Reason', m['reason']));
+    for (final e in meta.entries) {
+      buf.write(row(e.key, e.value));
+    }
+    showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Activity detail'),
+        content: SingleChildScrollView(
+          child: Text(buf.toString().trimRight()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Manual payments awaiting confirmation: the buyer transferred to the platform

@@ -1891,6 +1891,17 @@ class ProfileScreen extends StatelessWidget {
                     OutlinedButton.icon(
                       onPressed: () => Navigator.push(
                         context,
+                        MaterialPageRoute(
+                          builder: (_) => const SellerDashboardScreen(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.dashboard_outlined),
+                      label: const Text('Seller Dashboard'),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
                         MaterialPageRoute(builder: (_) => const OrdersScreen()),
                       ),
                       icon: const Icon(Icons.receipt_long),

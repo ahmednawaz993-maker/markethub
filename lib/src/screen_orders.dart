@@ -339,12 +339,16 @@ Future<void> showDisputeSheet(
 }
 
 class OrdersScreen extends StatelessWidget {
-  const OrdersScreen({super.key});
+  /// 0 = Buying (default), 1 = Selling. Lets the seller dashboard deep-link
+  /// straight to the Selling tab.
+  final int initialIndex;
+  const OrdersScreen({super.key, this.initialIndex = 0});
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
+      initialIndex: initialIndex,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('My Orders'),

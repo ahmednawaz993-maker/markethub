@@ -161,6 +161,7 @@ bool isSuperAdmin() => isAdminUser();
 /// admin-panel tabs a staff member sees and the staff permission checkboxes.
 /// Keep the codes in sync with the `can('...')` checks in firestore.rules.
 const List<(String, String)> kAdminAreas = [
+  ('activity', 'Activity'),
   ('approvals', 'Approvals'),
   ('verifyId', 'Verify ID'),
   ('payments', 'Payments'),

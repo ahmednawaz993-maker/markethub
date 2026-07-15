@@ -1067,6 +1067,19 @@ exports.notifyOnNewOrder = onDocumentCreated(
       event.params.orderId
     );
 
+    // Log to the activity trail so admins can monitor buyer→seller orders
+    // (the multi-seller fan-out logs its own sub-orders separately).
+    await writeAudit(db, {
+      action: "order_placed",
+      entityType: "order",
+      entityId: event.params.orderId,
+      actorId: order.buyerId || "",
+      actorRole: "buyer",
+      newStatus: order.status || "pending_payment",
+      amount,
+      metadata: { sellerId, listingTitle: order.listingTitle || "" },
+    });
+
     const tokensSnap = await db
       .collection("users")
       .doc(sellerId)
@@ -1128,8 +1141,9 @@ exports.notifyOnNewOffer = onDocumentCreated(
   async (event) => {
     const offer = event.data && event.data.data();
     if (!offer || !offer.sellerId) return;
+    const dbo = getFirestore();
     await pushToUser(
-      getFirestore(),
+      dbo,
       offer.sellerId,
       {
         title: "New offer received",
@@ -1137,6 +1151,21 @@ exports.notifyOnNewOffer = onDocumentCreated(
       },
       { type: "offer", offerId: event.params.offerId }
     );
+    // Log the inquiry to the activity trail for admin monitoring.
+    await writeAudit(dbo, {
+      action: "offer_made",
+      entityType: "offer",
+      entityId: event.params.offerId,
+      actorId: offer.buyerId || "",
+      actorRole: "buyer",
+      newStatus: offer.status || "pending",
+      amount: Number(offer.offerAmount) || 0,
+      metadata: {
+        sellerId: offer.sellerId,
+        listingId: offer.listingId || "",
+        listingTitle: offer.listingTitle || "",
+      },
+    });
   }
 );
 
@@ -3040,35 +3069,68 @@ exports.onOrderProgress = onDocumentUpdated(
       return;
     }
 
-    // Buyer-facing fulfillment notifications (seller advanced the order). For a
-    // multi-seller order each sub-order is one package, so name the package so
-    // the buyer knows which shipment moved; single Buy Now wording is unchanged.
+    // Buyer-facing fulfillment notifications (seller advanced the order). Each
+    // step gets its own clear title so the buyer sees exactly where their order
+    // is at a glance. For a multi-seller order each sub-order is one package, so
+    // name the package so the buyer knows which shipment moved.
     if (after.orderStatus !== before.orderStatus && after.buyerId) {
       const isPkg = !!after.masterOrderId;
+      const pkg = after.orderNumber ? ` ${after.orderNumber}` : "";
       const courier = after.courierName ? ` via ${after.courierName}` : "";
-      const msg = isPkg
-        ? {
-            accepted: `Package ${after.orderNumber || ""} was accepted by the seller.`,
-            processing: `Package ${after.orderNumber || ""} is being prepared.`,
-            shipped: `Package ${after.orderNumber || ""} has shipped${courier}.`,
-            delivered: `Package ${
-              after.orderNumber || ""
-            } is marked delivered — please confirm once you've received and checked it.`,
-          }[after.orderStatus]
-        : {
-            accepted: "The seller accepted your order.",
-            processing: "Your order is being prepared.",
-            shipped: `Your order has shipped${courier}.`,
-            delivered:
-              "Your order is marked delivered — please confirm once you've received and checked it.",
-          }[after.orderStatus];
-      if (msg) {
+      const track = after.trackingNumber
+        ? ` (tracking ${after.trackingNumber})`
+        : "";
+      const steps = {
+        accepted: {
+          title: "Order accepted",
+          body: isPkg
+            ? `Package${pkg} was accepted by the seller.`
+            : "The seller accepted your order and will prepare it for dispatch.",
+        },
+        processing: {
+          title: "Order being prepared",
+          body: isPkg
+            ? `Package${pkg} is being prepared for dispatch.`
+            : "Your order is being prepared for dispatch.",
+        },
+        shipped: {
+          title: "Order shipped",
+          body: isPkg
+            ? `Package${pkg} has been dispatched${courier}${track}.`
+            : `Your order has been dispatched${courier}${track}.`,
+        },
+        delivered: {
+          title: "Order delivered",
+          body: isPkg
+            ? `Package${pkg} is marked delivered — please confirm once you've received and checked it.`
+            : "Your order is marked delivered — please confirm once you've received and checked it.",
+        },
+      };
+      const step = steps[after.orderStatus];
+      if (step) {
         await pushToUser(
           db,
           after.buyerId,
-          { title: "Order update", body: msg },
+          { title: step.title, body: step.body },
           { type: "order", orderId }
         );
+        // Log the fulfillment step to the activity trail so admins can watch
+        // the full order lifecycle (accepted → dispatched → delivered).
+        await writeAudit(db, {
+          action: `order_${after.orderStatus}`,
+          entityType: "order",
+          entityId: orderId,
+          actorId: after.sellerId || "",
+          actorRole: "seller",
+          previousStatus: before.orderStatus || "",
+          newStatus: after.orderStatus || "",
+          amount: Number(after.amount) || 0,
+          metadata: {
+            buyerId: after.buyerId || "",
+            courierName: after.courierName || "",
+            trackingNumber: after.trackingNumber || "",
+          },
+        });
       }
     }
 
@@ -3138,16 +3200,16 @@ exports.onWithdrawalAction = onDocumentCreated(
     const actRef = event.data.ref;
     const wRef = db.collection("withdrawals").doc(act.withdrawalId);
 
-    await db.runTransaction(async (tx) => {
+    const outcome = await db.runTransaction(async (tx) => {
       const wSnap = await tx.get(wRef);
       if (!wSnap.exists) {
         tx.update(actRef, { status: "missing" });
-        return;
+        return null;
       }
       const w = wSnap.data();
       if (w.status !== "processing") {
         tx.update(actRef, { status: "not_processing" });
-        return;
+        return null;
       }
       const amount = Number(w.amount) || 0;
 
@@ -3182,11 +3244,39 @@ exports.onWithdrawalAction = onDocumentCreated(
         });
       } else {
         tx.update(actRef, { status: "unknown_type" });
-        return;
+        return null;
       }
 
       tx.update(actRef, { status: "done", processedAt: Timestamp.now() });
+      return { type: act.type, amount, userId: w.userId || "" };
     });
+
+    // Post-commit: tell the seller their payout was paid or rejected (this was
+    // previously silent), and log it to the activity trail for admins.
+    if (outcome && outcome.userId) {
+      const paid = outcome.type === "paid";
+      await pushToUser(
+        db,
+        outcome.userId,
+        {
+          title: paid ? "Withdrawal paid" : "Withdrawal rejected",
+          body: paid
+            ? `Your withdrawal of Rs ${outcome.amount} has been paid out.`
+            : `Your withdrawal of Rs ${outcome.amount} was rejected and refunded to your wallet.`,
+        },
+        { type: "payout", withdrawalId: act.withdrawalId }
+      );
+      await writeAudit(db, {
+        action: paid ? "withdrawal_paid" : "withdrawal_rejected",
+        entityType: "withdrawal",
+        entityId: act.withdrawalId,
+        actorId: act.by || "admin",
+        actorRole: "admin",
+        newStatus: paid ? "paid" : "rejected",
+        amount: outcome.amount,
+        metadata: { userId: outcome.userId },
+      });
+    }
   }
 );
 

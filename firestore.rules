@@ -648,7 +648,10 @@ service cloud.firestore {
     // dispute, adjustment. Written only by Cloud Functions; payments admins may
     // read; no client may ever write, edit or delete.
     match /financialAuditLog/{auditId} {
-      allow read: if can('payments');
+      // Read-only monitoring feed for back-office: the dedicated 'activity'
+      // monitor, plus payments/orders/escrow staff who already work these events.
+      allow read: if can('activity') || can('payments')
+                  || can('orders') || can('escrow');
       allow write: if false; // Cloud Functions only
     }
 

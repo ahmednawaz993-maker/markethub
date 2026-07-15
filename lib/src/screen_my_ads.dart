@@ -635,6 +635,336 @@ Future<void> showLowerPriceSheet(BuildContext context, Listing listing) async {
   controller.dispose();
 }
 
+/// One-stop seller hub: at-a-glance stats (listings, orders to fulfill, new
+/// offers, earnings, wallet, rating) plus quick links into every seller
+/// screen. Composes the existing screens rather than duplicating them.
+class SellerDashboardScreen extends StatelessWidget {
+  const SellerDashboardScreen({super.key});
+
+  /// An order needs the seller's hand when it's paid (or COD) but not yet
+  /// dispatched.
+  static bool _needsSellerAction(Map<String, dynamic> o) {
+    final status = o['status']?.toString() ?? '';
+    final os = o['orderStatus']?.toString() ?? 'pending';
+    final active = status == 'in_escrow' || status == 'cod_pending';
+    return active && (os == 'pending' || os == 'accepted' || os == 'processing');
+  }
+
+  static const _realized = {'released', 'completed'};
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Seller Dashboard')),
+        body: const EmptyState(
+          icon: Icons.storefront,
+          title: 'Please log in',
+          subtitle: 'Sign in to manage your selling activity.',
+        ),
+      );
+    }
+    final fs = FirebaseFirestore.instance;
+    final ordersStream =
+        fs.collection('orders').where('sellerId', isEqualTo: uid).snapshots();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Seller Dashboard')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          if (!await ensureVerified(context)) return;
+          if (!context.mounted) return;
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const AddListingScreen()),
+          );
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Post ad'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
+        children: [
+          // Action row: the two things a seller most often needs to act on.
+          _sectionHeader('Needs your attention'),
+          Row(
+            children: [
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: ordersStream,
+                  builder: (context, snap) {
+                    final n = (snap.data?.docs ?? [])
+                        .where((d) =>
+                            _needsSellerAction(d.data() as Map<String, dynamic>))
+                        .length;
+                    return _statCardTile(
+                      icon: Icons.local_shipping,
+                      color: Colors.orange,
+                      value: '$n',
+                      label: 'Orders to fulfill',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const OrdersScreen(initialIndex: 1),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: fs
+                      .collection('offers')
+                      .where('sellerId', isEqualTo: uid)
+                      .snapshots(),
+                  builder: (context, snap) {
+                    final n = (snap.data?.docs ?? [])
+                        .where((d) =>
+                            (d.data() as Map)['status']?.toString() == 'pending')
+                        .length;
+                    return _statCardTile(
+                      icon: Icons.local_offer,
+                      color: AppColors.info,
+                      value: '$n',
+                      label: 'New offers',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const OffersScreen()),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _sectionHeader('Your numbers'),
+          Row(
+            children: [
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: fs
+                      .collection('listings')
+                      .where('userId', isEqualTo: uid)
+                      .snapshots(),
+                  builder: (context, snap) {
+                    final docs = snap.data?.docs ?? [];
+                    final active = docs.where((d) {
+                      final m = d.data() as Map;
+                      return m['approvalStatus']?.toString() == 'approved' &&
+                          m['isSold'] != true;
+                    }).length;
+                    return _statCardTile(
+                      icon: Icons.list_alt,
+                      color: kPakGreen,
+                      value: '$active',
+                      label: 'Active ads',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const MyAdsScreen()),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: ordersStream,
+                  builder: (context, snap) {
+                    double earnings = 0;
+                    for (final d in snap.data?.docs ?? []) {
+                      final o = d.data() as Map<String, dynamic>;
+                      if (_realized.contains(o['status']?.toString())) {
+                        earnings += (o['sellerPayout'] as num?)?.toDouble() ??
+                            (o['amount'] as num?)?.toDouble() ??
+                            0;
+                      }
+                    }
+                    return _statCardTile(
+                      icon: Icons.payments,
+                      color: const Color(0xFF3949AB),
+                      value: formatPrice(earnings.toStringAsFixed(0)),
+                      label: 'Total earnings',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SalesDashboardScreen(),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: StreamBuilder<DocumentSnapshot>(
+                  stream: fs.collection('users').doc(uid).snapshots(),
+                  builder: (context, snap) {
+                    final m = snap.data?.data() as Map<String, dynamic>? ?? {};
+                    final bal = (m['walletBalance'] as num?)?.toDouble() ?? 0;
+                    return _statCardTile(
+                      icon: Icons.account_balance_wallet,
+                      color: const Color(0xFF00897B),
+                      value: formatPrice(bal.toStringAsFixed(0)),
+                      label: 'Wallet balance',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => monetizationEnabled.value
+                              ? const WalletScreen()
+                              : const SalesDashboardScreen(),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: StreamBuilder<DocumentSnapshot>(
+                  stream: fs.collection('users').doc(uid).snapshots(),
+                  builder: (context, snap) {
+                    final m = snap.data?.data() as Map<String, dynamic>? ?? {};
+                    final sum = (m['ratingSum'] as num?)?.toDouble() ?? 0;
+                    final count = (m['ratingCount'] as num?)?.toInt() ?? 0;
+                    final avg = count > 0 ? (sum / count) : 0;
+                    return _statCardTile(
+                      icon: Icons.star,
+                      color: kGold,
+                      value: count > 0 ? avg.toStringAsFixed(1) : '—',
+                      label: count > 0 ? 'Rating ($count)' : 'No ratings yet',
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          _sectionHeader('Manage'),
+          _navTile(context, Icons.list_alt, 'My Ads',
+              'Edit, promote, mark sold', const MyAdsScreen()),
+          _navTile(context, Icons.local_shipping, 'Selling orders',
+              'Accept & dispatch buyer orders', const OrdersScreen(initialIndex: 1)),
+          _navTile(context, Icons.local_offer, 'Offers received',
+              'Accept, counter or decline', const OffersScreen()),
+          _navTile(context, Icons.insights, 'Sales & Earnings',
+              'Earnings, escrow & 6-month trend', const SalesDashboardScreen()),
+          _navTile(context, Icons.query_stats, 'Ad performance',
+              'Views, leads & top ads', const SellerAnalyticsScreen()),
+          if (monetizationEnabled.value)
+            _navTile(context, Icons.account_balance_wallet, 'Wallet',
+                'Top up & withdraw', const WalletScreen()),
+          _navTile(context, Icons.account_balance, 'Payout accounts',
+              'Where you get paid', const PayoutAccountsScreen()),
+          _navTile(
+            context,
+            Icons.storefront,
+            'My public store',
+            'See your store as buyers do',
+            SellerProfileScreen(
+              sellerId: uid,
+              sellerName:
+                  FirebaseAuth.instance.currentUser?.displayName ?? 'My store',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 8, top: 2),
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: AppColors.onNavy,
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+          ),
+        ),
+      );
+
+  Widget _statCardTile({
+    required IconData icon,
+    required Color color,
+    required String value,
+    required String label,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: color, size: 20),
+                if (onTap != null) ...[
+                  const Spacer(),
+                  Icon(Icons.chevron_right, size: 18, color: AppColors.textMuted),
+                ],
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _navTile(BuildContext context, IconData icon, String title,
+      String subtitle, Widget screen) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: kPakGreen.withValues(alpha: 0.12),
+          child: Icon(icon, color: kPakGreen, size: 20),
+        ),
+        title: Text(title,
+            style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => screen),
+        ),
+      ),
+    );
+  }
+}
+
 class MyAdsScreen extends StatefulWidget {
   const MyAdsScreen({super.key});
 
