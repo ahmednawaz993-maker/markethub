@@ -9,6 +9,41 @@ const String fcmVapidKey =
 final GlobalKey<ScaffoldMessengerState> rootMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
+/// Global navigator, so a tapped push notification (system tray → app) can
+/// deep-link to the thing it's about from outside the widget tree.
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
+/// Turns an FCM data payload into the `{type, refId, title, body}` shape the
+/// in-app notification router understands, then opens the target. The push
+/// `data` map uses a per-type id key (orderId, chatId, …); normalise it to a
+/// single `refId` exactly as the Cloud Function does when it stores the inbox
+/// copy.
+void handlePushTap(RemoteMessage message) {
+  final data = message.data;
+  final type = (data['type'] ?? '').toString();
+  if (type.isEmpty) return;
+  final refId =
+      (data['refId'] ??
+              data['orderId'] ??
+              data['offerId'] ??
+              data['chatId'] ??
+              data['listingId'] ??
+              data['ticketId'] ??
+              data['withdrawalId'] ??
+              data['masterId'] ??
+              '')
+          .toString();
+  final n = message.notification;
+  final ctx = rootNavigatorKey.currentContext;
+  if (ctx == null) return;
+  openNotificationTarget(ctx, {
+    'type': type,
+    'refId': refId,
+    'title': n?.title ?? '',
+    'body': n?.body ?? '',
+  });
+}
+
 /// Long-lived player reused for the in-app notification chime, so a new message
 /// arriving while the app is open (foreground) is audible — Android suppresses
 /// the system notification sound when the app is in the foreground, delivering
@@ -78,11 +113,27 @@ Future<void> setupPushNotifications() async {
               content: Text(
                 [n.title, n.body].where((e) => (e ?? '').isNotEmpty).join(': '),
               ),
-              action: SnackBarAction(label: 'OK', onPressed: () {}),
+              // Tapping "View" jumps to whatever the notification is about.
+              action: SnackBarAction(
+                label: 'View',
+                onPressed: () => handlePushTap(message),
+              ),
             ),
           );
         }
       });
+
+      // Tapping a tray notification while the app is backgrounded.
+      FirebaseMessaging.onMessageOpenedApp.listen(handlePushTap);
+
+      // App launched from a tray notification (cold start): route once the
+      // navigator exists, after the first frame.
+      final initial = await messaging.getInitialMessage();
+      if (initial != null) {
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => handlePushTap(initial),
+        );
+      }
     }
   } catch (_) {
     // Messaging unavailable/unconfigured — ignore.

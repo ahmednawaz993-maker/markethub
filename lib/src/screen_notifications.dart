@@ -40,6 +40,132 @@ Color _notificationColor(String type) {
   }
 }
 
+/// Deep-links a tapped notification to the exact thing it is about.
+///
+/// Every notification carries a [type] and a [refId] (the id of the order/
+/// offer/chat/listing/ticket it concerns — see `recordNotification` in the
+/// Cloud Functions). This resolves that pair to the right screen. Anything we
+/// can't route (admin broadcasts, warnings, or a target that has since been
+/// deleted) falls back to showing the full message in a dialog, so a tap is
+/// never a dead end.
+Future<void> openNotificationTarget(
+  BuildContext context,
+  Map<String, dynamic> notif,
+) async {
+  final type = notif['type']?.toString() ?? '';
+  final refId = notif['refId']?.toString() ?? '';
+  final db = FirebaseFirestore.instance;
+
+  Future<void> push(Widget screen) async {
+    if (!context.mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => screen),
+    );
+  }
+
+  // Shows the notification body when there's nowhere specific to go, or when
+  // the referenced item no longer exists.
+  void showDetail([String? note]) {
+    if (!context.mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(notif['title']?.toString() ?? 'Notification'),
+        content: Text(
+          [notif['body']?.toString() ?? '', note ?? '']
+              .where((s) => s.isNotEmpty)
+              .join('\n\n'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  try {
+    switch (type) {
+      // A specific listing/ad.
+      case 'savedSearch':
+      case 'newListing':
+      case 'follow':
+      case 'priceDrop':
+        if (refId.isEmpty) return showDetail();
+        final doc = await db.collection('listings').doc(refId).get();
+        if (!doc.exists) {
+          return showDetail('This ad is no longer available.');
+        }
+        return push(AdDetailsScreen(listing: Listing.fromDoc(doc)));
+
+      // A chat thread — rebuild the ChatScreen from the chat doc.
+      case 'chat':
+        if (refId.isEmpty) return showDetail();
+        final doc = await db.collection('chats').doc(refId).get();
+        final chat = doc.data();
+        if (chat == null) {
+          return showDetail('This conversation is no longer available.');
+        }
+        return push(
+          ChatScreen(
+            chatId: refId,
+            listingId: chat['listingId']?.toString() ?? '',
+            listingTitle: chat['listingTitle']?.toString() ?? '',
+            listingImage: chat['listingImage']?.toString() ?? '',
+            buyerId: chat['buyerId']?.toString() ?? '',
+            sellerId: chat['sellerId']?.toString() ?? '',
+            buyerName: chat['buyerName']?.toString() ?? '',
+            sellerName: chat['sellerName']?.toString() ?? '',
+          ),
+        );
+
+      // Offers on the user's listings / their own offers.
+      case 'offer':
+        return push(const OffersScreen());
+
+      // Order lifecycle: new order, fulfillment steps, disputes, refunds.
+      case 'order':
+      case 'escrow_hold':
+      case 'escrow_release':
+      case 'refund':
+      case 'dispute':
+        return push(const OrdersScreen());
+
+      // Money movements land in the wallet.
+      case 'payout':
+      case 'credit':
+      case 'debit':
+      case 'withdrawal_paid':
+      case 'withdrawal_reserve':
+      case 'withdrawal_refund':
+        return push(const WalletScreen());
+
+      // A support ticket the user owns.
+      case 'support':
+        if (refId.isEmpty) return showDetail();
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid == null) return showDetail();
+        return push(
+          SupportThreadScreen(
+            ticketId: refId,
+            ownerId: uid,
+            adminView: false,
+          ),
+        );
+
+      // Admin broadcasts, warnings, and anything unrecognised: no target.
+      default:
+        return showDetail();
+    }
+  } catch (_) {
+    // Any lookup/navigation failure just falls back to the message text.
+    showDetail();
+  }
+}
+
 /// Bell with an unread badge for the home app bar.
 class NotificationBell extends StatelessWidget {
   const NotificationBell({super.key});
@@ -192,9 +318,14 @@ class NotificationsScreen extends StatelessWidget {
                         label:
                             '${read ? '' : 'Unread. '}$title. ${d['body']?.toString() ?? ''}',
                         child: InkWell(
-                          onTap: read
-                              ? null
-                              : () => docs[i].reference.update({'read': true}),
+                          onTap: () {
+                            // Mark read on tap (unread rows only) and jump to
+                            // whatever this notification is about.
+                            if (!read) {
+                              docs[i].reference.update({'read': true});
+                            }
+                            openNotificationTarget(context, d);
+                          },
                           child: Container(
                             // Unread rows get a subtle tint AND (below) a dot +
                             // bold title — never colour alone.
@@ -308,6 +439,12 @@ class NotificationsScreen extends StatelessWidget {
                                       ),
                                     ],
                                   ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.chevron_right,
+                                  size: 18,
+                                  color: AppColors.textMuted,
                                 ),
                               ],
                             ),
