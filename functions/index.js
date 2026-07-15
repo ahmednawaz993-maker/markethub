@@ -1112,7 +1112,8 @@ async function pushToUser(db, uid, notification, data) {
     notification.title,
     notification.body,
     (data && data.type) || "",
-    (data && data.offerId) || ""
+    refIdFromData(data),
+    data
   );
   const tokensSnap = await db
     .collection("users")
@@ -1215,7 +1216,11 @@ exports.notifyOnOfferUpdate = onDocumentUpdated(
 );
 
 // Persists a notification into the user's history (for the in-app bell).
-async function recordNotification(db, uid, title, body, type, refId) {
+// `refId` is the id of the thing the notification is about (order/offer/chat/
+// listing/ticket/…); the in-app inbox uses `type` + `refId` to deep-link the
+// user straight to it on tap. `data` (optional) carries the full push payload
+// so the client can route without a second lookup where possible.
+async function recordNotification(db, uid, title, body, type, refId, data) {
   try {
     await db
       .collection("users")
@@ -1226,12 +1231,33 @@ async function recordNotification(db, uid, title, body, type, refId) {
         body: body || "",
         type: type || "",
         refId: refId || "",
+        data: data || {},
         read: false,
         createdAt: FieldValue.serverTimestamp(),
       });
   } catch (e) {
     // Non-critical; the push still goes out.
   }
+}
+
+// The push `data` payload uses different id keys per notification type
+// (orderId, offerId, chatId, …). Pull whichever one is present so the stored
+// notification always has a usable `refId` to deep-link from. Previously only
+// `offerId` was read, so every order/chat/dispute/payout notification was saved
+// with an empty refId and could not be made tappable.
+function refIdFromData(data) {
+  const d = data || {};
+  return (
+    d.refId ||
+    d.orderId ||
+    d.offerId ||
+    d.chatId ||
+    d.listingId ||
+    d.ticketId ||
+    d.withdrawalId ||
+    d.masterId ||
+    ""
+  );
 }
 
 // Processes a wallet purchase: atomically checks the balance, deducts it, and

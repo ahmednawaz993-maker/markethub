@@ -18,6 +18,7 @@ class PakBazarApp extends StatelessWidget {
             return MaterialApp(
               title: 'PakBazar',
               debugShowCheckedModeBanner: false,
+              navigatorKey: rootNavigatorKey,
               scaffoldMessengerKey: rootMessengerKey,
               theme: buildAppTheme(Brightness.light),
               darkTheme: buildAppTheme(Brightness.dark),
