@@ -203,7 +203,7 @@ class SellerProfileScreen extends StatelessWidget {
                       ),
                   itemCount: groups[cat]!.length,
                   itemBuilder: (context, i) =>
-                      FeedAdCard(listing: groups[cat]![i]),
+                      _StoreProductCard(listing: groups[cat]![i]),
                 ),
               ),
               const SizedBox(height: 14),
@@ -534,6 +534,264 @@ class _StoreInfoCard extends StatelessWidget {
       ],
     );
   }
+}
+
+/// A premium product tile for the storefront grid — a clean image-forward card
+/// with a prominent price, a single clear title line, a condition chip and the
+/// location. Deliberately less busy than the feed's [FeedAdCard] so a store
+/// reads like a polished catalogue.
+class _StoreProductCard extends StatefulWidget {
+  final Listing listing;
+  const _StoreProductCard({required this.listing});
+
+  @override
+  State<_StoreProductCard> createState() => _StoreProductCardState();
+}
+
+class _StoreProductCardState extends State<_StoreProductCard> {
+  bool get _isFav => favoriteListings.any((i) => i.id == widget.listing.id);
+
+  Future<void> _toggleFav() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final was = _isFav;
+    setState(() {
+      if (was) {
+        favoriteListings.removeWhere((i) => i.id == widget.listing.id);
+      } else {
+        favoriteListings.add(widget.listing);
+      }
+    });
+    if (uid == null) return;
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('favorites')
+        .doc(widget.listing.id);
+    try {
+      if (was) {
+        await ref.delete();
+      } else {
+        await ref.set({
+          ...widget.listing.toMap(),
+          'savedListingId': widget.listing.id,
+          'savedAt': Timestamp.now(),
+        });
+      }
+    } catch (_) {
+      // Best-effort; the optimistic UI update already happened.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = widget.listing;
+    final img = l.galleryImages;
+    final isNew = l.createdAt != null &&
+        DateTime.now().difference(l.createdAt!.toDate()).inHours < 24;
+
+    Widget? badge;
+    if (l.isSold) {
+      badge = const _StoreBadge('SOLD', Colors.black87);
+    } else if (l.isCurrentlyFeatured) {
+      badge = const _StoreBadge('FEATURED', kGold);
+    } else if (isNew) {
+      badge = const _StoreBadge('NEW', kPakGreen);
+    } else if (l.hasRecentPriceDrop) {
+      badge = const _StoreBadge('PRICE DROP', Color(0xFFD32F2F));
+    }
+
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.18),
+      child: InkWell(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => AdDetailsScreen(listing: l)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (img.isNotEmpty)
+                    Image.network(
+                      img.first,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                        color: AppColors.divider,
+                        child: Icon(
+                          Icons.image_not_supported_outlined,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      color: AppColors.divider,
+                      child: Icon(
+                        Icons.inventory_2_outlined,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  if (badge != null)
+                    Positioned(top: 8, left: 8, child: badge),
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: GestureDetector(
+                      onTap: _toggleFav,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.18),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          _isFav ? Icons.favorite : Icons.favorite_border,
+                          size: 16,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          priceLabel(l),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w800,
+                            color: kPakGreen,
+                          ),
+                        ),
+                      ),
+                      if (l.hasRecentPriceDrop) ...[
+                        const SizedBox(width: 5),
+                        Text(
+                          formatPrice(l.previousPrice),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textMuted,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    l.title.isEmpty ? 'Untitled' : l.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      if (l.condition.isNotEmpty && l.condition != 'N/A')
+                        _condChip(l.condition),
+                      const Spacer(),
+                      Icon(
+                        Icons.location_on,
+                        size: 11,
+                        color: AppColors.textMuted,
+                      ),
+                      const SizedBox(width: 1),
+                      Flexible(
+                        child: Text(
+                          l.city.isEmpty ? l.location : l.city,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _condChip(String c) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+    decoration: BoxDecoration(
+      color: (c == 'New' ? kPakGreen : AppColors.info).withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Text(
+      c,
+      style: TextStyle(
+        fontSize: 9,
+        fontWeight: FontWeight.w700,
+        color: c == 'New' ? kPakGreen : AppColors.info,
+      ),
+    ),
+  );
+}
+
+class _StoreBadge extends StatelessWidget {
+  final String text;
+  final Color color;
+  const _StoreBadge(this.text, this.color);
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+    decoration: BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(5),
+      boxShadow: [
+        BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 3),
+      ],
+    ),
+    child: Text(
+      text,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 8.5,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 0.3,
+      ),
+    ),
+  );
 }
 
 /// Follow / unfollow toggle for a seller, with a live follower count. Follows

@@ -262,8 +262,14 @@ service cloud.firestore {
       // verificationStatus is admin/Cloud-Function only. Buyers can't read them
       // (they are not the owner). New accounts must start 'pending'.
       match /payoutAccounts/{accountId} {
-        allow read: if isSignedIn()
-                    && (request.auth.uid == userId || can('payments'));
+        // can('payments') MUST come first: the admin tab reads this as a
+        // collection-group query, and Firestore denies a collection-group list
+        // whose rule evaluates an ancestor-path wildcard (userId) first. Leading
+        // with the payments-admin check lets it short-circuit (same pattern as
+        // the cancellation/return admin tabs). The owner's own direct query
+        // still resolves via the second clause.
+        allow read: if can('payments')
+                    || (isSignedIn() && request.auth.uid == userId);
         allow create: if isSignedIn()
                       && request.auth.uid == userId
                       && request.resource.data.verificationStatus == 'pending';
