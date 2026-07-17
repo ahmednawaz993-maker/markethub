@@ -22,6 +22,8 @@ IconData _notificationIcon(String type) {
       return Icons.campaign_outlined;
     case 'support':
       return Icons.support_agent;
+    case 'payoutAccount':
+      return Icons.account_balance_wallet;
     default:
       return Icons.notifications;
   }
@@ -133,6 +135,10 @@ Future<void> openNotificationTarget(
       case 'refund':
       case 'dispute':
         return push(const OrdersScreen());
+
+      // Payout-account verification decision → the seller's payout accounts.
+      case 'payoutAccount':
+        return push(const PayoutAccountsScreen());
 
       // Money movements land in the wallet.
       case 'payout':
