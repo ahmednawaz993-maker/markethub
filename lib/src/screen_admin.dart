@@ -34,6 +34,7 @@ class AdminPanelScreen extends StatelessWidget {
       ('approvals', 'Approvals', _AdminApprovalsTab()),
       ('verifyId', 'Verify ID', _AdminVerificationsTab()),
       ('payments', 'Payments', _AdminPaymentsTab()),
+      ('payments', 'Payout a/c', _AdminPayoutAccountsTab()),
       ('escrow', 'Escrow', _AdminEscrowTab()),
       ('featured', 'Featured', _AdminFeaturedTab()),
       ('feedback', 'Feedback', _AdminFeedbackTab()),
@@ -4142,6 +4143,353 @@ class _AdminChatsTabState extends State<_AdminChatsTab> {
 /// Admin → review suspension appeals. Lists pending appeals (newest first);
 /// Approve reinstates the user (clears their `blocked` flag), Reject keeps them
 /// suspended. Either way the user is notified of the decision.
+/// Admin → verify seller payout accounts. A seller manages their own bank /
+/// wallet routing details but can NEVER self-verify (enforced in
+/// firestore.rules); this is the other half of that gate. Lists every seller's
+/// payout accounts by verification status (Pending first) via a collection-group
+/// query, showing the full routing details an admin needs to check, and lets a
+/// payments admin mark each Verified / Rejected / Suspended. Every decision is
+/// written to the immutable `payoutAccountAudit` log and the seller is notified.
+class _AdminPayoutAccountsTab extends StatefulWidget {
+  const _AdminPayoutAccountsTab();
+
+  @override
+  State<_AdminPayoutAccountsTab> createState() =>
+      _AdminPayoutAccountsTabState();
+}
+
+class _AdminPayoutAccountsTabState extends State<_AdminPayoutAccountsTab> {
+  String _status = 'pending';
+  static const List<String> _statuses = [
+    'pending',
+    'verified',
+    'rejected',
+    'suspended',
+  ];
+
+  String _label(String s) => switch (s) {
+    'pending' => 'Pending',
+    'verified' => 'Verified',
+    'rejected' => 'Rejected',
+    'suspended' => 'Suspended',
+    _ => s,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final s in _statuses)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(_label(s)),
+                      selected: _status == s,
+                      selectedColor: kPakGreen.withValues(alpha: 0.18),
+                      onSelected: (_) => setState(() => _status = s),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            // Collection-group query across every seller's payoutAccounts.
+            // Sorted client-side to avoid needing a composite index (a
+            // single-field collection-group index on verificationStatus is
+            // declared in firestore.indexes.json).
+            stream: FirebaseFirestore.instance
+                .collectionGroup('payoutAccounts')
+                .where('verificationStatus', isEqualTo: _status)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text('Error loading accounts: ${snapshot.error}'),
+                );
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final docs = snapshot.data!.docs.toList()
+                ..sort((a, b) {
+                  final at =
+                      ((a.data() as Map)['createdAt'] as Timestamp?)
+                          ?.millisecondsSinceEpoch ??
+                      0;
+                  final bt =
+                      ((b.data() as Map)['createdAt'] as Timestamp?)
+                          ?.millisecondsSinceEpoch ??
+                      0;
+                  return bt.compareTo(at);
+                });
+              if (docs.isEmpty) {
+                return EmptyState(
+                  icon: Icons.account_balance_wallet_outlined,
+                  title: 'No ${_label(_status).toLowerCase()} accounts',
+                  subtitle: _status == 'pending'
+                      ? 'Payout accounts awaiting verification appear here.'
+                      : 'No accounts with this status.',
+                );
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: docs.length,
+                itemBuilder: (context, i) {
+                  final doc = docs[i];
+                  final sellerId = doc.reference.parent.parent?.id ?? '';
+                  return _PayoutAccountReviewCard(
+                    account: PayoutAccount.fromDoc(doc),
+                    accountRef: doc.reference,
+                    sellerId: sellerId,
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PayoutAccountReviewCard extends StatefulWidget {
+  final PayoutAccount account;
+  final DocumentReference accountRef;
+  final String sellerId;
+  const _PayoutAccountReviewCard({
+    required this.account,
+    required this.accountRef,
+    required this.sellerId,
+  });
+
+  @override
+  State<_PayoutAccountReviewCard> createState() =>
+      _PayoutAccountReviewCardState();
+}
+
+class _PayoutAccountReviewCardState extends State<_PayoutAccountReviewCard> {
+  bool _busy = false;
+
+  (String, Color) _chip(String s) => switch (s) {
+    'verified' => ('Verified', kPakGreen),
+    'rejected' => ('Rejected', Colors.red),
+    'suspended' => ('Suspended', Colors.orange),
+    _ => ('Pending review', Colors.blueGrey),
+  };
+
+  Future<void> _setStatus(String status, String verb) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final adminUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final a = widget.account;
+    try {
+      final fs = FirebaseFirestore.instance;
+      await widget.accountRef.update({
+        'verificationStatus': status,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      // Immutable audit trail of the admin decision.
+      await fs.collection('payoutAccountAudit').add({
+        'sellerId': widget.sellerId,
+        'accountId': a.id,
+        'action': status, // verified | rejected | suspended
+        'by': adminUid,
+        'at': Timestamp.now(),
+      });
+      // Notify the seller and deep-link them to their payout accounts.
+      if (widget.sellerId.isNotEmpty) {
+        final verified = status == 'verified';
+        await fs
+            .collection('users')
+            .doc(widget.sellerId)
+            .collection('notifications')
+            .add({
+              'title': verified
+                  ? '✅ Payout account verified'
+                  : status == 'rejected'
+                  ? '⚠️ Payout account rejected'
+                  : '⛔ Payout account suspended',
+              'body': verified
+                  ? '${a.providerLabel} (${a.maskedIdentifier}) is verified and can now receive your payouts.'
+                  : '${a.providerLabel} (${a.maskedIdentifier}) was $status. Please review your payout account details.',
+              'type': 'payoutAccount',
+              'refId': a.id,
+              'read': false,
+              'createdAt': Timestamp.now(),
+            });
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Account $verb.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not update: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Widget _detailRow(String label, String value) {
+    if (value.trim().isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 96,
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+            ),
+          ),
+          Expanded(
+            child: SelectableText(
+              value,
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = widget.account;
+    final (chipLabel, chipColor) = _chip(a.verificationStatus);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  a.isBank ? Icons.account_balance : Icons.phone_android,
+                  size: 18,
+                  color: kPakGreen,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    a.providerLabel,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: chipColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    chipLabel,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: chipColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Full routing details (unmasked) so the admin can verify them.
+            _detailRow('Account title', a.accountTitle),
+            if (a.isBank) ...[
+              _detailRow('Bank', a.bankName),
+              _detailRow('IBAN', a.iban),
+              _detailRow('Account no.', a.accountNumber),
+              _detailRow('Branch code', a.branchCode),
+            ] else
+              _detailRow('${payoutTypeLabel(a.type)} no.', a.mobileNumber),
+            _detailRow('Seller ID', widget.sellerId),
+            _detailRow(
+              'Added',
+              a.createdAt == null ? '—' : timeAgo(a.createdAt),
+            ),
+            const SizedBox(height: 10),
+            if (_busy)
+              const Padding(
+                padding: EdgeInsets.all(6),
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            else
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  if (a.verificationStatus != 'verified')
+                    ElevatedButton.icon(
+                      onPressed: () => _setStatus('verified', 'verified'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kPakGreen,
+                        foregroundColor: Colors.white,
+                      ),
+                      icon: const Icon(Icons.verified, size: 18),
+                      label: const Text('Verify'),
+                    ),
+                  if (a.verificationStatus != 'suspended')
+                    OutlinedButton.icon(
+                      onPressed: () => _setStatus('suspended', 'suspended'),
+                      icon: const Icon(
+                        Icons.pause_circle_outline,
+                        color: Colors.orange,
+                        size: 18,
+                      ),
+                      label: const Text(
+                        'Suspend',
+                        style: TextStyle(color: Colors.orange),
+                      ),
+                    ),
+                  if (a.verificationStatus != 'rejected')
+                    OutlinedButton.icon(
+                      onPressed: () => _setStatus('rejected', 'rejected'),
+                      icon: const Icon(
+                        Icons.close,
+                        color: Colors.red,
+                        size: 18,
+                      ),
+                      label: const Text(
+                        'Reject',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _AdminAppealsTab extends StatelessWidget {
   const _AdminAppealsTab();
 
