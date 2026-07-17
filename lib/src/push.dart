@@ -44,6 +44,206 @@ void handlePushTap(RemoteMessage message) {
   });
 }
 
+/// Shows a premium heads-up notification banner that slides in from the TOP of
+/// the screen (over whatever the user is doing), auto-dismisses after a few
+/// seconds, and deep-links on tap. Used for foreground push notifications
+/// instead of a bottom snackbar. No-ops if the navigator/overlay isn't ready.
+void showTopNotificationBanner({
+  required String title,
+  required String body,
+  VoidCallback? onTap,
+}) {
+  final overlay = rootNavigatorKey.currentState?.overlay;
+  if (overlay == null) return;
+  late OverlayEntry entry;
+  var removed = false;
+  void remove() {
+    if (removed) return;
+    removed = true;
+    entry.remove();
+  }
+
+  entry = OverlayEntry(
+    builder: (context) => _TopNotificationBanner(
+      title: title,
+      body: body,
+      onTap: onTap,
+      onClosed: remove,
+    ),
+  );
+  overlay.insert(entry);
+}
+
+class _TopNotificationBanner extends StatefulWidget {
+  final String title;
+  final String body;
+  final VoidCallback? onTap;
+  final VoidCallback onClosed;
+  const _TopNotificationBanner({
+    required this.title,
+    required this.body,
+    required this.onClosed,
+    this.onTap,
+  });
+
+  @override
+  State<_TopNotificationBanner> createState() => _TopNotificationBannerState();
+}
+
+class _TopNotificationBannerState extends State<_TopNotificationBanner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 280),
+  );
+  Timer? _timer;
+  bool _closing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _c.forward();
+    // Auto-dismiss after a few seconds if the user doesn't interact.
+    _timer = Timer(const Duration(seconds: 4), _dismiss);
+  }
+
+  Future<void> _dismiss() async {
+    if (_closing) return;
+    _closing = true;
+    _timer?.cancel();
+    if (mounted) {
+      try {
+        await _c.reverse();
+      } catch (_) {}
+    }
+    widget.onClosed();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final slide = Tween<Offset>(
+      begin: const Offset(0, -1),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _c,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      ),
+    );
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: SafeArea(
+        bottom: false,
+        child: SlideTransition(
+          position: slide,
+          child: FadeTransition(
+            opacity: _c,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () {
+                    final cb = widget.onTap;
+                    if (cb != null) cb();
+                    _dismiss();
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: kPakGreen.withValues(alpha: 0.25),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.25),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: kPakGreen.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.notifications_active,
+                            color: kPakGreen,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (widget.title.isNotEmpty)
+                                Text(
+                                  widget.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              if (widget.body.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Text(
+                                    widget.body,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.close,
+                            size: 18,
+                            color: AppColors.textMuted,
+                          ),
+                          onPressed: _dismiss,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Long-lived player reused for the in-app notification chime, so a new message
 /// arriving while the app is open (foreground) is audible — Android suppresses
 /// the system notification sound when the app is in the foreground, delivering
@@ -108,17 +308,12 @@ Future<void> setupPushNotifications() async {
           // App is open — the OS won't play the notification sound, so chime
           // + buzz here to make sure the seller notices the new message.
           playNotificationAlert();
-          rootMessengerKey.currentState?.showSnackBar(
-            SnackBar(
-              content: Text(
-                [n.title, n.body].where((e) => (e ?? '').isNotEmpty).join(': '),
-              ),
-              // Tapping "View" jumps to whatever the notification is about.
-              action: SnackBarAction(
-                label: 'View',
-                onPressed: () => handlePushTap(message),
-              ),
-            ),
+          // Premium heads-up banner slides in from the TOP of the screen (not a
+          // bottom snackbar). Tapping it deep-links to whatever it's about.
+          showTopNotificationBanner(
+            title: n.title ?? '',
+            body: n.body ?? '',
+            onTap: () => handlePushTap(message),
           );
         }
       });
