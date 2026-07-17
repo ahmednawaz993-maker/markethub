@@ -227,7 +227,13 @@ class _BusinessAccountTile extends StatefulWidget {
 }
 
 class _BusinessAccountTileState extends State<_BusinessAccountTile> {
+  // isBusiness == true means an APPROVED, active business (what every badge /
+  // storefront in the app keys on). businessStatus tracks the approval workflow:
+  // none | pending | approved | rejected | suspended. wantsBusiness is the
+  // toggle's value ("I want to sell as a business").
   bool isBusiness = false;
+  String businessStatus = 'none';
+  bool wantsBusiness = false;
   bool loaded = false;
   bool saving = false;
   final nameController = TextEditingController();
@@ -314,6 +320,11 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
     if (!mounted) return;
     setState(() {
       isBusiness = d?['isBusiness'] == true;
+      // Legacy business accounts have no businessStatus — treat them as approved
+      // so they keep their badge without re-applying.
+      businessStatus =
+          d?['businessStatus']?.toString() ?? (isBusiness ? 'approved' : 'none');
+      wantsBusiness = isBusiness || businessStatus == 'pending';
       nameController.text = d?['businessName']?.toString() ?? '';
       taglineController.text = d?['tagline']?.toString() ?? '';
       policiesController.text = d?['storePolicies']?.toString() ?? '';
@@ -340,20 +351,47 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
     if (uid == null) return;
     setState(() => saving = true);
     try {
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'isBusiness': isBusiness,
+      // Business profile fields are always saved, so a pending applicant can
+      // prepare their store details before approval.
+      final data = <String, dynamic>{
         'businessName': nameController.text.trim(),
         'tagline': taglineController.text.trim(),
         'storePolicies': policiesController.text.trim(),
         'logoUrl': logoUrl ?? '',
         'coverUrl': coverUrl ?? '',
         'storeCategory': storeCategory ?? '',
-      }, SetOptions(merge: true));
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Business profile saved')));
+      };
+      String message;
+      if (wantsBusiness) {
+        if (!isBusiness && businessStatus != 'approved') {
+          // Submit / resubmit for review. A seller can NEVER self-approve —
+          // isBusiness is only flipped true by an admin (enforced in rules).
+          data['businessStatus'] = 'pending';
+          message = 'Business details submitted — pending admin review.';
+        } else {
+          // Already an approved business; just saving store details.
+          message = 'Business store updated.';
+        }
+      } else {
+        // Withdrawing from selling as a business.
+        data['isBusiness'] = false;
+        data['businessStatus'] = 'none';
+        message = 'Business selling turned off.';
       }
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .set(data, SetOptions(merge: true));
+      if (!mounted) return;
+      setState(() {
+        if (data.containsKey('businessStatus')) {
+          businessStatus = data['businessStatus'] as String;
+        }
+        if (data['isBusiness'] == false) isBusiness = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -374,7 +412,8 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
     );
     try {
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'isBusiness': true,
+        // isBusiness is already true here (this trial is only offered to
+        // approved businesses); featuring is a promotion on top of that.
         'featuredBusiness': true,
         'featuredBusinessUntil': until,
         'featuredTrialUsed': true,
@@ -407,6 +446,116 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
     super.dispose();
   }
 
+  /// Shows the approval state of the business request, and — once approved —
+  /// quick access to the business dashboard and the seller's own storefront
+  /// (where all of their products live together).
+  Widget _buildBusinessStatusBanner(BuildContext context) {
+    // Approved (or grandfathered) and not suspended → live business.
+    if (isBusiness && businessStatus != 'suspended') {
+      final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+      final name = nameController.text.trim();
+      return _statusCard(
+        color: kPakGreen,
+        icon: Icons.verified,
+        title: 'Approved business',
+        body: 'Your BUSINESS badge and store are live. All your products '
+            'appear together in your store.',
+        actions: [
+          TextButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const SellerDashboardScreen(),
+              ),
+            ),
+            icon: const Icon(Icons.dashboard, size: 18),
+            label: const Text('Dashboard'),
+          ),
+          TextButton.icon(
+            onPressed: uid.isEmpty
+                ? null
+                : () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SellerProfileScreen(
+                        sellerId: uid,
+                        sellerName: name,
+                      ),
+                    ),
+                  ),
+            icon: const Icon(Icons.storefront, size: 18),
+            label: const Text('My store'),
+          ),
+        ],
+      );
+    }
+    switch (businessStatus) {
+      case 'pending':
+        return _statusCard(
+          color: AppColors.info,
+          icon: Icons.hourglass_top,
+          title: 'Pending review',
+          body: 'Our team is reviewing your business. Your badge and store go '
+              'live once approved — you can keep editing your details below.',
+        );
+      case 'rejected':
+        return _statusCard(
+          color: Colors.red,
+          icon: Icons.cancel_outlined,
+          title: 'Not approved',
+          body: 'Your business request was declined. Update your details and '
+              'save to submit again.',
+        );
+      case 'suspended':
+        return _statusCard(
+          color: Colors.orange,
+          icon: Icons.pause_circle_outline,
+          title: 'Business suspended',
+          body: 'Your business selling was suspended by our team. Please '
+              'contact support.',
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _statusCard({
+    required Color color,
+    required IconData icon,
+    required String title,
+    required String body,
+    List<Widget> actions = const [],
+  }) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(fontWeight: FontWeight.bold, color: color),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(body, style: TextStyle(color: AppColors.textSecondary)),
+          if (actions.isNotEmpty)
+            Row(mainAxisAlignment: MainAxisAlignment.end, children: actions),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -416,12 +565,18 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
           children: [
             SwitchListTile(
               title: const Text('Sell as a business'),
-              subtitle: const Text('Shows a BUSINESS badge on your ads'),
-              value: isBusiness,
+              subtitle: const Text(
+                'Get a verified store with a BUSINESS badge. Our team reviews '
+                'your business before it goes live.',
+              ),
+              value: wantsBusiness,
               activeThumbColor: kPakGreen,
-              onChanged: loaded ? (v) => setState(() => isBusiness = v) : null,
+              onChanged: loaded
+                  ? (v) => setState(() => wantsBusiness = v)
+                  : null,
             ),
-            if (isBusiness) ...[
+            _buildBusinessStatusBanner(context),
+            if (wantsBusiness) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: Row(

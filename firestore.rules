@@ -188,8 +188,10 @@ service cloud.firestore {
       // forge a seller's rating.
       allow update: if isSignedIn() && (
                       isAdmin()
-                      || (request.auth.uid == userId && walletUnchanged())
-                      || ((can('users') || can('verifyId') || can('appeals'))
+                      || (request.auth.uid == userId && walletUnchanged()
+                          && businessSelfOk())
+                      || ((can('users') || can('verifyId') || can('appeals')
+                           || can('businessVerify'))
                           && noWalletChange())
                     );
       // Deletion staff may delete a profile only when that user actually filed
@@ -218,6 +220,23 @@ service cloud.firestore {
                  .affectedKeys().hasAny(['walletBalance', 'idVerified',
                                          'blocked', 'ratingSum',
                                          'ratingCount']);
+      }
+
+      // "Sell as a business" is admin-approved. The owner may REQUEST it
+      // (businessStatus 'pending') or withdraw (isBusiness false / status
+      // 'none'), but can NEVER approve themselves: only staff with
+      // 'businessVerify' (or the super admin) may set isBusiness true or a
+      // businessStatus of approved/rejected/suspended. Legacy business accounts
+      // (isBusiness already true, no businessStatus) stay untouched — leaving
+      // both fields unchanged always passes.
+      function businessSelfOk() {
+        return (request.resource.data.get('isBusiness', false)
+                  == resource.data.get('isBusiness', false)
+                || request.resource.data.get('isBusiness', false) == false)
+               && (request.resource.data.get('businessStatus', 'none')
+                     == resource.data.get('businessStatus', 'none')
+                   || request.resource.data.get('businessStatus', 'none')
+                        in ['pending', 'none']);
       }
 
       match /favorites/{favoriteId} {

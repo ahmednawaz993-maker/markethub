@@ -164,6 +164,7 @@ const List<(String, String)> kAdminAreas = [
   ('activity', 'Activity'),
   ('approvals', 'Approvals'),
   ('verifyId', 'Verify ID'),
+  ('businessVerify', 'Business'),
   ('payments', 'Payments'),
   ('escrow', 'Escrow'),
   ('featured', 'Featured'),

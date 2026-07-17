@@ -33,6 +33,7 @@ class AdminPanelScreen extends StatelessWidget {
       ('activity', 'Activity', _AdminActivityTab()),
       ('approvals', 'Approvals', _AdminApprovalsTab()),
       ('verifyId', 'Verify ID', _AdminVerificationsTab()),
+      ('businessVerify', 'Business', _AdminBusinessTab()),
       ('payments', 'Payments', _AdminPaymentsTab()),
       ('payments', 'Payout a/c', _AdminPayoutAccountsTab()),
       ('escrow', 'Escrow', _AdminEscrowTab()),
@@ -4143,6 +4144,477 @@ class _AdminChatsTabState extends State<_AdminChatsTab> {
 /// Admin → review suspension appeals. Lists pending appeals (newest first);
 /// Approve reinstates the user (clears their `blocked` flag), Reject keeps them
 /// suspended. Either way the user is notified of the decision.
+/// Admin → control "Sell as a business". Selling as a business is approval-
+/// gated: a user requests it (businessStatus 'pending') and only an admin flips
+/// `isBusiness` true, which is what every BUSINESS badge / storefront in the app
+/// keys on. This tab is the control surface — a review queue for pending
+/// requests, the full directory of business accounts by status, the featured
+/// businesses, and an activity view of each store's listings & sales.
+class _AdminBusinessTab extends StatefulWidget {
+  const _AdminBusinessTab();
+
+  @override
+  State<_AdminBusinessTab> createState() => _AdminBusinessTabState();
+}
+
+class _AdminBusinessTabState extends State<_AdminBusinessTab> {
+  // 'accounts' shows status-filtered lists; 'activity' shows each business's
+  // listing & sales counts.
+  String _mode = 'accounts';
+  String _status = 'pending';
+
+  static const List<(String, String)> _statuses = [
+    ('pending', 'Pending'),
+    ('approved', 'Approved'),
+    ('suspended', 'Suspended'),
+    ('rejected', 'Rejected'),
+    ('featured', 'Featured'),
+  ];
+
+  /// The users query backing the current status filter. Approved businesses are
+  /// identified by `isBusiness == true` (the app-wide source of truth, which
+  /// also covers legacy accounts with no businessStatus); everything else is a
+  /// businessStatus / featuredBusiness equality. All are single-field top-level
+  /// queries, so Firestore auto-indexes them (no manual index needed).
+  Query<Map<String, dynamic>> _query() {
+    final users = FirebaseFirestore.instance.collection('users');
+    switch (_status) {
+      case 'approved':
+        return users.where('isBusiness', isEqualTo: true);
+      case 'featured':
+        return users.where('featuredBusiness', isEqualTo: true);
+      default: // pending | suspended | rejected
+        return users.where('businessStatus', isEqualTo: _status);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+          child: Row(
+            children: [
+              for (final m in const [
+                ('accounts', 'Accounts'),
+                ('activity', 'Activity'),
+              ])
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ChoiceChip(
+                    label: Text(m.$2),
+                    selected: _mode == m.$1,
+                    selectedColor: kPakGreen.withValues(alpha: 0.22),
+                    onSelected: (_) => setState(() => _mode = m.$1),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (_mode == 'accounts')
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final s in _statuses)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: ChoiceChip(
+                        label: Text(s.$2),
+                        selected: _status == s.$1,
+                        selectedColor: kPakGreen.withValues(alpha: 0.18),
+                        onSelected: (_) => setState(() => _status = s.$1),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        Expanded(
+          child: _mode == 'activity'
+              ? _buildActivity()
+              : _buildAccounts(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAccounts() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _query().snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final at =
+                (a.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ??
+                0;
+            final bt =
+                (b.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ??
+                0;
+            return bt.compareTo(at);
+          });
+        if (docs.isEmpty) {
+          return EmptyState(
+            icon: Icons.storefront_outlined,
+            title: 'No $_status businesses',
+            subtitle: _status == 'pending'
+                ? 'Business requests awaiting approval appear here.'
+                : 'No accounts in this category.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) => _BusinessAccountCard(userDoc: docs[i]),
+        );
+      },
+    );
+  }
+
+  Widget _buildActivity() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .where('isBusiness', isEqualTo: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) {
+          return const EmptyState(
+            icon: Icons.insights_outlined,
+            title: 'No active businesses',
+            subtitle: 'Approved business stores and their activity show here.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: docs.length,
+          itemBuilder: (context, i) =>
+              _BusinessActivityCard(userDoc: docs[i]),
+        );
+      },
+    );
+  }
+}
+
+/// One business account in the admin directory, with the approve/reject/
+/// suspend/reactivate controls and a link into its store. Writes flip the
+/// app-wide `isBusiness` flag and `businessStatus`, then notify the seller.
+class _BusinessAccountCard extends StatefulWidget {
+  final QueryDocumentSnapshot<Map<String, dynamic>> userDoc;
+  const _BusinessAccountCard({required this.userDoc});
+
+  @override
+  State<_BusinessAccountCard> createState() => _BusinessAccountCardState();
+}
+
+class _BusinessAccountCardState extends State<_BusinessAccountCard> {
+  bool _busy = false;
+
+  (String, Color) _chip(Map<String, dynamic> d) {
+    final s = d['businessStatus']?.toString() ??
+        (d['isBusiness'] == true ? 'approved' : 'none');
+    return switch (s) {
+      'approved' => ('Approved', kPakGreen),
+      'pending' => ('Pending', AppColors.info),
+      'suspended' => ('Suspended', Colors.orange),
+      'rejected' => ('Rejected', Colors.red),
+      _ => ('—', AppColors.textMuted),
+    };
+  }
+
+  Future<void> _decide({
+    required String status,
+    required bool business,
+    required String verb,
+    required bool positive,
+    bool clearFeatured = false,
+  }) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final d = widget.userDoc.data();
+    final name = (d['businessName']?.toString() ?? '').trim();
+    final store = name.isEmpty ? 'your store' : '"$name"';
+    try {
+      final update = <String, dynamic>{
+        'isBusiness': business,
+        'businessStatus': status,
+      };
+      if (clearFeatured) update['featuredBusiness'] = false;
+      await widget.userDoc.reference.update(update);
+      await widget.userDoc.reference.collection('notifications').add({
+        'title': switch (status) {
+          'approved' => '✅ Business approved',
+          'rejected' => '⚠️ Business not approved',
+          'suspended' => '⛔ Business suspended',
+          _ => 'Business status updated',
+        },
+        'body': switch (status) {
+          'approved' =>
+            'Your business $store is approved. Your BUSINESS badge and store '
+                'are now live — all your products appear together there.',
+          'rejected' =>
+            'Your request to sell as a business ($store) was not approved. You '
+                'can update your details and submit again.',
+          'suspended' =>
+            'Your business selling ($store) has been suspended. Please contact '
+                'support.',
+          _ => 'Your business status was updated.',
+        },
+        'type': positive ? 'admin' : 'warning',
+        'read': false,
+        'createdAt': Timestamp.now(),
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Business $verb.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not update: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d = widget.userDoc.data();
+    final status = d['businessStatus']?.toString() ??
+        (d['isBusiness'] == true ? 'approved' : 'none');
+    final name = (d['businessName']?.toString() ?? '').trim();
+    final email = d['email']?.toString() ?? '';
+    final (chipLabel, chipColor) = _chip(d);
+    final featured = d['featuredBusiness'] == true;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.storefront, size: 18, color: kPakGreen),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    name.isEmpty ? '(no business name)' : name,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (featured) ...[
+                  const Icon(Icons.star, size: 16, color: kGold),
+                  const SizedBox(width: 4),
+                ],
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: chipColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    chipLabel,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: chipColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            if (email.isNotEmpty)
+              Text(email, style: TextStyle(color: AppColors.textMuted)),
+            if ((d['storeCategory']?.toString() ?? '').isNotEmpty)
+              Text(
+                'Category: ${d['storeCategory']}',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+            if ((d['tagline']?.toString() ?? '').isNotEmpty)
+              Text(
+                d['tagline'].toString(),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            const SizedBox(height: 8),
+            if (_busy)
+              const Padding(
+                padding: EdgeInsets.all(6),
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            else
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SellerProfileScreen(
+                          sellerId: widget.userDoc.id,
+                          sellerName: name,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.storefront, size: 18),
+                    label: const Text('Store'),
+                  ),
+                  if (status != 'approved')
+                    ElevatedButton.icon(
+                      onPressed: () => _decide(
+                        status: 'approved',
+                        business: true,
+                        verb: 'approved',
+                        positive: true,
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kPakGreen,
+                        foregroundColor: Colors.white,
+                      ),
+                      icon: const Icon(Icons.verified, size: 18),
+                      label: Text(
+                        status == 'suspended' || status == 'rejected'
+                            ? 'Reinstate'
+                            : 'Approve',
+                      ),
+                    ),
+                  if (status == 'approved')
+                    OutlinedButton.icon(
+                      onPressed: () => _decide(
+                        status: 'suspended',
+                        business: false,
+                        verb: 'suspended',
+                        positive: false,
+                        clearFeatured: true,
+                      ),
+                      icon: const Icon(
+                        Icons.pause_circle_outline,
+                        color: Colors.orange,
+                        size: 18,
+                      ),
+                      label: const Text(
+                        'Suspend',
+                        style: TextStyle(color: Colors.orange),
+                      ),
+                    ),
+                  if (status == 'pending')
+                    OutlinedButton.icon(
+                      onPressed: () => _decide(
+                        status: 'rejected',
+                        business: false,
+                        verb: 'rejected',
+                        positive: false,
+                      ),
+                      icon: const Icon(Icons.close, color: Colors.red, size: 18),
+                      label: const Text(
+                        'Reject',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A business store's activity at a glance: live-listing count and total
+/// orders, with a tap into the store. Counts use aggregate queries (cheap,
+/// bounded to approved businesses).
+class _BusinessActivityCard extends StatelessWidget {
+  final QueryDocumentSnapshot<Map<String, dynamic>> userDoc;
+  const _BusinessActivityCard({required this.userDoc});
+
+  Future<(int, int)> _counts() async {
+    final fs = FirebaseFirestore.instance;
+    final listings = await fs
+        .collection('listings')
+        .where('userId', isEqualTo: userDoc.id)
+        .count()
+        .get();
+    final orders = await fs
+        .collection('orders')
+        .where('sellerId', isEqualTo: userDoc.id)
+        .count()
+        .get();
+    return (listings.count ?? 0, orders.count ?? 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d = userDoc.data();
+    final name = (d['businessName']?.toString() ?? '').trim();
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        leading: const CircleAvatar(
+          backgroundColor: Color(0x1A0A7A3C),
+          child: Icon(Icons.storefront, color: kPakGreen),
+        ),
+        title: Text(
+          name.isEmpty ? '(no business name)' : name,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: FutureBuilder<(int, int)>(
+          future: _counts(),
+          builder: (context, snap) {
+            if (!snap.hasData) return const Text('Loading activity…');
+            final (listings, orders) = snap.data!;
+            return Text('$listings listings · $orders orders');
+          },
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SellerProfileScreen(
+              sellerId: userDoc.id,
+              sellerName: name,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Admin → verify seller payout accounts. A seller manages their own bank /
 /// wallet routing details but can NEVER self-verify (enforced in
 /// firestore.rules); this is the other half of that gate. Lists every seller's
