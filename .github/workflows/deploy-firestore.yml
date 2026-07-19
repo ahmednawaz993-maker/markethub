@@ -1,0 +1,73 @@
+name: Deploy Firestore rules & indexes
+
+# Ship firestore.rules and firestore.indexes.json to the live markethub-80276
+# project. The Play deploy workflow builds/uploads the APP only — it never
+# touches Firestore config, so before this workflow existed a rules/index change
+# went live only when someone ran `firebase deploy` by hand. That gap is exactly
+# what caused the admin "Payout a/c" tab (a payoutAccounts collection-group
+# query) to fail in production while working locally: the code shipped but the
+# matching rule ordering + COLLECTION_GROUP index never did.
+#
+# Runs only when the rules or indexes actually change (path filter), so it stays
+# out of the way of ordinary app releases.
+#
+# Auth: reuses the PLAY_SERVICE_ACCOUNT_JSON secret (the Firebase Admin SDK
+# service account for markethub-80276). firebase-tools authenticates via
+# GOOGLE_APPLICATION_CREDENTIALS. That service account must hold, in addition to
+# its Firestore data access:
+#   • roles/firebaserules.admin   — to release firestore.rules
+#   • roles/datastore.indexAdmin  — to create the composite/collection-group
+#                                   indexes (roles/datastore.owner also works)
+# Grant these once in the Google Cloud IAM console if the deploy step 403s.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "firestore.rules"
+      - "firestore.indexes.json"
+      - ".github/workflows/deploy-firestore.yml"
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+# Never let two Firestore deploys race (they'd fight over the same ruleset /
+# index set).
+concurrency:
+  group: firestore-deploy
+  cancel-in-progress: false
+
+env:
+  FIREBASE_PROJECT: markethub-80276
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Write Firebase service-account key
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: echo "$PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-sa.json"
+
+      - name: Deploy Firestore rules & indexes
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-sa.json
+        # --non-interactive so a new index in the file is created without a
+        # prompt; it never deletes indexes absent from the file, so this is safe.
+        run: |
+          firebase deploy \
+            --only firestore:rules,firestore:indexes \
+            --project "$FIREBASE_PROJECT" \
+            --non-interactive
+
+      - name: Clean up secret on runner
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-sa.json"

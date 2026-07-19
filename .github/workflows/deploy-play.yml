@@ -21,6 +21,10 @@ on:
       - "functions/*smoke*_test.js"
       - "functions/**/*.test.js"
       - ".github/workflows/smoke-test.yml"
+      # Firestore rules/indexes ship via deploy-firestore.yml, not a Play build.
+      - ".github/workflows/deploy-firestore.yml"
+      - "firestore.rules"
+      - "firestore.indexes.json"
   workflow_dispatch: {} # allow manual runs from the Actions tab
 
 # Never let two releases race (they'd fight over the versionCode / Play edit).
