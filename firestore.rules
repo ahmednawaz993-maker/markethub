@@ -58,6 +58,29 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ---------------------------------------------------------------------
+    // Collection-group READ rules for the back-office admin queues.
+    // A Firestore collection-group query (collectionGroup('X')) is ONLY
+    // authorized by a rule matched through the recursive {path=**} wildcard.
+    // A nested match (e.g. /users/{uid}/payoutAccounts/{id} or
+    // /orders/{oid}/cancellationRequests/{id}) secures direct owner/participant
+    // reads but is NEVER consulted for a collectionGroup() query — so without
+    // these the admin Payout a/c / Cancellations / Returns tabs fail with
+    // "Missing or insufficient permissions" no matter how the nested rule is
+    // ordered. These ONLY add the admin cross-collection LIST; every write and
+    // every owner/participant read stays governed by the per-document nested
+    // matches further below (access is the OR of all matching rules).
+    // ---------------------------------------------------------------------
+    match /{path=**}/payoutAccounts/{accountId} {
+      allow read: if can('payments');
+    }
+    match /{path=**}/cancellationRequests/{requestId} {
+      allow read: if can('orders');
+    }
+    match /{path=**}/returnRequests/{requestId} {
+      allow read: if can('orders');
+    }
+
     // Demo / Play-review accounts bypass ID verification (keep in sync with
     // demoEmails in the app).
     function isDemo() {
@@ -262,12 +285,12 @@ service cloud.firestore {
       // verificationStatus is admin/Cloud-Function only. Buyers can't read them
       // (they are not the owner). New accounts must start 'pending'.
       match /payoutAccounts/{accountId} {
-        // can('payments') MUST come first: the admin tab reads this as a
-        // collection-group query, and Firestore denies a collection-group list
-        // whose rule evaluates an ancestor-path wildcard (userId) first. Leading
-        // with the payments-admin check lets it short-circuit (same pattern as
-        // the cancellation/return admin tabs). The owner's own direct query
-        // still resolves via the second clause.
+        // Owner reads their own accounts here (direct subcollection query);
+        // payments-admin direct GETs also resolve via can('payments'). The
+        // admin Payout a/c tab's cross-seller collectionGroup('payoutAccounts')
+        // LIST is authorized separately by the recursive {path=**} rule near the
+        // top of this file — a nested match like this one is never consulted for
+        // a collection-group query.
         allow read: if can('payments')
                     || (isSignedIn() && request.auth.uid == userId);
         allow create: if isSignedIn()
