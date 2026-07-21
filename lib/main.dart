@@ -43,6 +43,7 @@ part 'src/push.dart';
 part 'src/commerce.dart';
 part 'src/cancellation.dart';
 part 'src/returns.dart';
+part 'src/refunds.dart';
 part 'src/cart.dart';
 part 'src/addresses.dart';
 part 'src/review_prompt.dart';
@@ -94,6 +95,7 @@ Future<void> main() async {
   await loadSavedThemeMode();
   await loadFeaturingFlag();
   await loadVerificationFlag();
+  
   await loadMonetizationFlag();
   await recordAppSession();
 

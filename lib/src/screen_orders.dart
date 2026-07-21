@@ -597,6 +597,11 @@ class _OrdersList extends StatelessWidget {
                       data: d,
                       asSeller: asSeller,
                     ),
+                    RefundSection(
+                      orderId: docs[i].id,
+                      data: d,
+                      asSeller: asSeller,
+                    ),
                     if (!asSeller &&
                         (status == 'in_escrow' ||
                             status == 'completed' ||

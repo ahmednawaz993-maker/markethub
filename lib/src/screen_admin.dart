@@ -3146,6 +3146,7 @@ class _AdminOrdersTab extends StatelessWidget {
             const _MasterOrdersPanel(),
             const _PendingCancellationsPanel(),
             const _PendingReturnsPanel(),
+            const _PendingRefundsPanel(),
             Expanded(
               child: docs.isEmpty
                   ? const EmptyState(
@@ -3595,6 +3596,265 @@ class _CancellationRequestRow extends StatelessWidget {
             approve ? 'Cancellation approved.' : 'Request rejected.',
           ),
         ),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not update. Please try again.')),
+      );
+    }
+  }
+}
+
+/// Admin review of pending buyer REFUND requests. Reuses the `orders`
+/// permission; approving issues a full or partial escrow refund to the buyer's
+/// wallet via the onRefundRequestDecision Cloud Function. Refunds are decided by
+/// admin only (the seller does not). Collapses when the queue is empty.
+class _PendingRefundsPanel extends StatelessWidget {
+  const _PendingRefundsPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collectionGroup('refundRequests')
+          .where('requestStatus', isEqualTo: 'pending')
+          .orderBy('requestedAt', descending: true)
+          .snapshots(),
+      builder: (context, snap) {
+        final docs = snap.data?.docs ?? const [];
+        if (docs.isEmpty) return const SizedBox.shrink();
+        return Card(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          color: Colors.deepPurple.shade50,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.currency_exchange,
+                      color: Colors.deepPurple,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Refund requests (${docs.length})',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                for (final doc in docs)
+                  _RefundRequestRow(
+                    orderId: doc.reference.parent.parent?.id ?? '',
+                    requestId: doc.id,
+                    request: doc.data(),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _RefundRequestRow extends StatelessWidget {
+  final String orderId;
+  final String requestId;
+  final Map<String, dynamic> request;
+  const _RefundRequestRow({
+    required this.orderId,
+    required this.requestId,
+    required this.request,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final reason = refundReasonLabel(request['reasonCode']?.toString() ?? '');
+    final details = request['reasonDetails']?.toString() ?? '';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            future: FirebaseFirestore.instance
+                .collection('orders')
+                .doc(orderId)
+                .get(),
+            builder: (context, s) {
+              final o = s.data?.data();
+              final title = o?['listingTitle']?.toString() ?? orderId;
+              final amount = (o?['amount'] as num?)?.toDouble() ?? 0;
+              return Text(
+                amount > 0
+                    ? '$title — held ${formatPrice(amount.toStringAsFixed(0))}'
+                    : title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              );
+            },
+          ),
+          Text(
+            details.isEmpty
+                ? 'Reason: $reason'
+                : 'Reason: $reason — “$details”',
+            style: const TextStyle(fontSize: 12, color: Colors.black87),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => _reject(context),
+                child: const Text('Reject'),
+              ),
+              const SizedBox(width: 4),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                ),
+                onPressed: () => _approve(context),
+                child: const Text('Approve refund'),
+              ),
+            ],
+          ),
+          const Divider(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _approve(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final amountCtl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Approve refund?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'The buyer is refunded to their PakBazar wallet. Leave the amount '
+              'blank to refund the full held amount, or enter a smaller amount '
+              'for a partial refund.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: amountCtl,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Refund amount (PKR) — blank = full',
+                border: OutlineInputBorder(),
+                prefixText: 'PKR ',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Back'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Approve'),
+          ),
+        ],
+      ),
+    );
+    final raw = amountCtl.text.trim();
+    amountCtl.dispose();
+    if (ok != true) return;
+    final parsed = raw.isEmpty ? null : num.tryParse(raw);
+    if (raw.isNotEmpty && (parsed == null || parsed <= 0)) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Enter a valid amount, or leave blank.')),
+      );
+      return;
+    }
+    try {
+      await decideRefundRequest(
+        orderId,
+        requestId,
+        approve: true,
+        refundAmount: parsed,
+      );
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            parsed == null
+                ? 'Full refund approved.'
+                : 'Partial refund of ${formatPrice(parsed.toStringAsFixed(0))} '
+                      'approved.',
+          ),
+        ),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not update. Please try again.')),
+      );
+    }
+  }
+
+  Future<void> _reject(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final noteCtl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reject refund request?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'The order is unchanged and no money moves. Add a note for the '
+              'buyer explaining why.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: noteCtl,
+              decoration: const InputDecoration(
+                labelText: 'Reason for the buyer',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Back'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+    final note = noteCtl.text;
+    noteCtl.dispose();
+    if (ok != true) return;
+    try {
+      await decideRefundRequest(
+        orderId,
+        requestId,
+        approve: false,
+        note: note,
+      );
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Refund request rejected.')),
       );
     } catch (_) {
       messenger.showSnackBar(

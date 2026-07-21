@@ -2541,6 +2541,325 @@ exports.onCancellationRequestDecision = onDocumentUpdated(
 );
 
 // ---------------------------------------------------------------------------
+// Buyer-initiated refund requests (admin-controlled)
+//
+// A buyer whose payment is still HELD in escrow can request a refund at any
+// stage. Only ADMIN (orders staff) decides — the seller is notified but does
+// not approve/reject. On approval this reuses the audited escrow-refund path
+// (a deterministic escrowActions/refund_{orderId} doc → onEscrowAction), which
+// credits the buyer's wallet. Admin may issue a full or partial refund
+// (act.refundAmount). Mirrors the cancellation flow.
+// ---------------------------------------------------------------------------
+
+// Approves a refund: issues the (full or partial) escrow refund when money is
+// still held, stamps the order + request, writes audit + notifications.
+// Idempotent — the deterministic escrowActions id prevents a double refund, and
+// the request's processedAt guards the decision trigger from re-running.
+async function processRefundApproval(
+  db, orderId, order, reqRef, req, actorId
+) {
+  const orderRef = db.collection("orders").doc(orderId);
+  const amount = Number(order.amount) || 0;
+
+  // The order must still be held in escrow — a stale approval can't refund an
+  // order whose money has already been released.
+  if (order.status !== "in_escrow" || amount <= 0) {
+    await orderRef.set(
+      { refundRequested: false, refundRequestStatus: "rejected" },
+      { merge: true }
+    );
+    await reqRef.set(
+      {
+        requestStatus: "rejected",
+        refundStatus: "not_required",
+        reviewNote: "No held payment to refund.",
+        reviewedBy: actorId || "",
+        reviewedAt: Timestamp.now(),
+        processedAt: Timestamp.now(),
+      },
+      { merge: true }
+    );
+    if (order.buyerId) {
+      await pushToUser(
+        db,
+        order.buyerId,
+        {
+          title: "Refund unavailable",
+          body: "This order has no payment held by PakBazar to refund.",
+        },
+        { type: "order", orderId }
+      );
+    }
+    return;
+  }
+
+  const partial = Number(req.refundAmount) || 0; // 0/blank ⇒ full refund.
+  const action = {
+    type: "refund",
+    orderId,
+    by: actorId || "admin",
+    reason: `refund:${req.reasonCode || ""}`,
+    source: "refund",
+    createdAt: Timestamp.now(),
+  };
+  if (partial > 0) action.refundAmount = partial;
+  try {
+    await db.collection("escrowActions").doc(`refund_${orderId}`).create(action);
+  } catch (e) {
+    // Already queued/processed — continue idempotently.
+  }
+  // Leave status/orderStatus to the refund flow; only stamp the request + flag.
+  await orderRef.set(
+    {
+      refundRequested: false,
+      refundRequestStatus: "approved",
+      refundApprovedAt: Timestamp.now(),
+      refundApprovedBy: actorId || "",
+    },
+    { merge: true }
+  );
+  await reqRef.set(
+    {
+      requestStatus: "approved",
+      refundRequired: true,
+      refundStatus: "pending",
+      reviewedBy: actorId || "",
+      reviewedAt: Timestamp.now(),
+      processedAt: Timestamp.now(),
+    },
+    { merge: true }
+  );
+
+  await writeAudit(db, {
+    action: "refund_approved",
+    entityType: "order",
+    entityId: orderId,
+    actorId: actorId || "",
+    actorRole: "admin",
+    previousStatus: order.orderStatus || order.status || "",
+    newStatus: "refund_approved",
+    amount: partial > 0 ? partial : amount,
+    reason: req.reasonCode || "",
+  });
+
+  if (order.buyerId) {
+    await pushToUser(
+      db,
+      order.buyerId,
+      {
+        title: "Refund approved",
+        body: "Your refund is being credited to your PakBazar wallet.",
+      },
+      { type: "order", orderId }
+    );
+  }
+  if (order.sellerId) {
+    await pushToUser(
+      db,
+      order.sellerId,
+      {
+        title: "Order refunded",
+        body: `A refund was approved for "${order.listingTitle || orderId}".`,
+      },
+      { type: "order", orderId }
+    );
+  }
+}
+
+// A buyer filed a refund request → validate + route to admin review. Refunds
+// are only meaningful while the payment is held, so non-escrow orders are
+// auto-rejected. There is no auto-approval — admin always decides.
+exports.onRefundRequestCreated = onDocumentCreated(
+  "orders/{orderId}/refundRequests/{requestId}",
+  async (event) => {
+    const req = event.data && event.data.data();
+    if (!req) return;
+    const orderId = event.params.orderId;
+    const requestId = event.params.requestId;
+    const db = getFirestore();
+    const orderRef = db.collection("orders").doc(orderId);
+    const reqRef = event.data.ref;
+
+    const oSnap = await orderRef.get();
+    if (!oSnap.exists) {
+      return reqRef.set(
+        {
+          requestStatus: "rejected",
+          adminDecision: "auto",
+          reviewNote: "Order not found.",
+          processedAt: Timestamp.now(),
+        },
+        { merge: true }
+      );
+    }
+    const order = oSnap.data();
+
+    if (order.status !== "in_escrow" || (Number(order.amount) || 0) <= 0) {
+      await reqRef.set(
+        {
+          requestStatus: "rejected",
+          adminDecision: "auto",
+          refundStatus: "not_required",
+          reviewNote: "This order has no held payment to refund.",
+          reviewedAt: Timestamp.now(),
+          processedAt: Timestamp.now(),
+        },
+        { merge: true }
+      );
+      if (order.buyerId) {
+        await pushToUser(
+          db,
+          order.buyerId,
+          {
+            title: "Refund unavailable",
+            body: "This order has no payment held by PakBazar to refund.",
+          },
+          { type: "order", orderId }
+        );
+      }
+      return;
+    }
+
+    // Flag the order so both apps can show the pending-request state.
+    await orderRef.set(
+      {
+        refundRequested: true,
+        refundRequestId: requestId,
+        refundRequestStatus: "pending",
+      },
+      { merge: true }
+    );
+    await writeAudit(db, {
+      action: "refund_requested",
+      entityType: "order",
+      entityId: orderId,
+      actorId: req.buyerId || "",
+      actorRole: "buyer",
+      previousStatus: order.orderStatus || order.status || "",
+      newStatus: "refund_requested",
+      reason: req.reasonCode || "",
+    });
+    await notifyAdmins(
+      db,
+      {
+        title: "Refund requested",
+        body: `Order "${
+          order.listingTitle || orderId
+        }" has a pending refund request.`,
+      },
+      { type: "order", orderId }
+    );
+    if (order.sellerId) {
+      await pushToUser(
+        db,
+        order.sellerId,
+        {
+          title: "Refund requested",
+          body: `${order.buyerName || "The buyer"} requested a refund on "${
+            order.listingTitle || "an order"
+          }". PakBazar is reviewing it.`,
+        },
+        { type: "order", orderId }
+      );
+    }
+    if (order.buyerId) {
+      await pushToUser(
+        db,
+        order.buyerId,
+        {
+          title: "Request received",
+          body: "Your refund request has been sent to PakBazar for review.",
+        },
+        { type: "order", orderId }
+      );
+    }
+  }
+);
+
+// An admin decided a pending refund request (or the buyer withdrew it). Apply
+// the outcome. Guards against loops via processedAt.
+exports.onRefundRequestDecision = onDocumentUpdated(
+  "orders/{orderId}/refundRequests/{requestId}",
+  async (event) => {
+    const before = (event.data.before && event.data.before.data()) || {};
+    const after = (event.data.after && event.data.after.data()) || {};
+    const orderId = event.params.orderId;
+    const db = getFirestore();
+
+    // Only the first pending → decided transition; ignore our own follow-ups.
+    if (before.requestStatus !== "pending") return;
+    if (before.processedAt || after.processedAt) return;
+
+    const orderRef = db.collection("orders").doc(orderId);
+    const reqRef = event.data.after.ref;
+
+    if (after.requestStatus === "approved") {
+      const oSnap = await orderRef.get();
+      if (!oSnap.exists) return;
+      const order = oSnap.data();
+      await processRefundApproval(
+        db, orderId, order, reqRef, after, after.reviewedBy || ""
+      );
+      return;
+    }
+
+    if (after.requestStatus === "rejected") {
+      await orderRef.set(
+        {
+          refundRequested: false,
+          refundRequestStatus: "rejected",
+          refundDecisionNote: after.reviewNote || "",
+        },
+        { merge: true }
+      );
+      await reqRef.set({ processedAt: Timestamp.now() }, { merge: true });
+      await writeAudit(db, {
+        action: "refund_rejected",
+        entityType: "order",
+        entityId: orderId,
+        actorId: after.reviewedBy || "",
+        actorRole: "admin",
+        reason: after.reviewNote || "",
+      });
+      const oSnap = await orderRef.get();
+      const order = oSnap.exists ? oSnap.data() : {};
+      if (order.buyerId) {
+        await pushToUser(
+          db,
+          order.buyerId,
+          {
+            title: "Refund declined",
+            body: after.reviewNote
+              ? `Your refund request was declined: ${after.reviewNote}`
+              : "Your refund request was declined.",
+          },
+          { type: "order", orderId }
+        );
+      }
+      return;
+    }
+
+    if (after.requestStatus === "withdrawn") {
+      await orderRef.set(
+        {
+          refundRequested: false,
+          refundRequestStatus: "withdrawn",
+        },
+        { merge: true }
+      );
+      await reqRef.set({ processedAt: Timestamp.now() }, { merge: true });
+      await writeAudit(db, {
+        action: "refund_withdrawn",
+        entityType: "order",
+        entityId: orderId,
+        actorId: after.buyerId || "",
+        actorRole: "buyer",
+      });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
 // Order returns (Phase 4)
 //
 // After delivery the buyer files a returnRequest. It always needs seller/admin
