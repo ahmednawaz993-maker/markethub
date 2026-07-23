@@ -502,6 +502,11 @@ class _AuthScreenState extends State<AuthScreen> {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
+                      // Public lucky-draw promo — visible before sign-in so
+                      // visitors see the campaign immediately. Auto-hides on
+                      // 14 Aug 2026 via luckyDrawActive(); tapping opens the
+                      // Invite & Win details (with a register CTA).
+                      const LuckyDrawBanner(),
                       const SizedBox(height: 16),
                       // Choose how to sign in: email/password or phone + OTP.
                       DecoratedBox(
