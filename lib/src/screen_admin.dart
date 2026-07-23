@@ -3624,6 +3624,40 @@ class _AdminLuckyDrawTabState extends State<_AdminLuckyDrawTab> {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        Card(
+          margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('config')
+                .doc('luckyDraw')
+                .snapshots(),
+            builder: (context, snap) {
+              final enabled =
+                  (snap.data?.data() as Map<String, dynamic>?)?['enabled'] !=
+                  false;
+              return SwitchListTile(
+                title: const Text(
+                  'Lucky Draw campaign',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  enabled
+                      ? 'ON — banner & Invite entry points show (until 14 Aug 2026)'
+                      : 'OFF — campaign hidden everywhere right now',
+                ),
+                value: enabled,
+                activeThumbColor: kPakGreen,
+                onChanged: (v) {
+                  FirebaseFirestore.instance
+                      .collection('config')
+                      .doc('luckyDraw')
+                      .set({'enabled': v}, SetOptions(merge: true));
+                  luckyDrawEnabled.value = v;
+                },
+              );
+            },
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
           child: Row(
