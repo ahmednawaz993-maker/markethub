@@ -53,6 +53,7 @@ class AdminPanelScreen extends StatelessWidget {
       ('chats', 'Chats', _AdminChatsTab()),
       ('appeals', 'Appeals', _AdminAppealsTab()),
       ('deletions', 'Deletions', _AdminDeletionsTab()),
+      ('__super', 'Lucky Draw', _AdminLuckyDrawTab()),
     ];
     final visible = entries.where((e) {
       return e.$1 == '__super' ? isSuperAdmin() : hasAdminPerm(e.$1);
@@ -3595,6 +3596,162 @@ class _CancellationRequestRow extends StatelessWidget {
           content: Text(
             approve ? 'Cancellation approved.' : 'Request rejected.',
           ),
+        ),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not update. Please try again.')),
+      );
+    }
+  }
+}
+
+/// Admin view of the Lucky Draw participation list. Super-admin only. Lists
+/// everyone who shared the app (luckyDrawEntries), highest share-count first,
+/// with an "eligible (shared ≥ 5)" filter and a Mark-winner toggle to pick the
+/// 5 winners. `isWinner` is admin-owned (buyers can't self-set it, per rules).
+class _AdminLuckyDrawTab extends StatefulWidget {
+  const _AdminLuckyDrawTab();
+
+  @override
+  State<_AdminLuckyDrawTab> createState() => _AdminLuckyDrawTabState();
+}
+
+class _AdminLuckyDrawTabState extends State<_AdminLuckyDrawTab> {
+  bool eligibleOnly = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: Row(
+            children: [
+              FilterChip(
+                label: const Text('Eligible (shared ≥ 5)'),
+                selected: eligibleOnly,
+                onSelected: (v) => setState(() => eligibleOnly = v),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('luckyDrawEntries')
+                .orderBy('shareCount', descending: true)
+                .snapshots(),
+            builder: (context, snap) {
+              if (!snap.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              var docs = snap.data!.docs;
+              if (eligibleOnly) {
+                docs = docs
+                    .where(
+                      (d) =>
+                          ((d.data()['shareCount'] as num?)?.toInt() ?? 0) >= 5,
+                    )
+                    .toList();
+              }
+              if (docs.isEmpty) {
+                return const EmptyState(
+                  icon: Icons.card_giftcard,
+                  title: 'No lucky-draw entries yet',
+                );
+              }
+              final winners = docs
+                  .where((d) => d.data()['isWinner'] == true)
+                  .length;
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                children: [
+                  Card(
+                    color: kPakGreen,
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Text(
+                        '${docs.length} entries · $winners winner(s) marked',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  for (final d in docs)
+                    _LuckyDrawEntryRow(id: d.id, data: d.data()),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LuckyDrawEntryRow extends StatelessWidget {
+  final String id;
+  final Map<String, dynamic> data;
+  const _LuckyDrawEntryRow({required this.id, required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (data['name'] ?? '').toString();
+    final phone = (data['phone'] ?? '').toString();
+    final shares = (data['shareCount'] as num?)?.toInt() ?? 0;
+    final isWinner = data['isWinner'] == true;
+    final eligible = shares >= 5;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: isWinner
+              ? kGold
+              : (eligible ? kPakGreen : Colors.grey.shade400),
+          child: Text(
+            '$shares',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        title: Text(name.isEmpty ? '(no name)' : name),
+        subtitle: Text(
+          '${phone.isEmpty ? 'no phone' : phone} · shared $shares time(s)',
+        ),
+        trailing: TextButton(
+          onPressed: () => _toggleWinner(context, !isWinner),
+          child: Text(
+            isWinner ? 'Winner ✓' : 'Mark winner',
+            style: TextStyle(
+              color: isWinner ? kGold : kPakGreen,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _toggleWinner(BuildContext context, bool val) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await FirebaseFirestore.instance
+          .collection('luckyDrawEntries')
+          .doc(id)
+          .set({
+            'isWinner': val,
+            'winnerMarkedAt': val ? FieldValue.serverTimestamp() : null,
+          }, SetOptions(merge: true));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(val ? 'Marked as winner.' : 'Winner removed.'),
         ),
       );
     } catch (_) {

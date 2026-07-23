@@ -935,6 +935,22 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // Lucky Draw entries — one doc per user (id == uid). The owner maintains
+    // their own participation record (name/phone/shareCount) but can NEVER set
+    // themselves as a winner; only an admin marks winners. Admins read the full
+    // list to run the draw.
+    // ---------------------------------------------------------------------
+    match /luckyDrawEntries/{uid} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow create, update: if isAdmin()
+                            || (isSignedIn()
+                                && request.auth.uid == uid
+                                && request.resource.data.uid == uid
+                                && request.resource.data.get('isWinner', false) == false);
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
     // Seller withdrawals — a seller requests a payout; Cloud Functions reserve
     // the funds and settle. Clients never write money state.
     // ---------------------------------------------------------------------

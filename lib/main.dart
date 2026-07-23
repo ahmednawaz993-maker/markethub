@@ -23,6 +23,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -44,6 +45,7 @@ part 'src/commerce.dart';
 part 'src/cancellation.dart';
 part 'src/returns.dart';
 part 'src/refunds.dart';
+part 'src/screen_invite.dart';
 part 'src/cart.dart';
 part 'src/addresses.dart';
 part 'src/review_prompt.dart';
@@ -97,6 +99,7 @@ Future<void> main() async {
   await loadVerificationFlag();
   
   await loadMonetizationFlag();
+  await loadLuckyDrawFlag();
   await recordAppSession();
 
   runApp(const PakBazarApp());

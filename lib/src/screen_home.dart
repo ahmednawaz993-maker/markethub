@@ -379,6 +379,116 @@ class VerifyBanner extends StatelessWidget {
   }
 }
 
+/// Home promo banner for the lucky-draw campaign. Renders nothing once the
+/// campaign is over (luckyDrawActive() is false), so it AUTO-REMOVES itself on
+/// 14 Aug 2026 with no update. Tapping it opens the Invite & Win screen.
+class LuckyDrawBanner extends StatelessWidget {
+  const LuckyDrawBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!luckyDrawActive()) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 10, 8, 0),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const InviteFriendsScreen()),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [kPakGreen, kPakGreenLight],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: kPakGreen.withValues(alpha: 0.3),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              const Text('🎉', style: TextStyle(fontSize: 30)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Flexible(
+                          child: Text(
+                            'Win PKR 100,000!',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: kGold,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Text(
+                            '5 WINNERS',
+                            style: TextStyle(
+                              color: kPakGreenDeep,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Share more to win · draw on 14 Aug 2026',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Invite & Win',
+                  style: TextStyle(
+                    color: kPakGreen,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Light-themed "Recently viewed" rail for the mobile home. Hidden when empty.
 class RecentlyViewedRail extends StatelessWidget {
   const RecentlyViewedRail({super.key});
@@ -1079,6 +1189,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
+                const SliverToBoxAdapter(child: LuckyDrawBanner()),
                 const SliverToBoxAdapter(child: VerifyBanner()),
                 SliverToBoxAdapter(
                   child: Container(
@@ -1657,6 +1768,15 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       actions: [
+        if (luckyDrawActive())
+          IconButton(
+            icon: const Icon(Icons.card_giftcard, color: kGold),
+            tooltip: 'Invite & Win PKR 100,000',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const InviteFriendsScreen()),
+            ),
+          ),
         IconButton(
           icon: const Icon(Icons.support_agent, color: Colors.white),
           tooltip: 'Customer Care (24/7)',

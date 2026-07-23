@@ -585,4 +585,28 @@ void main() {
       );
     });
   });
+
+  group('Lucky Draw auto-expiry (ends 14 Aug 2026)', () {
+    test('active right up to the draw instant', () {
+      luckyDrawEnabled.value = true;
+      expect(
+        luckyDrawActiveAt(DateTime.utc(2026, 8, 13, 23, 59)),
+        isTrue,
+      );
+      expect(luckyDrawActiveAt(DateTime.utc(2026, 7, 23)), isTrue);
+    });
+
+    test('auto-removes on/after 14 Aug 2026 with no code change', () {
+      luckyDrawEnabled.value = true;
+      expect(luckyDrawActiveAt(DateTime.utc(2026, 8, 14)), isFalse);
+      expect(luckyDrawActiveAt(DateTime.utc(2026, 8, 15)), isFalse);
+      expect(luckyDrawActiveAt(DateTime.utc(2027, 1, 1)), isFalse);
+    });
+
+    test('admin kill-switch can end it early', () {
+      luckyDrawEnabled.value = false;
+      expect(luckyDrawActiveAt(DateTime.utc(2026, 7, 23)), isFalse);
+      luckyDrawEnabled.value = true; // restore for other tests
+    });
+  });
 }

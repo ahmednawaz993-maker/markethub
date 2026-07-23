@@ -101,6 +101,48 @@ Future<void> loadMonetizationFlag() async {
   } catch (_) {}
 }
 
+// ---------------------------------------------------------------------------
+// Lucky Draw campaign (14 Aug 2026 — 5 winners × PKR 100,000).
+//
+// The promo banner + Invite screen entry points show only while the campaign
+// is active: BEFORE the draw date AND the config kill-switch is on. The date
+// check is authoritative, so the banner AUTO-REMOVES itself on 14 Aug 2026 with
+// no app update or admin action needed.
+// ---------------------------------------------------------------------------
+
+/// The moment the lucky draw closes. On/after this instant the banner and every
+/// Invite entry point disappear automatically. (UTC so it's device-clock
+/// -timezone independent.)
+final DateTime kLuckyDrawEndsAt = DateTime.utc(2026, 8, 14);
+
+/// Public Play Store listing — the link shared from the Invite screen.
+const String kPlayStoreUrl =
+    'https://play.google.com/store/apps/details?id=com.pakbazar24.app';
+
+/// The link put in front of friends when a user shares the app.
+const String kAppShareLink = kPlayStoreUrl;
+
+/// Admin kill-switch (config/luckyDraw.enabled) to end the campaign early
+/// without shipping an update. Defaults ON; the date check ends it regardless.
+final ValueNotifier<bool> luckyDrawEnabled = ValueNotifier<bool>(true);
+
+Future<void> loadLuckyDrawFlag() async {
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('config')
+        .doc('luckyDraw')
+        .get();
+    luckyDrawEnabled.value = doc.data()?['enabled'] != false;
+  } catch (_) {}
+}
+
+/// Pure date/flag gate — testable without touching the device clock.
+bool luckyDrawActiveAt(DateTime now) =>
+    luckyDrawEnabled.value && now.toUtc().isBefore(kLuckyDrawEndsAt);
+
+/// Whether the lucky-draw banner + Invite entry points should show right now.
+bool luckyDrawActive() => luckyDrawActiveAt(DateTime.now());
+
 /// Loads the set of admin-suspended (platform-blocked) users so their listings
 /// can be hidden from everyone's feeds and search results. Refreshed at startup.
 Future<void> loadPlatformBlockedUsers() async {

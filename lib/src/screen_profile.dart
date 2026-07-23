@@ -1793,6 +1793,23 @@ class AboutScreen extends StatelessWidget {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => showSupportSheet(context),
                 ),
+                if (luckyDrawActive()) ...[
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.card_giftcard, color: kGold),
+                    title: const Text('Invite friends & win'),
+                    subtitle: const Text(
+                      'Win PKR 100,000 — draw on 14 Aug 2026',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const InviteFriendsScreen(),
+                      ),
+                    ),
+                  ),
+                ],
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.share_outlined),
