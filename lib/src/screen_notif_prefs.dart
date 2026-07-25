@@ -162,7 +162,12 @@ class _NotificationPreferencesScreenState
     return Scaffold(
       appBar: AppBar(title: const Text('Notification settings')),
       body: ListView(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.page,
+          AppSpacing.lg,
+          AppSpacing.page,
+          AppSpacing.navClearance,
+        ),
         children: [
           SurfacePanel(
             margin: EdgeInsets.zero,
@@ -336,7 +341,7 @@ class _NotificationPreferencesScreenState
                 const SizedBox(height: 8),
                 Text(
                   'We only notify you about approved, in-stock listings that match '
-                  'what you follow — never every listing.',
+                  'what you follow â€” never every listing.',
                   style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                 ),
               ],

@@ -353,8 +353,6 @@ class OrdersScreen extends StatelessWidget {
         appBar: AppBar(
           title: const Text('My Orders'),
           bottom: const TabBar(
-            labelColor: Colors.white,
-            indicatorColor: Colors.white,
             tabs: [
               Tab(text: 'Buying'),
               Tab(text: 'Selling'),
@@ -447,7 +445,12 @@ class _OrdersList extends StatelessWidget {
           }
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
@@ -487,26 +490,12 @@ class _OrdersList extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: img.isEmpty
-                              ? Container(
-                                  width: 56,
-                                  height: 56,
-                                  color: Colors.grey.shade300,
-                                  child: const Icon(Icons.image),
-                                )
-                              : Image.network(
-                                  img,
-                                  width: 56,
-                                  height: 56,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => Container(
-                                    width: 56,
-                                    height: 56,
-                                    color: Colors.grey.shade300,
-                                    child: const Icon(Icons.image),
-                                  ),
-                                ),
+                          borderRadius: AppRadius.rSm,
+                          child: SizedBox(
+                            width: 56,
+                            height: 56,
+                            child: AppNetworkImage(url: img, iconSize: 22),
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(

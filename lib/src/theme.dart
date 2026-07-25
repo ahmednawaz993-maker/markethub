@@ -13,11 +13,13 @@ const Color kGold = Color(0xFFC9A227); // premium gold accent
 
 // ── Theme mode (light / dark / system) ──────────────────────────────────────
 //
-// Light mode  = navy gradient chrome + WHITE cards + dark card text (the
-//               original look).
-// Dark mode   = a darker navy gradient + DARK-SLATE cards + light card text.
-// The gradient stays navy in both, so on-navy white text/icons are correct in
-// both modes and never change — only surfaces and their text flip.
+// Light mode  = clean marketplace chrome: a near-white page background, white
+//               cards with hairline borders and dark text.
+// Dark mode   = a deep navy page background, dark-slate cards and light text.
+//
+// Both modes use ONE text family (textPrimary/textSecondary/textMuted) that
+// flips with the background. The legacy `onNavy*` names are kept as aliases of
+// that family so older call sites stay readable — see below.
 
 /// Current theme mode; persisted and listened to by PakBazarApp. Defaults to
 /// LIGHT (the established look) so no existing user's experience changes — dark
@@ -68,11 +70,32 @@ abstract final class AppColors {
   static const Color primaryDeep = kPakGreenDeep;
   static const Color secondary = kGold;
 
-  // Surfaces — white in light, dark slate in dark (distinct from the gradient).
+  /// The brand colour used as a FOREGROUND on a surface — selected tabs, link
+  /// text, icons. Brand navy is nearly invisible on the dark-mode surface, so
+  /// it lightens there.
+  ///
+  /// Use [primary] only for FILLS that carry white content (buttons, the Sell
+  /// button, badges); use [accent] whenever the brand colour is the ink.
+  static Color get accent => _dark ? const Color(0xFF83ABE8) : kPakGreen;
+
+  /// A 12%-brand tint for icon chips, selected states and avatars.
+  static Color get primarySoft =>
+      kPakGreen.withValues(alpha: _dark ? 0.22 : 0.10);
+
+  /// The page background behind every scaffold. Near-white in light mode so
+  /// white cards still read as raised; deep navy in dark mode.
+  static Color get background =>
+      _dark ? const Color(0xFF0A1526) : const Color(0xFFF7F8FA);
+
+  // Surfaces — white in light, dark slate in dark.
   static Color get surface => _dark ? const Color(0xFF17253F) : Colors.white;
   static Color get card => surface;
   static Color get surfaceVariant =>
-      _dark ? const Color(0xFF0F1C33) : const Color(0xFFF3F5F9);
+      _dark ? const Color(0xFF0F1C33) : const Color(0xFFF1F3F7);
+
+  /// Highlight band used by the loading shimmer.
+  static Color get shimmerHighlight =>
+      _dark ? const Color(0xFF1B2B47) : const Color(0xFFE4E8EF);
 
   // Text on a surface — flips with the surface.
   static Color get textPrimary =>
@@ -84,18 +107,25 @@ abstract final class AppColors {
   static const Color textOnPrimary = Colors.white;
   static Color get link => _dark ? const Color(0xFF83ABE8) : kPakGreenLight;
 
-  // Text ON the navy gradient — always light (gradient is navy in both modes).
-  static const Color onNavy = Colors.white;
-  static const Color onNavyMuted = Colors.white70;
-  static const Color onNavyFaint = Colors.white60;
+  // Legacy "on the navy gradient" names. The gradient is gone — the app now
+  // sits on a light (or deep-navy, in dark mode) background — so these are
+  // aliases of the on-surface family. Kept so existing call sites keep working
+  // and stay readable; prefer textPrimary/textSecondary/textMuted in new code.
+  static Color get onNavy => textPrimary;
+  static Color get onNavyMuted => textSecondary;
+  static Color get onNavyFaint => textMuted;
 
   // Lines
   static Color get border =>
-      _dark ? const Color(0xFF2D3F60) : const Color(0xFFD8DEE9);
+      _dark ? const Color(0xFF2D3F60) : const Color(0xFFDDE2EA);
+
+  /// The hairline used on cards and section separators — quieter than [border].
+  static Color get borderSoft =>
+      _dark ? const Color(0xFF24344F) : const Color(0xFFEBEEF3);
   static Color get divider =>
-      _dark ? const Color(0xFF25344F) : const Color(0xFFE2E8F0);
+      _dark ? const Color(0xFF25344F) : const Color(0xFFE7EBF1);
   static Color get disabled =>
-      _dark ? const Color(0xFF5E6C88) : const Color(0xFF9AA5B1);
+      _dark ? const Color(0xFF5E6C88) : const Color(0xFFA8B1BF);
 
   // Status — lighter in dark mode so it stays legible on dark surfaces. Always
   // paired with statusIcon + a text label (never colour alone).
@@ -244,9 +274,9 @@ class StatusBadge extends StatelessWidget {
   }
 }
 
-/// A white, rounded, elevated panel for placing dark-text content over the
-/// navy gradient (prevents the dark-text-on-navy low-contrast bug). Use this
-/// for list/detail bodies that aren't already inside a Card.
+/// A rounded surface panel for grouping content on a page. Flat with a
+/// hairline border to match the marketplace card style (see [AppCard], which
+/// this now delegates to).
 class SurfacePanel extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry margin;
@@ -254,27 +284,16 @@ class SurfacePanel extends StatelessWidget {
   const SurfacePanel({
     super.key,
     required this.child,
-    this.margin = const EdgeInsets.all(12),
+    this.margin = const EdgeInsets.all(AppSpacing.md),
     this.padding,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AppCard(
       margin: margin,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
+      padding: padding ?? EdgeInsets.zero,
+      radius: AppRadius.lg,
       child: child,
     );
   }
@@ -346,6 +365,7 @@ class ThemeTile extends StatelessWidget {
 /// the live [AppColors] getters.
 ThemeData buildAppTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
+  final background = dark ? const Color(0xFF0A1526) : const Color(0xFFF7F8FA);
   final surface = dark ? const Color(0xFF17253F) : Colors.white;
   final onSurface = dark ? const Color(0xFFEAF0FA) : const Color(0xFF17223B);
   final onSurfaceMuted = dark
@@ -354,15 +374,21 @@ ThemeData buildAppTheme(Brightness brightness) {
   final onSurfaceFaint = dark
       ? const Color(0xFF8B99B2)
       : const Color(0xFF6B7280);
-  final borderCol = dark ? const Color(0xFF2D3F60) : const Color(0xFFD8DEE9);
-  final dividerCol = dark ? const Color(0xFF25344F) : const Color(0xFFE2E8F0);
+  final borderCol = dark ? const Color(0xFF2D3F60) : const Color(0xFFDDE2EA);
+  final borderSoftCol = dark
+      ? const Color(0xFF24344F)
+      : const Color(0xFFEBEEF3);
+  final dividerCol = dark ? const Color(0xFF25344F) : const Color(0xFFE7EBF1);
   final errorCol = dark ? const Color(0xFFF08C8C) : const Color(0xFFC62828);
+  final accent = dark ? const Color(0xFF83ABE8) : kPakGreen;
 
   final base = ThemeData(
     brightness: brightness,
     primaryColor: kPakGreen,
     useMaterial3: false,
-    scaffoldBackgroundColor: Colors.transparent,
+    // The page background is a real colour now (no full-screen gradient), so
+    // scaffolds paint it themselves and every screen is consistent.
+    scaffoldBackgroundColor: background,
     colorScheme: ColorScheme.fromSeed(
       seedColor: kPakGreen,
       brightness: brightness,
@@ -376,133 +402,192 @@ ThemeData buildAppTheme(Brightness brightness) {
   );
 
   return base.copyWith(
-    // Card text should be readable on the (mode-dependent) surface.
+    canvasColor: background,
     textTheme: base.textTheme.apply(
       bodyColor: onSurface,
       displayColor: onSurface,
     ),
-    appBarTheme: const AppBarTheme(
-      // The app bar sits on the navy gradient in both modes → white text.
-      backgroundColor: Colors.transparent,
-      foregroundColor: Colors.white,
+    appBarTheme: AppBarTheme(
+      // Clean white (or dark-slate) bar with dark (or light) content and a
+      // hairline rule instead of a shadow.
+      backgroundColor: surface,
+      foregroundColor: onSurface,
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
+      scrolledUnderElevation: 0,
       centerTitle: false,
+      iconTheme: IconThemeData(color: onSurface),
+      actionsIconTheme: IconThemeData(color: onSurface),
+      shape: Border(bottom: BorderSide(color: borderSoftCol)),
+      systemOverlayStyle: dark
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
       titleTextStyle: TextStyle(
-        color: Colors.white,
-        fontSize: 20,
-        fontWeight: FontWeight.bold,
-        letterSpacing: 0.3,
+        color: onSurface,
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.1,
       ),
     ),
     cardTheme: CardThemeData(
       color: surface,
-      elevation: 8,
-      shadowColor: Colors.black.withValues(alpha: dark ? 0.5 : 0.35),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        side: BorderSide(color: borderSoftCol),
+      ),
       clipBehavior: Clip.antiAlias,
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: kPakGreen,
         foregroundColor: Colors.white,
-        elevation: 4,
+        disabledBackgroundColor: dark
+            ? const Color(0xFF2A3A57)
+            : const Color(0xFFD3D9E2),
+        disabledForegroundColor: onSurfaceFaint,
+        elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: kPakGreen,
-        side: const BorderSide(color: kPakGreen, width: 1.5),
+        foregroundColor: accent,
+        side: BorderSide(color: accent, width: 1.4),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
         textStyle: const TextStyle(fontWeight: FontWeight.w600),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(foregroundColor: kPakGreen),
+      style: TextButton.styleFrom(foregroundColor: accent),
     ),
+    iconTheme: IconThemeData(color: onSurfaceMuted),
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       backgroundColor: kPakGreen,
       foregroundColor: Colors.white,
+      elevation: 3,
+    ),
+    listTileTheme: ListTileThemeData(
+      iconColor: onSurfaceMuted,
+      textColor: onSurface,
+      titleTextStyle: TextStyle(fontSize: 14.5, color: onSurface),
+      subtitleTextStyle: TextStyle(fontSize: 12.5, color: onSurfaceMuted),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: surface,
+      // A faintly tinted field reads as an input without needing a shadow.
+      fillColor: dark ? const Color(0xFF0F1C33) : const Color(0xFFF7F8FA),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      // Readable label / placeholder / error text on the field, both modes.
       labelStyle: TextStyle(color: onSurfaceMuted),
-      floatingLabelStyle: TextStyle(
-        color: dark ? const Color(0xFF83ABE8) : kPakGreen,
-        fontWeight: FontWeight.w600,
-      ),
+      floatingLabelStyle: TextStyle(color: accent, fontWeight: FontWeight.w600),
       hintStyle: TextStyle(color: onSurfaceFaint),
       errorStyle: TextStyle(color: errorCol, fontWeight: FontWeight.w600),
       prefixIconColor: onSurfaceMuted,
       suffixIconColor: onSurfaceMuted,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         borderSide: BorderSide(color: borderCol),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         borderSide: BorderSide(color: borderCol),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(
-          color: dark ? const Color(0xFF83ABE8) : kPakGreen,
-          width: 2,
-        ),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderSide: BorderSide(color: accent, width: 1.8),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: errorCol, width: 1.5),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderSide: BorderSide(color: errorCol, width: 1.4),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: errorCol, width: 2),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderSide: BorderSide(color: errorCol, width: 1.8),
       ),
     ),
     chipTheme: base.chipTheme.copyWith(
+      backgroundColor: dark ? const Color(0xFF0F1C33) : const Color(0xFFF1F3F7),
       selectedColor: kPakGreen,
       secondarySelectedColor: kPakGreen,
+      side: BorderSide(color: borderSoftCol),
       labelStyle: TextStyle(color: onSurface, fontWeight: FontWeight.w500),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
     ),
     bottomNavigationBarTheme: BottomNavigationBarThemeData(
       backgroundColor: surface,
-      selectedItemColor: dark ? const Color(0xFF83ABE8) : kPakGreen,
+      selectedItemColor: accent,
       // Meets the 4.5:1 AA target for unselected tabs in both modes.
       unselectedItemColor: onSurfaceFaint,
       type: BottomNavigationBarType.fixed,
-      elevation: 16,
-      // Smaller labels so all 5 items fit comfortably on narrow phones.
+      elevation: 0,
       selectedLabelStyle: const TextStyle(
         fontSize: 11,
         fontWeight: FontWeight.w600,
       ),
       unselectedLabelStyle: const TextStyle(fontSize: 11),
     ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: surface,
+      surfaceTintColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      showDragHandle: true,
+      dragHandleColor: onSurfaceFaint,
+    ),
+    tabBarTheme: TabBarThemeData(
+      labelColor: accent,
+      unselectedLabelColor: onSurfaceFaint,
+      indicatorColor: accent,
+      dividerColor: borderSoftCol,
+      labelStyle: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+      unselectedLabelStyle: const TextStyle(fontSize: 13.5),
+    ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: kPakGreenDeep,
       contentTextStyle: const TextStyle(color: Colors.white),
       actionTextColor: kGold,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
     ),
     dialogTheme: DialogThemeData(
       backgroundColor: surface,
+      surfaceTintColor: Colors.transparent,
+      elevation: 6,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
       titleTextStyle: TextStyle(
         color: onSurface,
         fontSize: 18,
-        fontWeight: FontWeight.bold,
+        fontWeight: FontWeight.w700,
       ),
-      contentTextStyle: TextStyle(color: onSurfaceMuted, height: 1.35),
+      contentTextStyle: TextStyle(color: onSurfaceMuted, height: 1.4),
     ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        side: BorderSide(color: borderSoftCol),
+      ),
+      textStyle: TextStyle(fontSize: 14, color: onSurface),
+    ),
+    dividerTheme: DividerThemeData(color: dividerCol, thickness: 1, space: 1),
     dividerColor: dividerCol,
-    disabledColor: dark ? const Color(0xFF5E6C88) : const Color(0xFF9AA5B1),
+    disabledColor: dark ? const Color(0xFF5E6C88) : const Color(0xFFA8B1BF),
   );
 }
 

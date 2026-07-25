@@ -46,7 +46,9 @@ String tr(String key) {
 const Map<String, Map<String, String>> _kStrings = {
   // Bottom navigation + sell button
   'nav.home': {'en': 'Home', 'ur': 'ہوم'},
+  'nav.favorites': {'en': 'Favorites', 'ur': 'پسندیدہ'},
   'nav.chats': {'en': 'Chats', 'ur': 'پیغامات'},
+  'nav.menu': {'en': 'Menu', 'ur': 'مینو'},
   'nav.myAds': {'en': 'My Ads', 'ur': 'میرے اشتہار'},
   'nav.profile': {'en': 'Profile', 'ur': 'پروفائل'},
   'nav.sell': {'en': 'SELL', 'ur': 'بیچیں'},

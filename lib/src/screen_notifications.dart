@@ -174,7 +174,7 @@ class NotificationBell extends StatelessWidget {
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final open = IconButton(
-      icon: const Icon(Icons.notifications_none, color: Colors.white),
+      icon: const Icon(Icons.notifications_none),
       tooltip: 'Notifications',
       onPressed: () => Navigator.push(
         context,
@@ -294,11 +294,15 @@ class NotificationsScreen extends StatelessWidget {
                     subtitle: 'Messages, offers and orders will show up here.',
                   );
                 }
-                // The list sits on a white surface so the dark notification
-                // text is high-contrast (it was previously rendered directly on
-                // the navy gradient, making titles/bodies hard to read).
+                // Grouped into one card so the list reads as a single block on
+                // the page background.
                 return SurfacePanel(
-                  margin: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                  margin: const EdgeInsets.fromLTRB(
+                    AppSpacing.page,
+                    AppSpacing.lg,
+                    AppSpacing.page,
+                    AppSpacing.navClearance,
+                  ),
                   child: ListView.separated(
                     padding: EdgeInsets.zero,
                     itemCount: docs.length,

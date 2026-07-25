@@ -20,11 +20,14 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
   <meta name="description" content="PakBazar - Pakistan's marketplace to buy and sell cars, property, phones, electronics and more.">
-  <meta name="theme-color" content="#0A1A33">
+  <!-- Matches the app's page background so the browser chrome doesn't clash
+       with the marketplace UI (near-white in light mode, deep navy in dark). -->
+  <meta name="theme-color" content="#F7F8FA" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0A1526" media="(prefers-color-scheme: dark)">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="PakBazar">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
@@ -35,32 +38,88 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <!--
+    Loading splash. Deliberately mirrors the app's own auth screen: a clean
+    surface, the full brand lockup, muted tagline and a thin brand-coloured
+    spinner. It must match what Flutter paints on first frame, otherwise the
+    handoff flashes.
+
+    The `data-theme` attribute on <html> (set by the inline script below) picks
+    the light or dark palette before anything renders.
+  -->
   <style>
+    html, body { margin: 0; padding: 0; background: #FFFFFF; }
+    html[data-theme="dark"], html[data-theme="dark"] body { background: #0A1526; }
+
     #pb-splash {
       position: fixed; inset: 0; z-index: 9999;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      background: linear-gradient(160deg, #0A1A33, #173A6B);
+      background: #FFFFFF;
       font-family: -apple-system, Roboto, Arial, sans-serif;
-      transition: opacity .4s ease;
+      transition: opacity .35s ease;
     }
-    #pb-splash .pb-name { color: #fff; font-size: 34px; font-weight: 800; letter-spacing: .5px; }
-    #pb-splash .pb-tag { color: rgba(255,255,255,.8); font-size: 14px; margin-top: 4px; }
+    html[data-theme="dark"] #pb-splash { background: #0A1526; }
+
+    /* Width-capped so the lockup never overflows a narrow phone. */
+    #pb-splash .pb-logo {
+      width: min(58vw, 240px); height: auto; display: block;
+    }
+    /* The lockup is dark-green-on-transparent, drawn for light surfaces; on the
+       dark background it gets a soft plate so it stays legible. */
+    html[data-theme="dark"] #pb-splash .pb-logo {
+      background: rgba(255,255,255,.94);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+
+    #pb-splash .pb-tag {
+      color: #6B7280; font-size: 13px; margin-top: 14px;
+      letter-spacing: .2px; text-align: center; padding: 0 24px;
+    }
+    html[data-theme="dark"] #pb-splash .pb-tag { color: #8B99B2; }
+
     #pb-splash .pb-ring {
-      width: 46px; height: 46px; margin-top: 26px; border-radius: 50%;
-      border: 4px solid rgba(255,255,255,.25); border-top-color: #fff;
-      animation: pb-spin 1s linear infinite;
+      width: 28px; height: 28px; margin-top: 28px; border-radius: 50%;
+      border: 3px solid rgba(23,58,107,.18); border-top-color: #173A6B;
+      animation: pb-spin .9s linear infinite;
+    }
+    html[data-theme="dark"] #pb-splash .pb-ring {
+      border-color: rgba(131,171,232,.22); border-top-color: #83ABE8;
     }
     @keyframes pb-spin { to { transform: rotate(360deg); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      #pb-splash .pb-ring { animation-duration: 2.4s; }
+      #pb-splash { transition: none; }
+    }
   </style>
+
+  <script>
+    // Resolve the splash palette BEFORE first paint, from the same preference
+    // the app uses (shared_preferences stores it under "flutter.<key>"). Light
+    // is the app's default, so anything unreadable falls back to light.
+    (function () {
+      try {
+        var raw = window.localStorage.getItem('flutter.app_theme_mode') || '';
+        var dark = raw.indexOf('dark') !== -1 ||
+          (raw.indexOf('system') !== -1 &&
+           window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+      } catch (e) {
+        // Private mode / storage disabled — keep the light default.
+      }
+    })();
+  </script>
+
   <div id="pb-splash">
-    <div class="pb-name">PakBazar</div>
+    <img class="pb-logo" src="splash_logo.png" alt="PakBazar" />
     <div class="pb-tag">Pakistan ka apna online bazaar</div>
     <div class="pb-ring"></div>
   </div>
   <script>
     window.addEventListener('flutter-first-frame', function () {
       var s = document.getElementById('pb-splash');
-      if (s) { s.style.opacity = '0'; setTimeout(function () { s.remove(); }, 400); }
+      if (s) { s.style.opacity = '0'; setTimeout(function () { s.remove(); }, 350); }
     });
   </script>
 

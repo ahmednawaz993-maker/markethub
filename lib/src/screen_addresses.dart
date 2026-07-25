@@ -55,7 +55,12 @@ class AddressBookScreen extends StatelessWidget {
             );
           }
           return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.page,
+              AppSpacing.lg,
+              AppSpacing.page,
+              AppSpacing.navClearance,
+            ),
             itemCount: list.length,
             itemBuilder: (context, i) {
               final a = list[i];
@@ -433,10 +438,7 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
             const SizedBox(height: 8),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text(
-                'Set as default address',
-                style: TextStyle(color: AppColors.onNavy),
-              ),
+              title: const Text('Set as default address'),
               value: _isDefault,
               activeThumbColor: kPakGreen,
               onChanged: _saving ? null : (v) => setState(() => _isDefault = v),

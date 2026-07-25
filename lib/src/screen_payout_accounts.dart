@@ -266,14 +266,14 @@ class PayoutAccountsScreen extends StatelessWidget {
             itemCount: list.length + 1,
             itemBuilder: (context, i) {
               if (i == 0) {
-                return const Padding(
-                  padding: EdgeInsets.fromLTRB(4, 0, 4, 8),
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
                   child: Text(
                     'Only a Verified account can receive a payout. Verification '
                     'is done by our team — you cannot verify your own account.',
                     style: TextStyle(
                       fontSize: 12,
-                      color: AppColors.onNavyMuted,
+                      color: AppColors.textSecondary,
                     ),
                   ),
                 );
@@ -570,10 +570,7 @@ class _PayoutAccountFormScreenState extends State<PayoutAccountFormScreen> {
             const SizedBox(height: 8),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text(
-                'Set as default payout account',
-                style: TextStyle(color: AppColors.onNavy),
-              ),
+              title: const Text('Set as default payout account'),
               value: _isDefault,
               activeThumbColor: kPakGreen,
               onChanged: _saving ? null : (v) => setState(() => _isDefault = v),

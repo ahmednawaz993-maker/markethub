@@ -17,10 +17,8 @@ class StoresScreen extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return const EmptyState(
-              icon: Icons.error_outline,
-              title: 'Something went wrong',
-              subtitle: 'Please try again.',
+            return const ErrorStateWidget(
+              message: 'We couldn’t load stores right now.',
             );
           }
           if (!snapshot.hasData) {
@@ -28,61 +26,46 @@ class StoresScreen extends StatelessWidget {
           }
           final docs = snapshot.data!.docs;
           if (docs.isEmpty) {
-            return const EmptyState(
-              icon: Icons.storefront,
+            return const EmptyStateWidget(
+              icon: Icons.storefront_outlined,
               title: 'No stores yet',
               subtitle: 'Business accounts will appear here.',
             );
           }
           return ListView.separated(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.page,
+              AppSpacing.lg,
+              AppSpacing.page,
+              AppSpacing.navClearance,
+            ),
             itemCount: docs.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 4),
+            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
             itemBuilder: (context, i) {
               final d = docs[i].data() as Map<String, dynamic>;
               final name = d['businessName']?.toString().isNotEmpty == true
                   ? d['businessName'].toString()
                   : (d['email']?.toString() ?? 'Business');
-              final tagline = d['tagline']?.toString() ?? '';
-              final logo = d['logoUrl']?.toString() ?? '';
               final featured = d['featuredBusiness'] == true;
-              return Card(
-                child: ListTile(
-                  leading: CircleAvatar(
-                    radius: 26,
-                    backgroundColor: kPakGreen.withValues(alpha: 0.12),
-                    backgroundImage: logo.isNotEmpty
-                        ? NetworkImage(logo)
-                        : null,
-                    child: logo.isEmpty
-                        ? const Icon(Icons.storefront, color: kPakGreen)
-                        : null,
-                  ),
-                  title: Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      if (featured) ...[
-                        const SizedBox(width: 6),
-                        const Icon(Icons.star, color: kGold, size: 16),
-                      ],
-                    ],
-                  ),
-                  subtitle: tagline.isEmpty ? null : Text(tagline),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SellerProfileScreen(
-                        sellerId: docs[i].id,
-                        sellerName: name,
-                      ),
+              return SellerCard(
+                name: name,
+                subtitle: d['tagline']?.toString() ?? '',
+                avatarUrl: d['logoUrl']?.toString() ?? '',
+                verified: d['businessVerified'] == true,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (featured)
+                      const Icon(Icons.star, color: kGold, size: 18),
+                    Icon(Icons.chevron_right, color: AppColors.textMuted),
+                  ],
+                ),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SellerProfileScreen(
+                      sellerId: docs[i].id,
+                      sellerName: name,
                     ),
                   ),
                 ),
@@ -142,73 +125,58 @@ class AllCategoriesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cats = appCategories.where((c) => c.title != 'All').toList();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(title: const Text('All Categories')),
-      body: GridView.builder(
-        padding: const EdgeInsets.all(12),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          childAspectRatio: 0.80,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-        ),
-        itemCount: cats.length,
-        itemBuilder: (context, i) {
-          final c = cats[i];
-          final accent = _categoryAccent(c.title, i);
-          return Material(
-            // Opaque light tile so the title/subtitle are readable over the
-            // navy gradient (a translucent tint let the navy bleed through).
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => CategoryScreen(title: c.title),
-                ),
-              ),
-              child: Container(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // Wider screens get more columns rather than stretched tiles.
+          final columns = constraints.maxWidth >= 900
+              ? 5
+              : (constraints.maxWidth >= 600 ? 4 : 3);
+          return GridView.builder(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.page,
+              AppSpacing.lg,
+              AppSpacing.page,
+              AppSpacing.navClearance,
+            ),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              childAspectRatio: 0.84,
+              crossAxisSpacing: AppSpacing.md,
+              mainAxisSpacing: AppSpacing.md,
+            ),
+            itemCount: cats.length,
+            itemBuilder: (context, i) {
+              final c = cats[i];
+              final accent = _categoryAccent(c.title, i);
+              return AppCard(
                 padding: const EdgeInsets.symmetric(
-                  vertical: 10,
-                  horizontal: 6,
+                  vertical: AppSpacing.md,
+                  horizontal: AppSpacing.sm,
                 ),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: accent.withValues(alpha: isDark ? 0.35 : 0.22),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CategoryScreen(title: c.title),
                   ),
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Gradient icon badge — the catchy focal point.
+                    // A flat tinted badge — the category's colour without the
+                    // heavy gradient/shadow the rest of the app avoids.
                     Container(
-                      width: 50,
-                      height: 50,
+                      width: 48,
+                      height: 48,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(15),
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            accent,
-                            Color.lerp(accent, Colors.black, 0.28)!,
-                          ],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: accent.withValues(alpha: 0.45),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
+                        borderRadius: AppRadius.rMd,
+                        color: accent.withValues(alpha: 0.12),
                       ),
-                      child: Icon(c.icon, color: Colors.white, size: 27),
+                      child: Icon(c.icon, color: accent, size: 24),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: AppSpacing.md),
                     Text(
                       c.title,
                       textAlign: TextAlign.center,
@@ -216,8 +184,8 @@ class AllCategoriesScreen extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 12.5,
-                        fontWeight: FontWeight.bold,
-                        height: 1.1,
+                        fontWeight: FontWeight.w700,
+                        height: 1.15,
                         color: AppColors.textPrimary,
                       ),
                     ),
@@ -229,13 +197,13 @@ class AllCategoriesScreen extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 10,
-                        color: AppColors.textSecondary,
+                        color: AppColors.textMuted,
                       ),
                     ),
                   ],
                 ),
-              ),
-            ),
+              );
+            },
           );
         },
       ),

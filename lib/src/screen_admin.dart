@@ -77,8 +77,6 @@ class AdminPanelScreen extends StatelessWidget {
           title: Text(isSuperAdmin() ? 'Admin Panel' : 'Staff Panel'),
           actions: const [AdminLiveUsersPill()],
           bottom: TabBar(
-            labelColor: Colors.white,
-            indicatorColor: Colors.white,
             isScrollable: true,
             tabs: [
               for (final e in visible)
@@ -250,7 +248,7 @@ class _AdminActivityTabState extends State<_AdminActivityTab> {
                 return Center(
                   child: Text(
                     'Error: ${snapshot.error}',
-                    style: const TextStyle(color: Colors.white70),
+                    style: TextStyle(color: AppColors.textSecondary),
                   ),
                 );
               }
@@ -274,7 +272,12 @@ class _AdminActivityTabState extends State<_AdminActivityTab> {
                 );
               }
               return ListView.builder(
-                padding: const EdgeInsets.fromLTRB(12, 2, 12, 12),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.page,
+                  AppSpacing.lg,
+                  AppSpacing.page,
+                  AppSpacing.navClearance,
+                ),
                 itemCount: docs.length,
                 itemBuilder: (context, i) {
                   final m = docs[i].data() as Map<String, dynamic>;
@@ -488,7 +491,12 @@ class _AdminPaymentsTab extends StatelessWidget {
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
@@ -601,7 +609,12 @@ class _AdminFeaturedTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final fs = FirebaseFirestore.instance;
     return ListView(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.page,
+        AppSpacing.lg,
+        AppSpacing.page,
+        AppSpacing.navClearance,
+      ),
       children: [
         Card(
           child: StreamBuilder<DocumentSnapshot>(
@@ -771,7 +784,12 @@ class _AdminEscrowTab extends StatelessWidget {
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, i) => _PayoutReviewCard(
             orderId: docs[i].id,
@@ -1351,7 +1369,12 @@ class _AdminWithdrawalsTab extends StatelessWidget {
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
@@ -1477,7 +1500,12 @@ class _AdminFeedbackTab extends StatelessWidget {
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
@@ -1610,7 +1638,12 @@ class _AdminVerificationsTab extends StatelessWidget {
                 );
               }
               return ListView.builder(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.page,
+                  AppSpacing.lg,
+                  AppSpacing.page,
+                  AppSpacing.navClearance,
+                ),
                 itemCount: docs.length,
                 itemBuilder: (context, i) {
                   final d = docs[i].data() as Map<String, dynamic>;
@@ -1975,57 +2008,62 @@ class _AdminOverviewTab extends StatelessWidget {
       stream: stream,
       builder: (context, snapshot) {
         final metrics = snapshot.hasData ? compute(snapshot.data!.docs) : null;
-        return Card(
-          margin: const EdgeInsets.only(bottom: 10),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (metrics == null)
-                  const Center(child: CircularProgressIndicator())
-                else
-                  Wrap(
-                    spacing: 16,
-                    runSpacing: 14,
-                    children: metrics
-                        .map(
-                          (m) => SizedBox(
-                            width: 100,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  m.value,
-                                  style: const TextStyle(
-                                    fontSize: 19,
-                                    fontWeight: FontWeight.bold,
-                                    color: kPakGreen,
-                                  ),
-                                ),
-                                Text(
-                                  m.label,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textMuted,
-                                  ),
-                                ),
-                              ],
+        return AppCard(
+          margin: const EdgeInsets.only(bottom: AppSpacing.md),
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: AppType.sectionTitle),
+              const SizedBox(height: AppSpacing.md),
+              if (metrics == null)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else
+                Wrap(
+                  spacing: AppSpacing.md,
+                  runSpacing: AppSpacing.md,
+                  children: [
+                    for (final m in metrics)
+                      Container(
+                        width: 108,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                          vertical: AppSpacing.sm,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceVariant,
+                          borderRadius: AppRadius.rMd,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              m.value,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: kPakGreen,
+                              ),
                             ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-              ],
-            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              m.label,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppType.caption,
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+            ],
           ),
         );
       },
@@ -2061,33 +2099,28 @@ class _AdminOverviewTab extends StatelessWidget {
           }
         }
         final maxV = buckets.values.fold<double>(0, (a, b) => b > a ? b : a);
-        return Card(
-          margin: const EdgeInsets.only(bottom: 10),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
+        return AppCard(
+          margin: const EdgeInsets.only(bottom: AppSpacing.md),
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: AppType.sectionTitle),
+              const SizedBox(height: AppSpacing.md),
+              if (!snapshot.hasData)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else
+                for (final mth in months)
+                  _MonthBar(
+                    label: monthShortLabel(mth),
+                    value: buckets['${mth.year}-${mth.month}'] ?? 0,
+                    max: maxV,
+                    money: money,
                   ),
-                ),
-                const SizedBox(height: 10),
-                if (!snapshot.hasData)
-                  const Center(child: CircularProgressIndicator())
-                else
-                  for (final mth in months)
-                    _MonthBar(
-                      label: monthShortLabel(mth),
-                      value: buckets['${mth.year}-${mth.month}'] ?? 0,
-                      max: maxV,
-                      money: money,
-                    ),
-              ],
-            ),
+            ],
           ),
         );
       },
@@ -2098,7 +2131,12 @@ class _AdminOverviewTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final fs = FirebaseFirestore.instance;
     return ListView(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.page,
+        AppSpacing.lg,
+        AppSpacing.page,
+        AppSpacing.navClearance,
+      ),
       children: [
         const _VerificationToggle(),
         const _LiveUsersCard(),
@@ -2386,7 +2424,12 @@ class _AdminUsersTab extends StatelessWidget {
             return bt.compareTo(at);
           });
         return ListView.builder(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
@@ -2597,7 +2640,12 @@ class _AdminOffersTab extends StatelessWidget {
           return const EmptyState(icon: Icons.local_offer, title: 'No offers');
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
@@ -2655,7 +2703,12 @@ class _AdminPurchasesTab extends StatelessWidget {
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
@@ -2705,7 +2758,7 @@ class _AdminReportsTab extends StatelessWidget {
           return Center(
             child: Text(
               'Error: ${snapshot.error}',
-              style: const TextStyle(color: Colors.white70),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
           );
         }
@@ -2732,7 +2785,12 @@ class _AdminReportsTab extends StatelessWidget {
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
@@ -2834,7 +2892,12 @@ class _AdminPromotionsTab extends StatelessWidget {
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
@@ -2981,7 +3044,12 @@ class _AdminTopupsTab extends StatelessWidget {
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
@@ -3158,7 +3226,12 @@ class _AdminOrdersTab extends StatelessWidget {
                       title: 'No orders yet',
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.page,
+                        AppSpacing.lg,
+                        AppSpacing.page,
+                        AppSpacing.navClearance,
+                      ),
                       itemCount: docs.length,
                       itemBuilder: (context, i) {
                         final d = docs[i].data() as Map<String, dynamic>;
@@ -3519,7 +3592,7 @@ class _CancellationRequestRow extends StatelessWidget {
             details.isEmpty
                 ? 'Reason: $reason'
                 : 'Reason: $reason — “$details”',
-            style: const TextStyle(fontSize: 12, color: Colors.black87),
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -3702,7 +3775,12 @@ class _AdminLuckyDrawTabState extends State<_AdminLuckyDrawTab> {
                   .where((d) => d.data()['isWinner'] == true)
                   .length;
               return ListView(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.page,
+                  AppSpacing.lg,
+                  AppSpacing.page,
+                  AppSpacing.navClearance,
+                ),
                 children: [
                   Card(
                     color: kPakGreen,
@@ -3895,7 +3973,7 @@ class _RefundRequestRow extends StatelessWidget {
             details.isEmpty
                 ? 'Reason: $reason'
                 : 'Reason: $reason — “$details”',
-            style: const TextStyle(fontSize: 12, color: Colors.black87),
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -4145,7 +4223,7 @@ class _ReturnRequestRow extends StatelessWidget {
             details.isEmpty
                 ? 'Reason: $reason'
                 : 'Reason: $reason — “$details”',
-            style: const TextStyle(fontSize: 12, color: Colors.black87),
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -4256,7 +4334,12 @@ class _AdminListingsTab extends StatelessWidget {
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final l = Listing.fromDoc(docs[i]);
@@ -4274,26 +4357,15 @@ class _AdminListingsTab extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: imgs.isEmpty
-                              ? Container(
-                                  width: 52,
-                                  height: 52,
-                                  color: Colors.grey.shade200,
-                                  child: const Icon(Icons.image),
-                                )
-                              : Image.network(
-                                  imgs.first,
-                                  width: 52,
-                                  height: 52,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => Container(
-                                    width: 52,
-                                    height: 52,
-                                    color: Colors.grey.shade200,
-                                    child: const Icon(Icons.image),
-                                  ),
-                                ),
+                          borderRadius: AppRadius.rSm,
+                          child: SizedBox(
+                            width: 52,
+                            height: 52,
+                            child: AppNetworkImage(
+                              url: imgs.isEmpty ? '' : imgs.first,
+                              iconSize: 20,
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -4514,7 +4586,12 @@ class _AdminChatsTabState extends State<_AdminChatsTab> {
               }
 
               return ListView.builder(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.page,
+                  AppSpacing.lg,
+                  AppSpacing.page,
+                  AppSpacing.navClearance,
+                ),
                 itemCount: docs.length,
                 itemBuilder: (context, i) {
                   final data = docs[i].data() as Map<String, dynamic>;
@@ -4717,7 +4794,12 @@ class _AdminBusinessTabState extends State<_AdminBusinessTab> {
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, i) => _BusinessAccountCard(userDoc: docs[i]),
         );
@@ -4747,7 +4829,12 @@ class _AdminBusinessTabState extends State<_AdminBusinessTab> {
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, i) => _BusinessActivityCard(userDoc: docs[i]),
         );
@@ -5162,7 +5249,12 @@ class _AdminPayoutAccountsTabState extends State<_AdminPayoutAccountsTab> {
                 );
               }
               return ListView.builder(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.page,
+                  AppSpacing.lg,
+                  AppSpacing.page,
+                  AppSpacing.navClearance,
+                ),
                 itemCount: docs.length,
                 itemBuilder: (context, i) {
                   final doc = docs[i];
@@ -5448,7 +5540,12 @@ class _AdminAppealsTab extends StatelessWidget {
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
@@ -5714,7 +5811,12 @@ class _AdminApprovalsTab extends StatelessWidget {
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final listing = Listing.fromDoc(docs[i]);
@@ -6085,7 +6187,12 @@ class _AdminStaffTab extends StatelessWidget {
                 );
               }
               return ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.page,
+                  AppSpacing.lg,
+                  AppSpacing.page,
+                  AppSpacing.navClearance,
+                ),
                 itemCount: docs.length,
                 itemBuilder: (context, i) {
                   final d = docs[i].data() as Map<String, dynamic>;
@@ -6209,7 +6316,12 @@ class _AdminDeletionsTab extends StatelessWidget {
             ),
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.page,
+                  AppSpacing.lg,
+                  AppSpacing.page,
+                  AppSpacing.navClearance,
+                ),
                 itemCount: docs.length,
                 itemBuilder: (context, i) {
                   final d = docs[i].data() as Map<String, dynamic>;

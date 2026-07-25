@@ -90,19 +90,16 @@ class WalletScreen extends StatelessWidget {
               );
             },
           ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.page,
+              AppSpacing.sm,
+              AppSpacing.page,
+              AppSpacing.sm,
+            ),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                'Transactions',
-                // Section header sits on the navy gradient → light text.
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: AppColors.onNavy,
-                ),
-              ),
+              child: Text('Transactions', style: AppType.sectionTitle),
             ),
           ),
           Expanded(
@@ -116,7 +113,7 @@ class WalletScreen extends StatelessWidget {
                 if (snapshot.hasError) {
                   return const EmptyState(
                     icon: Icons.error_outline,
-                    title: 'Couldn’t load transactions',
+                    title: 'Couldnâ€™t load transactions',
                     subtitle: 'Please try again.',
                   );
                 }
@@ -306,7 +303,7 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
                   messenger.showSnackBar(
                     const SnackBar(
                       content: Text(
-                        'Withdrawal requested — the admin will pay out to your '
+                        'Withdrawal requested â€” the admin will pay out to your '
                         'account.',
                       ),
                     ),
@@ -351,8 +348,8 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
   PromoPackage? selected;
 
   static const bannerPackages = [
-    PromoPackage('Home banner · 7 days', 7, 2000),
-    PromoPackage('Home banner · 30 days', 30, 6000),
+    PromoPackage('Home banner Â· 7 days', 7, 2000),
+    PromoPackage('Home banner Â· 30 days', 30, 6000),
   ];
 
   @override
@@ -420,7 +417,12 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Buy a Home Banner')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.page,
+          AppSpacing.lg,
+          AppSpacing.page,
+          AppSpacing.navClearance,
+        ),
         child: Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -447,7 +449,7 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
                     ),
                     child: imageUrl == null
                         ? const Center(
-                            child: Text('Banner preview (≈ 1000×360)'),
+                            child: Text('Banner preview (â‰ˆ 1000Ã—360)'),
                           )
                         : null,
                   ),
@@ -464,7 +466,7 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
                       : const Icon(Icons.image),
                   label: Text(
                     uploading
-                        ? 'Uploading…'
+                        ? 'Uploadingâ€¦'
                         : (imageUrl == null
                               ? 'Upload banner image'
                               : 'Change image'),
@@ -508,11 +510,11 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
                 const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: submitting ? null : _submit,
-                  child: Text(submitting ? 'Sending…' : 'Submit request'),
+                  child: Text(submitting ? 'Sendingâ€¦' : 'Submit request'),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Paid instantly from your PakBazar Wallet (Profile → Wallet).',
+                  'Paid instantly from your PakBazar Wallet (Profile â†’ Wallet).',
                   style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
               ],

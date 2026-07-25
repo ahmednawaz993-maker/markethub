@@ -9,6 +9,11 @@ part of '../main.dart';
 // Currency shown across the app (Pakistani Rupee).
 const String currencySymbol = 'Rs';
 
+/// App version shown in the UI (About screen, support emails). Keep in sync
+/// with the `version:` line in pubspec.yaml — that one feeds the Play
+/// versionName/versionCode, this one is what users see inside the app.
+const String kAppVersion = '1.0.34';
+
 /// Formats a price string with thousands separators, e.g. "4250000" ->
 /// "Rs 4,250,000". Non-numeric values (e.g. "Negotiable") are shown as-is.
 String formatPrice(String raw) {
@@ -466,6 +471,114 @@ Future<void> submitSellerReview({
     'text': text.trim(),
     'createdAt': Timestamp.now(),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Recent searches (Home "Recent Searches" section)
+//
+// Stored on the device with SharedPreferences, NOT in Firestore — this is a
+// convenience shortcut, so it needs no schema, no rules and no extra reads.
+// ---------------------------------------------------------------------------
+
+/// One entry in the home "Recent Searches" rail.
+class RecentSearch {
+  final String query;
+  final String category;
+  final String city;
+
+  /// Thumbnail of the first result at the time of the search (optional).
+  final String imageUrl;
+
+  const RecentSearch({
+    required this.query,
+    this.category = '',
+    this.city = '',
+    this.imageUrl = '',
+  });
+
+  /// Same search if the query + scope match (case-insensitively).
+  String get key =>
+      '${query.trim().toLowerCase()}|${category.toLowerCase()}|${city.toLowerCase()}';
+
+  Map<String, dynamic> toMap() => {
+    'q': query,
+    'c': category,
+    'city': city,
+    'img': imageUrl,
+  };
+
+  static RecentSearch? fromMap(Object? raw) {
+    if (raw is! Map) return null;
+    final q = raw['q']?.toString().trim() ?? '';
+    if (q.isEmpty) return null;
+    return RecentSearch(
+      query: q,
+      category: raw['c']?.toString() ?? '',
+      city: raw['city']?.toString() ?? '',
+      imageUrl: raw['img']?.toString() ?? '',
+    );
+  }
+}
+
+const String _recentSearchesPrefKey = 'recent_searches_v1';
+const int _maxRecentSearches = 10;
+
+/// The device's recent searches, newest first. Notifies listeners so the home
+/// section refreshes without a manual reload.
+final ValueNotifier<List<RecentSearch>> recentSearches =
+    ValueNotifier<List<RecentSearch>>(const []);
+
+/// Loads recent searches from disk into [recentSearches]. Safe to call twice.
+Future<void> loadRecentSearches() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_recentSearchesPrefKey);
+    if (raw == null || raw.isEmpty) return;
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) return;
+    recentSearches.value = decoded
+        .map(RecentSearch.fromMap)
+        .whereType<RecentSearch>()
+        .take(_maxRecentSearches)
+        .toList(growable: false);
+  } catch (_) {
+    // A corrupt entry must never break the home screen.
+  }
+}
+
+Future<void> _persistRecentSearches() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _recentSearchesPrefKey,
+      jsonEncode(recentSearches.value.map((s) => s.toMap()).toList()),
+    );
+  } catch (_) {}
+}
+
+/// Remembers a search the user just ran, de-duplicating and capping the list.
+Future<void> addRecentSearch(RecentSearch search) async {
+  if (search.query.trim().isEmpty) return;
+  final next = [
+    search,
+    ...recentSearches.value.where((s) => s.key != search.key),
+  ].take(_maxRecentSearches).toList(growable: false);
+  recentSearches.value = next;
+  await _persistRecentSearches();
+}
+
+/// Removes one remembered search (the × on its card).
+Future<void> removeRecentSearch(RecentSearch search) async {
+  recentSearches.value = recentSearches.value
+      .where((s) => s.key != search.key)
+      .toList(growable: false);
+  await _persistRecentSearches();
+}
+
+/// Clears the whole list ("Clear" in the section header).
+Future<void> clearRecentSearches() async {
+  recentSearches.value = const [];
+  await _persistRecentSearches();
 }
 
 /// Records that the current user viewed a listing (for the "Recently viewed"

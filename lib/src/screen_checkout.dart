@@ -288,26 +288,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: img.isEmpty
-                  ? Container(
-                      width: 56,
-                      height: 56,
-                      color: Colors.grey.shade300,
-                      child: const Icon(Icons.image),
-                    )
-                  : Image.network(
-                      img,
-                      width: 56,
-                      height: 56,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(
-                        width: 56,
-                        height: 56,
-                        color: Colors.grey.shade300,
-                        child: const Icon(Icons.image),
-                      ),
-                    ),
+              borderRadius: AppRadius.rSm,
+              child: SizedBox(
+                width: 56,
+                height: 56,
+                child: AppNetworkImage(url: img, iconSize: 22),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -593,18 +579,14 @@ class OrderConfirmationScreen extends StatelessWidget {
           const Center(
             child: Text(
               'Order placed successfully!',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppColors.onNavy,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ),
           const SizedBox(height: 4),
           Center(
             child: Text(
               'Order #$_orderNo',
-              style: const TextStyle(color: AppColors.onNavyMuted),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
           ),
           const SizedBox(height: 16),

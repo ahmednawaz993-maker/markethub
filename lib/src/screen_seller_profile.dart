@@ -1,4 +1,4 @@
-part of '../main.dart';
+﻿part of '../main.dart';
 
 // Seller profile and following.
 
@@ -74,31 +74,22 @@ class SellerProfileScreen extends StatelessWidget {
                   isSelf: isSelf,
                 ),
               ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.inventory_2_outlined,
-                        size: 18,
-                        color: AppColors.onNavy,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Products',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: AppColors.onNavy,
-                        ),
-                      ),
-                    ],
+              const SliverToBoxAdapter(
+                child: SectionHeader(
+                  title: 'Products',
+                  icon: Icons.inventory_2_outlined,
+                  padding: EdgeInsets.fromLTRB(
+                    AppSpacing.page,
+                    AppSpacing.lg,
+                    AppSpacing.page,
+                    AppSpacing.md,
                   ),
                 ),
               ),
               SliverToBoxAdapter(child: _buildProducts(context)),
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: AppSpacing.navClearance),
+              ),
             ],
           );
         },
@@ -115,12 +106,12 @@ class SellerProfileScreen extends StatelessWidget {
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return const Padding(
-            padding: EdgeInsets.all(32),
+          return Padding(
+            padding: const EdgeInsets.all(32),
             child: Center(
               child: Text(
-                'Couldn’t load ads. Please try again.',
-                style: TextStyle(color: AppColors.onNavyMuted),
+                'Couldnâ€™t load ads. Please try again.',
+                style: TextStyle(color: AppColors.textSecondary),
               ),
             ),
           );
@@ -145,18 +136,18 @@ class SellerProfileScreen extends StatelessWidget {
 
         if (listings.isEmpty) {
           return const Padding(
-            padding: EdgeInsets.all(40),
-            child: Center(
-              child: Text(
-                'No products in this store yet',
-                style: TextStyle(color: Colors.white70),
-              ),
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
+            child: EmptyStateWidget(
+              icon: Icons.inventory_2_outlined,
+              title: 'No products in this store yet',
+              subtitle:
+                  'Check back soon â€” this seller is just getting started.',
             ),
           );
         }
 
         // Group the seller's products by category so a store with items across
-        // several categories shows them as sections — all of the seller's
+        // several categories shows them as sections â€” all of the seller's
         // products live together here in their store.
         final groups = <String, List<Listing>>{};
         for (final l in listings) {
@@ -170,45 +161,52 @@ class SellerProfileScreen extends StatelessWidget {
           children: [
             for (final cat in cats) ...[
               Padding(
-                padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.page,
+                  AppSpacing.sm,
+                  AppSpacing.page,
+                  AppSpacing.md,
+                ),
                 child: Row(
                   children: [
-                    Text(
-                      cat,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
+                    Flexible(
+                      child: Text(
+                        cat,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.label,
                       ),
                     ),
                     const SizedBox(width: 6),
-                    Text(
-                      '(${groups[cat]!.length})',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                      ),
-                    ),
+                    Text('(${groups[cat]!.length})', style: AppType.caption),
                   ],
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.62,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                  ),
-                  itemCount: groups[cat]!.length,
-                  itemBuilder: (context, i) =>
-                      _StoreProductCard(listing: groups[cat]![i]),
+                padding: AppSpacing.pageH,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final columns = MarketplaceListingCard.columnsFor(
+                      MediaQuery.of(context).size.width,
+                    );
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      // Same delegate as every other listing grid, so the
+                      // store's cards match the feed exactly.
+                      gridDelegate: MarketplaceListingCard.gridDelegate(
+                        context,
+                        availableWidth: constraints.maxWidth,
+                        columns: columns,
+                      ),
+                      itemCount: groups[cat]!.length,
+                      itemBuilder: (context, i) =>
+                          _StoreProductCard(listing: groups[cat]![i]),
+                    );
+                  },
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: AppSpacing.lg),
             ],
           ],
         );
@@ -519,7 +517,7 @@ class _StoreInfoCard extends StatelessWidget {
                       ),
                     ),
                     child: const Text(
-                      "This store also follows PakBazar's platform rules ›",
+                      "This store also follows PakBazar's platform rules â€º",
                       style: TextStyle(
                         fontSize: 12,
                         color: kPakGreen,
@@ -536,262 +534,22 @@ class _StoreInfoCard extends StatelessWidget {
   }
 }
 
-/// A premium product tile for the storefront grid — a clean image-forward card
+/// A premium product tile for the storefront grid â€” a clean image-forward card
 /// with a prominent price, a single clear title line, a condition chip and the
 /// location. Deliberately less busy than the feed's [FeedAdCard] so a store
 /// reads like a polished catalogue.
-class _StoreProductCard extends StatefulWidget {
+/// A product card in a seller's storefront grid.
+///
+/// Kept as a name so the store layout keeps working; the implementation is the
+/// shared [MarketplaceListingCard], so a seller's catalogue looks identical to
+/// the home feed and search results.
+class _StoreProductCard extends StatelessWidget {
   final Listing listing;
   const _StoreProductCard({required this.listing});
 
   @override
-  State<_StoreProductCard> createState() => _StoreProductCardState();
-}
-
-class _StoreProductCardState extends State<_StoreProductCard> {
-  bool get _isFav => favoriteListings.any((i) => i.id == widget.listing.id);
-
-  Future<void> _toggleFav() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    final was = _isFav;
-    setState(() {
-      if (was) {
-        favoriteListings.removeWhere((i) => i.id == widget.listing.id);
-      } else {
-        favoriteListings.add(widget.listing);
-      }
-    });
-    if (uid == null) return;
-    final ref = FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('favorites')
-        .doc(widget.listing.id);
-    try {
-      if (was) {
-        await ref.delete();
-      } else {
-        await ref.set({
-          ...widget.listing.toMap(),
-          'savedListingId': widget.listing.id,
-          'savedAt': Timestamp.now(),
-        });
-      }
-    } catch (_) {
-      // Best-effort; the optimistic UI update already happened.
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l = widget.listing;
-    final img = l.galleryImages;
-    final isNew =
-        l.createdAt != null &&
-        DateTime.now().difference(l.createdAt!.toDate()).inHours < 24;
-
-    Widget? badge;
-    if (l.isSold) {
-      badge = const _StoreBadge('SOLD', Colors.black87);
-    } else if (l.isCurrentlyFeatured) {
-      badge = const _StoreBadge('FEATURED', kGold);
-    } else if (isNew) {
-      badge = const _StoreBadge('NEW', kPakGreen);
-    } else if (l.hasRecentPriceDrop) {
-      badge = const _StoreBadge('PRICE DROP', Color(0xFFD32F2F));
-    }
-
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(16),
-      clipBehavior: Clip.antiAlias,
-      elevation: 1.5,
-      shadowColor: Colors.black.withValues(alpha: 0.18),
-      child: InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => AdDetailsScreen(listing: l)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (img.isNotEmpty)
-                    Image.network(
-                      img.first,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(
-                        color: AppColors.divider,
-                        child: Icon(
-                          Icons.image_not_supported_outlined,
-                          color: AppColors.textMuted,
-                        ),
-                      ),
-                    )
-                  else
-                    Container(
-                      color: AppColors.divider,
-                      child: Icon(
-                        Icons.inventory_2_outlined,
-                        color: AppColors.textMuted,
-                      ),
-                    ),
-                  if (badge != null) Positioned(top: 8, left: 8, child: badge),
-                  Positioned(
-                    top: 6,
-                    right: 6,
-                    child: GestureDetector(
-                      onTap: _toggleFav,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.92),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.18),
-                              blurRadius: 4,
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          _isFav ? Icons.favorite : Icons.favorite_border,
-                          size: 16,
-                          color: Colors.red,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          priceLabel(l),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 15.5,
-                            fontWeight: FontWeight.w800,
-                            color: kPakGreen,
-                          ),
-                        ),
-                      ),
-                      if (l.hasRecentPriceDrop) ...[
-                        const SizedBox(width: 5),
-                        Text(
-                          formatPrice(l.previousPrice),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textMuted,
-                            decoration: TextDecoration.lineThrough,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    l.title.isEmpty ? 'Untitled' : l.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      if (l.condition.isNotEmpty && l.condition != 'N/A')
-                        _condChip(l.condition),
-                      const Spacer(),
-                      Icon(
-                        Icons.location_on,
-                        size: 11,
-                        color: AppColors.textMuted,
-                      ),
-                      const SizedBox(width: 1),
-                      Flexible(
-                        child: Text(
-                          l.city.isEmpty ? l.location : l.city,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _condChip(String c) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-    decoration: BoxDecoration(
-      color: (c == 'New' ? kPakGreen : AppColors.info).withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(4),
-    ),
-    child: Text(
-      c,
-      style: TextStyle(
-        fontSize: 9,
-        fontWeight: FontWeight.w700,
-        color: c == 'New' ? kPakGreen : AppColors.info,
-      ),
-    ),
-  );
-}
-
-class _StoreBadge extends StatelessWidget {
-  final String text;
-  final Color color;
-  const _StoreBadge(this.text, this.color);
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-    decoration: BoxDecoration(
-      color: color,
-      borderRadius: BorderRadius.circular(5),
-      boxShadow: [
-        BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 3),
-      ],
-    ),
-    child: Text(
-      text,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 8.5,
-        fontWeight: FontWeight.bold,
-        letterSpacing: 0.3,
-      ),
-    ),
-  );
+  Widget build(BuildContext context) =>
+      MarketplaceListingCard(listing: listing);
 }
 
 /// Follow / unfollow toggle for a seller, with a live follower count. Follows
@@ -947,7 +705,7 @@ class FollowingScreen extends StatelessWidget {
                     if (ls.hasError) {
                       return Center(
                         child: Text(
-                          'Couldn’t load ads. Please try again.',
+                          'Couldnâ€™t load ads. Please try again.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: AppColors.onNavyMuted),
                         ),
@@ -975,7 +733,12 @@ class FollowingScreen extends StatelessWidget {
                       );
                     }
                     return ListView.builder(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.page,
+                        AppSpacing.lg,
+                        AppSpacing.page,
+                        AppSpacing.navClearance,
+                      ),
                       itemCount: listings.length,
                       itemBuilder: (context, i) =>
                           ListingCard(listing: listings[i]),

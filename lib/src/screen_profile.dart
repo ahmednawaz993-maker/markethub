@@ -4,7 +4,7 @@ part of '../main.dart';
 
 /// Help & Suggestions: lets any user send a support request or an idea. The
 /// message is saved to the `feedback` collection (the admin reviews it in
-/// Admin Panel → Feedback) and also opens the user's mail app pre-addressed to
+/// Admin Panel â†’ Feedback) and also opens the user's mail app pre-addressed to
 /// [supportEmail], so it reaches the admin inbox directly too.
 Future<void> showSupportSheet(BuildContext context) async {
   final controller = TextEditingController();
@@ -34,7 +34,7 @@ Future<void> showSupportSheet(BuildContext context) async {
                 const SizedBox(height: 4),
                 Text(
                   'Need help or have an idea to improve PakBazar? Send it to our '
-                  'team — we read every message.',
+                  'team â€” we read every message.',
                   style: TextStyle(color: AppColors.textMuted, fontSize: 13),
                 ),
                 const SizedBox(height: 12),
@@ -79,7 +79,7 @@ Future<void> showSupportSheet(BuildContext context) async {
                       return;
                     }
                     final user = FirebaseAuth.instance.currentUser;
-                    // Durable record for the admin (Admin Panel → Feedback).
+                    // Durable record for the admin (Admin Panel â†’ Feedback).
                     try {
                       await FirebaseFirestore.instance
                           .collection('feedback')
@@ -207,7 +207,7 @@ class _DisplayNameTileState extends State<_DisplayNameTile> {
               alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: (loaded && !saving) ? _save : null,
-                child: Text(saving ? 'Saving…' : 'Save'),
+                child: Text(saving ? 'Savingâ€¦' : 'Save'),
               ),
             ),
           ],
@@ -320,7 +320,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
     if (!mounted) return;
     setState(() {
       isBusiness = d?['isBusiness'] == true;
-      // Legacy business accounts have no businessStatus — treat them as approved
+      // Legacy business accounts have no businessStatus â€” treat them as approved
       // so they keep their badge without re-applying.
       businessStatus =
           d?['businessStatus']?.toString() ??
@@ -365,10 +365,10 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       String message;
       if (wantsBusiness) {
         if (!isBusiness && businessStatus != 'approved') {
-          // Submit / resubmit for review. A seller can NEVER self-approve —
+          // Submit / resubmit for review. A seller can NEVER self-approve â€”
           // isBusiness is only flipped true by an admin (enforced in rules).
           data['businessStatus'] = 'pending';
-          message = 'Business details submitted — pending admin review.';
+          message = 'Business details submitted â€” pending admin review.';
         } else {
           // Already an approved business; just saving store details.
           message = 'Business store updated.';
@@ -427,7 +427,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Featured Business activated — free for 3 months!'),
+          content: Text('Featured Business activated â€” free for 3 months!'),
         ),
       );
     } catch (e) {
@@ -447,11 +447,11 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
     super.dispose();
   }
 
-  /// Shows the approval state of the business request, and — once approved —
+  /// Shows the approval state of the business request, and â€” once approved â€”
   /// quick access to the business dashboard and the seller's own storefront
   /// (where all of their products live together).
   Widget _buildBusinessStatusBanner(BuildContext context) {
-    // Approved (or grandfathered) and not suspended → live business.
+    // Approved (or grandfathered) and not suspended â†’ live business.
     if (isBusiness && businessStatus != 'suspended') {
       final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
       final name = nameController.text.trim();
@@ -495,7 +495,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
           title: 'Pending review',
           body:
               'Our team is reviewing your business. Your badge and store go '
-              'live once approved — you can keep editing your details below.',
+              'live once approved â€” you can keep editing your details below.',
         );
       case 'rejected':
         return _statusCard(
@@ -602,7 +602,9 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.upload),
-                      label: Text(uploadingLogo ? 'Uploading…' : 'Upload logo'),
+                      label: Text(
+                        uploadingLogo ? 'Uploadingâ€¦' : 'Upload logo',
+                      ),
                     ),
                   ],
                 ),
@@ -635,7 +637,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                             )
                           : const Icon(Icons.panorama),
                       label: Text(
-                        uploadingCover ? 'Uploading…' : 'Cover photo',
+                        uploadingCover ? 'Uploadingâ€¦' : 'Cover photo',
                       ),
                     ),
                   ],
@@ -696,7 +698,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
               alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: (loaded && !saving) ? _save : null,
-                child: Text(saving ? 'Saving…' : 'Save'),
+                child: Text(saving ? 'Savingâ€¦' : 'Save'),
               ),
             ),
             if (isBusiness) ...[
@@ -745,7 +747,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                           const SizedBox(height: 6),
                           if (active)
                             Text(
-                              'Active — featured on the home screen until '
+                              'Active â€” featured on the home screen until '
                               '${featuredUntil!.toDate().day}/'
                               '${featuredUntil!.toDate().month}/'
                               '${featuredUntil!.toDate().year}.',
@@ -762,7 +764,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                           else ...[
                             Text(
                               'Get a Featured Business spot on the home screen '
-                              '— free for 3 months.',
+                              'â€” free for 3 months.',
                               style: TextStyle(
                                 fontSize: 13,
                                 color: AppColors.textMuted,
@@ -811,7 +813,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
 /// Identity verification: user uploads a selfie + CNIC for admin face-match
 /// review. On approval the admin sets `idVerified` on the user doc.
 /// Lets a user request deletion of their account and data. The request is
-/// queued for the admin (Admin Panel → Deletions) to action — satisfies the
+/// queued for the admin (Admin Panel â†’ Deletions) to action â€” satisfies the
 /// app stores' account-deletion requirement.
 Future<void> _requestAccountDeletion(BuildContext context) async {
   final user = FirebaseAuth.instance.currentUser;
@@ -938,7 +940,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
     });
   }
 
-  /// Address proof (utility bill, bank letter, etc.) — a document, so gallery
+  /// Address proof (utility bill, bank letter, etc.) â€” a document, so gallery
   /// upload is allowed here (unlike the live-camera-only selfie/CNIC).
   Future<void> _uploadProof() async {
     final img = await picker.pickImage(
@@ -1056,7 +1058,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         setState(() => status = 'pending');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Submitted — we\'ll review it shortly.'),
+            content: Text('Submitted â€” we\'ll review it shortly.'),
           ),
         );
       }
@@ -1085,7 +1087,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 ),
         ),
         title: Text(label),
-        subtitle: Text(url == null ? 'Not captured' : 'Captured ✓'),
+        subtitle: Text(url == null ? 'Not captured' : 'Captured âœ“'),
         trailing: busy
             ? const SizedBox(
                 width: 18,
@@ -1138,14 +1140,14 @@ class _VerificationScreenState extends State<VerificationScreen> {
                       ),
                     ),
                   ),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(4, 8, 4, 8),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
                   child: Text(
                     'Verify your identity to earn an ID-Verified badge that buyers '
                     'and sellers trust. Use your camera to take a live selfie and a '
-                    'photo of your CNIC — uploads from the gallery are not allowed. '
+                    'photo of your CNIC â€” uploads from the gallery are not allowed. '
                     'Our team checks that the face matches the ID.',
-                    style: TextStyle(color: AppColors.onNavyMuted),
+                    style: AppType.secondary,
                   ),
                 ),
                 _uploadTile(
@@ -1165,10 +1167,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   padding: EdgeInsets.fromLTRB(4, 4, 4, 6),
                   child: Text(
                     'Your residential address',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.onNavy,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
                 TextField(
@@ -1184,7 +1183,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 ),
                 const SizedBox(height: 8),
                 _uploadTile(
-                  'Proof of address (bill/letter) — optional',
+                  'Proof of address (bill/letter) â€” optional',
                   addressProofUrl,
                   uploadingProof,
                   _uploadProof,
@@ -1195,21 +1194,18 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     onPressed: submitting ? null : _submit,
                     child: Text(
                       submitting
-                          ? 'Submitting…'
+                          ? 'Submittingâ€¦'
                           : (status == 'pending'
                                 ? 'Resubmit for review'
                                 : 'Submit for verification'),
                     ),
                   ),
-                const Padding(
-                  padding: EdgeInsets.all(12),
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   child: Text(
-                    'Your documents are private — visible only to you and our '
+                    'Your documents are private â€” visible only to you and our '
                     'review team, never shown publicly. See the Privacy Policy.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.onNavyMuted,
-                    ),
+                    style: AppType.caption,
                   ),
                 ),
               ],
@@ -1250,7 +1246,7 @@ class TrustSafetyScreen extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('•  '),
+                    const Text('â€¢  '),
                     Expanded(child: Text(p)),
                   ],
                 ),
@@ -1269,20 +1265,20 @@ class TrustSafetyScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(4, 4, 4, 12),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
             child: Text(
               'These are the rules every PakBazar member agrees to. Buyers and '
               'sellers each have matching responsibilities at every step of a '
-              'deal — follow them to keep the marketplace safe and fair.',
-              style: TextStyle(color: AppColors.onNavyMuted),
+              'deal â€” follow them to keep the marketplace safe and fair.',
+              style: AppType.secondary,
             ),
           ),
           _card(Icons.verified_user, 'For everyone', kPakGreen, const [
-            'Be honest and respectful — no harassment, threats, hate speech, '
+            'Be honest and respectful â€” no harassment, threats, hate speech, '
                 'or discrimination.',
             'Keep every chat, offer, and payment on PakBazar so there is a '
-                'record — never move a deal off the app.',
+                'record â€” never move a deal off the app.',
             'Never share OTPs, passwords, CNIC numbers, or card PINs with '
                 'anyone, for any reason.',
             'Verify your identity and address to build trust and unlock '
@@ -1295,20 +1291,20 @@ class TrustSafetyScreen extends StatelessWidget {
           // fair confirmation/review) so both sides know what to expect.
           _card(Icons.shopping_cart, 'For buyers', Colors.blue, const [
             'Inspect the item and confirm it matches the ad before you pay.',
-            'Pay through PakBazar (escrow or Cash on Delivery) — never pay the '
+            'Pay through PakBazar (escrow or Cash on Delivery) â€” never pay the '
                 'full amount in advance to an unknown seller.',
             'Be cautious of prices that look too good to be true.',
-            'Negotiate openly with "Make an Offer" — don\'t ask to deal '
+            'Negotiate openly with "Make an Offer" â€” don\'t ask to deal '
                 'outside the app.',
             'Confirm receipt honestly so the seller\'s payment is released '
                 'fairly.',
             'Leave an honest rating and review after the deal.',
           ]),
           _card(Icons.sell, 'For sellers', Colors.deepOrange, const [
-            'Describe items honestly and use your own real photos — no '
+            'Describe items honestly and use your own real photos â€” no '
                 'misleading or fake listings.',
             'Only list items you actually own and are legally allowed to sell.',
-            'Honour the price and details you advertised — no bait-and-switch.',
+            'Honour the price and details you advertised â€” no bait-and-switch.',
             'Confirm payment is fully received or escrow is funded before you '
                 'hand over the item.',
             'Hand over or ship promptly once paid; never release goods before '
@@ -1323,7 +1319,7 @@ class TrustSafetyScreen extends StatelessWidget {
                 'outside PakBazar.',
             'No spam, duplicate ads, or misleading prices.',
             'Breaking these rules can lead to ad removal, a warning, or account '
-                'suspension — you can appeal a suspension from the app.',
+                'suspension â€” you can appeal a suspension from the app.',
           ]),
           _card(Icons.shield_moon, 'How PakBazar protects you', kPakGreen, const [
             'Identity & address verification before members can post, buy, '
@@ -1339,15 +1335,15 @@ class TrustSafetyScreen extends StatelessWidget {
             Colors.indigo,
             const [
               'Order or delivery problems are between the buyer and the '
-                  'seller — contact the seller directly through chat or their '
+                  'seller â€” contact the seller directly through chat or their '
                   'listed phone number.',
               'PakBazar can only help with a refund if you paid through the '
                   'platform\'s on-platform payment options (escrow).',
-              'If you paid the seller directly — Cash on Delivery, bank '
-                  'transfer, or any off-platform method — settle it with the '
+              'If you paid the seller directly â€” Cash on Delivery, bank '
+                  'transfer, or any off-platform method â€” settle it with the '
                   'seller. PakBazar cannot refund money it never held.',
               'For a dispute on an escrow-funded order, or to report a scam, '
-                  'open a request in Customer Care (24/7) — we aim to resolve '
+                  'open a request in Customer Care (24/7) â€” we aim to resolve '
                   'it within 24 hours.',
               'Always keep your payment on PakBazar so you stay protected.',
             ],
@@ -1369,7 +1365,7 @@ class TrustSafetyScreen extends StatelessWidget {
   }
 }
 
-/// Renders a legal document as titled sections. A line starting with "• " is
+/// Renders a legal document as titled sections. A line starting with "â€¢ " is
 /// shown as a bullet; everything else as a paragraph.
 class _LegalScreen extends StatelessWidget {
   final String title;
@@ -1412,11 +1408,11 @@ class _LegalScreen extends StatelessWidget {
                   for (final line in lines)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: line.startsWith('• ')
+                      child: line.startsWith('â€¢ ')
                           ? Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('•  '),
+                                const Text('â€¢  '),
                                 Expanded(child: Text(line.substring(2))),
                               ],
                             )
@@ -1459,23 +1455,23 @@ class PrivacyPolicyScreen extends StatelessWidget {
         (
           'Information we collect',
           [
-            '• Account details: your email and/or phone number, and a password '
+            'â€¢ Account details: your email and/or phone number, and a password '
                 '(handled by Firebase Authentication).',
-            '• Profile: display or business name, city, and address.',
-            '• Verification: a live selfie, CNIC photo, your address and an '
+            'â€¢ Profile: display or business name, city, and address.',
+            'â€¢ Verification: a live selfie, CNIC photo, your address and an '
                 'optional proof-of-address document, submitted for ID and address '
                 'verification.',
-            '• Listings: photos, descriptions, price, category, the contact '
+            'â€¢ Listings: photos, descriptions, price, category, the contact '
                 'number you choose to show, and the item location (city and, if '
                 'you allow it, GPS coordinates).',
-            '• Location: approximate or precise device location, only if you '
+            'â€¢ Location: approximate or precise device location, only if you '
                 'grant permission.',
-            '• Usage and device data: app interactions, views and leads, '
+            'â€¢ Usage and device data: app interactions, views and leads, '
                 'recently viewed items, saved searches, favourites, and push '
                 'notification tokens.',
-            '• Communications: in-app chat messages, offers, support requests, '
+            'â€¢ Communications: in-app chat messages, offers, support requests, '
                 'and reports you submit.',
-            '• Payments: wallet balance, top-up and withdrawal requests, and '
+            'â€¢ Payments: wallet balance, top-up and withdrawal requests, and '
                 'escrow transactions. We do not store full card numbers; payments '
                 'are handled manually or by a payment provider.',
           ],
@@ -1483,28 +1479,28 @@ class PrivacyPolicyScreen extends StatelessWidget {
         (
           'How we use your information',
           [
-            '• To run the marketplace — show listings, enable chat, offers, '
+            'â€¢ To run the marketplace â€” show listings, enable chat, offers, '
                 'orders, and escrow.',
-            '• To verify identity and address and to prevent fraud and abuse.',
-            '• To moderate content — every ad is reviewed before it goes live.',
-            '• To process payments, escrow, wallet top-ups and withdrawals.',
-            '• To send you notifications about chats, offers, orders, and '
+            'â€¢ To verify identity and address and to prevent fraud and abuse.',
+            'â€¢ To moderate content â€” every ad is reviewed before it goes live.',
+            'â€¢ To process payments, escrow, wallet top-ups and withdrawals.',
+            'â€¢ To send you notifications about chats, offers, orders, and '
                 'account decisions.',
-            '• To provide support and to improve and secure the service.',
-            '• To comply with the law and enforce our Terms and rules.',
+            'â€¢ To provide support and to improve and secure the service.',
+            'â€¢ To comply with the law and enforce our Terms and rules.',
           ],
         ),
         (
           'How we share information',
           [
-            '• With other users: your public profile, listings, ratings, and any '
+            'â€¢ With other users: your public profile, listings, ratings, and any '
                 'contact number you add to an ad are visible to others.',
-            '• With service providers that power the app, such as Google '
+            'â€¢ With service providers that power the app, such as Google '
                 'Firebase / Google Cloud (hosting, database, authentication, '
                 'notifications) and our payment and email providers.',
-            '• For safety and legal reasons: to investigate fraud, enforce our '
+            'â€¢ For safety and legal reasons: to investigate fraud, enforce our '
                 'rules, or comply with a lawful request.',
-            '• We do not sell your personal information.',
+            'â€¢ We do not sell your personal information.',
           ],
         ),
         (
@@ -1528,10 +1524,10 @@ class PrivacyPolicyScreen extends StatelessWidget {
         (
           'Your choices',
           [
-            '• You can edit your profile information in the app at any time.',
-            '• You can turn location and notification permissions on or off in '
+            'â€¢ You can edit your profile information in the app at any time.',
+            'â€¢ You can turn location and notification permissions on or off in '
                 'your device/browser settings.',
-            '• You can delete your account and data with "Delete my account" in '
+            'â€¢ You can delete your account and data with "Delete my account" in '
                 'your Profile, or by contacting us at ahmednawaz993@gmail.com.',
           ],
         ),
@@ -1574,11 +1570,11 @@ class TermsScreen extends StatelessWidget {
         (
           'Eligibility & account',
           [
-            '• You must be at least 18 years old and provide accurate '
+            'â€¢ You must be at least 18 years old and provide accurate '
                 'information.',
-            '• Posting ads, buying, making offers and chatting require identity '
+            'â€¢ Posting ads, buying, making offers and chatting require identity '
                 'and address verification.',
-            '• You are responsible for keeping your account secure and for all '
+            'â€¢ You are responsible for keeping your account secure and for all '
                 'activity under it.',
           ],
         ),
@@ -1595,12 +1591,12 @@ class TermsScreen extends StatelessWidget {
         (
           'Listings & moderation',
           [
-            '• You may list only items you own and are legally allowed to sell.',
-            '• Listings must be honest, with your own photos and accurate '
+            'â€¢ You may list only items you own and are legally allowed to sell.',
+            'â€¢ Listings must be honest, with your own photos and accurate '
                 'details and prices.',
-            '• Every ad is reviewed before going live; we may approve, reject, '
+            'â€¢ Every ad is reviewed before going live; we may approve, reject, '
                 'or remove any listing at our discretion.',
-            '• Prohibited items and conduct are described in Trust & Safety and '
+            'â€¢ Prohibited items and conduct are described in Trust & Safety and '
                 'are not allowed.',
           ],
         ),
@@ -1608,7 +1604,7 @@ class TermsScreen extends StatelessWidget {
           'Buyer & seller responsibilities',
           [
             'Buyers and sellers must follow the matched responsibilities set out '
-                'in our Trust & Safety rules — including honest dealing, keeping '
+                'in our Trust & Safety rules â€” including honest dealing, keeping '
                 'communication and payment on PakBazar, and completing deals '
                 'fairly.',
           ],
@@ -1616,23 +1612,23 @@ class TermsScreen extends StatelessWidget {
         (
           'Payments, escrow & fees',
           [
-            '• Payments can be made through in-app escrow or Cash on Delivery '
+            'â€¢ Payments can be made through in-app escrow or Cash on Delivery '
                 'where offered.',
-            '• With escrow, we hold the payment until the buyer confirms '
+            'â€¢ With escrow, we hold the payment until the buyer confirms '
                 'receipt, then release it to the seller.',
-            '• A platform commission may apply to completed sales, and sellers '
+            'â€¢ A platform commission may apply to completed sales, and sellers '
                 'can request withdrawals of their wallet balance.',
-            '• Never make or request payments outside PakBazar.',
+            'â€¢ Never make or request payments outside PakBazar.',
           ],
         ),
         (
           'Prohibited conduct & enforcement',
           [
-            '• No fraud, scams, off-platform payment requests, harassment, or '
+            'â€¢ No fraud, scams, off-platform payment requests, harassment, or '
                 'illegal activity.',
-            '• Breaking these Terms or our rules may lead to ad removal, '
+            'â€¢ Breaking these Terms or our rules may lead to ad removal, '
                 'warnings, or suspension of your account.',
-            '• Suspended users may submit an appeal from within the app.',
+            'â€¢ Suspended users may submit an appeal from within the app.',
           ],
         ),
         (
@@ -1640,20 +1636,20 @@ class TermsScreen extends StatelessWidget {
           [
             'Sellers are held to a strict standard. If any fraud or violent '
                 'activity is found on your account, your seller account will be '
-                'SUSPENDED IMMEDIATELY — without prior warning.',
-            '• Fraud includes (but is not limited to): fake, stolen, or '
+                'SUSPENDED IMMEDIATELY â€” without prior warning.',
+            'â€¢ Fraud includes (but is not limited to): fake, stolen, or '
                 'misrepresented listings; scams or advance-fee tricks; requesting '
                 'or taking payment off-platform; taking payment and not '
                 'delivering; and counterfeit or illegal goods.',
-            '• Violent activity includes any threats, intimidation, harassment, '
-                'or abuse towards buyers, our staff, or other users — in chat or '
+            'â€¢ Violent activity includes any threats, intimidation, harassment, '
+                'or abuse towards buyers, our staff, or other users â€” in chat or '
                 'in person.',
-            '• On immediate suspension you can no longer post ads, sell, make '
+            'â€¢ On immediate suspension you can no longer post ads, sell, make '
                 'offers, or chat, and any pending payouts may be held while we '
                 'investigate.',
-            '• Serious cases — fraud, threats, or violence — may also be '
+            'â€¢ Serious cases â€” fraud, threats, or violence â€” may also be '
                 'reported to the relevant law-enforcement authorities.',
-            '• If you believe a suspension was a mistake, you may submit an '
+            'â€¢ If you believe a suspension was a mistake, you may submit an '
                 'appeal from within the app for review.',
           ],
         ),
@@ -1719,21 +1715,14 @@ class AboutScreen extends StatelessWidget {
                 const SizedBox(height: 12),
                 const Text(
                   'PakBazar',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.onNavy,
-                  ),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
-                const Text(
+                Text(
                   'Pakistan ka apna online bazaar',
-                  style: TextStyle(color: AppColors.onNavyMuted),
+                  style: AppType.secondary,
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'Version 1.0.0',
-                  style: TextStyle(color: AppColors.onNavyMuted, fontSize: 12),
-                ),
+                Text('Version $kAppVersion', style: AppType.caption),
               ],
             ),
           ),
@@ -1778,7 +1767,9 @@ class AboutScreen extends StatelessWidget {
                 ListTile(
                   leading: const Icon(Icons.support_agent, color: kPakGreen),
                   title: const Text('Customer Care (24/7)'),
-                  subtitle: const Text('Open a request — resolved within 24h'),
+                  subtitle: const Text(
+                    'Open a request â€” resolved within 24h',
+                  ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.push(
                     context,
@@ -1800,7 +1791,7 @@ class AboutScreen extends StatelessWidget {
                     leading: const Icon(Icons.card_giftcard, color: kGold),
                     title: const Text('Invite friends & win'),
                     subtitle: const Text(
-                      'Win PKR 100,000 — draw on 14 Aug 2026',
+                      'Win PKR 100,000 â€” draw on 14 Aug 2026',
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => Navigator.push(
@@ -1827,7 +1818,7 @@ class AboutScreen extends StatelessWidget {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Link copied — share it anywhere!'),
+                          content: Text('Link copied â€” share it anywhere!'),
                         ),
                       );
                     }
@@ -1847,19 +1838,14 @@ class AboutScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          const Center(
-            child: Text(
-              '© 2026 PakBazar',
-              style: TextStyle(color: AppColors.onNavyMuted, fontSize: 12),
-            ),
-          ),
+          Center(child: Text('Â© 2026 PakBazar', style: AppType.caption)),
         ],
       ),
     );
   }
 }
 
-/// Compact "X Followers · Y Following" row for the current user's own profile.
+/// Compact "X Followers Â· Y Following" row for the current user's own profile.
 class _FollowStatsRow extends StatelessWidget {
   const _FollowStatsRow();
 
@@ -1915,300 +1901,391 @@ class _FollowStatsRow extends StatelessWidget {
   }
 }
 
+/// The "Menu" tab: account header, then grouped shortcuts into every part of
+/// the app. Every destination that used to live here is still here â€” My Ads is
+/// now surfaced at the top of Selling, since it left the bottom bar.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    final isGuest = user?.isAnonymous ?? true;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Seller Profile')),
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [kPakGreen, kPakGreenLight],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const CircleAvatar(
-                      radius: 44,
-                      backgroundColor: Colors.white,
-                      child: Icon(Icons.person, size: 50, color: kPakGreen),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      user?.email ?? 'Guest user',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    if (!(user?.isAnonymous ?? true)) ...[
-                      const SizedBox(height: 10),
-                      if (user?.emailVerified ?? false)
-                        const Chip(
-                          avatar: Icon(
-                            Icons.verified,
-                            color: kPakGreen,
-                            size: 18,
-                          ),
-                          label: Text('Verified'),
-                        )
-                      else
-                        OutlinedButton.icon(
-                          onPressed: () async {
-                            try {
-                              await user!.sendEmailVerification();
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Verification email sent. Verify, then '
-                                      'log out and back in to get your badge.',
-                                    ),
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Could not send: $e')),
-                                );
-                              }
-                            }
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Colors.white70),
-                          ),
-                          icon: const Icon(Icons.mark_email_read),
-                          label: const Text('Verify email'),
-                        ),
-                    ],
-                    if (user?.isAnonymous ?? false) ...[
-                      const SizedBox(height: 12),
-                      const Text(
-                        'You are browsing as a guest. Log in to keep your ads, '
-                        'favorites and chats across devices.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.amberAccent),
-                      ),
-                    ],
-                  ],
-                ),
+      appBar: AppBar(title: const Text('Menu')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.page,
+          AppSpacing.lg,
+          AppSpacing.page,
+          AppSpacing.navClearance,
+        ),
+        children: [
+          _AccountHeader(user: user),
+
+          if (!isGuest) ...[
+            const SizedBox(height: AppSpacing.lg),
+            const _FollowStatsRow(),
+            const SizedBox(height: AppSpacing.md),
+            const _DisplayNameTile(),
+            const SizedBox(height: AppSpacing.md),
+            const _BusinessAccountTile(),
+          ],
+
+          if (canOpenAdminPanel()) ...[
+            const SizedBox(height: AppSpacing.lg),
+            PrimaryActionButton(
+              label: isSuperAdmin() ? tr('profile.adminPanel') : 'Staff Panel',
+              icon: Icons.admin_panel_settings,
+              color: const Color(0xFF5E35B1),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminPanelScreen()),
               ),
-              if (!(user?.isAnonymous ?? true)) ...[
-                const SizedBox(height: 16),
-                const _FollowStatsRow(),
-                const SizedBox(height: 12),
-                const _DisplayNameTile(),
-                const SizedBox(height: 12),
-                const _BusinessAccountTile(),
-              ],
-              if (canOpenAdminPanel()) ...[
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
-                  ),
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const AdminPanelScreen()),
-                  ),
-                  icon: const Icon(Icons.admin_panel_settings),
-                  label: Text(
-                    isSuperAdmin() ? tr('profile.adminPanel') : 'Staff Panel',
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
-              const LanguageTile(),
-              const SizedBox(height: 12),
-              const ThemeTile(),
-              const SizedBox(height: 12),
-              // White outline/text so these options are clearly visible on the
-              // dark navy background.
-              OutlinedButtonTheme(
-                data: OutlinedButtonThemeData(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white60, width: 1.4),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 13,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const SellerDashboardScreen(),
-                        ),
-                      ),
-                      icon: const Icon(Icons.dashboard_outlined),
-                      label: const Text('Seller Dashboard'),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const OrdersScreen()),
-                      ),
-                      icon: const Icon(Icons.receipt_long),
-                      label: Text(tr('profile.orders')),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const AddressBookScreen(),
-                        ),
-                      ),
-                      icon: const Icon(Icons.location_on_outlined),
-                      label: const Text('Delivery addresses'),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const PayoutAccountsScreen(),
-                        ),
-                      ),
-                      icon: const Icon(Icons.account_balance_outlined),
-                      label: const Text('Payout accounts'),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const SalesDashboardScreen(),
-                        ),
-                      ),
-                      icon: const Icon(Icons.insights),
-                      label: const Text('Sales & Earnings'),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const OffersScreen()),
-                      ),
-                      icon: const Icon(Icons.local_offer),
-                      label: Text(tr('profile.offers')),
-                    ),
-                    const SizedBox(height: 12),
-                    if (monetizationEnabled.value) ...[
-                      OutlinedButton.icon(
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const WalletScreen(),
-                          ),
-                        ),
-                        icon: const Icon(Icons.account_balance_wallet),
-                        label: Text(tr('profile.wallet')),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const VerificationScreen(),
-                        ),
-                      ),
-                      icon: const Icon(Icons.verified_user),
-                      label: Text(tr('profile.verify')),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const DraftsScreen()),
-                      ),
-                      icon: const Icon(Icons.edit_note),
-                      label: Text(tr('profile.drafts')),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const SavedSearchesScreen(),
-                        ),
-                      ),
-                      icon: const Icon(Icons.bookmark),
-                      label: Text(tr('profile.savedSearches')),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const FollowingScreen(),
-                        ),
-                      ),
-                      icon: const Icon(Icons.people_alt),
-                      label: Text(tr('profile.following')),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () => showSupportSheet(context),
-                      icon: const Icon(Icons.help_outline),
-                      label: Text(tr('profile.help')),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const AboutScreen()),
-                      ),
-                      icon: const Icon(Icons.info_outline),
-                      label: Text(tr('profile.about')),
-                    ),
-                  ],
-                ),
+            ),
+          ],
+
+          _MenuGroup(
+            title: 'Selling',
+            // My Ads is a bottom-bar tab, so it isn't repeated here.
+            items: [
+              _MenuItem(
+                icon: Icons.dashboard_outlined,
+                label: 'Seller Dashboard',
+                subtitle: 'Everything you sell, in one place',
+                builder: () => const SellerDashboardScreen(),
               ),
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  favoriteListings.clear();
-                  await FirebaseAuth.instance.signOut();
-                  // AuthGate listens to authStateChanges and shows the login screen.
-                },
-                icon: const Icon(Icons.logout),
-                label: Text(tr('profile.logout')),
+              _MenuItem(
+                icon: Icons.insights,
+                label: 'Sales & Earnings',
+                subtitle: 'Earnings, escrow & 6-month trend',
+                builder: () => const SalesDashboardScreen(),
+              ),
+              _MenuItem(
+                icon: Icons.edit_note,
+                label: tr('profile.drafts'),
+                builder: () => const DraftsScreen(),
               ),
             ],
           ),
-        ),
+
+          _MenuGroup(
+            title: 'Buying',
+            items: [
+              _MenuItem(
+                icon: Icons.favorite_border,
+                label: tr('nav.favorites'),
+                subtitle: 'Ads you saved',
+                builder: () => const FavoritesScreen(),
+              ),
+              _MenuItem(
+                icon: Icons.receipt_long,
+                label: tr('profile.orders'),
+                builder: () => const OrdersScreen(),
+              ),
+              _MenuItem(
+                icon: Icons.local_offer_outlined,
+                label: tr('profile.offers'),
+                builder: () => const OffersScreen(),
+              ),
+              _MenuItem(
+                icon: Icons.bookmark_border,
+                label: tr('profile.savedSearches'),
+                builder: () => const SavedSearchesScreen(),
+              ),
+              _MenuItem(
+                icon: Icons.people_alt_outlined,
+                label: tr('profile.following'),
+                builder: () => const FollowingScreen(),
+              ),
+            ],
+          ),
+
+          _MenuGroup(
+            title: 'Account & payments',
+            items: [
+              _MenuItem(
+                icon: Icons.location_on_outlined,
+                label: 'Delivery addresses',
+                builder: () => const AddressBookScreen(),
+              ),
+              _MenuItem(
+                icon: Icons.account_balance_outlined,
+                label: 'Payout accounts',
+                subtitle: 'Where you get paid',
+                builder: () => const PayoutAccountsScreen(),
+              ),
+              if (monetizationEnabled.value)
+                _MenuItem(
+                  icon: Icons.account_balance_wallet_outlined,
+                  label: tr('profile.wallet'),
+                  builder: () => const WalletScreen(),
+                ),
+              _MenuItem(
+                icon: Icons.verified_user_outlined,
+                label: tr('profile.verify'),
+                builder: () => const VerificationScreen(),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: AppSpacing.section),
+          const LanguageTile(),
+          const SizedBox(height: AppSpacing.md),
+          const ThemeTile(),
+
+          _MenuGroup(
+            title: 'Support',
+            items: [
+              _MenuItem(
+                icon: Icons.help_outline,
+                label: tr('profile.help'),
+                onTap: (context) => showSupportSheet(context),
+              ),
+              _MenuItem(
+                icon: Icons.support_agent,
+                label: 'Customer Care (24/7)',
+                builder: () => const CustomerCareScreen(),
+              ),
+              _MenuItem(
+                icon: Icons.info_outline,
+                label: tr('profile.about'),
+                builder: () => const AboutScreen(),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: AppSpacing.section),
+          PrimaryActionButton(
+            label: tr('profile.logout'),
+            icon: Icons.logout,
+            outlined: true,
+            color: AppColors.error,
+            onPressed: () async {
+              favoriteListings.clear();
+              await FirebaseAuth.instance.signOut();
+              // AuthGate listens to authStateChanges and shows the login screen.
+            },
+          ),
+        ],
       ),
+    );
+  }
+}
+
+/// The account card at the top of the Menu tab.
+class _AccountHeader extends StatelessWidget {
+  final User? user;
+  const _AccountHeader({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final isGuest = user?.isAnonymous ?? true;
+    final emailVerified = user?.emailVerified ?? false;
+
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: AppColors.primarySoft,
+                child: Icon(Icons.person, size: 30, color: AppColors.accent),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      user?.email ?? 'Guest user',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    if (isGuest)
+                      Text('Browsing as a guest', style: AppType.caption)
+                    else
+                      Row(
+                        children: [
+                          Icon(
+                            emailVerified
+                                ? Icons.verified
+                                : Icons.error_outline,
+                            size: 14,
+                            color: emailVerified
+                                ? AppColors.success
+                                : AppColors.warning,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              emailVerified
+                                  ? 'Email verified'
+                                  : 'Email not verified',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppType.caption,
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (isGuest) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Log in to keep your ads, favorites and chats across devices.',
+              style: AppType.secondary,
+            ),
+          ] else if (!emailVerified) ...[
+            const SizedBox(height: AppSpacing.md),
+            PrimaryActionButton(
+              label: 'Verify email',
+              icon: Icons.mark_email_read_outlined,
+              outlined: true,
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                try {
+                  await user!.sendEmailVerification();
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Verification email sent. Verify, then log out and '
+                        'back in to get your badge.',
+                      ),
+                    ),
+                  );
+                } catch (e) {
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Could not send: $e')),
+                  );
+                }
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// One row in a [_MenuGroup].
+class _MenuItem {
+  final IconData icon;
+  final String label;
+  final String? subtitle;
+
+  /// The screen to push. Ignored when [onTap] is given.
+  final Widget Function()? builder;
+
+  /// For entries that open a sheet rather than push a route.
+  final void Function(BuildContext)? onTap;
+
+  const _MenuItem({
+    required this.icon,
+    required this.label,
+    this.subtitle,
+    this.builder,
+    this.onTap,
+  });
+}
+
+/// A titled card of menu rows, separated by hairlines.
+class _MenuGroup extends StatelessWidget {
+  final String title;
+  final List<_MenuItem> items;
+
+  const _MenuGroup({required this.title, required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: AppSpacing.section),
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.md, left: 2),
+          child: Text(title, style: AppType.sectionTitle),
+        ),
+        AppCard(
+          padding: EdgeInsets.zero,
+          child: Column(
+            children: [
+              for (var i = 0; i < items.length; i++) ...[
+                if (i > 0) Divider(height: 1, color: AppColors.borderSoft),
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg,
+                    vertical: 2,
+                  ),
+                  leading: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AppColors.primarySoft,
+                      borderRadius: AppRadius.rSm,
+                    ),
+                    child: Icon(
+                      items[i].icon,
+                      size: 19,
+                      color: AppColors.accent,
+                    ),
+                  ),
+                  title: Text(
+                    items[i].label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  subtitle: items[i].subtitle == null
+                      ? null
+                      : Text(
+                          items[i].subtitle!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppType.caption,
+                        ),
+                  trailing: Icon(
+                    Icons.chevron_right,
+                    size: 20,
+                    color: AppColors.textMuted,
+                  ),
+                  onTap: () {
+                    final item = items[i];
+                    if (item.onTap != null) {
+                      item.onTap!(context);
+                    } else if (item.builder != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => item.builder!()),
+                      );
+                    }
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

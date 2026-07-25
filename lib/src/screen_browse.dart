@@ -91,11 +91,10 @@ class SavedSearchesScreen extends StatelessWidget {
     if (uid == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Saved Searches')),
-        body: const Center(
-          child: Text(
-            'Please log in to see saved searches',
-            style: TextStyle(color: Colors.white70),
-          ),
+        body: const EmptyStateWidget(
+          icon: Icons.bookmark_border,
+          title: 'Log in to see saved searches',
+          subtitle: 'Save a search to get alerted on new matching ads.',
         ),
       );
     }
@@ -115,30 +114,31 @@ class SavedSearchesScreen extends StatelessWidget {
 
           final docs = snapshot.data!.docs;
           if (docs.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'No saved searches yet.\nTap the bell icon while browsing to '
-                  'save a search and get alerts on new matching ads.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70),
-                ),
-              ),
+            return const EmptyStateWidget(
+              icon: Icons.bookmark_border,
+              title: 'No saved searches yet',
+              subtitle:
+                  'Tap the bell while browsing to save a search and get '
+                  'alerts on new matching ads.',
             );
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.page,
+              AppSpacing.lg,
+              AppSpacing.page,
+              AppSpacing.navClearance,
+            ),
             itemCount: docs.length,
             itemBuilder: (context, index) {
               final d = docs[index].data() as Map<String, dynamic>;
               return Card(
-                margin: const EdgeInsets.only(bottom: 10),
+                margin: const EdgeInsets.only(bottom: AppSpacing.md),
                 child: ListTile(
                   leading: const Icon(Icons.bookmark, color: kPakGreen),
                   title: Text(d['label']?.toString() ?? 'Saved search'),
-                  subtitle: const Text('Tap to run · alerts on new matches'),
+                  subtitle: const Text('Tap to run Â· alerts on new matches'),
                   onTap: () {
                     final cat = d['category']?.toString();
                     Navigator.push(
@@ -223,6 +223,10 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
   bool negotiableOnly = false;
   String colorFilter = ''; // '' = any colour
 
+  /// Results view: a responsive card grid (default) or a compact list. The
+  /// grid drops to one column automatically on very narrow screens.
+  bool gridView = true;
+
   static const sortOptions = [
     'Newest',
     'Price: Low to High',
@@ -275,7 +279,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
         '${maxPrice?.toStringAsFixed(0) ?? 'any'}',
       );
     }
-    final label = parts.isEmpty ? 'All ads' : parts.join(' · ');
+    final label = parts.isEmpty ? 'All ads' : parts.join(' Â· ');
 
     await FirebaseFirestore.instance
         .collection('users')
@@ -295,7 +299,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Saved "$label" — we\'ll alert you on new matches'),
+        content: Text('Saved "$label" â€” we\'ll alert you on new matches'),
       ),
     );
   }
@@ -498,7 +502,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
 
   List<Listing> applyFilters(List<Listing> listings) {
     // Split the query into words so an ad matches when EVERY word appears
-    // somewhere in it (any field, any order) — e.g. "nike shoes" finds
+    // somewhere in it (any field, any order) â€” e.g. "nike shoes" finds
     // "Shoes - Nike". Case-insensitive substring ("alphabetic") matching, so
     // partial words match too.
     final tokens = searchText
@@ -524,7 +528,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
         ...listing.attributes.values,
       ].join(' ').toLowerCase();
       // Each query word must match the ad: as a substring (exact/partial), or
-      // — if not found — as a close typo of one of the ad's words (edit
+      // â€” if not found â€” as a close typo of one of the ad's words (edit
       // distance). Words are split out lazily, only when a typo path is hit.
       List<String>? words;
       final matchesSearch =
@@ -600,155 +604,170 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     final subcategories = ['All', ...currentCategory.subcategories];
 
     // The search box + filters live OUTSIDE the StreamBuilder so they're never
-    // rebuilt by stream ticks or replaced by the loading spinner — the field
+    // rebuilt by stream ticks or replaced by the loading spinner â€” the field
     // stays responsive and keeps focus. Only the results list reacts to data.
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-          child: TextField(
-            controller: searchController,
-            textInputAction: TextInputAction.search,
-            decoration: const InputDecoration(
-              hintText: 'Search anything — title, category, brand, location…',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
-            ),
-            // Debounced: re-filter 250ms after the user stops typing, not on
-            // every keystroke (which would rebuild the whole results list).
-            onChanged: (value) {
-              _debounce?.cancel();
-              _debounce = Timer(const Duration(milliseconds: 250), () {
-                if (mounted) setState(() => searchText = value);
-              });
-            },
+        // â”€â”€ Compact search + filter/sort header â”€â”€
+        Container(
+          color: AppColors.surface,
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.md,
+            AppSpacing.page,
+            AppSpacing.md,
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  initialValue: sortBy,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Sort',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                  ),
-                  items: sortOptions
-                      .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) setState(() => sortBy = value);
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: openFilters,
-                icon: const Icon(Icons.tune),
-                label: Text(
-                  activeFilterCount == 0
-                      ? 'Filters'
-                      : 'Filters ($activeFilterCount)',
-                ),
-              ),
-              const SizedBox(width: 4),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: IconButton(
+              AppSearchBar(
+                controller: searchController,
+                hintText: 'Search title, brand, category or city',
+                // Debounced: re-filter 250ms after the user stops typing, not
+                // on every keystroke (which would rebuild the results list).
+                onChanged: (value) {
+                  _debounce?.cancel();
+                  _debounce = Timer(const Duration(milliseconds: 250), () {
+                    if (mounted) setState(() => searchText = value);
+                  });
+                },
+                onSubmitted: (value) {
+                  _debounce?.cancel();
+                  setState(() => searchText = value);
+                },
+                trailing: IconButton(
                   tooltip: 'Save this search & get alerts',
-                  icon: const Icon(Icons.notification_add, color: kPakGreen),
+                  icon: Icon(Icons.notification_add, color: AppColors.accent),
                   onPressed: saveCurrentSearch,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              SizedBox(
+                height: 38,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _HeaderPillButton(
+                        icon: Icons.tune,
+                        label: activeFilterCount == 0
+                            ? 'Filters'
+                            : 'Filters ($activeFilterCount)',
+                        active: activeFilterCount > 0,
+                        onTap: openFilters,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: PopupMenuButton<String>(
+                        initialValue: sortBy,
+                        onSelected: (v) => setState(() => sortBy = v),
+                        itemBuilder: (context) => [
+                          for (final s in sortOptions)
+                            PopupMenuItem(value: s, child: Text(s)),
+                        ],
+                        child: _HeaderPillButton(
+                          icon: Icons.swap_vert,
+                          label: sortBy == 'Newest'
+                              ? 'Newest'
+                              : (sortBy == 'Price: Low to High'
+                                    ? 'Price â†‘'
+                                    : 'Price â†“'),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    _HeaderPillButton(
+                      icon: gridView ? Icons.view_list : Icons.grid_view,
+                      label: '',
+                      tooltip: gridView
+                          ? 'Switch to list view'
+                          : 'Switch to grid view',
+                      onTap: () => setState(() => gridView = !gridView),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
         if (hasCategory)
-          SizedBox(
-            height: 48,
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              scrollDirection: Axis.horizontal,
-              itemCount: subcategories.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final subcategory = subcategories[index];
-                final isSelected = selectedSubcategory == subcategory;
-
-                return ChoiceChip(
-                  label: Text(subcategory),
-                  selected: isSelected,
-                  onSelected: (_) {
-                    setState(() {
-                      selectedSubcategory = subcategory;
-                    });
-                  },
-                );
-              },
+          Container(
+            color: AppColors.surface,
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: SizedBox(
+              height: 34,
+              child: ListView.separated(
+                padding: AppSpacing.pageH,
+                scrollDirection: Axis.horizontal,
+                itemCount: subcategories.length,
+                separatorBuilder: (_, _) =>
+                    const SizedBox(width: AppSpacing.sm),
+                itemBuilder: (context, index) {
+                  final subcategory = subcategories[index];
+                  return ChoiceChip(
+                    label: Text(subcategory),
+                    labelStyle: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: selectedSubcategory == subcategory
+                          ? Colors.white
+                          : AppColors.textSecondary,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    selected: selectedSubcategory == subcategory,
+                    onSelected: (_) =>
+                        setState(() => selectedSubcategory = subcategory),
+                  );
+                },
+              ),
             ),
           ),
+        Divider(height: 1, color: AppColors.borderSoft),
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
             stream: _listingsStream,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
-                return Center(
-                  child: Text(
-                    'Couldn’t load listings. Please try again.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.onNavyMuted),
-                  ),
+                return ErrorStateWidget(
+                  message: 'We couldnâ€™t load listings. Please try again.',
+                  onRetry: () => setState(() {}),
                 );
               }
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return _resultsSkeleton();
               }
 
               final docs = snapshot.data?.docs ?? [];
               final allListings = docs.map((d) => Listing.fromDoc(d)).toList();
               final filtered = applyFilters(allListings);
 
+              if (filtered.isEmpty) {
+                return const EmptyStateWidget(
+                  icon: Icons.search_off,
+                  title: 'No listings found',
+                  subtitle: 'Try a different search or adjust your filters.',
+                );
+              }
+
               return Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.page,
+                      AppSpacing.md,
+                      AppSpacing.page,
+                      AppSpacing.sm,
+                    ),
                     child: Align(
-                      alignment: Alignment.centerLeft,
+                      alignment: AlignmentDirectional.centerStart,
                       child: Text(
                         '${filtered.length} result'
                         '${filtered.length == 1 ? '' : 's'}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: AppType.label,
                       ),
                     ),
                   ),
-                  Expanded(
-                    child: filtered.isEmpty
-                        ? const EmptyState(
-                            icon: Icons.search_off,
-                            title: 'No listings found',
-                            subtitle:
-                                'Try a different search or adjust your filters.',
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: filtered.length,
-                            itemBuilder: (context, i) =>
-                                ListingCard(listing: filtered[i]),
-                          ),
-                  ),
+                  Expanded(child: _results(filtered)),
                 ],
               );
             },
@@ -757,406 +776,208 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
       ],
     );
   }
+
+  /// Placeholder cards while the first page of results loads.
+  Widget _resultsSkeleton() => LayoutBuilder(
+    builder: (context, constraints) {
+      final columns = MarketplaceListingCard.columnsFor(constraints.maxWidth);
+      return GridView.builder(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.page,
+          AppSpacing.lg,
+          AppSpacing.page,
+          AppSpacing.lg,
+        ),
+        gridDelegate: MarketplaceListingCard.gridDelegate(
+          context,
+          availableWidth: constraints.maxWidth - AppSpacing.page * 2,
+          columns: columns,
+        ),
+        itemCount: columns * 3,
+        itemBuilder: (_, _) => const ListingCardSkeleton(),
+      );
+    },
+  );
+
+  /// The result set as a responsive grid or a compact list.
+  Widget _results(List<Listing> filtered) {
+    if (!gridView) {
+      return ListView.builder(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.page,
+          0,
+          AppSpacing.page,
+          AppSpacing.navClearance,
+        ),
+        itemCount: filtered.length,
+        itemBuilder: (context, i) => ListingCard(listing: filtered[i]),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = MarketplaceListingCard.columnsFor(constraints.maxWidth);
+        return GridView.builder(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            0,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
+          gridDelegate: MarketplaceListingCard.gridDelegate(
+            context,
+            availableWidth: constraints.maxWidth - AppSpacing.page * 2,
+            columns: columns,
+          ),
+          itemCount: filtered.length,
+          itemBuilder: (context, i) =>
+              MarketplaceListingCard(listing: filtered[i]),
+        );
+      },
+    );
+  }
+}
+
+/// A pill-shaped header control used for Filters / Sort / view toggle above the
+/// results. Fixed height so the row never grows and pushes the grid down.
+class _HeaderPillButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool active;
+  final String? tooltip;
+
+  const _HeaderPillButton({
+    required this.icon,
+    required this.label,
+    this.onTap,
+    this.active = false,
+    this.tooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = active ? AppColors.accent : AppColors.textSecondary;
+    Widget pill = Container(
+      height: 38,
+      padding: EdgeInsets.symmetric(
+        horizontal: label.isEmpty ? AppSpacing.md : AppSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: active ? AppColors.primarySoft : AppColors.surface,
+        borderRadius: AppRadius.rPill,
+        border: Border.all(color: active ? AppColors.accent : AppColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 17, color: fg),
+          if (label.isNotEmpty) ...[
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: fg,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+
+    if (tooltip != null) pill = Tooltip(message: tooltip!, child: pill);
+    if (onTap == null) return pill;
+    return InkWell(borderRadius: AppRadius.rPill, onTap: onTap, child: pill);
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Listing card
 // ---------------------------------------------------------------------------
 
-class ListingCard extends StatefulWidget {
+/// A full-width listing row for vertical lists (favourites, a seller's
+/// catalogue, search's list view).
+///
+/// Kept as a name so existing call sites keep working; the implementation is
+/// the shared [MarketplaceListingTile], so every list in the app has identical
+/// image sizes, spacing and text caps.
+class ListingCard extends StatelessWidget {
   final Listing listing;
 
   const ListingCard({super.key, required this.listing});
 
   @override
-  State<ListingCard> createState() => _ListingCardState();
+  Widget build(BuildContext context) {
+    return MarketplaceListingTile(
+      listing: listing,
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => AdDetailsScreen(listing: listing)),
+      ),
+      details: [
+        if (listing.isCurrentlyFeatured)
+          const MetaChip(icon: Icons.star, label: 'Featured', color: kGold),
+        if (listing.condition.isNotEmpty && listing.condition != 'N/A')
+          MetaChip(icon: Icons.label_outline, label: listing.condition),
+        if (listing.deliveryAvailable)
+          MetaChip(
+            icon: Icons.delivery_dining,
+            label: 'Delivery',
+            color: AppColors.success,
+          ),
+        if (timeAgo(listing.createdAt).isNotEmpty)
+          MetaChip(
+            icon: Icons.access_time,
+            label: timeAgo(listing.createdAt),
+            color: AppColors.textMuted,
+          ),
+      ],
+      trailing: _ListingCardHeart(listing: listing),
+    );
+  }
 }
 
-class _ListingCardState extends State<ListingCard> {
-  bool get isFavorite {
-    return favoriteListings.any((item) => item.id == widget.listing.id);
-  }
+/// The favourite toggle shown on a [ListingCard], sharing the app-wide
+/// favourites state and Firestore write.
+class _ListingCardHeart extends StatefulWidget {
+  final Listing listing;
+  const _ListingCardHeart({required this.listing});
 
-  void toggleFavorite() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    final wasFavorite = isFavorite;
+  @override
+  State<_ListingCardHeart> createState() => _ListingCardHeartState();
+}
 
-    setState(() {
-      if (wasFavorite) {
-        favoriteListings.removeWhere((item) => item.id == widget.listing.id);
-      } else {
-        favoriteListings.add(widget.listing);
-      }
-    });
-
-    if (uid == null) return;
-
-    final ref = FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('favorites')
-        .doc(widget.listing.id);
-
-    if (wasFavorite) {
-      await ref.delete();
-    } else {
-      await ref.set({
-        ...widget.listing.toMap(),
-        'savedListingId': widget.listing.id,
-        'savedAt': Timestamp.now(),
-      });
-    }
-  }
+class _ListingCardHeartState extends State<_ListingCardHeart> {
+  bool get _isFav => favoriteListings.any((i) => i.id == widget.listing.id);
 
   @override
   Widget build(BuildContext context) {
-    final listing = widget.listing;
-    final images = listing.galleryImages;
-    final hasImage = images.isNotEmpty;
-    final posted = timeAgo(listing.createdAt);
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final muted = isDark ? Colors.white60 : Colors.black54;
-    final showCondition =
-        listing.condition.isNotEmpty && listing.condition != 'N/A';
-    final isNew = listing.condition == 'New';
-
-    return FocusableTap(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => AdDetailsScreen(listing: listing)),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDark
-                ? Colors.white10
-                : Colors.black.withValues(alpha: 0.06),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.10),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AspectRatio(
-              aspectRatio: 4 / 3,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (hasImage)
-                    Image.network(
-                      images.first,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (context, child, progress) {
-                        if (progress == null) return child;
-                        return Container(
-                          color: isDark ? Colors.white10 : Colors.grey.shade200,
-                          alignment: Alignment.center,
-                          child: const SizedBox(
-                            width: 26,
-                            height: 26,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: isDark ? Colors.white10 : Colors.grey.shade200,
-                        alignment: Alignment.center,
-                        child: Icon(
-                          Icons.broken_image_outlined,
-                          size: 48,
-                          color: muted,
-                        ),
-                      ),
-                    )
-                  else
-                    Container(
-                      color: isDark ? Colors.white10 : Colors.grey.shade200,
-                      alignment: Alignment.center,
-                      child: Icon(Icons.image_outlined, size: 48, color: muted),
-                    ),
-                  // Subtle top scrim so overlaid chips stay legible on any image.
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: 56,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withValues(alpha: 0.28),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (listing.isCurrentlyFeatured)
-                    Positioned(
-                      top: 10,
-                      left: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFE0B33A), kGold],
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: kGold.withValues(alpha: 0.5),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.star, size: 13, color: Colors.white),
-                            SizedBox(width: 4),
-                            Text(
-                              'FEATURED',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.6,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  if (images.length > 1)
-                    Positioned(
-                      bottom: 10,
-                      left: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.55),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.photo_library,
-                              color: Colors.white,
-                              size: 13,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${images.length}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Material(
-                      color: Colors.white.withValues(alpha: 0.92),
-                      shape: const CircleBorder(),
-                      clipBehavior: Clip.antiAlias,
-                      child: InkWell(
-                        onTap: toggleFavorite,
-                        child: Padding(
-                          padding: const EdgeInsets.all(7),
-                          child: Icon(
-                            isFavorite ? Icons.favorite : Icons.favorite_border,
-                            color: Colors.red,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (listing.isSold) const SoldTag(),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      if (productColorByName(
-                            listing.attributes['Color'] ?? '',
-                          ) !=
-                          null) ...[
-                        Container(
-                          width: 14,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            color: productColorByName(
-                              listing.attributes['Color'] ?? '',
-                            ),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.grey.shade400),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                      ],
-                      Expanded(
-                        child: Text(
-                          listing.title.isEmpty ? 'Untitled ad' : listing.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            height: 1.2,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    priceLabel(listing),
-                    style: TextStyle(
-                      color: isDark
-                          ? const Color(0xFF66BB6A)
-                          : const Color(0xFF1B8E3C),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 17,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                  if (showCondition || listing.deliveryAvailable) ...[
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        if (showCondition)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 9,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: (isNew ? Colors.green : Colors.blue)
-                                  .withValues(alpha: isDark ? 0.22 : 0.12),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              listing.condition,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: isNew
-                                    ? (isDark
-                                          ? Colors.green.shade300
-                                          : Colors.green.shade800)
-                                    : (isDark
-                                          ? Colors.blue.shade200
-                                          : Colors.blue.shade800),
-                              ),
-                            ),
-                          ),
-                        if (listing.deliveryAvailable)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 9,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: kPakGreen.withValues(
-                                alpha: isDark ? 0.24 : 0.10,
-                              ),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.delivery_dining,
-                                  size: 14,
-                                  color: isDark
-                                      ? Colors.lightBlue.shade200
-                                      : kPakGreen,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Delivery',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: isDark
-                                        ? Colors.lightBlue.shade200
-                                        : kPakGreen,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.location_on, size: 14, color: muted),
-                      const SizedBox(width: 2),
-                      Expanded(
-                        child: Text(
-                          [
-                            listing.city,
-                            listing.location,
-                          ].where((e) => e.isNotEmpty).join(', '),
-                          style: TextStyle(color: muted, fontSize: 12.5),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (posted.isNotEmpty) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          posted,
-                          style: TextStyle(color: muted, fontSize: 11.5),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+    return IconButton(
+      tooltip: _isFav ? 'Remove from favourites' : 'Add to favourites',
+      visualDensity: VisualDensity.compact,
+      icon: Icon(
+        _isFav ? Icons.favorite : Icons.favorite_border,
+        size: 20,
+        color: _isFav ? AppColors.error : AppColors.textMuted,
       ),
+      onPressed: () async {
+        final was = _isFav;
+        setState(() {
+          if (was) {
+            favoriteListings.removeWhere((i) => i.id == widget.listing.id);
+          } else {
+            favoriteListings.add(widget.listing);
+          }
+        });
+        await toggleFavoriteListing(widget.listing, wasFav: was);
+      },
     );
   }
 }

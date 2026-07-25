@@ -81,47 +81,16 @@ class _BlockedScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.gpp_bad, size: 88, color: Colors.white),
-              const SizedBox(height: 20),
-              const Text(
-                'Device not supported',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'For the safety of our marketplace, PakBazar can’t run on '
-                'rooted or tampered devices. Please open PakBazar on a standard, '
-                'unmodified phone.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 15,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 28),
-              OutlinedButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Check again'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white70),
-                ),
-              ),
-            ],
-          ),
+      body: SafeArea(
+        child: EmptyStateWidget(
+          icon: Icons.gpp_bad,
+          title: 'Device not supported',
+          subtitle:
+              'For the safety of our marketplace, PakBazar can’t run on '
+              'rooted or tampered devices. Please open PakBazar on a standard, '
+              'unmodified phone.',
+          actionLabel: 'Check again',
+          onAction: onRetry,
         ),
       ),
     );

@@ -142,10 +142,10 @@ class ReviewsScreen extends StatelessWidget {
             });
 
           if (reviews.isEmpty) {
-            return const Center(
+            return Center(
               child: Text(
                 'No reviews yet',
-                style: TextStyle(color: Colors.white70),
+                style: TextStyle(color: AppColors.textSecondary),
               ),
             );
           }

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Dark-mode launch window colour. Matches AppColors.background's dark value
+  (#0A1526) in lib/src/theme.dart, so a user on the dark theme never sees a
+  white flash before the first Flutter frame.
+-->
+<resources>
+    <color name="splash_background">#0A1526</color>
+</resources>

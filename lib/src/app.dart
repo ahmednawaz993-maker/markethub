@@ -205,55 +205,62 @@ class AccountSuspendedScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.block, color: Colors.redAccent, size: 72),
-              const SizedBox(height: 20),
-              const Text(
-                'Account suspended',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpacing.xxl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withValues(alpha: 0.10),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.block, color: AppColors.error, size: 40),
                 ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Your PakBazar account has been suspended by an administrator '
-                'for violating our rules. You cannot post ads, buy, make offers '
-                'or chat while suspended. Check your notifications for details, '
-                'or appeal below.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white70, height: 1.4),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const NotificationsScreen(),
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  'Account suspended',
+                  textAlign: TextAlign.center,
+                  style: AppType.pageTitle,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Your PakBazar account has been suspended by an administrator '
+                  'for violating our rules. You cannot post ads, buy, make offers '
+                  'or chat while suspended. Check your notifications for details, '
+                  'or appeal below.',
+                  textAlign: TextAlign.center,
+                  style: AppType.secondary,
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                PrimaryActionButton(
+                  label: 'See details',
+                  icon: Icons.notifications_none,
+                  expand: false,
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationsScreen(),
+                    ),
                   ),
                 ),
-                icon: const Icon(Icons.notifications),
-                label: const Text('See details'),
-              ),
-              const SizedBox(height: 12),
-              if (uid != null) _AppealSection(uid: uid),
-              const SizedBox(height: 8),
-              TextButton.icon(
-                onPressed: () => FirebaseAuth.instance.signOut(),
-                icon: const Icon(Icons.logout, color: Colors.white70),
-                label: const Text(
-                  'Sign out',
-                  style: TextStyle(color: Colors.white70),
+                const SizedBox(height: AppSpacing.md),
+                if (uid != null) _AppealSection(uid: uid),
+                const SizedBox(height: AppSpacing.sm),
+                TextButton.icon(
+                  onPressed: () => FirebaseAuth.instance.signOut(),
+                  icon: const Icon(Icons.logout, size: 18),
+                  label: const Text('Sign out'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -295,19 +302,29 @@ class _AppealSection extends StatelessWidget {
 
         if (status == 'pending') {
           return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
             ),
-            child: const Row(
+            decoration: BoxDecoration(
+              color: AppColors.surfaceVariant,
+              borderRadius: AppRadius.rMd,
+              border: Border.all(color: AppColors.borderSoft),
+            ),
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.hourglass_top, color: Colors.white70, size: 18),
-                SizedBox(width: 8),
-                Text(
-                  'Your appeal is under review',
-                  style: TextStyle(color: Colors.white70),
+                Icon(
+                  Icons.hourglass_top,
+                  color: AppColors.textSecondary,
+                  size: 18,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Flexible(
+                  child: Text(
+                    'Your appeal is under review',
+                    style: AppType.secondary,
+                  ),
                 ),
               ],
             ),
@@ -317,24 +334,20 @@ class _AppealSection extends StatelessWidget {
         return Column(
           children: [
             if (status == 'rejected')
-              const Padding(
-                padding: EdgeInsets.only(bottom: 8),
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                 child: Text(
                   'Your previous appeal was declined. You may submit a new one.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white60, fontSize: 12),
+                  style: AppType.caption,
                 ),
               ),
-            OutlinedButton.icon(
+            PrimaryActionButton(
+              label: 'Submit an appeal',
+              icon: Icons.gavel,
+              outlined: true,
+              expand: false,
               onPressed: () => _submitAppeal(context),
-              icon: const Icon(Icons.gavel, color: Colors.white),
-              label: const Text(
-                'Submit an appeal',
-                style: TextStyle(color: Colors.white),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.white54),
-              ),
             ),
           ],
         );

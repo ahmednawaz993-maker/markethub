@@ -17,11 +17,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     if (uid == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Favorites')),
-        body: const Center(
-          child: Text(
-            'Please log in to see favorites',
-            style: TextStyle(color: Colors.white70),
-          ),
+        body: const EmptyStateWidget(
+          icon: Icons.favorite_border,
+          title: 'Log in to see your favorites',
+          subtitle: 'Saved ads follow you across every device.',
         ),
       );
     }
@@ -36,12 +35,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Couldn’t load favorites. Please try again.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.onNavyMuted),
-              ),
+            return ErrorStateWidget(
+              message: 'We couldn’t load your favorites. Please try again.',
+              onRetry: () => setState(() {}),
             );
           }
 
@@ -52,7 +48,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           final docs = snapshot.data!.docs;
 
           if (docs.isEmpty) {
-            return const EmptyState(
+            return const EmptyStateWidget(
               icon: Icons.favorite_border,
               title: 'No favorites yet',
               subtitle: 'Tap the heart on any ad to save it here.',
@@ -60,7 +56,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.page,
+              AppSpacing.lg,
+              AppSpacing.page,
+              AppSpacing.navClearance,
+            ),
             itemCount: docs.length,
             itemBuilder: (context, index) {
               return ListingCard(listing: Listing.fromDoc(docs[index]));

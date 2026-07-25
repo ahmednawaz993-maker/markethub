@@ -1,4 +1,4 @@
-part of '../main.dart';
+﻿part of '../main.dart';
 
 // Reusable UI widgets shared across screens.
 
@@ -123,6 +123,8 @@ class _ColorSwatch extends StatelessWidget {
   }
 }
 
+/// Legacy empty-state name kept for the ~40 call sites that use it. It now
+/// renders the marketplace [EmptyStateWidget] (light surface, dark text).
 class EmptyState extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -136,42 +138,16 @@ class EmptyState extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 72, color: Colors.white.withValues(alpha: 0.5)),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            if (subtitle.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                subtitle,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      EmptyStateWidget(icon: icon, title: title, subtitle: subtitle);
 }
 
-/// Full-screen flag-green gradient with a faint crescent-and-star motif.
-/// Rendered once behind every route via [MaterialApp.builder]; scaffolds are
-/// transparent so this shows through on every page.
+/// The page canvas behind every route, rendered once via [MaterialApp.builder].
+///
+/// The app used to paint a full-screen navy gradient here, which forced every
+/// screen to use white-on-navy text. It is now a flat marketplace background â€”
+/// near-white in light mode, deep navy in dark mode â€” so screens use one
+/// consistent on-surface text family and cards read as raised.
 class AppBackground extends StatelessWidget {
   final Widget child;
 
@@ -179,50 +155,9 @@ class AppBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Navy gradient in both modes (the brand chrome), but darker in dark mode
-    // so the dark-slate cards stand out against it.
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final gradientColors = dark
-        ? const [Color(0xFF05080F), Color(0xFF0C1A31), Color(0xFF05080F)]
-        : const [kPakGreenDeep, kPakGreen, kPakGreenDeep];
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: gradientColors,
-          stops: const [0.0, 0.45, 1.0],
-        ),
-      ),
-      child: Stack(
-        children: [
-          // Crescent + star watermark (subtle, premium feel).
-          Positioned(
-            top: 60,
-            right: -30,
-            child: Opacity(
-              opacity: 0.06,
-              child: Transform.rotate(
-                angle: 0.35,
-                child: const Icon(
-                  Icons.nightlight_round,
-                  size: 280,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-          const Positioned(
-            top: 90,
-            right: 150,
-            child: Opacity(
-              opacity: 0.06,
-              child: Icon(Icons.star, size: 110, color: Colors.white),
-            ),
-          ),
-          child,
-        ],
-      ),
+    return ColoredBox(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: child,
     );
   }
 }
@@ -340,9 +275,9 @@ String titleCasePlace(String s) => s
 /// Opens a searchable, full-height place picker. Returns the chosen place, or
 /// null if dismissed. Much friendlier on mobile than a 190-item dropdown.
 ///
-/// When [allowCustom] is true, a `Use "…"` option (with whatever was typed)
+/// When [allowCustom] is true, a `Use "â€¦"` option (with whatever was typed)
 /// appears at the top whenever the search text doesn't exactly match a listed
-/// place — so a
+/// place â€” so a
 /// resident of any small village or town not in the curated list can still add
 /// and select their own location. (Kept off for filters, where selecting a city
 /// nobody has posted from would just return nothing.)
@@ -526,7 +461,10 @@ class SoldTag extends StatelessWidget {
   }
 }
 
-/// A compact ad card used in the horizontal Home rails.
+/// A compact ad card for the home rails.
+///
+/// Kept as a name so existing call sites keep working; the implementation is
+/// the shared [MarketplaceListingCard]. Sizes itself for a horizontal rail.
 class HorizontalAdCard extends StatelessWidget {
   final Listing listing;
 
@@ -534,250 +472,12 @@ class HorizontalAdCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final img = listing.galleryImages;
     final w = MediaQuery.of(context).size.width;
-    // Narrower cards on phones so ~2 peek into view and feel app-like.
-    final cardWidth = w < 600 ? (w * 0.44).clamp(150.0, 190.0) : 220.0;
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final muted = isDark ? Colors.white60 : Colors.black54;
-    final placeholderBg = isDark ? Colors.white10 : Colors.grey.shade200;
-
-    return FocusableTap(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => AdDetailsScreen(listing: listing)),
-      ),
-      child: Container(
-        width: cardWidth,
-        margin: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDark
-                ? Colors.white10
-                : Colors.black.withValues(alpha: 0.06),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.10),
-              blurRadius: 12,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (img.isNotEmpty)
-                    Image.network(
-                      img.first,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (context, child, progress) {
-                        if (progress == null) return child;
-                        return Container(
-                          color: placeholderBg,
-                          alignment: Alignment.center,
-                          child: const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        );
-                      },
-                      errorBuilder: (context, error, stack) => Container(
-                        color: placeholderBg,
-                        alignment: Alignment.center,
-                        child: Icon(
-                          Icons.broken_image_outlined,
-                          size: 38,
-                          color: muted,
-                        ),
-                      ),
-                    )
-                  else
-                    Container(
-                      color: placeholderBg,
-                      alignment: Alignment.center,
-                      child: Icon(Icons.image_outlined, size: 38, color: muted),
-                    ),
-                  // Top scrim keeps the FEATURED badge legible over any image.
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: 44,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withValues(alpha: 0.25),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (listing.isCurrentlyFeatured)
-                    Positioned(
-                      top: 7,
-                      left: 7,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFE0B33A), kGold],
-                          ),
-                          borderRadius: BorderRadius.circular(6),
-                          boxShadow: [
-                            BoxShadow(
-                              color: kGold.withValues(alpha: 0.5),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.star, size: 10, color: Colors.white),
-                            SizedBox(width: 3),
-                            Text(
-                              'FEATURED',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.4,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  if (img.length > 1)
-                    Positioned(
-                      bottom: 7,
-                      left: 7,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.55),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.photo_library,
-                              color: Colors.white,
-                              size: 11,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              '${img.length}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  if (listing.isSold) const SoldTag(),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(9, 8, 9, 9),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      if (productColorByName(
-                            listing.attributes['Color'] ?? '',
-                          ) !=
-                          null) ...[
-                        Container(
-                          width: 11,
-                          height: 11,
-                          decoration: BoxDecoration(
-                            color: productColorByName(
-                              listing.attributes['Color'] ?? '',
-                            ),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.grey.shade400,
-                              width: 0.5,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                      ],
-                      Expanded(
-                        child: Text(
-                          listing.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13.5,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    priceLabel(listing),
-                    style: TextStyle(
-                      color: isDark
-                          ? const Color(0xFF66BB6A)
-                          : const Color(0xFF1B8E3C),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14.5,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Row(
-                    children: [
-                      Icon(Icons.location_on, size: 12, color: muted),
-                      const SizedBox(width: 2),
-                      Expanded(
-                        child: Text(
-                          listing.city.isEmpty
-                              ? listing.location
-                              : listing.city,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: muted, fontSize: 12),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+    final cardWidth = w < 380 ? 152.0 : (w < 600 ? 168.0 : 190.0);
+    return SizedBox(
+      width: cardWidth,
+      height: MarketplaceListingCard.heightFor(context, cardWidth),
+      child: MarketplaceListingCard(listing: listing),
     );
   }
 }
@@ -788,12 +488,14 @@ class AdsRail extends StatelessWidget {
   final String title;
   final IconData? icon;
   final Stream<QuerySnapshot> stream;
+  final VoidCallback? onSeeAll;
 
   const AdsRail({
     super.key,
     required this.title,
     required this.stream,
     this.icon,
+    this.onSeeAll,
   });
 
   @override
@@ -804,452 +506,32 @@ class AdsRail extends StatelessWidget {
         if (!snapshot.hasData) return const SizedBox.shrink();
         final listings = snapshot.data!.docs
             .map((d) => Listing.fromDoc(d))
-            .where((l) => l.isApproved)
+            .where((l) => l.isApproved && !isHiddenSeller(l.userId))
             .toList();
-        if (listings.isEmpty) return const SizedBox.shrink();
-        final phone = isPhone(context);
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, color: Colors.white, size: phone ? 19 : 22),
-                  const SizedBox(width: 6),
-                ],
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: phone ? 18 : 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: phone ? 208 : 250,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: listings.length,
-                itemBuilder: (context, index) =>
-                    HorizontalAdCard(listing: listings[index]),
-              ),
-            ),
-          ],
+        return HorizontalListingSection(
+          title: title,
+          icon: icon,
+          listings: listings,
+          onSeeAll: onSeeAll,
         );
       },
     );
   }
 }
 
-/// A single promo banner definition for the home carousel.
-class _SkeletonCard extends StatelessWidget {
-  const _SkeletonCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 1.5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(child: Container(color: Colors.grey.shade300)),
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(height: 16, width: 90, color: Colors.grey.shade300),
-                const SizedBox(height: 8),
-                Container(
-                  height: 12,
-                  width: double.infinity,
-                  color: Colors.grey.shade200,
-                ),
-                const SizedBox(height: 6),
-                Container(height: 10, width: 70, color: Colors.grey.shade200),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Dubizzle-style 2-column feed card: image with heart + featured badge, then
-/// bold price, title, and location/time. Fills its grid cell.
-class FeedAdCard extends StatefulWidget {
+/// The 2-column feed card used by grids and rails.
+///
+/// Kept as a name so existing call sites keep working; the implementation is
+/// the shared [MarketplaceListingCard]. It fills its parent, so place it in a
+/// grid cell or a sized rail slot.
+class FeedAdCard extends StatelessWidget {
   final Listing listing;
 
   const FeedAdCard({super.key, required this.listing});
 
   @override
-  State<FeedAdCard> createState() => _FeedAdCardState();
-}
-
-class _FeedAdCardState extends State<FeedAdCard> {
-  bool get isFav => favoriteListings.any((i) => i.id == widget.listing.id);
-
-  void toggleFav() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    final was = isFav;
-    setState(() {
-      if (was) {
-        favoriteListings.removeWhere((i) => i.id == widget.listing.id);
-      } else {
-        favoriteListings.add(widget.listing);
-      }
-    });
-    if (uid == null) return;
-    final ref = FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('favorites')
-        .doc(widget.listing.id);
-    if (was) {
-      await ref.delete();
-    } else {
-      await ref.set({
-        ...widget.listing.toMap(),
-        'savedListingId': widget.listing.id,
-        'savedAt': Timestamp.now(),
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l = widget.listing;
-    final img = l.galleryImages;
-    final posted = timeAgo(l.createdAt);
-    final colorSwatch = productColorByName(l.attributes['Color'] ?? '');
-    final isNew =
-        l.createdAt != null &&
-        DateTime.now().difference(l.createdAt!.toDate()).inHours < 24;
-
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 1.5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => AdDetailsScreen(listing: l)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  img.isNotEmpty
-                      ? Image.network(
-                          img.first,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, e, s) => Container(
-                            color: Colors.grey.shade200,
-                            child: const Center(
-                              child: Icon(Icons.broken_image, size: 36),
-                            ),
-                          ),
-                        )
-                      : Container(
-                          color: Colors.grey.shade200,
-                          child: const Center(
-                            child: Icon(Icons.image, size: 36),
-                          ),
-                        ),
-                  if (l.isCurrentlyFeatured)
-                    Positioned(
-                      top: 6,
-                      left: 6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: kGold,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'FEATURED',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 8,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  Positioned(
-                    top: 4,
-                    right: 4,
-                    child: GestureDetector(
-                      onTap: toggleFav,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Colors.white70,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          isFav ? Icons.favorite : Icons.favorite_border,
-                          size: 18,
-                          color: Colors.red,
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (l.sellerVerified)
-                    Positioned(
-                      bottom: 6,
-                      left: 6,
-                      child: Container(
-                        padding: const EdgeInsets.all(3),
-                        decoration: const BoxDecoration(
-                          color: Colors.blue,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.verified_user,
-                          size: 12,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  if (!l.isCurrentlyFeatured && !l.isSold && isNew)
-                    Positioned(
-                      top: 6,
-                      left: 6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: kPakGreen,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'NEW',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 8,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (!l.isCurrentlyFeatured &&
-                      !l.isSold &&
-                      !isNew &&
-                      l.hasRecentPriceDrop)
-                    Positioned(
-                      top: 6,
-                      left: 6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade600,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.south, color: Colors.white, size: 9),
-                            SizedBox(width: 1),
-                            Text(
-                              'PRICE DROP',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 8,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  if (l.isSold) const SoldTag(),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          priceLabel(l),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                      if (l.hasRecentPriceDrop) ...[
-                        const SizedBox(width: 5),
-                        Text(
-                          formatPrice(l.previousPrice),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textMuted,
-                            decoration: TextDecoration.lineThrough,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      if (colorSwatch != null) ...[
-                        Container(
-                          width: 11,
-                          height: 11,
-                          decoration: BoxDecoration(
-                            color: colorSwatch,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.grey.shade400,
-                              width: 0.5,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                      ],
-                      Expanded(
-                        child: Text(
-                          l.title.isEmpty ? 'Untitled ad' : l.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (l.condition.isNotEmpty && l.condition != 'N/A') ...[
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color: l.condition == 'New'
-                            ? Colors.green.shade50
-                            : Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        l.condition,
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
-                          color: l.condition == 'New'
-                              ? Colors.green.shade800
-                              : Colors.blue.shade800,
-                        ),
-                      ),
-                    ),
-                  ],
-                  if ((l.category == 'Motors' ||
-                          l.category == 'Commute & Rides') &&
-                      l.attributes.isNotEmpty) ...[
-                    const SizedBox(height: 3),
-                    Text(
-                      l.attributes.values.take(2).join(' · '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                  if (l.deliveryAvailable) ...[
-                    const SizedBox(height: 3),
-                    Row(
-                      children: const [
-                        Icon(Icons.delivery_dining, size: 13, color: kPakGreen),
-                        SizedBox(width: 2),
-                        Text(
-                          'Delivery',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: kPakGreen,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.location_on,
-                        size: 11,
-                        color: AppColors.textMuted,
-                      ),
-                      const SizedBox(width: 1),
-                      Expanded(
-                        child: Text(
-                          l.city.isEmpty ? l.location : l.city,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                      ),
-                      if (posted.isNotEmpty)
-                        Text(
-                          posted,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      MarketplaceListingCard(listing: listing);
 }
 
 // ---------------------------------------------------------------------------

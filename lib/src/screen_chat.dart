@@ -12,11 +12,10 @@ class ChatsScreen extends StatelessWidget {
     if (uid == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Chats')),
-        body: const Center(
-          child: Text(
-            'Please log in to see your chats',
-            style: TextStyle(color: Colors.white70),
-          ),
+        body: const EmptyStateWidget(
+          icon: Icons.chat_bubble_outline,
+          title: 'Log in to see your chats',
+          subtitle: 'Message sellers and keep every conversation in one place.',
         ),
       );
     }
@@ -30,12 +29,8 @@ class ChatsScreen extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Couldn’t load chats. Please try again.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.onNavyMuted),
-              ),
+            return const ErrorStateWidget(
+              message: 'We couldn’t load your chats. Please try again.',
             );
           }
 
@@ -57,7 +52,7 @@ class ChatsScreen extends StatelessWidget {
             });
 
           if (chats.isEmpty) {
-            return const EmptyState(
+            return const EmptyStateWidget(
               icon: Icons.chat_bubble_outline,
               title: 'No chats yet',
               subtitle: 'Message a seller from any ad to start a conversation.',
@@ -65,7 +60,12 @@ class ChatsScreen extends StatelessWidget {
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.page,
+              AppSpacing.md,
+              AppSpacing.page,
+              AppSpacing.navClearance,
+            ),
             itemCount: chats.length,
             itemBuilder: (context, index) {
               final data = chats[index].data() as Map<String, dynamic>;
@@ -96,8 +96,12 @@ class ChatsScreen extends StatelessWidget {
               }
 
               return Card(
-                margin: const EdgeInsets.only(bottom: 10),
+                margin: const EdgeInsets.only(bottom: AppSpacing.md),
                 child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
                   leading: Stack(
                     clipBehavior: Clip.none,
                     children: [
@@ -114,21 +118,30 @@ class ChatsScreen extends StatelessWidget {
                         ),
                     ],
                   ),
-                  title: Text(otherName),
+                  title: Text(
+                    otherName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         data['listingTitle']?.toString() ?? '',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textMuted,
-                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.caption,
                       ),
                       Text(
                         data['lastMessage']?.toString() ?? '',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                        style: AppType.secondary,
                       ),
                     ],
                   ),
@@ -420,15 +433,17 @@ class _ChatScreenState extends State<ChatScreen> {
             if (widget.adminView)
               Text(
                 widget.listingTitle,
-                style: const TextStyle(fontSize: 12, color: Colors.white70),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               )
             else ...[
               PresenceStatusLine(_otherUid),
               Text(
                 widget.listingTitle,
-                style: const TextStyle(fontSize: 11, color: Colors.white60),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11, color: AppColors.textMuted),
               ),
             ],
           ],
@@ -498,10 +513,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 }
 
                 if (messages.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Text(
                       'Say hello 👋',
-                      style: TextStyle(color: Colors.white70),
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
                   );
                 }

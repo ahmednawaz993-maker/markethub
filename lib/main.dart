@@ -38,6 +38,7 @@ part 'src/i18n.dart';
 part 'src/helpers.dart';
 part 'src/security.dart';
 part 'src/theme.dart';
+part 'src/design_system.dart';
 part 'src/models.dart';
 part 'src/catalog.dart';
 part 'src/push.dart';
@@ -79,16 +80,17 @@ part 'src/screen_support.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // The app is drawn over a dark navy gradient, so the status/navigation bars
-  // use a transparent background with LIGHT icons for a consistent, readable
-  // system chrome that matches the theme.
+  // The app now sits on a clean white marketplace surface, so the system bars
+  // use DARK icons over a light background. (Screens with a dark hero, e.g. the
+  // listing image carousel, override this locally.)
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      statusBarBrightness: Brightness.dark, // iOS
-      systemNavigationBarColor: kPakGreenDeep,
-      systemNavigationBarIconBrightness: Brightness.light,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light, // iOS
+      systemNavigationBarColor: Colors.white,
+      systemNavigationBarIconBrightness: Brightness.dark,
+      systemNavigationBarDividerColor: Color(0xFFEBEEF3),
     ),
   );
 
@@ -100,6 +102,7 @@ Future<void> main() async {
 
   await loadMonetizationFlag();
   await loadLuckyDrawFlag();
+  await loadRecentSearches();
   await recordAppSession();
 
   runApp(const PakBazarApp());

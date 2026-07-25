@@ -441,7 +441,7 @@ class CartBell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final open = IconButton(
-      icon: const Icon(Icons.shopping_cart_outlined, color: Colors.white),
+      icon: const Icon(Icons.shopping_cart_outlined),
       tooltip: 'Cart',
       onPressed: () => Navigator.push(
         context,
@@ -543,10 +543,7 @@ class _CartScreenState extends State<CartScreen> {
         title: Text('Cart (${cartUnitCount(_items)})'),
         actions: [
           if (_items.isNotEmpty)
-            TextButton(
-              onPressed: _confirmClear,
-              child: const Text('Clear', style: TextStyle(color: Colors.white)),
-            ),
+            TextButton(onPressed: _confirmClear, child: const Text('Clear')),
         ],
       ),
       body: _loading
@@ -558,7 +555,12 @@ class _CartScreenState extends State<CartScreen> {
               subtitle: 'Add products and they will show up here.',
             )
           : ListView(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.page,
+                AppSpacing.lg,
+                AppSpacing.page,
+                AppSpacing.lg,
+              ),
               children: [
                 if (groups.length > 1)
                   _multiSellerBanner(
@@ -617,28 +619,14 @@ class _CartScreenState extends State<CartScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: it.imageUrl.isEmpty
-                ? Container(
-                    width: 52,
-                    height: 52,
-                    color: Colors.grey.shade300,
-                    child: const Icon(Icons.image),
-                  )
-                : Image.network(
-                    it.imageUrl,
-                    width: 52,
-                    height: 52,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Container(
-                      width: 52,
-                      height: 52,
-                      color: Colors.grey.shade300,
-                      child: const Icon(Icons.image),
-                    ),
-                  ),
+            borderRadius: AppRadius.rSm,
+            child: SizedBox(
+              width: 52,
+              height: 52,
+              child: AppNetworkImage(url: it.imageUrl, iconSize: 20),
+            ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -703,14 +691,15 @@ class _CartScreenState extends State<CartScreen> {
   );
 
   Widget _totalBar(double total) {
-    // Opaque white bar so the label and the navy total are readable (they were
-    // grey / navy directly on the navy gradient).
-    return Material(
-      color: AppColors.surface,
-      elevation: 12,
+    // Fixed bar above the system inset, so Checkout is always reachable.
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.borderSoft)),
+      ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(AppSpacing.md),
           child: Row(
             children: [
               Expanded(
@@ -940,7 +929,12 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Checkout')),
       body: ListView(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.page,
+          AppSpacing.lg,
+          AppSpacing.page,
+          AppSpacing.lg,
+        ),
         children: [
           _addressCard(),
           if (groups.length > 1)
@@ -952,24 +946,25 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
           _paymentCard(),
           _notesCard(),
           const SizedBox(height: 8),
-          // Summary lines sit on the navy gradient → light text.
           Text(
             'Item total: ${formatPrice(total.toStringAsFixed(0))}',
-            style: const TextStyle(fontSize: 12, color: AppColors.onNavyMuted),
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
-          const Text(
+          Text(
             'A delivery fee (if any) is added per seller and shown on each '
             'order.',
-            style: TextStyle(fontSize: 12, color: AppColors.onNavyMuted),
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
         ],
       ),
-      bottomNavigationBar: Material(
-        color: AppColors.surface,
-        elevation: 12,
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          border: Border(top: BorderSide(color: AppColors.borderSoft)),
+        ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(AppSpacing.md),
             child: Row(
               children: [
                 Expanded(

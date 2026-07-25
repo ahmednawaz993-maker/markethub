@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The window colour shown while the process starts and behind the Flutter UI.
+  Matches AppColors.background in lib/src/theme.dart so the native launch
+  screen hands off to the first Flutter frame without a flash.
+
+  Kept OUT of colors.xml on purpose: `dart run flutter_launcher_icons`
+  rewrites that file, and would drop this entry.
+  The dark-mode value lives in values-night/splash.xml.
+-->
+<resources>
+    <color name="splash_background">#FFFFFF</color>
+</resources>

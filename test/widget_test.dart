@@ -575,6 +575,46 @@ void main() {
       );
     });
 
+    test('accent stays legible as ink on the surface in BOTH modes', () {
+      // Regression: selected bottom-nav tabs, section-header icons and the
+      // search bar's city selector all used AppColors.primary (brand navy) as
+      // ink. On the dark surface that was near-invisible — the SELECTED tab
+      // read as less prominent than the unselected grey ones. AppColors.accent
+      // exists to lighten the brand colour when it is ink on a dark surface.
+      double contrast(Color a, Color b) {
+        final la = a.computeLuminance(), lb = b.computeLuminance();
+        final hi = la > lb ? la : lb, lo = la > lb ? lb : la;
+        return (hi + 0.05) / (lo + 0.05);
+      }
+
+      final original = appBrightnessValue;
+
+      appBrightnessValue = Brightness.light;
+      final lightContrast = contrast(AppColors.accent, AppColors.surface);
+      final lightMutedContrast = contrast(
+        AppColors.textMuted,
+        AppColors.surface,
+      );
+
+      appBrightnessValue = Brightness.dark;
+      final darkContrast = contrast(AppColors.accent, AppColors.surface);
+      final darkMutedContrast = contrast(
+        AppColors.textMuted,
+        AppColors.surface,
+      );
+
+      appBrightnessValue = original;
+
+      // WCAG AA for UI components / large text is 3:1.
+      expect(lightContrast, greaterThan(3.0));
+      expect(darkContrast, greaterThan(3.0));
+
+      // And a SELECTED tab must out-contrast an unselected (muted) one, or the
+      // selection reads backwards — which is exactly what the bug looked like.
+      expect(lightContrast, greaterThan(lightMutedContrast));
+      expect(darkContrast, greaterThan(darkMutedContrast));
+    });
+
     test('primary text is high-contrast against the light surface', () {
       // A large luminance gap ⇒ well above the WCAG AA threshold on white.
       final gap =

@@ -47,8 +47,6 @@ class OffersScreen extends StatelessWidget {
         appBar: AppBar(
           title: const Text('Offers'),
           bottom: const TabBar(
-            labelColor: Colors.white,
-            indicatorColor: Colors.white,
             tabs: [
               Tab(text: 'Received'),
               Tab(text: 'Sent'),
@@ -111,7 +109,12 @@ class _OffersList extends StatelessWidget {
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.navClearance,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final ref = docs[i].reference;

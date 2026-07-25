@@ -26,7 +26,7 @@ class DraftsScreen extends StatelessWidget {
           if (snapshot.hasError) {
             return const EmptyState(
               icon: Icons.error_outline,
-              title: 'Couldn’t load drafts',
+              title: 'Couldnâ€™t load drafts',
               subtitle: 'Please try again.',
             );
           }
@@ -56,7 +56,7 @@ class DraftsScreen extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Text(
-                    '${d['category'] ?? ''} · ${formatPrice(d['price']?.toString() ?? '')}',
+                    '${d['category'] ?? ''} Â· ${formatPrice(d['price']?.toString() ?? '')}',
                   ),
                   onTap: () => Navigator.push(
                     context,
@@ -210,7 +210,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
     final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
     messenger.showSnackBar(
-      const SnackBar(content: Text('Saved to Drafts (Profile → Drafts)')),
+      const SnackBar(content: Text('Saved to Drafts (Profile â†’ Drafts)')),
     );
   }
 
@@ -272,7 +272,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
     // Guard against a double-tap re-entering during the async gaps below
     // (ensureVerified and the Firestore/Storage writes all await). The flag is
     // set *synchronously* before the first await so a second tap arriving during
-    // ensureVerified sees isSubmitting == true and bails — otherwise the same ad
+    // ensureVerified sees isSubmitting == true and bails â€” otherwise the same ad
     // could be posted twice. The finally below always clears it.
     if (isSubmitting) return;
     setState(() {
@@ -371,7 +371,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'approvalStatus': isDemoUser() ? 'approved' : 'pending',
       });
 
-      // The ad is now live. Everything below is best-effort cleanup — a failure
+      // The ad is now live. Everything below is best-effort cleanup â€” a failure
       // here must NOT be treated as a post failure (that would show an error and
       // tempt the user to re-submit, creating a duplicate live ad).
 
@@ -401,7 +401,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
 
       if (!mounted) return;
       // A published listing is a meaningful engagement signal for the review
-      // prompt (never triggers the prompt here — only records the signal).
+      // prompt (never triggers the prompt here â€” only records the signal).
       recordMeaningfulAction();
       await showDialog<void>(
         context: context,
@@ -438,7 +438,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Couldn’t post your ad. Please try again.'),
+          content: Text('Couldnâ€™t post your ad. Please try again.'),
         ),
       );
     } finally {
@@ -464,169 +464,334 @@ class _AddListingScreenState extends State<AddListingScreen> {
     super.dispose();
   }
 
+  /// The image upload area: an "add photos" tile plus a strip of thumbnails.
+  Widget _photoPicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          borderRadius: AppRadius.rMd,
+          onTap: isSubmitting ? null : pickImages,
+          child: Container(
+            height: 96,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceVariant,
+              borderRadius: AppRadius.rMd,
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.add_a_photo_outlined,
+                  size: 26,
+                  color: AppColors.accent,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  selectedImages.isEmpty
+                      ? 'Add photos'
+                      : '${selectedImages.length} photo(s) selected',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.accent,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text('Clear photos sell faster', style: AppType.caption),
+              ],
+            ),
+          ),
+        ),
+        if (selectedImages.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.md),
+          SizedBox(
+            height: 84,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: selectedImages.length,
+              separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
+              itemBuilder: (context, index) {
+                return ClipRRect(
+                  borderRadius: AppRadius.rSm,
+                  child: FutureBuilder<Uint8List>(
+                    future: selectedImages[index].readAsBytes(),
+                    builder: (context, snap) {
+                      if (!snap.hasData) {
+                        return const LoadingShimmer(width: 84, height: 84);
+                      }
+                      return Image.memory(
+                        snap.data!,
+                        width: 84,
+                        height: 84,
+                        fit: BoxFit.cover,
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final subcategories = currentSubcategories;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Post Ad')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(12),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: isSubmitting ? null : pickImages,
-                  icon: const Icon(Icons.add_a_photo),
-                  label: Text(
-                    selectedImages.isEmpty
-                        ? 'Add Photos'
-                        : '${selectedImages.length} photo(s) selected',
-                  ),
-                ),
-                if (selectedImages.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 90,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: selectedImages.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 8),
-                      itemBuilder: (context, index) {
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: FutureBuilder<Uint8List>(
-                            future: selectedImages[index].readAsBytes(),
-                            builder: (context, snap) {
-                              if (!snap.hasData) {
-                                return Container(
-                                  width: 90,
-                                  height: 90,
-                                  color: Colors.grey.shade300,
-                                  child: const Center(
-                                    child: SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }
-                              return Image.memory(
-                                snap.data!,
-                                width: 90,
-                                height: 90,
-                                fit: BoxFit.cover,
-                              );
-                            },
-                          ),
-                        );
+      // The action bar is a bottomNavigationBar, so Flutter lifts it above the
+      // keyboard â€” Submit is always reachable while typing.
+      bottomNavigationBar: StickyActionBar(
+        children: [
+          Expanded(
+            child: PrimaryActionButton(
+              label: savingDraft ? 'Savingâ€¦' : 'Save draft',
+              icon: Icons.save_outlined,
+              outlined: true,
+              onPressed: (isSubmitting || savingDraft) ? null : saveDraft,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            flex: 2,
+            child: PrimaryActionButton(
+              label: 'Post ad',
+              icon: Icons.check,
+              busy: isSubmitting,
+              onPressed: isSubmitting ? null : submitListing,
+            ),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.page,
+          AppSpacing.lg,
+          AppSpacing.page,
+          AppSpacing.lg,
+        ),
+        children: [
+          FormSection(
+            title: 'Photos',
+            description: 'Up to 8 photos. The first one is the cover image.',
+            icon: Icons.photo_library_outlined,
+            children: [_photoPicker()],
+          ),
+
+          FormSection(
+            title: 'What are you selling?',
+            icon: Icons.sell_outlined,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: selectedCategory,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Main category'),
+                items: appCategories
+                    .where((category) => category.title != 'All')
+                    .map(
+                      (category) => DropdownMenuItem(
+                        value: category.title,
+                        child: Text(
+                          category.title,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: isSubmitting
+                    ? null
+                    : (value) {
+                        if (value != null) {
+                          setState(() {
+                            selectedCategory = value;
+                            selectedSubcategory = categoryByTitle(
+                              value,
+                            ).subcategories.first;
+                          });
+                        }
                       },
+              ),
+              const SizedBox(height: AppSpacing.md),
+              DropdownButtonFormField<String>(
+                initialValue: subcategories.contains(selectedSubcategory)
+                    ? selectedSubcategory
+                    : subcategories.first,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Subcategory'),
+                items: subcategories
+                    .map(
+                      (subcategory) => DropdownMenuItem(
+                        value: subcategory,
+                        child: Text(
+                          subcategory,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: isSubmitting
+                    ? null
+                    : (value) {
+                        if (value != null) {
+                          setState(() => selectedSubcategory = value);
+                        }
+                      },
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: titleController,
+                enabled: !isSubmitting,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Title',
+                  hintText: 'e.g. Honda Civic 2018 â€” single owner',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              DropdownButtonFormField<String>(
+                initialValue: selectedCondition,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Condition'),
+                items: itemConditions
+                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                    .toList(),
+                onChanged: isSubmitting
+                    ? null
+                    : (value) {
+                        if (value != null) {
+                          setState(() => selectedCondition = value);
+                        }
+                      },
+              ),
+              for (final label in attributeFieldsFor(selectedCategory))
+                if (label == 'Color')
+                  ColorSwatchSelector(
+                    selected: _attrCtrl('Color').text,
+                    onChanged: isSubmitting
+                        ? (_) {}
+                        : (v) => setState(() => _attrCtrl('Color').text = v),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.md),
+                    child: TextField(
+                      controller: _attrCtrl(label),
+                      enabled: !isSubmitting,
+                      decoration: InputDecoration(
+                        labelText: '$label (optional)',
+                      ),
                     ),
                   ),
-                ],
-                const SizedBox(height: 8),
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(labelText: 'Title'),
+            ],
+          ),
+
+          FormSection(
+            title: 'Price',
+            icon: Icons.payments_outlined,
+            children: [
+              TextField(
+                controller: priceController,
+                enabled: !isSubmitting,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Price (PKR)',
+                  prefixText: 'Rs ',
                 ),
-                TextField(
-                  controller: priceController,
-                  decoration: const InputDecoration(labelText: 'Price (PKR)'),
-                  keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              DropdownButtonFormField<String>(
+                initialValue: selectedUnit,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Price unit (optional)',
+                  helperText: 'e.g. per kg, per dozen, per plate',
                 ),
-                TextField(
-                  controller: locationController,
-                  decoration: const InputDecoration(
-                    labelText: 'Area / Block',
-                    hintText: 'Example: Gulshan-e-Iqbal, Block 5',
-                  ),
+                items: pricingUnits
+                    .map(
+                      (u) => DropdownMenuItem(
+                        value: u,
+                        child: Text(u == 'None' ? 'None' : 'per $u'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: isSubmitting
+                    ? null
+                    : (value) {
+                        if (value != null) setState(() => selectedUnit = value);
+                      },
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Price negotiable'),
+                subtitle: const Text('Buyers can make an offer'),
+                value: negotiable,
+                activeThumbColor: kPakGreen,
+                onChanged: isSubmitting
+                    ? null
+                    : (v) => setState(() => negotiable = v),
+              ),
+            ],
+          ),
+
+          FormSection(
+            title: 'Location',
+            icon: Icons.location_on_outlined,
+            children: [
+              CitySelector(
+                value: selectedCity,
+                label: 'City / Town / Village',
+                allowCustom: true,
+                enabled: !isSubmitting,
+                onChanged: (value) => setState(() => selectedCity = value),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: locationController,
+                enabled: !isSubmitting,
+                decoration: const InputDecoration(
+                  labelText: 'Area / Block',
+                  hintText: 'Example: Gulshan-e-Iqbal, Block 5',
                 ),
-                const SizedBox(height: 12),
-                CitySelector(
-                  value: selectedCity,
-                  label: 'City / Town / Village',
-                  allowCustom: true,
-                  enabled: !isSubmitting,
-                  onChanged: (value) => setState(() => selectedCity = value),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: (isSubmitting || isLocating)
-                      ? null
-                      : useCurrentLocation,
-                  icon: isLocating
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Icon(
-                          latitude != null
-                              ? Icons.location_on
-                              : Icons.my_location,
-                          color: latitude != null ? Colors.green : null,
-                        ),
-                  label: Text(
-                    latitude != null
-                        ? 'Current location added ✓'
-                        : 'Use my current location',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedCondition,
-                  decoration: const InputDecoration(labelText: 'Condition'),
-                  items: itemConditions
-                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                      .toList(),
-                  onChanged: isSubmitting
-                      ? null
-                      : (value) {
-                          if (value != null) {
-                            setState(() => selectedCondition = value);
-                          }
-                        },
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedUnit,
-                  decoration: const InputDecoration(
-                    labelText: 'Price unit (optional, e.g. per kg/dozen/plate)',
-                  ),
-                  items: pricingUnits
-                      .map(
-                        (u) => DropdownMenuItem(
-                          value: u,
-                          child: Text(u == 'None' ? 'None' : 'per $u'),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: isSubmitting
-                      ? null
-                      : (value) {
-                          if (value != null) {
-                            setState(() => selectedUnit = value);
-                          }
-                        },
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Delivery available'),
-                  subtitle: const Text('Show a delivery badge on your ad'),
-                  value: deliveryAvailable,
-                  activeThumbColor: kPakGreen,
-                  onChanged: isSubmitting
-                      ? null
-                      : (v) => setState(() => deliveryAvailable = v),
-                ),
-                if (deliveryAvailable)
-                  TextField(
+              ),
+              const SizedBox(height: AppSpacing.md),
+              PrimaryActionButton(
+                label: latitude != null
+                    ? 'Current location added âœ“'
+                    : 'Use my current location',
+                icon: latitude != null ? Icons.location_on : Icons.my_location,
+                outlined: true,
+                busy: isLocating,
+                color: latitude != null ? AppColors.success : null,
+                onPressed: (isSubmitting || isLocating)
+                    ? null
+                    : useCurrentLocation,
+              ),
+            ],
+          ),
+
+          FormSection(
+            title: 'Delivery & payment',
+            icon: Icons.local_shipping_outlined,
+            children: [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Delivery available'),
+                subtitle: const Text('Show a delivery badge on your ad'),
+                value: deliveryAvailable,
+                activeThumbColor: kPakGreen,
+                onChanged: isSubmitting
+                    ? null
+                    : (v) => setState(() => deliveryAvailable = v),
+              ),
+              if (deliveryAvailable)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: TextField(
                     controller: deliveryFeeController,
                     enabled: !isSubmitting,
                     keyboardType: TextInputType.number,
@@ -636,177 +801,101 @@ class _AddListingScreenState extends State<AddListingScreen> {
                       prefixIcon: Icon(Icons.local_shipping),
                     ),
                   ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Cash on Delivery'),
-                  subtitle: const Text(
-                    'Let buyers pay cash when the item arrives',
-                  ),
-                  value: codAvailable,
-                  activeThumbColor: kPakGreen,
-                  onChanged: isSubmitting
-                      ? null
-                      : (v) => setState(() => codAvailable = v),
                 ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Price negotiable'),
-                  subtitle: const Text('Buyers can make an offer'),
-                  value: negotiable,
-                  activeThumbColor: kPakGreen,
-                  onChanged: isSubmitting
-                      ? null
-                      : (v) => setState(() => negotiable = v),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Cash on Delivery'),
+                subtitle: const Text(
+                  'Let buyers pay cash when the item arrives',
                 ),
-                for (final label in attributeFieldsFor(selectedCategory))
-                  if (label == 'Color')
-                    ColorSwatchSelector(
-                      selected: _attrCtrl('Color').text,
-                      onChanged: isSubmitting
-                          ? (_) {}
-                          : (v) => setState(() => _attrCtrl('Color').text = v),
-                    )
-                  else
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: TextField(
-                        controller: _attrCtrl(label),
-                        enabled: !isSubmitting,
-                        decoration: InputDecoration(
-                          labelText: '$label (optional)',
-                        ),
-                      ),
-                    ),
-                TextField(
-                  controller: phoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'WhatsApp / Phone Number *',
-                    hintText: 'Example: 03001234567 or +92 300 1234567',
-                  ),
-                  keyboardType: TextInputType.phone,
+                value: codAvailable,
+                activeThumbColor: kPakGreen,
+                onChanged: isSubmitting
+                    ? null
+                    : (v) => setState(() => codAvailable = v),
+              ),
+            ],
+          ),
+
+          FormSection(
+            title: 'Contact & description',
+            icon: Icons.description_outlined,
+            children: [
+              TextField(
+                controller: phoneController,
+                enabled: !isSubmitting,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'WhatsApp / phone number *',
+                  hintText: 'Example: 03001234567 or +92 300 1234567',
                 ),
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(labelText: 'Description'),
-                  maxLines: 3,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: descriptionController,
+                enabled: !isSubmitting,
+                maxLines: 5,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Description',
+                  alignLabelWithHint: true,
+                  hintText:
+                      'Condition, age, what is included, reason for sellingâ€¦',
                 ),
-                const SizedBox(height: 20),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedCategory,
-                  decoration: const InputDecoration(labelText: 'Main Category'),
-                  items: appCategories
-                      .where((category) => category.title != 'All')
-                      .map(
-                        (category) => DropdownMenuItem(
-                          value: category.title,
-                          child: Text(category.title),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: isSubmitting
-                      ? null
-                      : (value) {
-                          if (value != null) {
-                            setState(() {
-                              selectedCategory = value;
-                              selectedSubcategory = categoryByTitle(
-                                value,
-                              ).subcategories.first;
-                            });
-                          }
-                        },
+              ),
+            ],
+          ),
+
+          // Seller conduct notice â€” every seller sees this before posting, so
+          // the zero-tolerance policy isn't buried only in the Terms.
+          InkWell(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const TermsScreen()),
+            ),
+            borderRadius: AppRadius.rMd,
+            child: Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.07),
+                borderRadius: AppRadius.rMd,
+                border: Border.all(
+                  color: AppColors.error.withValues(alpha: 0.35),
                 ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: subcategories.contains(selectedSubcategory)
-                      ? selectedSubcategory
-                      : subcategories.first,
-                  decoration: const InputDecoration(labelText: 'Subcategory'),
-                  items: subcategories
-                      .map(
-                        (subcategory) => DropdownMenuItem(
-                          value: subcategory,
-                          child: Text(subcategory),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: isSubmitting
-                      ? null
-                      : (value) {
-                          if (value != null) {
-                            setState(() {
-                              selectedSubcategory = value;
-                            });
-                          }
-                        },
-                ),
-                const SizedBox(height: 20),
-                // Seller conduct notice — every seller sees this before posting, so
-                // the zero-tolerance policy isn't buried only in the Terms.
-                InkWell(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const TermsScreen()),
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.07),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: Colors.red.withValues(alpha: 0.35),
-                      ),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Icon(Icons.gavel, color: Colors.red, size: 20),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text.rich(
-                            TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: 'Sell honestly. ',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                TextSpan(
-                                  text:
-                                      'Any fraud or violent activity will get '
-                                      'your seller account suspended immediately. '
-                                      'Tap to read the seller terms.',
-                                ),
-                              ],
-                            ),
-                            style: TextStyle(fontSize: 12.5, height: 1.3),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.gavel, color: AppColors.error, size: 20),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text.rich(
+                      const TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Sell honestly. ',
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
-                        ),
-                      ],
+                          TextSpan(
+                            text:
+                                'Any fraud or violent activity will get your '
+                                'seller account suspended immediately. Tap to '
+                                'read the seller terms.',
+                          ),
+                        ],
+                      ),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.35,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 14),
-                ElevatedButton(
-                  onPressed: isSubmitting ? null : submitListing,
-                  child: isSubmitting
-                      ? const SizedBox(
-                          height: 22,
-                          width: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Submit'),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: (isSubmitting || savingDraft) ? null : saveDraft,
-                  icon: const Icon(Icons.save_outlined),
-                  label: Text(savingDraft ? 'Saving…' : 'Save Draft'),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

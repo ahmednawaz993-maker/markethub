@@ -5,15 +5,17 @@ part of '../main.dart';
 /// Small coloured pill used on My Ads to show an ad's moderation status.
 Widget _statusChip(String label, Color color) {
   return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
     decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.15),
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: color),
+      color: color.withValues(alpha: 0.12),
+      borderRadius: AppRadius.rPill,
+      border: Border.all(color: color.withValues(alpha: 0.5)),
     ),
     child: Text(
       label,
-      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
     ),
   );
 }
@@ -68,11 +70,10 @@ class SalesDashboardScreen extends StatelessWidget {
     if (uid == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Sales & Earnings')),
-        body: const Center(
-          child: Text(
-            'Please log in',
-            style: TextStyle(color: AppColors.onNavyMuted),
-          ),
+        body: const EmptyStateWidget(
+          icon: Icons.lock_outline,
+          title: 'Please log in',
+          subtitle: 'Sign in to see your sales and earnings.',
         ),
       );
     }
@@ -85,12 +86,8 @@ class SalesDashboardScreen extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return const Center(
-              child: Text(
-                'Couldn’t load your sales. Please try again.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.onNavyMuted),
-              ),
+            return const ErrorStateWidget(
+              message: 'We couldnâ€™t load your sales. Please try again.',
             );
           }
           if (!snapshot.hasData) {
@@ -176,7 +173,7 @@ class SalesDashboardScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$sold item(s) sold${commissionActive ? ' · after 2% commission' : ' · 0% fee (free)'}',
+                      '$sold item(s) sold${commissionActive ? ' Â· after 2% commission' : ' Â· 0% fee (free)'}',
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 12,
@@ -254,22 +251,15 @@ class SalesDashboardScreen extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 16),
-              const Text(
-                'Earnings — last 6 months',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                  color: AppColors.onNavy,
-                ),
-              ),
+              Text('Earnings â€” last 6 months', style: AppType.sectionTitle),
               const SizedBox(height: 10),
               if (sold == 0)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
                   child: Center(
                     child: Text(
                       'No completed sales yet. Your earnings will show here.',
-                      style: TextStyle(color: AppColors.onNavyMuted),
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
                   ),
                 )
@@ -350,7 +340,7 @@ class _MonthBar extends StatelessWidget {
             width: 56,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 12, color: AppColors.onNavy),
+              style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
             ),
           ),
           Expanded(
@@ -383,7 +373,7 @@ class _MonthBar extends StatelessWidget {
               money
                   ? formatPrice(value.toStringAsFixed(0))
                   : '${value.toInt()}',
-              style: const TextStyle(fontSize: 11, color: AppColors.onNavy),
+              style: TextStyle(fontSize: 11, color: AppColors.textPrimary),
               textAlign: TextAlign.right,
             ),
           ),
@@ -455,16 +445,9 @@ class SellerAnalyticsScreen extends StatelessWidget {
                   _statCard(Icons.sell, '$sold', 'Sold'),
                 ],
               ),
-              const SizedBox(height: 20),
-              const Text(
-                'Top performing ads',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.section),
+              Text('Top performing ads', style: AppType.sectionTitle),
+              const SizedBox(height: AppSpacing.md),
               ...top.take(10).map((a) {
                 final l = a.calls + a.chats + a.whatsapps;
                 return Card(
@@ -492,8 +475,8 @@ class SellerAnalyticsScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          '${a.views} views · $l leads '
-                          '(📞 ${a.calls}  💬 ${a.chats}  🟢 ${a.whatsapps})',
+                          '${a.views} views Â· $l leads '
+                          '(ðŸ“ž ${a.calls}  ðŸ’¬ ${a.chats}  ðŸŸ¢ ${a.whatsapps})',
                           style: TextStyle(
                             fontSize: 12,
                             color: AppColors.textMuted,
@@ -540,7 +523,7 @@ class SellerAnalyticsScreen extends StatelessWidget {
   }
 }
 
-/// Quick seller action to reduce an ad's price — records the drop so cards show
+/// Quick seller action to reduce an ad's price â€” records the drop so cards show
 /// the "Price dropped" badge and savers/followers get alerted.
 Future<void> showLowerPriceSheet(BuildContext context, Listing listing) async {
   final current = parsePrice(listing.price);
@@ -620,7 +603,7 @@ Future<void> showLowerPriceSheet(BuildContext context, Listing listing) async {
                     messenger.showSnackBar(
                       const SnackBar(
                         content: Text(
-                          'Price lowered — buyers will be notified',
+                          'Price lowered â€” buyers will be notified',
                         ),
                       ),
                     );
@@ -689,7 +672,12 @@ class SellerDashboardScreen extends StatelessWidget {
         label: const Text('Post ad'),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.page,
+          AppSpacing.lg,
+          AppSpacing.page,
+          AppSpacing.navClearance,
+        ),
         children: [
           // Action row: the two things a seller most often needs to act on.
           _sectionHeader('Needs your attention'),
@@ -851,7 +839,7 @@ class SellerDashboardScreen extends StatelessWidget {
                     return _statCardTile(
                       icon: Icons.star,
                       color: kGold,
-                      value: count > 0 ? avg.toStringAsFixed(1) : '—',
+                      value: count > 0 ? avg.toStringAsFixed(1) : 'â€”',
                       label: count > 0 ? 'Rating ($count)' : 'No ratings yet',
                     );
                   },
@@ -931,8 +919,8 @@ class SellerDashboardScreen extends StatelessWidget {
     padding: const EdgeInsets.only(bottom: 8, top: 2),
     child: Text(
       text,
-      style: const TextStyle(
-        color: AppColors.onNavy,
+      style: TextStyle(
+        color: AppColors.textPrimary,
         fontWeight: FontWeight.bold,
         fontSize: 15,
       ),
@@ -1051,12 +1039,8 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return const Center(
-              child: Text(
-                'Couldn’t load your ads. Please try again.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.onNavyMuted),
-              ),
+            return const ErrorStateWidget(
+              message: 'We couldnâ€™t load your ads. Please try again.',
             );
           }
 
@@ -1075,265 +1059,173 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.page,
+              AppSpacing.lg,
+              AppSpacing.page,
+              AppSpacing.navClearance,
+            ),
             itemCount: docs.length,
             itemBuilder: (context, index) {
               final listing = Listing.fromDoc(docs[index]);
-              final images = listing.galleryImages;
               final badges = <Widget>[
                 if (listing.isCurrentlyFeatured) _statusChip('Featured', kGold),
                 if (listing.approvalStatus == 'pending')
-                  _statusChip('Pending review', Colors.orange),
+                  _statusChip('Pending review', AppColors.warning),
                 if (listing.approvalStatus == 'rejected')
-                  _statusChip('Rejected', Colors.red),
+                  _statusChip('Rejected', AppColors.error),
                 if (listing.statusLabel.isNotEmpty)
                   _statusChip(
                     listing.statusLabel,
-                    listing.isAvailableForSale ? Colors.green : Colors.red,
+                    listing.isAvailableForSale
+                        ? AppColors.success
+                        : AppColors.error,
                   ),
               ];
-              final locationLine = [
-                [
-                  listing.city,
-                  listing.location,
-                ].where((e) => e.isNotEmpty).join(', '),
-                listing.subcategory,
-              ].where((e) => e.isNotEmpty).join(' • ');
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => EditListingScreen(listing: listing),
-                      ),
-                    );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: SizedBox(
-                            width: 84,
-                            height: 84,
-                            child: images.isEmpty
-                                ? Container(
-                                    color: AppColors.surfaceVariant,
-                                    child: const Icon(
-                                      Icons.image,
-                                      size: 32,
-                                      color: Colors.grey,
-                                    ),
-                                  )
-                                : Image.network(
-                                    images.first,
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            Container(
-                                              color: AppColors.surfaceVariant,
-                                              child: const Icon(
-                                                Icons.broken_image,
-                                                size: 32,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                  ),
+              // Every listing card in the app uses the same shape: image,
+              // Expanded info, ONE trailing action menu. Stats live on their
+              // own wrapped row so they never squeeze the title.
+              return MarketplaceListingTile(
+                listing: listing,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EditListingScreen(listing: listing),
+                  ),
+                ),
+                details: [
+                  ...badges,
+                  MetaChip(
+                    icon: Icons.remove_red_eye_outlined,
+                    label: '${listing.views}',
+                  ),
+                  MetaChip(
+                    icon: Icons.call_outlined,
+                    label: '${listing.calls}',
+                  ),
+                  MetaChip(
+                    icon: Icons.chat_bubble_outline,
+                    label: '${listing.chats}',
+                  ),
+                  MetaChip(
+                    icon: Icons.forum_outlined,
+                    label: '${listing.whatsapps}',
+                  ),
+                ],
+                trailing: PopupMenuButton<String>(
+                  tooltip: 'Actions',
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (value) async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    if (value == 'bump') {
+                      final created = listing.createdAt?.toDate();
+                      if (created != null &&
+                          DateTime.now().difference(created).inHours < 24) {
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Still recent â€” you can bump 24h after '
+                              'posting or your last bump.',
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                listing.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                formatPrice(listing.price),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: kPakGreen,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              if (badges.isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Wrap(
-                                  spacing: 6,
-                                  runSpacing: 4,
-                                  children: badges,
-                                ),
-                              ],
-                              if (locationLine.isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  locationLine,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 2),
-                              Text(
-                                '👁 ${listing.views}  📞 ${listing.calls}  '
-                                '💬 ${listing.chats}  🟢 ${listing.whatsapps}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
+                        );
+                        return;
+                      }
+                      await FirebaseFirestore.instance
+                          .collection('listings')
+                          .doc(listing.id)
+                          .update({'createdAt': Timestamp.now()});
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('Bumped to the top!')),
+                      );
+                    } else if (value == 'promote') {
+                      showPromoteSheet(context, listing);
+                    } else if (value == 'inventory') {
+                      showInventorySheet(context, listing);
+                    } else if (value == 'lower') {
+                      showLowerPriceSheet(context, listing);
+                    } else if (value == 'delete') {
+                      final ok = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: const Text('Delete ad?'),
+                          content: const Text(
+                            'This permanently removes the ad and '
+                            'cannot be undone.',
                           ),
-                        ),
-                        PopupMenuButton<String>(
-                          tooltip: 'Actions',
-                          icon: const Icon(Icons.more_vert),
-                          onSelected: (value) async {
-                            final messenger = ScaffoldMessenger.of(context);
-                            if (value == 'bump') {
-                              final created = listing.createdAt?.toDate();
-                              if (created != null &&
-                                  DateTime.now().difference(created).inHours <
-                                      24) {
-                                messenger.showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Still recent — you can bump 24h after '
-                                      'posting or your last bump.',
-                                    ),
-                                  ),
-                                );
-                                return;
-                              }
-                              await FirebaseFirestore.instance
-                                  .collection('listings')
-                                  .doc(listing.id)
-                                  .update({'createdAt': Timestamp.now()});
-                              messenger.showSnackBar(
-                                const SnackBar(
-                                  content: Text('Bumped to the top!'),
-                                ),
-                              );
-                            } else if (value == 'promote') {
-                              showPromoteSheet(context, listing);
-                            } else if (value == 'inventory') {
-                              showInventorySheet(context, listing);
-                            } else if (value == 'lower') {
-                              showLowerPriceSheet(context, listing);
-                            } else if (value == 'delete') {
-                              final ok = await showDialog<bool>(
-                                context: context,
-                                builder: (_) => AlertDialog(
-                                  title: const Text('Delete ad?'),
-                                  content: const Text(
-                                    'This permanently removes the ad and '
-                                    'cannot be undone.',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, false),
-                                      child: const Text('Cancel'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, true),
-                                      child: const Text(
-                                        'Delete',
-                                        style: TextStyle(color: Colors.red),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (ok == true) {
-                                await FirebaseFirestore.instance
-                                    .collection('listings')
-                                    .doc(listing.id)
-                                    .delete();
-                              }
-                            }
-                          },
-                          itemBuilder: (_) => [
-                            const PopupMenuItem(
-                              value: 'bump',
-                              child: ListTile(
-                                leading: Icon(
-                                  Icons.arrow_upward,
-                                  color: kPakGreen,
-                                ),
-                                title: Text('Bump to top'),
-                                contentPadding: EdgeInsets.zero,
-                              ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancel'),
                             ),
-                            PopupMenuItem(
-                              value: 'promote',
-                              child: ListTile(
-                                leading: Icon(
-                                  listing.isFeatured
-                                      ? Icons.star
-                                      : Icons.campaign_outlined,
-                                  color: kGold,
-                                ),
-                                title: Text(
-                                  listing.isFeatured ? 'Featured' : 'Promote',
-                                ),
-                                contentPadding: EdgeInsets.zero,
-                              ),
-                            ),
-                            const PopupMenuItem(
-                              value: 'inventory',
-                              child: ListTile(
-                                leading: Icon(Icons.inventory_2_outlined),
-                                title: Text('Inventory status'),
-                                contentPadding: EdgeInsets.zero,
-                              ),
-                            ),
-                            if (!listing.isSold)
-                              const PopupMenuItem(
-                                value: 'lower',
-                                child: ListTile(
-                                  leading: Icon(
-                                    Icons.south,
-                                    color: Colors.deepOrange,
-                                  ),
-                                  title: Text('Lower price'),
-                                  contentPadding: EdgeInsets.zero,
-                                ),
-                              ),
-                            const PopupMenuItem(
-                              value: 'delete',
-                              child: ListTile(
-                                leading: Icon(Icons.delete, color: Colors.red),
-                                title: Text('Delete'),
-                                contentPadding: EdgeInsets.zero,
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text(
+                                'Delete',
+                                style: TextStyle(color: Colors.red),
                               ),
                             ),
                           ],
                         ),
-                      ],
+                      );
+                      if (ok == true) {
+                        await FirebaseFirestore.instance
+                            .collection('listings')
+                            .doc(listing.id)
+                            .delete();
+                      }
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: 'bump',
+                      child: ListTile(
+                        leading: Icon(Icons.arrow_upward, color: kPakGreen),
+                        title: Text('Bump to top'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ),
-                  ),
+                    PopupMenuItem(
+                      value: 'promote',
+                      child: ListTile(
+                        leading: Icon(
+                          listing.isFeatured
+                              ? Icons.star
+                              : Icons.campaign_outlined,
+                          color: kGold,
+                        ),
+                        title: Text(
+                          listing.isFeatured ? 'Featured' : 'Promote',
+                        ),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'inventory',
+                      child: ListTile(
+                        leading: Icon(Icons.inventory_2_outlined),
+                        title: Text('Inventory status'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    if (!listing.isSold)
+                      const PopupMenuItem(
+                        value: 'lower',
+                        child: ListTile(
+                          leading: Icon(Icons.south, color: Colors.deepOrange),
+                          title: Text('Lower price'),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: ListTile(
+                        leading: Icon(Icons.delete, color: Colors.red),
+                        title: Text('Delete'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
                 ),
               );
             },
@@ -1530,7 +1422,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
         data['previousPrice'] = widget.listing.price;
         data['priceDropAt'] = Timestamp.now();
       } else if (newP != oldP) {
-        // Price unchanged-numeric or raised — clear any stale drop marker.
+        // Price unchanged-numeric or raised â€” clear any stale drop marker.
         data['previousPrice'] = '';
         data['priceDropAt'] = FieldValue.delete();
       }
@@ -1545,7 +1437,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Saved — your ad will be reviewed before going live'),
+          content: Text('Saved â€” your ad will be reviewed before going live'),
         ),
       );
       Navigator.pop(context);
@@ -1573,172 +1465,272 @@ class _EditListingScreenState extends State<EditListingScreen> {
     super.dispose();
   }
 
+  /// Existing (or newly picked) photos plus the change-photos action.
+  Widget _photoEditor() {
+    final showNew = newImages.isNotEmpty;
+    final existing = widget.listing.galleryImages;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: 84,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              if (showNew)
+                for (final x in newImages)
+                  Padding(
+                    padding: const EdgeInsets.only(right: AppSpacing.sm),
+                    child: ClipRRect(
+                      borderRadius: AppRadius.rSm,
+                      child: FutureBuilder<Uint8List>(
+                        future: x.readAsBytes(),
+                        builder: (context, snap) => snap.hasData
+                            ? Image.memory(
+                                snap.data!,
+                                width: 84,
+                                height: 84,
+                                fit: BoxFit.cover,
+                              )
+                            : const LoadingShimmer(width: 84, height: 84),
+                      ),
+                    ),
+                  )
+              else
+                for (final u in existing)
+                  Padding(
+                    padding: const EdgeInsets.only(right: AppSpacing.sm),
+                    child: ClipRRect(
+                      borderRadius: AppRadius.rSm,
+                      child: SizedBox(
+                        width: 84,
+                        height: 84,
+                        child: AppNetworkImage(url: u, iconSize: 24),
+                      ),
+                    ),
+                  ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        PrimaryActionButton(
+          label: newImages.isEmpty
+              ? 'Change photos'
+              : '${newImages.length} new photo(s) selected',
+          icon: Icons.add_a_photo_outlined,
+          outlined: true,
+          onPressed: isSaving ? null : pickImages,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final subcategories = categoryByTitle(selectedCategory).subcategories;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Edit Ad')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(12),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Photos',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 90,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: [
-                      if (newImages.isNotEmpty)
-                        for (final x in newImages)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: FutureBuilder<Uint8List>(
-                                future: x.readAsBytes(),
-                                builder: (context, snap) => snap.hasData
-                                    ? Image.memory(
-                                        snap.data!,
-                                        width: 90,
-                                        height: 90,
-                                        fit: BoxFit.cover,
-                                      )
-                                    : Container(
-                                        width: 90,
-                                        height: 90,
-                                        color: Colors.grey.shade300,
-                                      ),
-                              ),
-                            ),
-                          )
-                      else
-                        for (final u in widget.listing.galleryImages)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(
-                                u,
-                                width: 90,
-                                height: 90,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => Container(
-                                  width: 90,
-                                  height: 90,
-                                  color: Colors.grey.shade300,
-                                  child: const Icon(Icons.image),
-                                ),
-                              ),
-                            ),
-                          ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: isSaving ? null : pickImages,
-                  icon: const Icon(Icons.add_a_photo),
-                  label: Text(
-                    newImages.isEmpty
-                        ? 'Change photos'
-                        : '${newImages.length} new photo(s) selected',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(labelText: 'Title'),
-                ),
-                TextField(
-                  controller: priceController,
-                  decoration: const InputDecoration(labelText: 'Price (PKR)'),
-                  keyboardType: TextInputType.number,
-                ),
-                TextField(
-                  controller: locationController,
-                  decoration: const InputDecoration(labelText: 'Area / Block'),
-                ),
-                const SizedBox(height: 12),
-                CitySelector(
-                  value: selectedCity,
-                  label: 'City / Town / Village',
-                  allowCustom: true,
-                  onChanged: (value) => setState(() => selectedCity = value),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: isLocating ? null : useCurrentLocation,
-                  icon: isLocating
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Icon(
-                          latitude != null
-                              ? Icons.location_on
-                              : Icons.my_location,
-                          color: latitude != null ? Colors.green : null,
+      bottomNavigationBar: StickyActionBar(
+        children: [
+          Expanded(
+            child: PrimaryActionButton(
+              label: 'Update ad',
+              icon: Icons.check,
+              busy: isSaving,
+              onPressed: isSaving ? null : updateListing,
+            ),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.page,
+          AppSpacing.lg,
+          AppSpacing.page,
+          AppSpacing.lg,
+        ),
+        children: [
+          FormSection(
+            title: 'Photos',
+            icon: Icons.photo_library_outlined,
+            children: [_photoEditor()],
+          ),
+
+          FormSection(
+            title: 'What are you selling?',
+            icon: Icons.sell_outlined,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: selectedCategory,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Main category'),
+                items: appCategories
+                    .where((category) => category.title != 'All')
+                    .map(
+                      (category) => DropdownMenuItem(
+                        value: category.title,
+                        child: Text(
+                          category.title,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                  label: Text(
-                    latitude != null
-                        ? 'Current location set ✓'
-                        : 'Use my current location',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedCondition,
-                  decoration: const InputDecoration(labelText: 'Condition'),
-                  items: itemConditions
-                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() => selectedCondition = value);
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedUnit,
-                  decoration: const InputDecoration(
-                    labelText: 'Price unit (optional, e.g. per kg/dozen/plate)',
-                  ),
-                  items: pricingUnits
-                      .map(
-                        (u) => DropdownMenuItem(
-                          value: u,
-                          child: Text(u == 'None' ? 'None' : 'per $u'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      selectedCategory = value;
+                      selectedSubcategory = categoryByTitle(
+                        value,
+                      ).subcategories.first;
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: AppSpacing.md),
+              DropdownButtonFormField<String>(
+                initialValue: subcategories.contains(selectedSubcategory)
+                    ? selectedSubcategory
+                    : subcategories.first,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Subcategory'),
+                items: subcategories
+                    .map(
+                      (subcategory) => DropdownMenuItem(
+                        value: subcategory,
+                        child: Text(
+                          subcategory,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) setState(() => selectedUnit = value);
-                  },
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => selectedSubcategory = value);
+                  }
+                },
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: titleController,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(labelText: 'Title'),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              DropdownButtonFormField<String>(
+                initialValue: selectedCondition,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Condition'),
+                items: itemConditions
+                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => selectedCondition = value);
+                  }
+                },
+              ),
+              for (final label in attributeFieldsFor(selectedCategory))
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.md),
+                  child: TextField(
+                    controller: _attrCtrl(label),
+                    decoration: InputDecoration(labelText: '$label (optional)'),
+                  ),
                 ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Delivery available'),
-                  subtitle: const Text('Show a delivery badge on your ad'),
-                  value: deliveryAvailable,
-                  activeThumbColor: kPakGreen,
-                  onChanged: (v) => setState(() => deliveryAvailable = v),
+            ],
+          ),
+
+          FormSection(
+            title: 'Price',
+            icon: Icons.payments_outlined,
+            children: [
+              TextField(
+                controller: priceController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Price (PKR)',
+                  prefixText: 'Rs ',
                 ),
-                if (deliveryAvailable)
-                  TextField(
+              ),
+              const SizedBox(height: AppSpacing.md),
+              DropdownButtonFormField<String>(
+                initialValue: selectedUnit,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Price unit (optional)',
+                  helperText: 'e.g. per kg, per dozen, per plate',
+                ),
+                items: pricingUnits
+                    .map(
+                      (u) => DropdownMenuItem(
+                        value: u,
+                        child: Text(u == 'None' ? 'None' : 'per $u'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) setState(() => selectedUnit = value);
+                },
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Price negotiable'),
+                subtitle: const Text('Buyers can make an offer'),
+                value: negotiable,
+                activeThumbColor: kPakGreen,
+                onChanged: (v) => setState(() => negotiable = v),
+              ),
+            ],
+          ),
+
+          FormSection(
+            title: 'Location',
+            icon: Icons.location_on_outlined,
+            children: [
+              CitySelector(
+                value: selectedCity,
+                label: 'City / Town / Village',
+                allowCustom: true,
+                onChanged: (value) => setState(() => selectedCity = value),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: locationController,
+                decoration: const InputDecoration(labelText: 'Area / Block'),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              PrimaryActionButton(
+                label: latitude != null
+                    ? 'Current location set âœ“'
+                    : 'Use my current location',
+                icon: latitude != null ? Icons.location_on : Icons.my_location,
+                outlined: true,
+                busy: isLocating,
+                color: latitude != null ? AppColors.success : null,
+                onPressed: isLocating ? null : useCurrentLocation,
+              ),
+            ],
+          ),
+
+          FormSection(
+            title: 'Delivery & payment',
+            icon: Icons.local_shipping_outlined,
+            children: [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Delivery available'),
+                subtitle: const Text('Show a delivery badge on your ad'),
+                value: deliveryAvailable,
+                activeThumbColor: kPakGreen,
+                onChanged: (v) => setState(() => deliveryAvailable = v),
+              ),
+              if (deliveryAvailable)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: TextField(
                     controller: deliveryFeeController,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
@@ -1747,108 +1739,45 @@ class _EditListingScreenState extends State<EditListingScreen> {
                       prefixIcon: Icon(Icons.local_shipping),
                     ),
                   ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Cash on Delivery'),
-                  subtitle: const Text(
-                    'Let buyers pay cash when the item arrives',
-                  ),
-                  value: codAvailable,
-                  activeThumbColor: kPakGreen,
-                  onChanged: (v) => setState(() => codAvailable = v),
                 ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Price negotiable'),
-                  subtitle: const Text('Buyers can make an offer'),
-                  value: negotiable,
-                  activeThumbColor: kPakGreen,
-                  onChanged: (v) => setState(() => negotiable = v),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Cash on Delivery'),
+                subtitle: const Text(
+                  'Let buyers pay cash when the item arrives',
                 ),
-                for (final label in attributeFieldsFor(selectedCategory))
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: TextField(
-                      controller: _attrCtrl(label),
-                      decoration: InputDecoration(
-                        labelText: '$label (optional)',
-                      ),
-                    ),
-                  ),
-                TextField(
-                  controller: phoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'WhatsApp / Phone Number *',
-                    hintText: 'Example: 03001234567 or +92 300 1234567',
-                  ),
-                  keyboardType: TextInputType.phone,
-                ),
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(labelText: 'Description'),
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 20),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedCategory,
-                  decoration: const InputDecoration(labelText: 'Main Category'),
-                  items: appCategories
-                      .where((category) => category.title != 'All')
-                      .map(
-                        (category) => DropdownMenuItem(
-                          value: category.title,
-                          child: Text(category.title),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() {
-                        selectedCategory = value;
-                        selectedSubcategory = categoryByTitle(
-                          value,
-                        ).subcategories.first;
-                      });
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: subcategories.contains(selectedSubcategory)
-                      ? selectedSubcategory
-                      : subcategories.first,
-                  decoration: const InputDecoration(labelText: 'Subcategory'),
-                  items: subcategories
-                      .map(
-                        (subcategory) => DropdownMenuItem(
-                          value: subcategory,
-                          child: Text(subcategory),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() {
-                        selectedSubcategory = value;
-                      });
-                    }
-                  },
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: isSaving ? null : updateListing,
-                  child: isSaving
-                      ? const SizedBox(
-                          height: 22,
-                          width: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Update'),
-                ),
-              ],
-            ),
+                value: codAvailable,
+                activeThumbColor: kPakGreen,
+                onChanged: (v) => setState(() => codAvailable = v),
+              ),
+            ],
           ),
-        ),
+
+          FormSection(
+            title: 'Contact & description',
+            icon: Icons.description_outlined,
+            children: [
+              TextField(
+                controller: phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'WhatsApp / phone number *',
+                  hintText: 'Example: 03001234567 or +92 300 1234567',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: descriptionController,
+                maxLines: 5,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Description',
+                  alignLabelWithHint: true,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
