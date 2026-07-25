@@ -26,9 +26,14 @@ Future<void> showPromoteSheet(BuildContext context, Listing listing) async {
             children: [
               Row(
                 children: [
-                  const Text(
-                    'Feature your ad',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  const Flexible(
+                    child: Text(
+                      'Feature your ad',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                   const Spacer(),
                   Container(
@@ -325,6 +330,7 @@ Future<void> showInventorySheet(BuildContext context, Listing listing) async {
 
   await showModalBottomSheet<void>(
     context: context,
+    isScrollControlled: true,
     builder: (sheetCtx) {
       Future<void> apply(String status) async {
         final m = meta(status);
@@ -367,42 +373,44 @@ Future<void> showInventorySheet(BuildContext context, Listing listing) async {
       }
 
       return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Text(
-                'Inventory status',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'You control availability. Placing, paying for, or delivering '
-                'an order never changes this automatically.',
-                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-              ),
-            ),
-            const SizedBox(height: 8),
-            for (final entry in kListingStatusLabels.entries)
-              ListTile(
-                leading: Icon(
-                  meta(entry.key).icon,
-                  color: meta(entry.key).color,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+                child: Text(
+                  'Inventory status',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                title: Text(entry.value),
-                trailing: listing.status == entry.key
-                    ? const Icon(Icons.check, color: kPakGreen)
-                    : null,
-                onTap: listing.status == entry.key
-                    ? null
-                    : () => apply(entry.key),
               ),
-            const SizedBox(height: 8),
-          ],
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'You control availability. Placing, paying for, or delivering '
+                  'an order never changes this automatically.',
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                ),
+              ),
+              const SizedBox(height: 8),
+              for (final entry in kListingStatusLabels.entries)
+                ListTile(
+                  leading: Icon(
+                    meta(entry.key).icon,
+                    color: meta(entry.key).color,
+                  ),
+                  title: Text(entry.value),
+                  trailing: listing.status == entry.key
+                      ? const Icon(Icons.check, color: kPakGreen)
+                      : null,
+                  onTap: listing.status == entry.key
+                      ? null
+                      : () => apply(entry.key),
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       );
     },
@@ -781,64 +789,67 @@ Future<void> showTopupSheet(BuildContext context) async {
   if (uid == null) return;
   await showModalBottomSheet(
     context: context,
+    isScrollControlled: true,
     builder: (context) {
       return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Text(
-                'Top up your wallet',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'Pay to the account below via bank transfer / JazzCash / '
-                'EasyPaisa, then tap your amount to request credit. An admin '
-                'confirms the payment and credits your wallet.',
-                style: TextStyle(color: AppColors.textMuted),
-              ),
-            ),
-            const _PaymentAccountInfo(),
-            const SizedBox(height: 8),
-            for (final a in topupAmounts)
-              ListTile(
-                leading: const Icon(
-                  Icons.account_balance_wallet,
-                  color: kPakGreen,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+                child: Text(
+                  'Top up your wallet',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                title: Text(formatPrice('$a')),
-                trailing: const Icon(Icons.add_circle, color: kPakGreen),
-                onTap: () async {
-                  await FirebaseFirestore.instance
-                      .collection('walletTopups')
-                      .add({
-                        'userId': uid,
-                        'userEmail':
-                            FirebaseAuth.instance.currentUser?.email ?? '',
-                        'amount': a,
-                        'status': 'pending',
-                        'createdAt': Timestamp.now(),
-                      });
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Top-up requested — your wallet is credited once '
-                          'payment is approved.',
-                        ),
-                      ),
-                    );
-                  }
-                },
               ),
-            const SizedBox(height: 12),
-          ],
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'Pay to the account below via bank transfer / JazzCash / '
+                  'EasyPaisa, then tap your amount to request credit. An admin '
+                  'confirms the payment and credits your wallet.',
+                  style: TextStyle(color: AppColors.textMuted),
+                ),
+              ),
+              const _PaymentAccountInfo(),
+              const SizedBox(height: 8),
+              for (final a in topupAmounts)
+                ListTile(
+                  leading: const Icon(
+                    Icons.account_balance_wallet,
+                    color: kPakGreen,
+                  ),
+                  title: Text(formatPrice('$a')),
+                  trailing: const Icon(Icons.add_circle, color: kPakGreen),
+                  onTap: () async {
+                    await FirebaseFirestore.instance
+                        .collection('walletTopups')
+                        .add({
+                          'userId': uid,
+                          'userEmail':
+                              FirebaseAuth.instance.currentUser?.email ?? '',
+                          'amount': a,
+                          'status': 'pending',
+                          'createdAt': Timestamp.now(),
+                        });
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Top-up requested — your wallet is credited once '
+                            'payment is approved.',
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              const SizedBox(height: 12),
+            ],
+          ),
         ),
       );
     },

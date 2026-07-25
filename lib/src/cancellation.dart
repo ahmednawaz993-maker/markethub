@@ -581,7 +581,7 @@ Future<void> showCancellationSheet(
           bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
         ),
         child: SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               mainAxisSize: MainAxisSize.min,

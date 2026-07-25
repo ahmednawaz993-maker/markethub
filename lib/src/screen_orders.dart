@@ -772,19 +772,19 @@ class _OrdersList extends StatelessWidget {
                     ],
                     if (status == 'released' || status == 'completed') ...[
                       const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
+                      Wrap(
+                        alignment: WrapAlignment.end,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 4,
                         children: [
                           if (asSeller && status == 'released')
-                            const Padding(
-                              padding: EdgeInsets.only(right: 8),
-                              child: Text(
-                                'Paid to your wallet',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.green,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                            const Text(
+                              'Paid to your wallet',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.green,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           OutlinedButton.icon(

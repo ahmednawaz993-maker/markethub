@@ -504,14 +504,17 @@ void main() {
       expect(orderStatusLabel('delivered'), 'Delivered');
     });
 
-    test('seller drives up to dispatched, then stops (buyer confirms next)', () {
-      expect(nextShippingStep('pending'), 'accepted');
-      expect(nextShippingStep('accepted'), 'processing');
-      expect(nextShippingStep('processing'), 'shipped');
-      // After dispatch the seller has no further step — the buyer confirms.
-      expect(nextShippingStep('shipped'), '');
-      expect(nextShippingStep('buyer_confirmed'), '');
-    });
+    test(
+      'seller drives up to dispatched, then stops (buyer confirms next)',
+      () {
+        expect(nextShippingStep('pending'), 'accepted');
+        expect(nextShippingStep('accepted'), 'processing');
+        expect(nextShippingStep('processing'), 'shipped');
+        // After dispatch the seller has no further step — the buyer confirms.
+        expect(nextShippingStep('shipped'), '');
+        expect(nextShippingStep('buyer_confirmed'), '');
+      },
+    );
   });
 
   group('Theme & status colour system (accessibility)', () {
@@ -589,10 +592,7 @@ void main() {
   group('Lucky Draw auto-expiry (ends 14 Aug 2026)', () {
     test('active right up to the draw instant', () {
       luckyDrawEnabled.value = true;
-      expect(
-        luckyDrawActiveAt(DateTime.utc(2026, 8, 13, 23, 59)),
-        isTrue,
-      );
+      expect(luckyDrawActiveAt(DateTime.utc(2026, 8, 13, 23, 59)), isTrue);
       expect(luckyDrawActiveAt(DateTime.utc(2026, 7, 23)), isTrue);
     });
 

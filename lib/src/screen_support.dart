@@ -333,7 +333,7 @@ Future<void> _showNewTicketSheet(BuildContext context) async {
     context: context,
     isScrollControlled: true,
     builder: (ctx) {
-      return Padding(
+      return SingleChildScrollView(
         padding: EdgeInsets.only(
           left: 16,
           right: 16,
@@ -1122,33 +1122,35 @@ class CareNumbersAdminScreen extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: Text(index == null ? 'Add number' : 'Edit number'),
         content: StatefulBuilder(
-          builder: (ctx, setS) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: labelCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Label (e.g. Helpline, Orders)',
+          builder: (ctx, setS) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: labelCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Label (e.g. Helpline, Orders)',
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: numberCtrl,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: 'Number',
-                  hintText: '+92 3xx xxxxxxx',
+                const SizedBox(height: 8),
+                TextField(
+                  controller: numberCtrl,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'Number',
+                    hintText: '+92 3xx xxxxxxx',
+                  ),
                 ),
-              ),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                title: const Text('Available on WhatsApp'),
-                subtitle: const Text('Shows a WhatsApp chat button to users'),
-                value: whatsapp,
-                onChanged: (v) => setS(() => whatsapp = v ?? false),
-              ),
-            ],
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: const Text('Available on WhatsApp'),
+                  subtitle: const Text('Shows a WhatsApp chat button to users'),
+                  value: whatsapp,
+                  onChanged: (v) => setS(() => whatsapp = v ?? false),
+                ),
+              ],
+            ),
           ),
         ),
         actions: [

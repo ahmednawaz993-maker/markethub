@@ -436,9 +436,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Couldn’t post your ad. Please try again.'),
         ),

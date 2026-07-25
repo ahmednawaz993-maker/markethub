@@ -386,29 +386,31 @@ class _AuthScreenState extends State<AuthScreen> {
             return AlertDialog(
               icon: const Icon(Icons.lock_reset, color: kPakGreen, size: 44),
               title: const Text('Reset your password'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    "Enter your account email and we'll send you a link to set "
-                    'a new password.',
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: resetController,
-                    enabled: !sending,
-                    autofocus: true,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.done,
-                    onSubmitted: (_) => sending ? null : send(),
-                    decoration: InputDecoration(
-                      labelText: 'Email',
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.email),
-                      errorText: dialogError,
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      "Enter your account email and we'll send you a link to set "
+                      'a new password.',
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: resetController,
+                      enabled: !sending,
+                      autofocus: true,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => sending ? null : send(),
+                      decoration: InputDecoration(
+                        labelText: 'Email',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.email),
+                        errorText: dialogError,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(

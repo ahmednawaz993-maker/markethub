@@ -323,7 +323,8 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       // Legacy business accounts have no businessStatus — treat them as approved
       // so they keep their badge without re-applying.
       businessStatus =
-          d?['businessStatus']?.toString() ?? (isBusiness ? 'approved' : 'none');
+          d?['businessStatus']?.toString() ??
+          (isBusiness ? 'approved' : 'none');
       wantsBusiness = isBusiness || businessStatus == 'pending';
       nameController.text = d?['businessName']?.toString() ?? '';
       taglineController.text = d?['tagline']?.toString() ?? '';
@@ -458,15 +459,14 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
         color: kPakGreen,
         icon: Icons.verified,
         title: 'Approved business',
-        body: 'Your BUSINESS badge and store are live. All your products '
+        body:
+            'Your BUSINESS badge and store are live. All your products '
             'appear together in your store.',
         actions: [
           TextButton.icon(
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => const SellerDashboardScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const SellerDashboardScreen()),
             ),
             icon: const Icon(Icons.dashboard, size: 18),
             label: const Text('Dashboard'),
@@ -477,10 +477,8 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                 : () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => SellerProfileScreen(
-                        sellerId: uid,
-                        sellerName: name,
-                      ),
+                      builder: (_) =>
+                          SellerProfileScreen(sellerId: uid, sellerName: name),
                     ),
                   ),
             icon: const Icon(Icons.storefront, size: 18),
@@ -495,7 +493,8 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
           color: AppColors.info,
           icon: Icons.hourglass_top,
           title: 'Pending review',
-          body: 'Our team is reviewing your business. Your badge and store go '
+          body:
+              'Our team is reviewing your business. Your badge and store go '
               'live once approved — you can keep editing your details below.',
         );
       case 'rejected':
@@ -503,7 +502,8 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
           color: Colors.red,
           icon: Icons.cancel_outlined,
           title: 'Not approved',
-          body: 'Your business request was declined. Update your details and '
+          body:
+              'Your business request was declined. Update your details and '
               'save to submit again.',
         );
       case 'suspended':
@@ -511,7 +511,8 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
           color: Colors.orange,
           icon: Icons.pause_circle_outline,
           title: 'Business suspended',
-          body: 'Your business selling was suspended by our team. Please '
+          body:
+              'Your business selling was suspended by our team. Please '
               'contact support.',
         );
       default:
@@ -1924,7 +1925,7 @@ class ProfileScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Seller Profile')),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,

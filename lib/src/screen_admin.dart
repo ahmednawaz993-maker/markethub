@@ -184,7 +184,9 @@ class _AdminActivityTabState extends State<_AdminActivityTab> {
       ? 'Activity'
       : a
             .split('_')
-            .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+            .map(
+              (w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}',
+            )
             .join(' ');
 
   static (IconData, Color) _visual(String action) {
@@ -299,9 +301,7 @@ class _AdminActivityTabState extends State<_AdminActivityTab> {
     final listingId = meta['listingId']?.toString() ?? '';
     final (icon, color) = _visual(action);
 
-    final shortId = entityId.length > 8
-        ? entityId.substring(0, 8)
-        : entityId;
+    final shortId = entityId.length > 8 ? entityId.substring(0, 8) : entityId;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -357,9 +357,7 @@ class _AdminActivityTabState extends State<_AdminActivityTab> {
                       Padding(
                         padding: const EdgeInsets.only(top: 3),
                         child: Text(
-                          prev.isNotEmpty
-                              ? '$prev → $next'
-                              : 'set to $next',
+                          prev.isNotEmpty ? '$prev → $next' : 'set to $next',
                           style: TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 12,
@@ -435,7 +433,14 @@ class _AdminActivityTabState extends State<_AdminActivityTab> {
       ..write(row('Actor role', m['actorRole']))
       ..write(row('From', m['previousStatus']))
       ..write(row('To', m['newStatus']))
-      ..write(row('Amount', (m['amount'] as num?) == null ? '' : formatPrice((m['amount'] as num).toStringAsFixed(0))))
+      ..write(
+        row(
+          'Amount',
+          (m['amount'] as num?) == null
+              ? ''
+              : formatPrice((m['amount'] as num).toStringAsFixed(0)),
+        ),
+      )
       ..write(row('Reason', m['reason']));
     for (final e in meta.entries) {
       buf.write(row(e.key, e.value));
@@ -444,9 +449,7 @@ class _AdminActivityTabState extends State<_AdminActivityTab> {
       context: context,
       builder: (c) => AlertDialog(
         title: const Text('Activity detail'),
-        content: SingleChildScrollView(
-          child: Text(buf.toString().trimRight()),
-        ),
+        content: SingleChildScrollView(child: Text(buf.toString().trimRight())),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c),
@@ -3784,9 +3787,7 @@ class _LuckyDrawEntryRow extends StatelessWidget {
             'winnerMarkedAt': val ? FieldValue.serverTimestamp() : null,
           }, SetOptions(merge: true));
       messenger.showSnackBar(
-        SnackBar(
-          content: Text(val ? 'Marked as winner.' : 'Winner removed.'),
-        ),
+        SnackBar(content: Text(val ? 'Marked as winner.' : 'Winner removed.')),
       );
     } catch (_) {
       messenger.showSnackBar(
@@ -4038,12 +4039,7 @@ class _RefundRequestRow extends StatelessWidget {
     noteCtl.dispose();
     if (ok != true) return;
     try {
-      await decideRefundRequest(
-        orderId,
-        requestId,
-        approve: false,
-        note: note,
-      );
+      await decideRefundRequest(orderId, requestId, approve: false, note: note);
       messenger.showSnackBar(
         const SnackBar(content: Text('Refund request rejected.')),
       );
@@ -4685,9 +4681,7 @@ class _AdminBusinessTabState extends State<_AdminBusinessTab> {
             ),
           ),
         Expanded(
-          child: _mode == 'activity'
-              ? _buildActivity()
-              : _buildAccounts(),
+          child: _mode == 'activity' ? _buildActivity() : _buildAccounts(),
         ),
       ],
     );
@@ -4755,8 +4749,7 @@ class _AdminBusinessTabState extends State<_AdminBusinessTab> {
         return ListView.builder(
           padding: const EdgeInsets.all(12),
           itemCount: docs.length,
-          itemBuilder: (context, i) =>
-              _BusinessActivityCard(userDoc: docs[i]),
+          itemBuilder: (context, i) => _BusinessActivityCard(userDoc: docs[i]),
         );
       },
     );
@@ -4778,7 +4771,8 @@ class _BusinessAccountCardState extends State<_BusinessAccountCard> {
   bool _busy = false;
 
   (String, Color) _chip(Map<String, dynamic> d) {
-    final s = d['businessStatus']?.toString() ??
+    final s =
+        d['businessStatus']?.toString() ??
         (d['isBusiness'] == true ? 'approved' : 'none');
     return switch (s) {
       'approved' => ('Approved', kPakGreen),
@@ -4850,7 +4844,8 @@ class _BusinessAccountCardState extends State<_BusinessAccountCard> {
   @override
   Widget build(BuildContext context) {
     final d = widget.userDoc.data();
-    final status = d['businessStatus']?.toString() ??
+    final status =
+        d['businessStatus']?.toString() ??
         (d['isBusiness'] == true ? 'approved' : 'none');
     final name = (d['businessName']?.toString() ?? '').trim();
     final email = d['email']?.toString() ?? '';
@@ -4880,8 +4875,10 @@ class _BusinessAccountCardState extends State<_BusinessAccountCard> {
                   const SizedBox(width: 4),
                 ],
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: chipColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
@@ -4989,7 +4986,11 @@ class _BusinessAccountCardState extends State<_BusinessAccountCard> {
                         verb: 'rejected',
                         positive: false,
                       ),
-                      icon: const Icon(Icons.close, color: Colors.red, size: 18),
+                      icon: const Icon(
+                        Icons.close,
+                        color: Colors.red,
+                        size: 18,
+                      ),
                       label: const Text(
                         'Reject',
                         style: TextStyle(color: Colors.red),
@@ -5055,10 +5056,8 @@ class _BusinessActivityCard extends StatelessWidget {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => SellerProfileScreen(
-              sellerId: userDoc.id,
-              sellerName: name,
-            ),
+            builder: (_) =>
+                SellerProfileScreen(sellerId: userDoc.id, sellerName: name),
           ),
         ),
       ),
@@ -5280,10 +5279,7 @@ class _PayoutAccountReviewCardState extends State<_PayoutAccountReviewCard> {
             ),
           ),
           Expanded(
-            child: SelectableText(
-              value,
-              style: const TextStyle(fontSize: 13),
-            ),
+            child: SelectableText(value, style: const TextStyle(fontSize: 13)),
           ),
         ],
       ),

@@ -101,21 +101,29 @@ class _SummaryRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-              fontSize: bold ? 16 : 14,
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+                fontSize: bold ? 16 : 14,
+              ),
             ),
           ),
-          Text(
-            isFree ? 'FREE' : formatPrice(value.toStringAsFixed(0)),
-            style: TextStyle(
-              fontWeight: bold || isFree ? FontWeight.bold : FontWeight.normal,
-              fontSize: bold ? 16 : 14,
-              color: isFree
-                  ? kPakGreen
-                  : (bold ? kPakGreen : AppColors.textSecondary),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              isFree ? 'FREE' : formatPrice(value.toStringAsFixed(0)),
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontWeight: bold || isFree
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+                fontSize: bold ? 16 : 14,
+                color: isFree
+                    ? kPakGreen
+                    : (bold ? kPakGreen : AppColors.textSecondary),
+              ),
             ),
           ),
         ],

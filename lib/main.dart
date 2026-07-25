@@ -97,7 +97,7 @@ Future<void> main() async {
   await loadSavedThemeMode();
   await loadFeaturingFlag();
   await loadVerificationFlag();
-  
+
   await loadMonetizationFlag();
   await loadLuckyDrawFlag();
   await recordAppSession();

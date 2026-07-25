@@ -60,10 +60,7 @@ Future<void> openNotificationTarget(
 
   Future<void> push(Widget screen) async {
     if (!context.mounted) return;
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => screen),
-    );
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
   }
 
   // Shows the notification body when there's nowhere specific to go, or when
@@ -75,9 +72,10 @@ Future<void> openNotificationTarget(
       builder: (_) => AlertDialog(
         title: Text(notif['title']?.toString() ?? 'Notification'),
         content: Text(
-          [notif['body']?.toString() ?? '', note ?? '']
-              .where((s) => s.isNotEmpty)
-              .join('\n\n'),
+          [
+            notif['body']?.toString() ?? '',
+            note ?? '',
+          ].where((s) => s.isNotEmpty).join('\n\n'),
         ),
         actions: [
           TextButton(
@@ -155,11 +153,7 @@ Future<void> openNotificationTarget(
         final uid = FirebaseAuth.instance.currentUser?.uid;
         if (uid == null) return showDetail();
         return push(
-          SupportThreadScreen(
-            ticketId: refId,
-            ownerId: uid,
-            adminView: false,
-          ),
+          SupportThreadScreen(ticketId: refId, ownerId: uid, adminView: false),
         );
 
       // Admin broadcasts, warnings, and anything unrecognised: no target.

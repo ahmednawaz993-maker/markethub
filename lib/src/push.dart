@@ -128,16 +128,14 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
 
   @override
   Widget build(BuildContext context) {
-    final slide = Tween<Offset>(
-      begin: const Offset(0, -1),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _c,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      ),
-    );
+    final slide = Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _c,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          ),
+        );
     return Positioned(
       top: 0,
       left: 0,

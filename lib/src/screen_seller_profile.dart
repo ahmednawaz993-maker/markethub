@@ -79,8 +79,11 @@ class SellerProfileScreen extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
                   child: Row(
                     children: [
-                      Icon(Icons.inventory_2_outlined,
-                          size: 18, color: AppColors.onNavy),
+                      Icon(
+                        Icons.inventory_2_outlined,
+                        size: 18,
+                        color: AppColors.onNavy,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         'Products',
@@ -194,13 +197,12 @@ class SellerProfileScreen extends StatelessWidget {
                 child: GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 0.62,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                      ),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 0.62,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                  ),
                   itemCount: groups[cat]!.length,
                   itemBuilder: (context, i) =>
                       _StoreProductCard(listing: groups[cat]![i]),
@@ -269,10 +271,7 @@ class _StoreHeroBar extends StatelessWidget {
       surfaceTintColor: Colors.transparent,
       flexibleSpace: FlexibleSpaceBar(
         centerTitle: false,
-        stretchModes: const [
-          StretchMode.zoomBackground,
-          StretchMode.fadeTitle,
-        ],
+        stretchModes: const [StretchMode.zoomBackground, StretchMode.fadeTitle],
         // Leave room on the left for the back button (collapsed) and on the
         // right for the logo (expanded).
         titlePadding: const EdgeInsetsDirectional.only(
@@ -357,8 +356,9 @@ class _StoreHeroBar extends StatelessWidget {
                 child: CircleAvatar(
                   radius: 34,
                   backgroundColor: Colors.white,
-                  backgroundImage:
-                      logoUrl.isNotEmpty ? NetworkImage(logoUrl) : null,
+                  backgroundImage: logoUrl.isNotEmpty
+                      ? NetworkImage(logoUrl)
+                      : null,
                   child: logoUrl.isEmpty
                       ? Icon(
                           isBusiness ? Icons.storefront : Icons.person,
@@ -586,7 +586,8 @@ class _StoreProductCardState extends State<_StoreProductCard> {
   Widget build(BuildContext context) {
     final l = widget.listing;
     final img = l.galleryImages;
-    final isNew = l.createdAt != null &&
+    final isNew =
+        l.createdAt != null &&
         DateTime.now().difference(l.createdAt!.toDate()).inHours < 24;
 
     Widget? badge;
@@ -638,8 +639,7 @@ class _StoreProductCardState extends State<_StoreProductCard> {
                         color: AppColors.textMuted,
                       ),
                     ),
-                  if (badge != null)
-                    Positioned(top: 8, left: 8, child: badge),
+                  if (badge != null) Positioned(top: 8, left: 8, child: badge),
                   Positioned(
                     top: 6,
                     right: 6,

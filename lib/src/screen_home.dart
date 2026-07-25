@@ -1701,7 +1701,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           .limit(10)
                           .snapshots(),
                     ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 90),
                 ],
               ),
             ),

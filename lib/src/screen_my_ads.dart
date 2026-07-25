@@ -44,6 +44,8 @@ class SalesDashboardScreen extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -647,7 +649,8 @@ class SellerDashboardScreen extends StatelessWidget {
     final status = o['status']?.toString() ?? '';
     final os = o['orderStatus']?.toString() ?? 'pending';
     final active = status == 'in_escrow' || status == 'cod_pending';
-    return active && (os == 'pending' || os == 'accepted' || os == 'processing');
+    return active &&
+        (os == 'pending' || os == 'accepted' || os == 'processing');
   }
 
   static const _realized = {'released', 'completed'};
@@ -666,8 +669,10 @@ class SellerDashboardScreen extends StatelessWidget {
       );
     }
     final fs = FirebaseFirestore.instance;
-    final ordersStream =
-        fs.collection('orders').where('sellerId', isEqualTo: uid).snapshots();
+    final ordersStream = fs
+        .collection('orders')
+        .where('sellerId', isEqualTo: uid)
+        .snapshots();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Seller Dashboard')),
@@ -695,8 +700,11 @@ class SellerDashboardScreen extends StatelessWidget {
                   stream: ordersStream,
                   builder: (context, snap) {
                     final n = (snap.data?.docs ?? [])
-                        .where((d) =>
-                            _needsSellerAction(d.data() as Map<String, dynamic>))
+                        .where(
+                          (d) => _needsSellerAction(
+                            d.data() as Map<String, dynamic>,
+                          ),
+                        )
                         .length;
                     return _statCardTile(
                       icon: Icons.local_shipping,
@@ -722,8 +730,11 @@ class SellerDashboardScreen extends StatelessWidget {
                       .snapshots(),
                   builder: (context, snap) {
                     final n = (snap.data?.docs ?? [])
-                        .where((d) =>
-                            (d.data() as Map)['status']?.toString() == 'pending')
+                        .where(
+                          (d) =>
+                              (d.data() as Map)['status']?.toString() ==
+                              'pending',
+                        )
                         .length;
                     return _statCardTile(
                       icon: Icons.local_offer,
@@ -779,7 +790,8 @@ class SellerDashboardScreen extends StatelessWidget {
                     for (final d in snap.data?.docs ?? []) {
                       final o = d.data() as Map<String, dynamic>;
                       if (_realized.contains(o['status']?.toString())) {
-                        earnings += (o['sellerPayout'] as num?)?.toDouble() ??
+                        earnings +=
+                            (o['sellerPayout'] as num?)?.toDouble() ??
                             (o['amount'] as num?)?.toDouble() ??
                             0;
                       }
@@ -849,21 +861,56 @@ class SellerDashboardScreen extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           _sectionHeader('Manage'),
-          _navTile(context, Icons.list_alt, 'My Ads',
-              'Edit, promote, mark sold', const MyAdsScreen()),
-          _navTile(context, Icons.local_shipping, 'Selling orders',
-              'Accept & dispatch buyer orders', const OrdersScreen(initialIndex: 1)),
-          _navTile(context, Icons.local_offer, 'Offers received',
-              'Accept, counter or decline', const OffersScreen()),
-          _navTile(context, Icons.insights, 'Sales & Earnings',
-              'Earnings, escrow & 6-month trend', const SalesDashboardScreen()),
-          _navTile(context, Icons.query_stats, 'Ad performance',
-              'Views, leads & top ads', const SellerAnalyticsScreen()),
+          _navTile(
+            context,
+            Icons.list_alt,
+            'My Ads',
+            'Edit, promote, mark sold',
+            const MyAdsScreen(),
+          ),
+          _navTile(
+            context,
+            Icons.local_shipping,
+            'Selling orders',
+            'Accept & dispatch buyer orders',
+            const OrdersScreen(initialIndex: 1),
+          ),
+          _navTile(
+            context,
+            Icons.local_offer,
+            'Offers received',
+            'Accept, counter or decline',
+            const OffersScreen(),
+          ),
+          _navTile(
+            context,
+            Icons.insights,
+            'Sales & Earnings',
+            'Earnings, escrow & 6-month trend',
+            const SalesDashboardScreen(),
+          ),
+          _navTile(
+            context,
+            Icons.query_stats,
+            'Ad performance',
+            'Views, leads & top ads',
+            const SellerAnalyticsScreen(),
+          ),
           if (monetizationEnabled.value)
-            _navTile(context, Icons.account_balance_wallet, 'Wallet',
-                'Top up & withdraw', const WalletScreen()),
-          _navTile(context, Icons.account_balance, 'Payout accounts',
-              'Where you get paid', const PayoutAccountsScreen()),
+            _navTile(
+              context,
+              Icons.account_balance_wallet,
+              'Wallet',
+              'Top up & withdraw',
+              const WalletScreen(),
+            ),
+          _navTile(
+            context,
+            Icons.account_balance,
+            'Payout accounts',
+            'Where you get paid',
+            const PayoutAccountsScreen(),
+          ),
           _navTile(
             context,
             Icons.storefront,
@@ -881,16 +928,16 @@ class SellerDashboardScreen extends StatelessWidget {
   }
 
   Widget _sectionHeader(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 8, top: 2),
-        child: Text(
-          text,
-          style: const TextStyle(
-            color: AppColors.onNavy,
-            fontWeight: FontWeight.bold,
-            fontSize: 15,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.only(bottom: 8, top: 2),
+    child: Text(
+      text,
+      style: const TextStyle(
+        color: AppColors.onNavy,
+        fontWeight: FontWeight.bold,
+        fontSize: 15,
+      ),
+    ),
+  );
 
   Widget _statCardTile({
     required IconData icon,
@@ -917,7 +964,11 @@ class SellerDashboardScreen extends StatelessWidget {
                 Icon(icon, color: color, size: 20),
                 if (onTap != null) ...[
                   const Spacer(),
-                  Icon(Icons.chevron_right, size: 18, color: AppColors.textMuted),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: AppColors.textMuted,
+                  ),
                 ],
               ],
             ),
@@ -943,8 +994,13 @@ class SellerDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _navTile(BuildContext context, IconData icon, String title,
-      String subtitle, Widget screen) {
+  Widget _navTile(
+    BuildContext context,
+    IconData icon,
+    String title,
+    String subtitle,
+    Widget screen,
+  ) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -952,14 +1008,11 @@ class SellerDashboardScreen extends StatelessWidget {
           backgroundColor: kPakGreen.withValues(alpha: 0.12),
           child: Icon(icon, color: kPakGreen, size: 20),
         ),
-        title: Text(title,
-            style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(subtitle),
         trailing: const Icon(Icons.chevron_right),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => screen),
-        ),
+        onTap: () =>
+            Navigator.push(context, MaterialPageRoute(builder: (_) => screen)),
       ),
     );
   }
@@ -1022,49 +1075,35 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
             itemCount: docs.length,
             itemBuilder: (context, index) {
               final listing = Listing.fromDoc(docs[index]);
               final images = listing.galleryImages;
+              final badges = <Widget>[
+                if (listing.isCurrentlyFeatured) _statusChip('Featured', kGold),
+                if (listing.approvalStatus == 'pending')
+                  _statusChip('Pending review', Colors.orange),
+                if (listing.approvalStatus == 'rejected')
+                  _statusChip('Rejected', Colors.red),
+                if (listing.statusLabel.isNotEmpty)
+                  _statusChip(
+                    listing.statusLabel,
+                    listing.isAvailableForSale ? Colors.green : Colors.red,
+                  ),
+              ];
+              final locationLine = [
+                [
+                  listing.city,
+                  listing.location,
+                ].where((e) => e.isNotEmpty).join(', '),
+                listing.subcategory,
+              ].where((e) => e.isNotEmpty).join(' • ');
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  leading: images.isEmpty
-                      ? const Icon(Icons.image, size: 40)
-                      : Image.network(
-                          images.first,
-                          width: 60,
-                          height: 60,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(Icons.image, size: 40);
-                          },
-                        ),
-                  title: Row(
-                    children: [
-                      Flexible(child: Text(listing.title)),
-                      if (listing.isCurrentlyFeatured) ...[
-                        const SizedBox(width: 6),
-                        const Icon(Icons.star, size: 16, color: kGold),
-                      ],
-                      if (listing.approvalStatus == 'pending') ...[
-                        const SizedBox(width: 6),
-                        _statusChip('Pending review', Colors.orange),
-                      ] else if (listing.approvalStatus == 'rejected') ...[
-                        const SizedBox(width: 6),
-                        _statusChip('Rejected', Colors.red),
-                      ],
-                    ],
-                  ),
-                  subtitle: Text(
-                    '${[listing.city, listing.location].where((e) => e.isNotEmpty).join(', ')}'
-                    '${listing.subcategory.isEmpty ? '' : ' • ${listing.subcategory}'}'
-                    '\n👁 ${listing.views}  📞 ${listing.calls}  '
-                    '💬 ${listing.chats}  🟢 ${listing.whatsapps}',
-                  ),
-                  isThreeLine: true,
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
                   onTap: () {
                     Navigator.push(
                       context,
@@ -1073,126 +1112,227 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                       ),
                     );
                   },
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        tooltip: 'Bump to top',
-                        icon: const Icon(Icons.arrow_upward, color: kPakGreen),
-                        onPressed: () async {
-                          final messenger = ScaffoldMessenger.of(context);
-                          final created = listing.createdAt?.toDate();
-                          if (created != null &&
-                              DateTime.now().difference(created).inHours < 24) {
-                            messenger.showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Still recent — you can bump 24h after '
-                                  'posting or your last bump.',
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: SizedBox(
+                            width: 84,
+                            height: 84,
+                            child: images.isEmpty
+                                ? Container(
+                                    color: AppColors.surfaceVariant,
+                                    child: const Icon(
+                                      Icons.image,
+                                      size: 32,
+                                      color: Colors.grey,
+                                    ),
+                                  )
+                                : Image.network(
+                                    images.first,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            Container(
+                                              color: AppColors.surfaceVariant,
+                                              child: const Icon(
+                                                Icons.broken_image,
+                                                size: 32,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                listing.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
                                 ),
                               ),
-                            );
-                            return;
-                          }
-                          await FirebaseFirestore.instance
-                              .collection('listings')
-                              .doc(listing.id)
-                              .update({'createdAt': Timestamp.now()});
-                          messenger.showSnackBar(
-                            const SnackBar(content: Text('Bumped to the top!')),
-                          );
-                        },
-                      ),
-                      IconButton(
-                        tooltip: listing.isFeatured
-                            ? 'Featured'
-                            : 'Promote (Feature)',
-                        icon: Icon(
-                          listing.isFeatured
-                              ? Icons.star
-                              : Icons.campaign_outlined,
-                          color: kGold,
-                        ),
-                        onPressed: () => showPromoteSheet(context, listing),
-                      ),
-                      IconButton(
-                        tooltip:
-                            'Inventory status'
-                            '${listing.statusLabel.isEmpty ? '' : ' · ${listing.statusLabel}'}',
-                        icon: Icon(
-                          listing.isAvailableForSale
-                              ? Icons.inventory_2_outlined
-                              : Icons.inventory_2,
-                          color: listing.isAvailableForSale
-                              ? Colors.grey
-                              : Colors.red,
-                        ),
-                        onPressed: () => showInventorySheet(context, listing),
-                      ),
-                      PopupMenuButton<String>(
-                        tooltip: 'More',
-                        icon: const Icon(Icons.more_vert),
-                        onSelected: (value) async {
-                          if (value == 'lower') {
-                            showLowerPriceSheet(context, listing);
-                          } else if (value == 'delete') {
-                            final ok = await showDialog<bool>(
-                              context: context,
-                              builder: (_) => AlertDialog(
-                                title: const Text('Delete ad?'),
-                                content: const Text(
-                                  'This permanently removes the ad and '
-                                  'cannot be undone.',
+                              const SizedBox(height: 3),
+                              Text(
+                                formatPrice(listing.price),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: kPakGreen,
+                                  fontSize: 14,
                                 ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, false),
-                                    child: const Text('Cancel'),
+                              ),
+                              if (badges.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  children: badges,
+                                ),
+                              ],
+                              if (locationLine.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  locationLine,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
                                   ),
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, true),
-                                    child: const Text(
-                                      'Delete',
-                                      style: TextStyle(color: Colors.red),
+                                ),
+                              ],
+                              const SizedBox(height: 2),
+                              Text(
+                                '👁 ${listing.views}  📞 ${listing.calls}  '
+                                '💬 ${listing.chats}  🟢 ${listing.whatsapps}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        PopupMenuButton<String>(
+                          tooltip: 'Actions',
+                          icon: const Icon(Icons.more_vert),
+                          onSelected: (value) async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            if (value == 'bump') {
+                              final created = listing.createdAt?.toDate();
+                              if (created != null &&
+                                  DateTime.now().difference(created).inHours <
+                                      24) {
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Still recent — you can bump 24h after '
+                                      'posting or your last bump.',
                                     ),
                                   ),
-                                ],
-                              ),
-                            );
-                            if (ok == true) {
+                                );
+                                return;
+                              }
                               await FirebaseFirestore.instance
                                   .collection('listings')
                                   .doc(listing.id)
-                                  .delete();
+                                  .update({'createdAt': Timestamp.now()});
+                              messenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text('Bumped to the top!'),
+                                ),
+                              );
+                            } else if (value == 'promote') {
+                              showPromoteSheet(context, listing);
+                            } else if (value == 'inventory') {
+                              showInventorySheet(context, listing);
+                            } else if (value == 'lower') {
+                              showLowerPriceSheet(context, listing);
+                            } else if (value == 'delete') {
+                              final ok = await showDialog<bool>(
+                                context: context,
+                                builder: (_) => AlertDialog(
+                                  title: const Text('Delete ad?'),
+                                  content: const Text(
+                                    'This permanently removes the ad and '
+                                    'cannot be undone.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, true),
+                                      child: const Text(
+                                        'Delete',
+                                        style: TextStyle(color: Colors.red),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (ok == true) {
+                                await FirebaseFirestore.instance
+                                    .collection('listings')
+                                    .doc(listing.id)
+                                    .delete();
+                              }
                             }
-                          }
-                        },
-                        itemBuilder: (_) => [
-                          if (!listing.isSold)
+                          },
+                          itemBuilder: (_) => [
                             const PopupMenuItem(
-                              value: 'lower',
+                              value: 'bump',
                               child: ListTile(
                                 leading: Icon(
-                                  Icons.south,
-                                  color: Colors.deepOrange,
+                                  Icons.arrow_upward,
+                                  color: kPakGreen,
                                 ),
-                                title: Text('Lower price'),
+                                title: Text('Bump to top'),
                                 contentPadding: EdgeInsets.zero,
                               ),
                             ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: ListTile(
-                              leading: Icon(Icons.delete, color: Colors.red),
-                              title: Text('Delete'),
-                              contentPadding: EdgeInsets.zero,
+                            PopupMenuItem(
+                              value: 'promote',
+                              child: ListTile(
+                                leading: Icon(
+                                  listing.isFeatured
+                                      ? Icons.star
+                                      : Icons.campaign_outlined,
+                                  color: kGold,
+                                ),
+                                title: Text(
+                                  listing.isFeatured ? 'Featured' : 'Promote',
+                                ),
+                                contentPadding: EdgeInsets.zero,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                            const PopupMenuItem(
+                              value: 'inventory',
+                              child: ListTile(
+                                leading: Icon(Icons.inventory_2_outlined),
+                                title: Text('Inventory status'),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                            if (!listing.isSold)
+                              const PopupMenuItem(
+                                value: 'lower',
+                                child: ListTile(
+                                  leading: Icon(
+                                    Icons.south,
+                                    color: Colors.deepOrange,
+                                  ),
+                                  title: Text('Lower price'),
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                              ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: ListTile(
+                                leading: Icon(Icons.delete, color: Colors.red),
+                                title: Text('Delete'),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );

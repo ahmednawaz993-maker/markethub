@@ -66,7 +66,9 @@ class InviteFriendsScreen extends StatelessWidget {
       await recordLuckyDrawShare();
     } catch (_) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('Could not open share. Please try again.')),
+        const SnackBar(
+          content: Text('Could not open share. Please try again.'),
+        ),
       );
     }
   }
@@ -94,10 +96,7 @@ class InviteFriendsScreen extends StatelessWidget {
           const SizedBox(height: 16),
           _howItWorks(),
           const SizedBox(height: 16),
-          if (isGuest)
-            _registerPrompt(context)
-          else
-            _entryStatus(user.uid),
+          if (isGuest) _registerPrompt(context) else _entryStatus(user.uid),
           const SizedBox(height: 20),
           ElevatedButton.icon(
             onPressed: () => _share(context),
@@ -127,9 +126,9 @@ class InviteFriendsScreen extends StatelessWidget {
             'No purchase necessary. Draw held on 14 August 2026; 5 winners are '
             'awarded PKR 100,000 each and contacted on their registered phone '
             'number. PakBazar\'s decision is final.',
-            style: const TextStyle(fontSize: 11).copyWith(
-              color: AppColors.textMuted,
-            ),
+            style: const TextStyle(
+              fontSize: 11,
+            ).copyWith(color: AppColors.textMuted),
             textAlign: TextAlign.center,
           ),
         ],
@@ -234,9 +233,9 @@ class InviteFriendsScreen extends StatelessWidget {
           'You can share the app now, but you must register with your phone '
           'number to be eligible to win.',
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 12).copyWith(
-            color: AppColors.textSecondary,
-          ),
+          style: const TextStyle(
+            fontSize: 12,
+          ).copyWith(color: AppColors.textSecondary),
         ),
         const SizedBox(height: 10),
         ElevatedButton(
@@ -250,64 +249,67 @@ class InviteFriendsScreen extends StatelessWidget {
     ),
   );
 
-  Widget _entryStatus(String uid) => StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-    stream: FirebaseFirestore.instance
-        .collection('luckyDrawEntries')
-        .doc(uid)
-        .snapshots(),
-    builder: (context, snap) {
-      final data = snap.data?.data();
-      final shares = (data?['shareCount'] as num?)?.toInt() ?? 0;
-      final isWinner = data?['isWinner'] == true;
-      final listed = shares >= _targetShares;
-      final progress = (shares / _targetShares).clamp(0.0, 1.0);
-      return SurfacePanel(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+  Widget _entryStatus(String uid) =>
+      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
+            .collection('luckyDrawEntries')
+            .doc(uid)
+            .snapshots(),
+        builder: (context, snap) {
+          final data = snap.data?.data();
+          final shares = (data?['shareCount'] as num?)?.toInt() ?? 0;
+          final isWinner = data?['isWinner'] == true;
+          final listed = shares >= _targetShares;
+          final progress = (shares / _targetShares).clamp(0.0, 1.0);
+          return SurfacePanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  listed ? Icons.emoji_events : Icons.card_giftcard,
-                  color: listed ? kGold : kPakGreen,
+                Row(
+                  children: [
+                    Icon(
+                      listed ? Icons.emoji_events : Icons.card_giftcard,
+                      color: listed ? kGold : kPakGreen,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        isWinner
+                            ? '🏆 You are a winner! We\'ll contact you.'
+                            : listed
+                            ? '🎯 You\'re listed in the lucky people!'
+                            : shares > 0
+                            ? 'You\'re entered — keep sharing!'
+                            : 'Share to enter the lucky draw',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    isWinner
-                        ? '🏆 You are a winner! We\'ll contact you.'
-                        : listed
-                        ? '🎯 You\'re listed in the lucky people!'
-                        : shares > 0
-                        ? 'You\'re entered — keep sharing!'
-                        : 'Share to enter the lucky draw',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                const SizedBox(height: 10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 10,
+                    backgroundColor: AppColors.surfaceVariant,
+                    valueColor: AlwaysStoppedAnimation(
+                      listed ? kGold : kPakGreen,
+                    ),
                   ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Shared with $shares of $_targetShares',
+                  style: const TextStyle(
+                    fontSize: 12,
+                  ).copyWith(color: AppColors.textSecondary),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 10,
-                backgroundColor: AppColors.surfaceVariant,
-                valueColor: AlwaysStoppedAnimation(listed ? kGold : kPakGreen),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Shared with $shares of $_targetShares',
-              style: const TextStyle(fontSize: 12).copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       );
-    },
-  );
 }
 
 class _Step extends StatelessWidget {
@@ -337,9 +339,7 @@ class _Step extends StatelessWidget {
         const SizedBox(width: 10),
         Icon(icon, size: 18, color: kPakGreen),
         const SizedBox(width: 8),
-        Expanded(
-          child: Text(text, style: const TextStyle(fontSize: 13)),
-        ),
+        Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
       ],
     ),
   );
