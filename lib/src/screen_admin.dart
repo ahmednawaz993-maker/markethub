@@ -53,6 +53,7 @@ class AdminPanelScreen extends StatelessWidget {
       ('chats', 'Chats', _AdminChatsTab()),
       ('appeals', 'Appeals', _AdminAppealsTab()),
       ('deletions', 'Deletions', _AdminDeletionsTab()),
+      ('broadcasts', 'Notify', _AdminBroadcastTab()),
       ('__super', 'Lucky Draw', _AdminLuckyDrawTab()),
     ];
     final visible = entries.where((e) {
@@ -6491,4 +6492,327 @@ class _DeletionActionsState extends State<_DeletionActions> {
 
 // ---------------------------------------------------------------------------
 // Notification center
+//
+// Lets an admin push an arbitrary notification to everyone, or to one user.
+// The panel only writes an `adminBroadcasts` doc with status 'pending' — it
+// never talks to FCM. onAdminBroadcastCreated authorises it again server-side
+// (rules alone are not the only lock on something that reaches every user),
+// validates it, sends it, and writes the outcome back to the same doc, which
+// the history list below streams.
 // ---------------------------------------------------------------------------
+
+class _AdminBroadcastTab extends StatefulWidget {
+  const _AdminBroadcastTab();
+
+  @override
+  State<_AdminBroadcastTab> createState() => _AdminBroadcastTabState();
+}
+
+class _AdminBroadcastTabState extends State<_AdminBroadcastTab> {
+  // Mirror MAX_BROADCAST_TITLE / MAX_BROADCAST_BODY in
+  // functions/broadcast_logic.js — the server is authoritative, these just
+  // give the admin immediate feedback instead of a failed send.
+  static const int _maxTitle = 80;
+  static const int _maxBody = 240;
+
+  final _titleController = TextEditingController();
+  final _bodyController = TextEditingController();
+  final _targetController = TextEditingController();
+  String _audience = 'all';
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _bodyController.dispose();
+    _targetController.dispose();
+    super.dispose();
+  }
+
+  String? _validationError(String title, String body, String target) {
+    if (title.isEmpty) return 'Add a title.';
+    if (body.isEmpty) return 'Add a message.';
+    if (title.length > _maxTitle) {
+      return 'Title must be $_maxTitle characters or fewer.';
+    }
+    if (body.length > _maxBody) {
+      return 'Message must be $_maxBody characters or fewer.';
+    }
+    if (_audience == 'user' && target.isEmpty) {
+      return 'Add the user ID to notify.';
+    }
+    return null;
+  }
+
+  Future<void> _send() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+
+    final title = _titleController.text.trim();
+    final body = _bodyController.text.trim();
+    final target = _targetController.text.trim();
+
+    final error = _validationError(title, body, target);
+    if (error != null) {
+      messenger.showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+
+    // A delivered notification cannot be recalled, so make the reach explicit
+    // before sending rather than after.
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Send this notification?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _audience == 'all'
+                  ? 'This buzzes every PakBazar user who has notifications on. '
+                        'It cannot be undone or recalled.'
+                  : 'This notifies one user ($target). It cannot be undone.',
+            ),
+            const SizedBox(height: 12),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text(body),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _sending = true);
+    try {
+      await FirebaseFirestore.instance.collection('adminBroadcasts').add({
+        'title': title,
+        'body': body,
+        'audience': _audience,
+        'targetUid': _audience == 'user' ? target : '',
+        'status': 'pending',
+        'createdBy': user.uid,
+        // Pinned to the caller's own email by the security rules; the Cloud
+        // Function authorises against this field.
+        'createdByEmail': (user.email ?? '').toLowerCase(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      if (!mounted) return;
+      _titleController.clear();
+      _bodyController.clear();
+      _targetController.clear();
+      setState(() => _sending = false);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Queued — delivery status appears below.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not queue it. Please try again.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.page,
+        AppSpacing.lg,
+        AppSpacing.page,
+        AppSpacing.navClearance,
+      ),
+      children: [
+        SurfacePanel(
+          margin: EdgeInsets.zero,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Send a notification',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'all',
+                    label: Text('Everyone'),
+                    icon: Icon(Icons.campaign),
+                  ),
+                  ButtonSegment(
+                    value: 'user',
+                    label: Text('One user'),
+                    icon: Icon(Icons.person),
+                  ),
+                ],
+                selected: {_audience},
+                onSelectionChanged: _sending
+                    ? null
+                    : (s) => setState(() => _audience = s.first),
+              ),
+              if (_audience == 'user') ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _targetController,
+                  enabled: !_sending,
+                  decoration: const InputDecoration(
+                    labelText: 'User ID (uid)',
+                    hintText: 'Copy it from the Users tab',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: _titleController,
+                enabled: !_sending,
+                maxLength: _maxTitle,
+                decoration: const InputDecoration(
+                  labelText: 'Title',
+                  hintText: 'e.g. Scheduled maintenance tonight',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              TextField(
+                controller: _bodyController,
+                enabled: !_sending,
+                maxLength: _maxBody,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Message',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _sending ? null : _send,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  icon: _sending
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.send, size: 18),
+                  label: Text(
+                    _audience == 'all' ? 'Send to everyone' : 'Send to user',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _audience == 'all'
+                    ? 'Goes to every device with notifications enabled. There is '
+                          'no in-app inbox copy for an everyone-send, and it '
+                          'cannot be recalled once delivered.'
+                    : 'Goes to that user\'s devices and is also saved to their '
+                          'in-app notification inbox.',
+                style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        const SectionHeader(title: 'Recently sent'),
+        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('adminBroadcasts')
+              .orderBy('createdAt', descending: true)
+              .limit(30)
+              .snapshots(),
+          builder: (context, snap) {
+            if (!snap.hasData) {
+              return const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final docs = snap.data!.docs;
+            if (docs.isEmpty) {
+              return const EmptyState(
+                icon: Icons.notifications_none,
+                title: 'Nothing sent yet',
+                subtitle: 'Notifications you send will be listed here.',
+              );
+            }
+            return Column(
+              children: [for (final d in docs) _BroadcastRow(data: d.data())],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _BroadcastRow extends StatelessWidget {
+  final Map<String, dynamic> data;
+  const _BroadcastRow({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final status = (data['status'] ?? 'pending').toString();
+    final audience = (data['audience'] ?? 'all').toString();
+    final error = (data['error'] ?? '').toString();
+
+    final (Color colour, IconData icon, String label) = switch (status) {
+      'sent' => (kPakGreen, Icons.check_circle, 'Sent'),
+      'failed' => (Colors.red, Icons.error_outline, 'Failed'),
+      _ => (Colors.grey, Icons.schedule, 'Sending'),
+    };
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: Icon(icon, color: colour),
+        title: Text(
+          (data['title'] ?? '').toString(),
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text((data['body'] ?? '').toString()),
+            const SizedBox(height: 4),
+            Text(
+              '$label · ${audience == 'all' ? 'Everyone' : 'One user'} · '
+              '${timeAgo(data['createdAt'] as Timestamp?)}',
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+            ),
+            if (error.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  error,
+                  style: const TextStyle(fontSize: 11, color: Colors.red),
+                ),
+              ),
+          ],
+        ),
+        isThreeLine: true,
+      ),
+    );
+  }
+}

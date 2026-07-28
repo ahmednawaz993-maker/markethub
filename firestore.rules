@@ -973,6 +973,26 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // Admin-composed push notifications ("Notify" tab). The panel writes one
+    // doc with status 'pending'; onAdminBroadcastCreated re-authorises it
+    // server-side, sends it, and writes the outcome back.
+    //
+    // createdByEmail is pinned to the caller's own verified token email
+    // because the Cloud Function authorises against THAT field — without this
+    // an author could name a higher-privileged admin and borrow their rights.
+    // A delivered notification cannot be recalled, so no client may edit or
+    // delete these; the record of what was sent stays intact.
+    // ---------------------------------------------------------------------
+    match /adminBroadcasts/{broadcastId} {
+      allow create: if can('broadcasts')
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.createdBy == request.auth.uid
+                    && request.resource.data.createdByEmail == staffEmail();
+      allow read: if can('broadcasts');
+      allow update, delete: if false; // Cloud Functions only
+    }
+
+    // ---------------------------------------------------------------------
     // Purchases — user spends wallet balance on a feature. A Cloud Function
     // (processPurchase) validates the balance and applies the effect.
     // ---------------------------------------------------------------------

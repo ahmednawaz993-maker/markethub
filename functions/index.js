@@ -35,6 +35,20 @@ const {
   sellerOrderNumber,
 } = require("./multiseller_logic");
 const { refundAllocation } = require("./escrow_logic");
+const {
+  NEW_LISTING_TOPIC,
+  ANNOUNCEMENT_TOPIC,
+  validateAdminBroadcast,
+  canSendBroadcast,
+  userTopic,
+  broadcastTarget,
+  shouldBroadcastListing,
+  becamePublic,
+  broadcastSignatureSource,
+  hasBroadcastableChange,
+  broadcastMessage,
+  wantsBroadcast,
+} = require("./broadcast_logic");
 
 initializeApp();
 
@@ -407,169 +421,344 @@ exports.onReviewWrite = onDocumentWritten(
   }
 );
 
-// Notify users whose saved search matches a newly posted ad.
 // ---------------------------------------------------------------------------
-// New-listing notifications: opt-in, interest-matched, deduped, rate-limited.
-// Users only hear about a listing once it is APPROVED and in stock, and only
-// when it matches a saved search, their saved interests, or a seller they
-// follow — never a blanket blast.
+// Listing broadcast: EVERY user is told about EVERY listing that goes public
+// (approved + in stock), and again after every edit to its content.
+//
+// Delivery is a single FCM topic send, not a per-user fan-out: every opted-in
+// device is subscribed to NEW_LISTING_TOPIC, so one listing costs one send no
+// matter how large the userbase gets. The trade-off is that a topic message
+// cannot be personalised and leaves no per-user record — there is no in-app
+// inbox copy for a broadcast, unlike pushToUser().
+//
+// What counts as an edit is decided by BROADCAST_FIELDS in broadcast_logic.js
+// — an allow-list, because the app bumps a `views` counter on every ad open
+// and announcing that would push to the whole userbase on every page view.
+//
+// This replaced the older interest-matched alerts (saved searches / followed
+// categories / followed sellers, capped at 5 a day). Saved searches still
+// exist as a browse convenience, they just no longer trigger notifications.
+//
+// Opting out: notifPrefs.newListing=false, notifPrefs.push=false, or
+// notifPrefs.mode='off' unsubscribes that user's devices from the topic — see
+// wantsBroadcast() and syncNewListingTopicOnPrefs() below.
 // ---------------------------------------------------------------------------
 
-// Max immediate new-listing pushes per user per rolling 24h.
-const NEW_LISTING_DAILY_CAP = 5;
-
-// First human-readable reason a listing matches a user's interest prefs, or
-// null. Price range is a filter (must pass) rather than a match reason itself.
-function listingMatchesInterests(listing, prefs) {
-  if (!prefs) return null;
-  const price = parsePrice(listing.price);
-  const min = Number(prefs.priceMin) || 0;
-  const max = Number(prefs.priceMax) || 0;
-  if ((min > 0 && price < min) || (max > 0 && price > max)) return null;
-
-  const cat = String(listing.category || "");
-  const city = String(listing.city || "");
-  const title = String(listing.title || "").toLowerCase();
-  const cats = Array.isArray(prefs.categories) ? prefs.categories : [];
-  const cities = Array.isArray(prefs.cities) ? prefs.cities : [];
-  const kws = Array.isArray(prefs.keywords) ? prefs.keywords : [];
-  const sellers = Array.isArray(prefs.favoriteSellers)
-    ? prefs.favoriteSellers
-    : [];
-
-  if (cats.includes(cat)) return `new in ${cat}`;
-  if (listing.userId && sellers.includes(listing.userId)) {
-    return "a seller you follow";
-  }
-  for (const kw of kws) {
-    if (kw && title.includes(String(kw).toLowerCase())) return `keyword "${kw}"`;
-  }
-  if (cities.includes(city)) return `new in ${city}`;
-  return null;
+// Fingerprint of the listing content a broadcast is about, so the same
+// revision is never announced twice.
+function broadcastSignature(listing) {
+  return crypto
+    .createHash("sha1")
+    .update(broadcastSignatureSource(listing))
+    .digest("hex");
 }
 
-function titleForListing(listing, info) {
-  if (info.type === "savedSearch") return `New ad matches ${info.reason}`;
-  if (info.type === "follow") return `New ad from ${info.reason}`;
-  return `New listing: ${info.reason}`;
+// Announces one listing to the whole userbase — both the first time it goes
+// public and again after every edit to its content.
+//
+// listingBroadcasts/{listingId} records the signature of the last revision
+// announced. Claiming it in a transaction gives three things at once:
+// duplicate suppression (the create trigger and the approval-update trigger
+// can both fire for the same revision, only one sends), retry safety (a redelivered
+// event carries the same signature), and serialisation of two edits landing
+// together. The stored signature is cleared if the send fails so the revision
+// can still be announced on a retry.
+//
+// 'new' vs 'updated' is derived from whether this listing has ever been
+// announced, so callers do not have to know.
+async function broadcastListing(db, listing, listingId) {
+  if (!shouldBroadcastListing(listing)) return;
+
+  const claim = db.collection("listingBroadcasts").doc(String(listingId));
+  const signature = broadcastSignature(listing);
+
+  const kind = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(claim);
+    const prev = snap.exists ? snap.data() : null;
+    if (prev && prev.signature === signature) return null; // nothing new
+    tx.set(
+      claim,
+      {
+        listingId: String(listingId),
+        sellerId: listing.userId || "",
+        signature,
+        sentAt: Timestamp.now(),
+        deliveryStatus: "sending",
+        broadcastCount: FieldValue.increment(1),
+      },
+      { merge: true }
+    );
+    return prev ? "updated" : "new";
+  });
+  if (!kind) return;
+
+  const { title, body } = broadcastMessage(listing, kind);
+  try {
+    const messageId = await getMessaging().send({
+      // Everyone on the topic EXCEPT the seller's own devices.
+      ...broadcastTarget(listing.userId),
+      notification: { title, body },
+      // The app's openNotificationTarget() already routes type 'newListing'
+      // + a listing id to the ad screen, so taps deep-link for free.
+      data: { type: "newListing", listingId: String(listingId), kind },
+      android: ANDROID_ALERT,
+      apns: APNS_ALERT,
+      webpush: {
+        notification: { icon: "/icons/Icon-192.png" },
+        fcmOptions: { link: "/" },
+      },
+    });
+    await claim.set({ deliveryStatus: "sent", kind, messageId }, { merge: true });
+  } catch (e) {
+    // Drop the signature so this revision is retried rather than swallowed.
+    await claim
+      .set({ deliveryStatus: "failed", signature: "" }, { merge: true })
+      .catch(() => {});
+    throw e;
+  }
 }
 
-// Delivers one new-listing alert to a user, honouring their notification prefs,
-// idempotency (one alert per user+listing, deterministic id) and a rolling
-// daily rate limit. Writes a per-user listingAlerts/{listingId} analytics
-// record (section I fields: userId, listingId, notificationType, matchReason,
-// sentAt, deliveryStatus).
-async function deliverListingAlert(db, uid, listing, listingId, info) {
-  const userSnap = await db.collection("users").doc(uid).get();
-  if (!userSnap.exists) return;
-  const prefs = (userSnap.data() || {}).notifPrefs || {};
+// ---------------------------------------------------------------------------
+// Topic subscription management.
+//
+// Subscribing happens server-side rather than in the app because the FCM *web*
+// SDK has no subscribeToTopic(). Doing it here keeps Android, iOS and web on a
+// single code path and makes an opt-out apply to every device a user owns.
+// ---------------------------------------------------------------------------
 
-  if (prefs.newListing === false) return; // global opt-out
-  if ((prefs.mode || "all") !== "all") return; // daily/weekly/off => no push now
+// FCM's topic-management endpoints accept at most 1000 tokens per call.
+const TOPIC_BATCH = 1000;
 
-  const alertRef = db
-    .collection("users").doc(uid)
-    .collection("listingAlerts").doc(String(listingId));
-  if ((await alertRef.get()).exists) return; // idempotent
-
-  const since = Timestamp.fromMillis(Date.now() - 24 * 3600 * 1000);
-  const recent = await db
-    .collection("users").doc(uid)
-    .collection("listingAlerts")
-    .where("sentAt", ">=", since)
-    .get();
-  const record = {
-    userId: uid,
-    listingId: String(listingId),
-    notificationType: info.type,
-    matchReason: info.reason,
-    sentAt: Timestamp.now(),
-  };
-  if (recent.size >= NEW_LISTING_DAILY_CAP) {
-    await alertRef.set({ ...record, deliveryStatus: "rate_limited" });
-    return;
+async function setTopicSubscription(tokens, subscribed) {
+  const messaging = getMessaging();
+  for (let i = 0; i < tokens.length; i += TOPIC_BATCH) {
+    const batch = tokens.slice(i, i + TOPIC_BATCH);
+    try {
+      if (subscribed) {
+        await messaging.subscribeToTopic(batch, NEW_LISTING_TOPIC);
+      } else {
+        await messaging.unsubscribeFromTopic(batch, NEW_LISTING_TOPIC);
+      }
+    } catch (e) {
+      // One dead token must not stop the rest of the batch; the daily
+      // reconciler retries whatever did not stick.
+      console.error("new-listing topic batch failed", e);
+    }
   }
-  await alertRef.set({ ...record, deliveryStatus: "sent" });
+}
 
-  const title = titleForListing(listing, info);
-  const body = `${listing.title} — Rs ${listing.price}`;
-  await recordNotification(db, uid, title, body, info.type, String(listingId));
-
-  if (prefs.push === false) return; // in-app inbox only
-  const tokensSnap = await db
+async function userTokens(db, uid) {
+  const snap = await db
     .collection("users").doc(uid).collection("fcmTokens").get();
-  const tokens = tokensSnap.docs.map((d) => d.id);
-  if (tokens.length === 0) return;
-  const response = await getMessaging().sendEachForMulticast({
-    tokens,
-    notification: { title, body },
-    data: { type: info.type, listingId: String(listingId) },
-    android: ANDROID_ALERT,
-    apns: APNS_ALERT,
-    webpush: {
-      notification: { icon: "/icons/Icon-192.png" },
-      fcmOptions: { link: "/" },
-    },
-  });
-  await pruneInvalidTokens(db, uid, tokens, response);
+  return snap.docs.map((d) => d.id);
 }
 
-// Collects recipients (saved-search matches, opted-in interest matches, and the
-// poster's followers), dedupes, and delivers — only for approved, in-stock ads.
-async function dispatchNewListing(db, listing, listingId) {
-  const status = String(listing.approvalStatus || "");
-  if (status === "pending" || status === "rejected") return; // not public yet
-  if (listing.status && listing.status !== "in_stock") return; // not buyable
-
-  const recipients = new Map(); // uid -> { reason, type }
-
-  // Bounded so a single new listing can't scan the entire userbase (cost /
-  // timeout guard). Raise the cap or move to a fan-out queue as PakBazar grows.
-  const searches = await db.collectionGroup("savedSearches").limit(1000).get();
-  searches.forEach((doc) => {
-    const userDoc = doc.ref.parent.parent;
-    if (!userDoc) return;
-    const uid = userDoc.id;
-    if (uid === listing.userId || recipients.has(uid)) return;
-    if (matchesSavedSearch(listing, doc.data())) {
-      recipients.set(uid, {
-        reason: `your saved search "${doc.data().label || "search"}"`,
-        type: "savedSearch",
-      });
+// Puts a device in (or out of) the topic naming its owner. That membership is
+// what lets a broadcast exclude the seller's own devices — see broadcastTarget().
+// Handled per-token rather than in the daily reconciler because a seller must
+// open the app (which rewrites its token doc) before they can post, so this
+// always runs before their first listing.
+// Puts a device in (or out of) the admin-announcement topic.
+async function setAnnouncementSubscription(token, subscribed) {
+  const messaging = getMessaging();
+  try {
+    if (subscribed) {
+      await messaging.subscribeToTopic([token], ANNOUNCEMENT_TOPIC);
+    } else {
+      await messaging.unsubscribeFromTopic([token], ANNOUNCEMENT_TOPIC);
     }
-  });
-
-  const prefUsers = await db
-    .collection("users")
-    .where("notifPrefs.newListing", "==", true)
-    .limit(1000)
-    .get();
-  prefUsers.forEach((u) => {
-    const uid = u.id;
-    if (uid === listing.userId || recipients.has(uid)) return;
-    const reason = listingMatchesInterests(listing, (u.data() || {}).notifPrefs);
-    if (reason) recipients.set(uid, { reason, type: "newListing" });
-  });
-
-  for (const [uid, info] of recipients) {
-    await deliverListingAlert(db, uid, listing, listingId, info);
-  }
-
-  if (listing.userId) {
-    const sellerName = listing.sellerName || "a seller";
-    const followersSnap = await db
-      .collection("users").doc(listing.userId)
-      .collection("followers").get();
-    for (const f of followersSnap.docs) {
-      const uid = f.id;
-      if (uid === listing.userId || recipients.has(uid)) continue;
-      await deliverListingAlert(db, uid, listing, listingId, {
-        reason: `${sellerName} you follow`,
-        type: "follow",
-      });
-    }
+  } catch (e) {
+    console.error("announcement topic subscription failed", e);
   }
 }
+
+async function setUserTopicSubscription(token, uid, subscribed) {
+  const topic = userTopic(uid);
+  if (!topic) return;
+  const messaging = getMessaging();
+  try {
+    if (subscribed) {
+      await messaging.subscribeToTopic([token], topic);
+    } else {
+      await messaging.unsubscribeFromTopic([token], topic);
+    }
+  } catch (e) {
+    console.error(`user topic ${topic} subscription failed`, e);
+  }
+}
+
+// A device registered (or refreshed) its push token. The app rewrites this doc
+// on every launch, so this is also what backfills users who already had a
+// token registered before broadcasts existed.
+exports.syncNewListingTopicOnToken = onDocumentWritten(
+  "users/{uid}/fcmTokens/{token}",
+  async (event) => {
+    const token = event.params.token;
+    const uid = event.params.uid;
+    const after = event.data && event.data.after;
+    if (!after || !after.exists) {
+      // Token was removed — drop it from every topic.
+      await setTopicSubscription([token], false);
+      await setUserTopicSubscription(token, uid, false);
+      await setAnnouncementSubscription(token, false);
+      return;
+    }
+    // The owner topic is unconditional: it carries no messages, it only makes
+    // this device excludable from its owner's own listings. Opting out of
+    // broadcasts is expressed by leaving NEW_LISTING_TOPIC, below.
+    await setUserTopicSubscription(token, uid, true);
+    // Admin announcements are also unconditional: the new-listing opt-out is
+    // about marketplace noise and must not silence service messages.
+    await setAnnouncementSubscription(token, true);
+    const snap = await getFirestore().collection("users").doc(uid).get();
+    await setTopicSubscription([token], wantsBroadcast(snap.data()));
+  }
+);
+
+// The user changed their notification preferences — apply it to every device
+// they own. Fires on any user-doc update, so it early-outs unless the effective
+// subscription actually flipped.
+exports.syncNewListingTopicOnPrefs = onDocumentUpdated(
+  "users/{uid}",
+  async (event) => {
+    const before = event.data && event.data.before.data();
+    const after = event.data && event.data.after.data();
+    if (!before || !after) return;
+    const wanted = wantsBroadcast(after);
+    if (wantsBroadcast(before) === wanted) return;
+    const tokens = await userTokens(getFirestore(), event.params.uid);
+    if (tokens.length === 0) return;
+    await setTopicSubscription(tokens, wanted);
+  }
+);
+
+// Self-healing sweep: re-asserts every user's subscription once a day, so a
+// dropped trigger or a failed batch cannot leave someone permanently silent —
+// or, worse, still being blasted after opting out.
+exports.reconcileNewListingTopic = onSchedule("every 24 hours", async () => {
+  const db = getFirestore();
+  const subscribe = [];
+  const unsubscribe = [];
+  const PAGE = 500;
+
+  let page = await db.collection("users").orderBy("__name__").limit(PAGE).get();
+  while (!page.empty) {
+    for (const u of page.docs) {
+      const tokens = await userTokens(db, u.id);
+      if (tokens.length === 0) continue;
+      (wantsBroadcast(u.data()) ? subscribe : unsubscribe).push(...tokens);
+    }
+    if (page.size < PAGE) break;
+    page = await db
+      .collection("users")
+      .orderBy("__name__")
+      .startAfter(page.docs[page.size - 1])
+      .limit(PAGE)
+      .get();
+  }
+
+  await setTopicSubscription(subscribe, true);
+  await setTopicSubscription(unsubscribe, false);
+  console.log(
+    `new-listing topic reconciled: ${subscribe.length} subscribed, ` +
+      `${unsubscribe.length} unsubscribed`
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Admin-composed notifications ("Notify" tab in the admin panel).
+//
+// The panel writes adminBroadcasts/{id} with status 'pending'; this trigger
+// authorises, validates and sends it, then writes the outcome back to the same
+// doc so the panel can show delivered/failed. The client never talks to FCM.
+//
+// Audience 'all' goes to ANNOUNCEMENT_TOPIC (one send, no inbox copy).
+// Audience 'user' goes through pushToUser(), which also files an in-app inbox
+// copy, so a message aimed at one person survives them missing the push.
+// ---------------------------------------------------------------------------
+exports.onAdminBroadcastCreated = onDocumentCreated(
+  "adminBroadcasts/{broadcastId}",
+  async (event) => {
+    const doc = event.data;
+    const data = doc && doc.data();
+    if (!data || data.status !== "pending") return;
+
+    const db = getFirestore();
+    const fail = (error) =>
+      doc.ref.set(
+        { status: "failed", error, processedAt: Timestamp.now() },
+        { merge: true }
+      );
+
+    // Authorise from the server's own view of the staff roster, not from
+    // anything the client put in the document.
+    const email = String(data.createdByEmail || "").toLowerCase();
+    let staffData = null;
+    if (email) {
+      const staffSnap = await db.collection("staff").doc(email).get();
+      staffData = staffSnap.exists ? staffSnap.data() : null;
+    }
+    if (!canSendBroadcast(email, staffData, ADMIN_EMAIL)) {
+      await fail("Not authorised to send notifications.");
+      return;
+    }
+
+    const valid = validateAdminBroadcast(data);
+    if (!valid.ok) {
+      await fail(valid.error);
+      return;
+    }
+
+    const { title, body, audience, targetUid } = valid;
+    // An unrecognised type falls through to the app's "show the text" branch
+    // in openNotificationTarget(), so a plain announcement still opens fine.
+    const payload = {
+      type: String(data.type || "announcement"),
+      refId: String(data.refId || ""),
+      broadcastId: event.params.broadcastId,
+    };
+
+    try {
+      if (audience === "user") {
+        await pushToUser(db, targetUid, { title, body }, payload);
+        await doc.ref.set(
+          {
+            status: "sent",
+            audience: "user",
+            sentAt: Timestamp.now(),
+            processedAt: Timestamp.now(),
+          },
+          { merge: true }
+        );
+        return;
+      }
+
+      const messageId = await getMessaging().send({
+        topic: ANNOUNCEMENT_TOPIC,
+        notification: { title, body },
+        data: payload,
+        android: ANDROID_ALERT,
+        apns: APNS_ALERT,
+        webpush: {
+          notification: { icon: "/icons/Icon-192.png" },
+          fcmOptions: { link: "/" },
+        },
+      });
+      await doc.ref.set(
+        {
+          status: "sent",
+          audience: "all",
+          messageId,
+          sentAt: Timestamp.now(),
+          processedAt: Timestamp.now(),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      await fail(String((e && e.message) || e));
+    }
+  }
+);
 
 // A listing created already-approved (demo/admin auto-approve) is public
 // immediately. The normal pending->approved path is handled in the update
@@ -579,7 +768,7 @@ exports.notifyOnNewListing = onDocumentCreated(
   async (event) => {
     const listing = event.data && event.data.data();
     if (!listing) return;
-    await dispatchNewListing(getFirestore(), listing, event.params.listingId);
+    await broadcastListing(getFirestore(), listing, event.params.listingId);
   }
 );
 
@@ -591,14 +780,17 @@ exports.notifyOnPriceDrop = onDocumentUpdated(
     const after = event.data && event.data.after.data();
     if (!before || !after) return;
 
-    // New-listing alerts fire when a listing becomes public — i.e. its
-    // approvalStatus transitions to 'approved' (normal path: user posts pending,
-    // an admin approves). Handled here to avoid a second per-update trigger.
-    if (
-      before.approvalStatus !== "approved" &&
-      after.approvalStatus === "approved"
-    ) {
-      await dispatchNewListing(getFirestore(), after, event.params.listingId);
+    // Announce the listing to everyone, both when it first goes public and
+    // after every edit to its content. Two paths reach here:
+    //   • becamePublic — approvalStatus went to 'approved'. This is the normal
+    //     edit flow too: editing an ad puts it back in the moderation queue
+    //     (screen_my_ads.dart), so the re-approval is what announces the edit.
+    //   • hasBroadcastableChange — content changed while the ad stayed public
+    //     (auto-approved/demo sellers, admin edits, inventory status changes).
+    // broadcastListing() re-checks that the ad is approved + in stock, so an
+    // edit that is still pending review is not announced early.
+    if (becamePublic(before, after) || hasBroadcastableChange(before, after)) {
+      await broadcastListing(getFirestore(), after, event.params.listingId);
     }
 
     // Only act when a fresh price drop was just recorded by the app.
@@ -631,37 +823,6 @@ exports.notifyOnPriceDrop = onDocumentUpdated(
     }
   }
 );
-
-function matchesSavedSearch(listing, s) {
-  const cat = s.category;
-  if (cat && cat !== "All" && listing.category !== cat) return false;
-
-  const sub = s.subcategory;
-  if (sub && sub !== "All" && listing.subcategory !== sub) return false;
-
-  const city = s.city;
-  if (city && city !== "All" && listing.city !== city) return false;
-
-  const price = parseFloat(String(listing.price || "").replace(/[^0-9.]/g, "")) || 0;
-  if (s.minPrice != null && price < s.minPrice) return false;
-  if (s.maxPrice != null && price > s.maxPrice) return false;
-
-  const q = String(s.query || "").toLowerCase().trim();
-  if (q) {
-    const hay = [
-      listing.title,
-      listing.description,
-      listing.category,
-      listing.subcategory,
-      listing.location,
-      listing.city,
-    ]
-      .map((x) => String(x || "").toLowerCase())
-      .join(" ");
-    if (!hay.includes(q)) return false;
-  }
-  return true;
-}
 
 // Removes FCM tokens that the messaging API reported as permanently invalid.
 async function pruneInvalidTokens(db, uid, tokens, response) {
