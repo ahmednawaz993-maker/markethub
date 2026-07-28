@@ -11,6 +11,64 @@
 // The topic every opted-in device is subscribed to.
 const NEW_LISTING_TOPIC = "new_listings";
 
+// Topic for admin-composed announcements (the "Notify" tab in the admin panel).
+// Separate from NEW_LISTING_TOPIC on purpose: opting out of marketplace noise
+// must not also silence service messages like "payouts are delayed today".
+const ANNOUNCEMENT_TOPIC = "announcements";
+
+// Notification text limits. Anything longer is rejected at compose time rather
+// than silently truncated by the OS on a lock screen.
+const MAX_BROADCAST_TITLE = 80;
+const MAX_BROADCAST_BODY = 240;
+
+// Validates an admin-composed notification. Returns the cleaned fields or the
+// reason it cannot be sent. Runs on the server, where it is authoritative — the
+// admin panel calls the same rules only to give immediate feedback.
+function validateAdminBroadcast(data) {
+  const d = data || {};
+  const title = String(d.title == null ? "" : d.title).trim();
+  const body = String(d.body == null ? "" : d.body).trim();
+  const audience = String(d.audience || "all");
+  const targetUid = String(d.targetUid || "").trim();
+
+  if (!title) return { ok: false, error: "A title is required." };
+  if (!body) return { ok: false, error: "A message is required." };
+  if (title.length > MAX_BROADCAST_TITLE) {
+    return {
+      ok: false,
+      error: `Title must be ${MAX_BROADCAST_TITLE} characters or fewer.`,
+    };
+  }
+  if (body.length > MAX_BROADCAST_BODY) {
+    return {
+      ok: false,
+      error: `Message must be ${MAX_BROADCAST_BODY} characters or fewer.`,
+    };
+  }
+  if (audience !== "all" && audience !== "user") {
+    return { ok: false, error: `Unknown audience "${audience}".` };
+  }
+  if (audience === "user" && !targetUid) {
+    return { ok: false, error: "Pick a user to notify." };
+  }
+  return { ok: true, title, body, audience, targetUid };
+}
+
+// Whether whoever wrote the broadcast doc is actually allowed to send one.
+// Re-checked on the server rather than trusted from the client: security rules
+// are the gate, this is the second lock on an action that reaches every user.
+//   email     — the caller's verified auth email
+//   staffData — their staff/{email} document, or null if they are not staff
+//   adminEmail— the super admin
+function canSendBroadcast(email, staffData, adminEmail) {
+  const e = String(email || "").toLowerCase();
+  if (!e) return false;
+  if (e === String(adminEmail || "").toLowerCase()) return true;
+  if (!staffData || staffData.active === false) return false;
+  const perms = staffData.permissions || {};
+  return perms.broadcasts === true;
+}
+
 // Longest listing title we put in a notification body; anything longer is
 // ellipsised so the alert stays readable on a lock screen.
 const MAX_TITLE_CHARS = 60;
@@ -159,8 +217,13 @@ function wantsBroadcast(userData) {
 
 module.exports = {
   NEW_LISTING_TOPIC,
+  ANNOUNCEMENT_TOPIC,
   MAX_TITLE_CHARS,
+  MAX_BROADCAST_TITLE,
+  MAX_BROADCAST_BODY,
   BROADCAST_FIELDS,
+  validateAdminBroadcast,
+  canSendBroadcast,
   userTopic,
   broadcastTarget,
   truncate,

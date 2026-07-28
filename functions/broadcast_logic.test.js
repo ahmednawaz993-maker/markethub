@@ -14,6 +14,10 @@ const {
   hasBroadcastableChange,
   broadcastMessage,
   wantsBroadcast,
+  validateAdminBroadcast,
+  canSendBroadcast,
+  MAX_BROADCAST_TITLE,
+  MAX_BROADCAST_BODY,
 } = require("./broadcast_logic");
 
 let pass = 0;
@@ -260,6 +264,106 @@ t("legacy daily/weekly users are subscribed, not left silent", () => {
   // mean these users never hear anything at all.
   assert.strictEqual(wantsBroadcast({ notifPrefs: { mode: "daily" } }), true);
   assert.strictEqual(wantsBroadcast({ notifPrefs: { mode: "weekly" } }), true);
+});
+
+// --- validateAdminBroadcast ------------------------------------------------
+
+t("a well-formed announcement validates and is trimmed", () => {
+  const r = validateAdminBroadcast({
+    title: "  Scheduled maintenance  ",
+    body: "  PakBazar will be briefly unavailable tonight.  ",
+    audience: "all",
+  });
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.title, "Scheduled maintenance");
+  assert.strictEqual(r.body, "PakBazar will be briefly unavailable tonight.");
+});
+
+t("an empty or whitespace-only title is rejected", () => {
+  assert.strictEqual(validateAdminBroadcast({ body: "hi" }).ok, false);
+  assert.strictEqual(
+    validateAdminBroadcast({ title: "   ", body: "hi" }).ok,
+    false
+  );
+});
+
+t("an empty message is rejected", () => {
+  assert.strictEqual(validateAdminBroadcast({ title: "Hi" }).ok, false);
+});
+
+t("over-long text is rejected rather than silently truncated", () => {
+  const longTitle = validateAdminBroadcast({
+    title: "A".repeat(MAX_BROADCAST_TITLE + 1),
+    body: "ok",
+  });
+  assert.strictEqual(longTitle.ok, false);
+  const longBody = validateAdminBroadcast({
+    title: "ok",
+    body: "A".repeat(MAX_BROADCAST_BODY + 1),
+  });
+  assert.strictEqual(longBody.ok, false);
+});
+
+t("an unknown audience is rejected", () => {
+  const r = validateAdminBroadcast({
+    title: "Hi",
+    body: "There",
+    audience: "everyone-ever",
+  });
+  assert.strictEqual(r.ok, false);
+});
+
+t("a single-user send without a target is rejected", () => {
+  const r = validateAdminBroadcast({
+    title: "Hi",
+    body: "There",
+    audience: "user",
+  });
+  assert.strictEqual(r.ok, false);
+});
+
+t("a single-user send with a target validates", () => {
+  const r = validateAdminBroadcast({
+    title: "Hi",
+    body: "There",
+    audience: "user",
+    targetUid: "abc123",
+  });
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.targetUid, "abc123");
+});
+
+// --- canSendBroadcast ------------------------------------------------------
+
+const ADMIN = "admin@example.com";
+
+t("the super admin can always send", () => {
+  assert.strictEqual(canSendBroadcast(ADMIN, null, ADMIN), true);
+  assert.strictEqual(canSendBroadcast("ADMIN@EXAMPLE.COM", null, ADMIN), true);
+});
+
+t("staff granted the broadcasts permission can send", () => {
+  const staff = { active: true, permissions: { broadcasts: true } };
+  assert.strictEqual(canSendBroadcast("s@example.com", staff, ADMIN), true);
+});
+
+t("staff WITHOUT the broadcasts permission cannot send", () => {
+  const staff = { active: true, permissions: { orders: true } };
+  assert.strictEqual(canSendBroadcast("s@example.com", staff, ADMIN), false);
+});
+
+t("a deactivated staff member cannot send", () => {
+  const staff = { active: false, permissions: { broadcasts: true } };
+  assert.strictEqual(canSendBroadcast("s@example.com", staff, ADMIN), false);
+});
+
+t("a random signed-in user cannot send", () => {
+  assert.strictEqual(canSendBroadcast("nobody@example.com", null, ADMIN), false);
+});
+
+t("a missing email cannot send", () => {
+  assert.strictEqual(canSendBroadcast("", null, ADMIN), false);
+  assert.strictEqual(canSendBroadcast(null, null, ADMIN), false);
 });
 
 console.log(`\n${pass} checks passed${process.exitCode ? " (with failures)" : ""}`);

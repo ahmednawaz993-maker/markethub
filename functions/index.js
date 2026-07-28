@@ -37,6 +37,9 @@ const {
 const { refundAllocation } = require("./escrow_logic");
 const {
   NEW_LISTING_TOPIC,
+  ANNOUNCEMENT_TOPIC,
+  validateAdminBroadcast,
+  canSendBroadcast,
   userTopic,
   broadcastTarget,
   shouldBroadcastListing,
@@ -555,6 +558,20 @@ async function userTokens(db, uid) {
 // Handled per-token rather than in the daily reconciler because a seller must
 // open the app (which rewrites its token doc) before they can post, so this
 // always runs before their first listing.
+// Puts a device in (or out of) the admin-announcement topic.
+async function setAnnouncementSubscription(token, subscribed) {
+  const messaging = getMessaging();
+  try {
+    if (subscribed) {
+      await messaging.subscribeToTopic([token], ANNOUNCEMENT_TOPIC);
+    } else {
+      await messaging.unsubscribeFromTopic([token], ANNOUNCEMENT_TOPIC);
+    }
+  } catch (e) {
+    console.error("announcement topic subscription failed", e);
+  }
+}
+
 async function setUserTopicSubscription(token, uid, subscribed) {
   const topic = userTopic(uid);
   if (!topic) return;
@@ -580,15 +597,19 @@ exports.syncNewListingTopicOnToken = onDocumentWritten(
     const uid = event.params.uid;
     const after = event.data && event.data.after;
     if (!after || !after.exists) {
-      // Token was removed — drop it from both topics.
+      // Token was removed — drop it from every topic.
       await setTopicSubscription([token], false);
       await setUserTopicSubscription(token, uid, false);
+      await setAnnouncementSubscription(token, false);
       return;
     }
     // The owner topic is unconditional: it carries no messages, it only makes
     // this device excludable from its owner's own listings. Opting out of
     // broadcasts is expressed by leaving NEW_LISTING_TOPIC, below.
     await setUserTopicSubscription(token, uid, true);
+    // Admin announcements are also unconditional: the new-listing opt-out is
+    // about marketplace noise and must not silence service messages.
+    await setAnnouncementSubscription(token, true);
     const snap = await getFirestore().collection("users").doc(uid).get();
     await setTopicSubscription([token], wantsBroadcast(snap.data()));
   }
@@ -643,6 +664,101 @@ exports.reconcileNewListingTopic = onSchedule("every 24 hours", async () => {
       `${unsubscribe.length} unsubscribed`
   );
 });
+
+// ---------------------------------------------------------------------------
+// Admin-composed notifications ("Notify" tab in the admin panel).
+//
+// The panel writes adminBroadcasts/{id} with status 'pending'; this trigger
+// authorises, validates and sends it, then writes the outcome back to the same
+// doc so the panel can show delivered/failed. The client never talks to FCM.
+//
+// Audience 'all' goes to ANNOUNCEMENT_TOPIC (one send, no inbox copy).
+// Audience 'user' goes through pushToUser(), which also files an in-app inbox
+// copy, so a message aimed at one person survives them missing the push.
+// ---------------------------------------------------------------------------
+exports.onAdminBroadcastCreated = onDocumentCreated(
+  "adminBroadcasts/{broadcastId}",
+  async (event) => {
+    const doc = event.data;
+    const data = doc && doc.data();
+    if (!data || data.status !== "pending") return;
+
+    const db = getFirestore();
+    const fail = (error) =>
+      doc.ref.set(
+        { status: "failed", error, processedAt: Timestamp.now() },
+        { merge: true }
+      );
+
+    // Authorise from the server's own view of the staff roster, not from
+    // anything the client put in the document.
+    const email = String(data.createdByEmail || "").toLowerCase();
+    let staffData = null;
+    if (email) {
+      const staffSnap = await db.collection("staff").doc(email).get();
+      staffData = staffSnap.exists ? staffSnap.data() : null;
+    }
+    if (!canSendBroadcast(email, staffData, ADMIN_EMAIL)) {
+      await fail("Not authorised to send notifications.");
+      return;
+    }
+
+    const valid = validateAdminBroadcast(data);
+    if (!valid.ok) {
+      await fail(valid.error);
+      return;
+    }
+
+    const { title, body, audience, targetUid } = valid;
+    // An unrecognised type falls through to the app's "show the text" branch
+    // in openNotificationTarget(), so a plain announcement still opens fine.
+    const payload = {
+      type: String(data.type || "announcement"),
+      refId: String(data.refId || ""),
+      broadcastId: event.params.broadcastId,
+    };
+
+    try {
+      if (audience === "user") {
+        await pushToUser(db, targetUid, { title, body }, payload);
+        await doc.ref.set(
+          {
+            status: "sent",
+            audience: "user",
+            sentAt: Timestamp.now(),
+            processedAt: Timestamp.now(),
+          },
+          { merge: true }
+        );
+        return;
+      }
+
+      const messageId = await getMessaging().send({
+        topic: ANNOUNCEMENT_TOPIC,
+        notification: { title, body },
+        data: payload,
+        android: ANDROID_ALERT,
+        apns: APNS_ALERT,
+        webpush: {
+          notification: { icon: "/icons/Icon-192.png" },
+          fcmOptions: { link: "/" },
+        },
+      });
+      await doc.ref.set(
+        {
+          status: "sent",
+          audience: "all",
+          messageId,
+          sentAt: Timestamp.now(),
+          processedAt: Timestamp.now(),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      await fail(String((e && e.message) || e));
+    }
+  }
+);
 
 // A listing created already-approved (demo/admin auto-approve) is public
 // immediately. The normal pending->approved path is handled in the update
