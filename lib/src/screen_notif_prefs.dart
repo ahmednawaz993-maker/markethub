@@ -2,13 +2,22 @@ part of '../main.dart';
 
 // New-listing notification preferences. Stored as a `notifPrefs` map on the
 // user's own profile doc (owner-editable; the Cloud Function reads it before
-// sending). Opt-in by design: interest matches only fire when the user turns
-// new-listing notifications on and saves at least one interest.
+// subscribing the user's devices).
+//
+// New listings are announced to every user via a single FCM topic broadcast,
+// so this screen is an OPT-OUT: leaving the switch on means you hear about
+// every ad posted on PakBazar. Saving here retriggers syncNewListingTopicOnPrefs
+// in functions/index.js, which subscribes or unsubscribes every device you own.
 
 class NotificationPrefs {
   bool newListing; // master on/off for new-listing alerts
-  bool push; // false = in-app inbox only, no push
-  String mode; // 'all' | 'daily' | 'weekly' | 'off'
+  bool push; // legacy: false = in-app inbox only, no push
+  String mode; // legacy: 'all' | 'daily' | 'weekly' | 'off'
+
+  // Interest filters from the retired interest-matched alerts. Nothing reads
+  // them today (every user hears about every listing), but they are still
+  // loaded and saved verbatim so the data survives for a future "only notify
+  // me about these categories" feature.
   List<String> categories;
   List<String> cities;
   List<String> keywords;
@@ -71,24 +80,11 @@ class _NotificationPreferencesScreenState
   NotificationPrefs _prefs = NotificationPrefs();
   bool _loading = true;
   bool _saving = false;
-  final _keywordsController = TextEditingController();
-  final _citiesController = TextEditingController();
-  final _minController = TextEditingController();
-  final _maxController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _load();
-  }
-
-  @override
-  void dispose() {
-    _keywordsController.dispose();
-    _citiesController.dispose();
-    _minController.dispose();
-    _maxController.dispose();
-    super.dispose();
   }
 
   Future<void> _load() async {
@@ -105,10 +101,6 @@ class _NotificationPreferencesScreenState
       final p = NotificationPrefs.fromMap(
         doc.data()?['notifPrefs'] as Map<String, dynamic>?,
       );
-      _keywordsController.text = p.keywords.join(', ');
-      _citiesController.text = p.cities.join(', ');
-      _minController.text = p.priceMin > 0 ? '${p.priceMin}' : '';
-      _maxController.text = p.priceMax > 0 ? '${p.priceMax}' : '';
       if (mounted) {
         setState(() {
           _prefs = p;
@@ -120,18 +112,24 @@ class _NotificationPreferencesScreenState
     }
   }
 
-  List<String> _splitCsv(String s) =>
-      s.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+  /// The single switch is authoritative. Turning alerts ON also clears the
+  /// legacy `push: false` / `mode: 'daily'` flags, which the server still
+  /// honours as opt-outs -- without this, a user who set one of them long ago
+  /// could never get new-listing alerts back from this screen.
+  void _setEnabled(bool on) {
+    setState(() {
+      _prefs.newListing = on;
+      if (on) {
+        _prefs.push = true;
+        _prefs.mode = 'all';
+      }
+    });
+  }
 
   Future<void> _save() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     setState(() => _saving = true);
-    _prefs
-      ..keywords = _splitCsv(_keywordsController.text)
-      ..cities = _splitCsv(_citiesController.text)
-      ..priceMin = int.tryParse(_minController.text.trim()) ?? 0
-      ..priceMax = int.tryParse(_maxController.text.trim()) ?? 0;
     try {
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
         'notifPrefs': _prefs.toMap(),
@@ -158,7 +156,6 @@ class _NotificationPreferencesScreenState
         body: const Center(child: CircularProgressIndicator()),
       );
     }
-    final enabled = _prefs.newListing;
     return Scaffold(
       appBar: AppBar(title: const Text('Notification settings')),
       body: ListView(
@@ -179,144 +176,11 @@ class _NotificationPreferencesScreenState
                   contentPadding: EdgeInsets.zero,
                   title: const Text('New-listing notifications'),
                   subtitle: const Text(
-                    'Get alerted about new ads that match your interests.',
+                    'Get an alert whenever a new ad is posted on PakBazar.',
                   ),
                   value: _prefs.newListing,
                   activeThumbColor: kPakGreen,
-                  onChanged: _saving
-                      ? null
-                      : (v) => setState(() => _prefs.newListing = v),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Push notifications'),
-                  subtitle: const Text(
-                    'Off keeps them in the in-app inbox only.',
-                  ),
-                  value: _prefs.push,
-                  activeThumbColor: kPakGreen,
-                  onChanged: (!enabled || _saving)
-                      ? null
-                      : (v) => setState(() => _prefs.push = v),
-                ),
-                const Divider(height: 24),
-                const Text(
-                  'How often',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                RadioGroup<String>(
-                  groupValue: _prefs.mode,
-                  onChanged: (v) {
-                    if (!enabled || _saving || v == null) return;
-                    setState(() => _prefs.mode = v);
-                  },
-                  child: const Column(
-                    children: [
-                      RadioListTile<String>(
-                        contentPadding: EdgeInsets.zero,
-                        value: 'all',
-                        activeColor: kPakGreen,
-                        title: Text('All matching listings'),
-                      ),
-                      RadioListTile<String>(
-                        contentPadding: EdgeInsets.zero,
-                        value: 'daily',
-                        activeColor: kPakGreen,
-                        title: Text('Daily digest'),
-                      ),
-                      RadioListTile<String>(
-                        contentPadding: EdgeInsets.zero,
-                        value: 'weekly',
-                        activeColor: kPakGreen,
-                        title: Text('Weekly digest'),
-                      ),
-                      RadioListTile<String>(
-                        contentPadding: EdgeInsets.zero,
-                        value: 'off',
-                        activeColor: kPakGreen,
-                        title: Text('Off'),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 24),
-                const Text(
-                  'Categories you follow',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    for (final c in appCategories)
-                      FilterChip(
-                        label: Text(c.title),
-                        selected: _prefs.categories.contains(c.title),
-                        selectedColor: kPakGreen.withValues(alpha: 0.18),
-                        onSelected: (!enabled || _saving)
-                            ? null
-                            : (sel) => setState(() {
-                                if (sel) {
-                                  _prefs.categories = [
-                                    ..._prefs.categories,
-                                    c.title,
-                                  ];
-                                } else {
-                                  _prefs.categories = _prefs.categories
-                                      .where((x) => x != c.title)
-                                      .toList();
-                                }
-                              }),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _citiesController,
-                  enabled: enabled && !_saving,
-                  decoration: const InputDecoration(
-                    labelText: 'Cities you follow (comma separated)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _keywordsController,
-                  enabled: enabled && !_saving,
-                  decoration: const InputDecoration(
-                    labelText: 'Keywords (comma separated)',
-                    hintText: 'e.g. iphone, honda, sofa',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _minController,
-                        enabled: enabled && !_saving,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Min price (Rs)',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: _maxController,
-                        enabled: enabled && !_saving,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Max price (Rs)',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                  ],
+                  onChanged: _saving ? null : _setEnabled,
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
@@ -340,8 +204,10 @@ class _NotificationPreferencesScreenState
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'We only notify you about approved, in-stock listings that match '
-                  'what you follow â€” never every listing.',
+                  'You will be notified about every approved, in-stock ad, not '
+                  'just ones matching your interests. Turn this off any time to '
+                  'stop new-listing alerts on all your devices. Chat, order and '
+                  'offer notifications are not affected.',
                   style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                 ),
               ],
