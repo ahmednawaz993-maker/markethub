@@ -512,13 +512,11 @@ class _OrdersList extends StatelessWidget {
                               ),
                               if ((d['orderNumber']?.toString() ?? '')
                                   .isNotEmpty)
-                                Text(
-                                  d['orderNumber'].toString(),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textMuted,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                // Tap to copy: the number is what a user quotes
+                                // to support, and retyping "PB-1042" off a phone
+                                // screen into a chat is where mistakes happen.
+                                _CopyableOrderNumber(
+                                  number: d['orderNumber'].toString(),
                                 ),
                               Text(
                                 asSeller
@@ -798,6 +796,47 @@ class _OrdersList extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+/// The order's human-readable reference (PB-1042), tappable to copy. Every order
+/// has one — assigned by notifyOnNewOrder for single/offer orders and by the
+/// multi-seller fan-out (PB-1042-S1) for cart packages — so this is the handle a
+/// buyer or seller quotes when asking about an order later.
+class _CopyableOrderNumber extends StatelessWidget {
+  final String number;
+  const _CopyableOrderNumber({required this.number});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        Clipboard.setData(ClipboardData(text: number));
+        HapticFeedback.selectionClick();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Copied $number')),
+        );
+      },
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 1),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              number,
+              style: TextStyle(
+                fontSize: 11,
+                color: AppColors.textMuted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.copy, size: 11, color: AppColors.textMuted),
+          ],
+        ),
+      ),
     );
   }
 }

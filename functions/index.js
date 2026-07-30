@@ -1161,6 +1161,20 @@ exports.notifyOnNewOrder = onDocumentCreated(
 
     const db = getFirestore();
 
+    // Every order gets a human-readable reference (PB-1042) from the same
+    // sequence the multi-seller fan-out uses, so a number is unique across BOTH
+    // checkout paths and can be quoted in support, notifications and the admin
+    // Orders tab. Single-listing and offer-accepted orders had none before.
+    //
+    // Allocated before the validation branches below on purpose: an order that
+    // gets voided still needs to be referenceable ("my order PB-1042 failed").
+    // Guarded on the field being absent so a redelivered create event cannot
+    // burn a second number.
+    if (!order.orderNumber) {
+      const seq = await nextOrderNumber(db);
+      await snap.ref.set({ orderNumber: `PB-${seq}` }, { merge: true });
+    }
+
     // Seed the separate order-progress and payment-status fields (section 2) if
     // the client didn't set them. Order progress and money status are tracked in
     // DIFFERENT fields: a COD order is unpaid but processing; a paid escrow order

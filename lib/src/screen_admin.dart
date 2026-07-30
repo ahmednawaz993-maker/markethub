@@ -3164,8 +3164,42 @@ class _AdminTopupsTab extends StatelessWidget {
   }
 }
 
-class _AdminOrdersTab extends StatelessWidget {
+class _AdminOrdersTab extends StatefulWidget {
   const _AdminOrdersTab();
+
+  @override
+  State<_AdminOrdersTab> createState() => _AdminOrdersTabState();
+}
+
+class _AdminOrdersTabState extends State<_AdminOrdersTab> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// Matches an order against the search box. Order number first, since quoting
+  /// one is the whole point of having it, but participants and the ad title are
+  /// matched too so an admin helping someone who can't find their number is not
+  /// stuck. Case- and separator-insensitive on the number, so "pb1042",
+  /// "PB-1042" and "1042" all find PB-1042.
+  bool _matchesQuery(Map<String, dynamic> d) {
+    if (_query.isEmpty) return true;
+    final q = _query.toLowerCase().trim();
+    final loose = q.replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final number = (d['orderNumber']?.toString() ?? '').toLowerCase();
+    if (number.replaceAll(RegExp(r'[^a-z0-9]'), '').contains(loose) &&
+        loose.isNotEmpty) {
+      return true;
+    }
+    for (final f in ['buyerName', 'sellerName', 'listingTitle']) {
+      if ((d[f]?.toString() ?? '').toLowerCase().contains(q)) return true;
+    }
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3223,22 +3257,66 @@ class _AdminOrdersTab extends StatelessWidget {
             const _PendingCancellationsPanel(),
             const _PendingReturnsPanel(),
             const _PendingRefundsPanel(),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.page,
+                vertical: 8,
+              ),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search),
+                  hintText: 'Find an order — number, buyer, seller or ad…',
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.clear),
+                          tooltip: 'Clear',
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _query = '');
+                          },
+                        ),
+                ),
+                onChanged: (v) => setState(() => _query = v),
+              ),
+            ),
             Expanded(
-              child: docs.isEmpty
-                  ? const EmptyState(
+              child: Builder(
+                builder: (context) {
+                  // Stats above stay platform-wide; only the list is filtered.
+                  final shown = docs
+                      .where(
+                        (doc) =>
+                            _matchesQuery(doc.data() as Map<String, dynamic>),
+                      )
+                      .toList();
+                  if (docs.isEmpty) {
+                    return const EmptyState(
                       icon: Icons.receipt_long,
                       title: 'No orders yet',
-                    )
-                  : ListView.builder(
+                    );
+                  }
+                  if (shown.isEmpty) {
+                    return EmptyState(
+                      icon: Icons.search_off,
+                      title: 'No match',
+                      subtitle: 'No order matches "$_query".',
+                    );
+                  }
+                  return ListView.builder(
                       padding: const EdgeInsets.fromLTRB(
                         AppSpacing.page,
                         AppSpacing.lg,
                         AppSpacing.page,
                         AppSpacing.navClearance,
                       ),
-                      itemCount: docs.length,
+                      itemCount: shown.length,
                       itemBuilder: (context, i) {
-                        final d = docs[i].data() as Map<String, dynamic>;
+                        final d = shown[i].data() as Map<String, dynamic>;
+                        final number = d['orderNumber']?.toString() ?? '';
                         return Card(
                           margin: const EdgeInsets.only(bottom: 8),
                           child: ListTile(
@@ -3248,6 +3326,7 @@ class _AdminOrdersTab extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                             subtitle: Text(
+                              '${number.isEmpty ? shown[i].id : number}\n'
                               '${d['buyerName']} → ${d['sellerName']}\n'
                               '${formatPrice('${d['amount']}')} · '
                               'fee ${formatPrice('${d['commission']}')} · '
@@ -3286,14 +3365,19 @@ class _AdminOrdersTab extends StatelessWidget {
                                   ),
                                 );
                                 if (ok == true) {
-                                  await docs[i].reference.delete();
+                                  // shown[i], NOT docs[i] — with a search active
+                                  // the two lists differ and docs[i] would
+                                  // delete a completely unrelated order.
+                                  await shown[i].reference.delete();
                                 }
                               },
                             ),
                           ),
                         );
                       },
-                    ),
+                  );
+                },
+              ),
             ),
           ],
         );
