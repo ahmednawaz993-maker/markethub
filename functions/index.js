@@ -44,8 +44,6 @@ const {
   broadcastTarget,
   shouldBroadcastListing,
   becamePublic,
-  broadcastSignatureSource,
-  hasBroadcastableChange,
   broadcastMessage,
   wantsBroadcast,
 } = require("./broadcast_logic");
@@ -422,8 +420,9 @@ exports.onReviewWrite = onDocumentWritten(
 );
 
 // ---------------------------------------------------------------------------
-// Listing broadcast: EVERY user is told about EVERY listing that goes public
-// (approved + in stock), and again after every edit to its content.
+// New-listing broadcast: every user is told ONCE about each listing that goes
+// public (approved + in stock). Something genuinely new on the platform is worth
+// everyone's attention — a seller re-editing it is not.
 //
 // Delivery is a single FCM topic send, not a per-user fan-out: every opted-in
 // device is subscribed to NEW_LISTING_TOPIC, so one listing costs one send no
@@ -431,68 +430,63 @@ exports.onReviewWrite = onDocumentWritten(
 // cannot be personalised and leaves no per-user record — there is no in-app
 // inbox copy for a broadcast, unlike pushToUser().
 //
-// What counts as an edit is decided by BROADCAST_FIELDS in broadcast_logic.js
-// — an allow-list, because the app bumps a `views` counter on every ad open
-// and announcing that would push to the whole userbase on every page view.
+// ⚠️ ONCE PER LISTING, deliberately (changed 2026-07-30). This used to re-announce
+// after every edit to a listing's content, which was the platform's main source of
+// notification spam: editing an ad puts it back in the moderation queue, so each
+// re-approval pushed "Updated in <category>" to the entire userbase about an ad
+// that was not new. One seller adjusting a price could buzz every phone in the
+// country several times. Worse, a push drives people to open the ad, which is a
+// loop that feeds itself. If per-edit announcements are ever wanted again they
+// need per-listing rate limiting and an opt-out that is actually discoverable —
+// do not simply restore the old behaviour.
 //
-// This replaced the older interest-matched alerts (saved searches / followed
-// categories / followed sellers, capped at 5 a day). Saved searches still
-// exist as a browse convenience, they just no longer trigger notifications.
+// Unsolicited pushes beyond this are ADMIN-INITIATED ONLY, via the "Notify" tab
+// (adminBroadcasts -> onAdminBroadcastCreated -> ANNOUNCEMENT_TOPIC).
 //
 // Opting out: notifPrefs.newListing=false, notifPrefs.push=false, or
 // notifPrefs.mode='off' unsubscribes that user's devices from the topic — see
 // wantsBroadcast() and syncNewListingTopicOnPrefs() below.
 // ---------------------------------------------------------------------------
 
-// Fingerprint of the listing content a broadcast is about, so the same
-// revision is never announced twice.
-function broadcastSignature(listing) {
-  return crypto
-    .createHash("sha1")
-    .update(broadcastSignatureSource(listing))
-    .digest("hex");
-}
-
-// Announces one listing to the whole userbase — both the first time it goes
-// public and again after every edit to its content.
+// Announces one listing to the whole userbase, the first time it becomes public
+// and never again.
 //
-// listingBroadcasts/{listingId} records the signature of the last revision
-// announced. Claiming it in a transaction gives three things at once:
-// duplicate suppression (the create trigger and the approval-update trigger
-// can both fire for the same revision, only one sends), retry safety (a redelivered
-// event carries the same signature), and serialisation of two edits landing
-// together. The stored signature is cleared if the send fails so the revision
-// can still be announced on a retry.
-//
-// 'new' vs 'updated' is derived from whether this listing has ever been
-// announced, so callers do not have to know.
+// listingBroadcasts/{listingId} is the once-only claim. Taking it in a
+// transaction gives duplicate suppression (the create trigger and the
+// approval-update trigger can both fire for the same listing, only one sends),
+// retry safety (a redelivered event finds the claim already held), and
+// serialisation of two writes landing together. The claim is released if the
+// send itself fails, so a genuine failure can still be retried.
 async function broadcastListing(db, listing, listingId) {
   if (!shouldBroadcastListing(listing)) return;
 
   const claim = db.collection("listingBroadcasts").doc(String(listingId));
-  const signature = broadcastSignature(listing);
 
-  const kind = await db.runTransaction(async (tx) => {
+  const fresh = await db.runTransaction(async (tx) => {
     const snap = await tx.get(claim);
     const prev = snap.exists ? snap.data() : null;
-    if (prev && prev.signature === signature) return null; // nothing new
+    // A claim doc exists only because we already announced this listing (or are
+    // mid-send). Only an outright send FAILURE is worth retrying. Keying off mere
+    // existence rather than a new field matters for migration: docs written by
+    // the old per-edit behaviour carry `signature`/`broadcastCount` and no
+    // announced flag, and must not each earn one final push on deploy.
+    if (prev && prev.deliveryStatus !== "failed") return false;
     tx.set(
       claim,
       {
         listingId: String(listingId),
         sellerId: listing.userId || "",
-        signature,
+        announced: true,
         sentAt: Timestamp.now(),
         deliveryStatus: "sending",
-        broadcastCount: FieldValue.increment(1),
       },
       { merge: true }
     );
-    return prev ? "updated" : "new";
+    return true;
   });
-  if (!kind) return;
+  if (!fresh) return;
 
-  const { title, body } = broadcastMessage(listing, kind);
+  const { title, body } = broadcastMessage(listing, "new");
   try {
     const messageId = await getMessaging().send({
       // Everyone on the topic EXCEPT the seller's own devices.
@@ -500,7 +494,7 @@ async function broadcastListing(db, listing, listingId) {
       notification: { title, body },
       // The app's openNotificationTarget() already routes type 'newListing'
       // + a listing id to the ad screen, so taps deep-link for free.
-      data: { type: "newListing", listingId: String(listingId), kind },
+      data: { type: "newListing", listingId: String(listingId), kind: "new" },
       android: ANDROID_ALERT,
       apns: APNS_ALERT,
       webpush: {
@@ -508,11 +502,14 @@ async function broadcastListing(db, listing, listingId) {
         fcmOptions: { link: "/" },
       },
     });
-    await claim.set({ deliveryStatus: "sent", kind, messageId }, { merge: true });
+    await claim.set(
+      { deliveryStatus: "sent", kind: "new", messageId },
+      { merge: true }
+    );
   } catch (e) {
-    // Drop the signature so this revision is retried rather than swallowed.
+    // Mark the claim failed — the only state the transaction above will retry.
     await claim
-      .set({ deliveryStatus: "failed", signature: "" }, { merge: true })
+      .set({ deliveryStatus: "failed", announced: false }, { merge: true })
       .catch(() => {});
     throw e;
   }
@@ -841,16 +838,16 @@ exports.notifyOnPriceDrop = onDocumentUpdated(
     const after = event.data && event.data.after.data();
     if (!before || !after) return;
 
-    // Announce the listing to everyone, both when it first goes public and
-    // after every edit to its content. Two paths reach here:
-    //   • becamePublic — approvalStatus went to 'approved'. This is the normal
-    //     edit flow too: editing an ad puts it back in the moderation queue
-    //     (screen_my_ads.dart), so the re-approval is what announces the edit.
-    //   • hasBroadcastableChange — content changed while the ad stayed public
-    //     (auto-approved/demo sellers, admin edits, inventory status changes).
-    // broadcastListing() re-checks that the ad is approved + in stock, so an
-    // edit that is still pending review is not announced early.
-    if (becamePublic(before, after) || hasBroadcastableChange(before, after)) {
+    // Announce the listing to everyone the FIRST time it becomes public, and
+    // never again. becamePublic fires whenever approvalStatus reaches
+    // 'approved', which includes every re-approval after an edit — the
+    // once-only claim inside broadcastListing() is what stops those from
+    // re-buzzing the userbase. broadcastListing() also re-checks that the ad is
+    // approved + in stock, so an edit still pending review is not announced early.
+    //
+    // The old `|| hasBroadcastableChange(before, after)` arm is gone on purpose:
+    // it existed to announce edits, which is exactly the spam we removed.
+    if (becamePublic(before, after)) {
       await broadcastListing(getFirestore(), after, event.params.listingId);
     }
 
