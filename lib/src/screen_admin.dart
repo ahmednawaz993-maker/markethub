@@ -30,6 +30,10 @@ class AdminPanelScreen extends StatelessWidget {
     const entries = <(String, String, Widget)>[
       ('__super', 'Overview', _AdminOverviewTab()),
       ('__super', 'Staff', _AdminStaffTab()),
+      // Near the front on purpose: with ~27 scrollable tabs, anything past the
+      // first few is effectively undiscoverable, and sending an announcement is
+      // a thing you reach for in a hurry ("payouts are delayed today").
+      ('broadcasts', 'Notify', _AdminBroadcastTab()),
       ('activity', 'Activity', _AdminActivityTab()),
       ('approvals', 'Approvals', _AdminApprovalsTab()),
       ('verifyId', 'Verify ID', _AdminVerificationsTab()),
@@ -53,7 +57,6 @@ class AdminPanelScreen extends StatelessWidget {
       ('chats', 'Chats', _AdminChatsTab()),
       ('appeals', 'Appeals', _AdminAppealsTab()),
       ('deletions', 'Deletions', _AdminDeletionsTab()),
-      ('broadcasts', 'Notify', _AdminBroadcastTab()),
       ('__super', 'Lucky Draw', _AdminLuckyDrawTab()),
     ];
     final visible = entries.where((e) {

@@ -529,20 +529,24 @@ async function broadcastListing(db, listing, listingId) {
 // FCM's topic-management endpoints accept at most 1000 tokens per call.
 const TOPIC_BATCH = 1000;
 
-async function setTopicSubscription(tokens, subscribed) {
+async function setTopicSubscription(
+  tokens,
+  subscribed,
+  topic = NEW_LISTING_TOPIC
+) {
   const messaging = getMessaging();
   for (let i = 0; i < tokens.length; i += TOPIC_BATCH) {
     const batch = tokens.slice(i, i + TOPIC_BATCH);
     try {
       if (subscribed) {
-        await messaging.subscribeToTopic(batch, NEW_LISTING_TOPIC);
+        await messaging.subscribeToTopic(batch, topic);
       } else {
-        await messaging.unsubscribeFromTopic(batch, NEW_LISTING_TOPIC);
+        await messaging.unsubscribeFromTopic(batch, topic);
       }
     } catch (e) {
       // One dead token must not stop the rest of the batch; the daily
       // reconciler retries whatever did not stick.
-      console.error("new-listing topic batch failed", e);
+      console.error(`${topic} topic batch failed`, e);
     }
   }
 }
@@ -635,10 +639,21 @@ exports.syncNewListingTopicOnPrefs = onDocumentUpdated(
 // Self-healing sweep: re-asserts every user's subscription once a day, so a
 // dropped trigger or a failed batch cannot leave someone permanently silent —
 // or, worse, still being blasted after opting out.
+//
+// Also re-asserts ANNOUNCEMENT_TOPIC for every device that has a token. That
+// subscription is otherwise only ever written by syncNewListingTopicOnToken, so
+// without this sweep two things go wrong: a device whose subscribe call failed
+// (the error is logged and swallowed) can never hear an announcement again, and
+// anyone who has not reopened the app since announcements shipped was never
+// subscribed in the first place — making "Send to everyone" silently reach only
+// a fraction of the userbase.
 exports.reconcileNewListingTopic = onSchedule("every 24 hours", async () => {
   const db = getFirestore();
   const subscribe = [];
   const unsubscribe = [];
+  // Every live token, regardless of preferences: announcements are service
+  // messages, and the new-listing opt-out is only about marketplace noise.
+  const announce = [];
   const PAGE = 500;
 
   let page = await db.collection("users").orderBy("__name__").limit(PAGE).get();
@@ -646,6 +661,7 @@ exports.reconcileNewListingTopic = onSchedule("every 24 hours", async () => {
     for (const u of page.docs) {
       const tokens = await userTokens(db, u.id);
       if (tokens.length === 0) continue;
+      announce.push(...tokens);
       (wantsBroadcast(u.data()) ? subscribe : unsubscribe).push(...tokens);
     }
     if (page.size < PAGE) break;
@@ -659,9 +675,11 @@ exports.reconcileNewListingTopic = onSchedule("every 24 hours", async () => {
 
   await setTopicSubscription(subscribe, true);
   await setTopicSubscription(unsubscribe, false);
+  await setTopicSubscription(announce, true, ANNOUNCEMENT_TOPIC);
   console.log(
     `new-listing topic reconciled: ${subscribe.length} subscribed, ` +
-      `${unsubscribe.length} unsubscribed`
+      `${unsubscribe.length} unsubscribed; ` +
+      `${announce.length} tokens on ${ANNOUNCEMENT_TOPIC}`
   );
 });
 
