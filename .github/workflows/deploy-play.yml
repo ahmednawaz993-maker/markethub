@@ -20,6 +20,13 @@ on:
       # must not ship a new AAB to Play (they still run via smoke-test.yml).
       - "functions/*smoke*_test.js"
       - "functions/**/*.test.js"
+      # Cloud Functions are deployed by hand (`firebase deploy --only
+      # functions:<name>`) — there is no CI workflow for them — and none of
+      # their code ends up in the AAB, so a backend-only change must not
+      # re-upload an identical app for Google to review. A commit that touches
+      # app code AND functions still builds: paths-ignore only skips the run
+      # when EVERY changed file matches.
+      - "functions/**"
       - ".github/workflows/smoke-test.yml"
       # Firestore rules/indexes ship via deploy-firestore.yml, not a Play build.
       - ".github/workflows/deploy-firestore.yml"

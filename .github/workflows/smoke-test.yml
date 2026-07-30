@@ -9,15 +9,24 @@ name: Backend smoke tests
 # Failure of any one fails the job (steps run in order; each cleans up its own).
 #
 # Triggers:
+#   - on push to main touching functions/** — a backend-only change no longer
+#     runs the Play deploy (see that workflow's paths-ignore), so without this
+#     the post-deploy check below would never fire for exactly the commits most
+#     likely to break the backend
 #   - after "Deploy to Google Play" finishes successfully (post-deploy check)
 #   - manually from the Actions tab (workflow_dispatch)
 #   - nightly (schedule) so a broken backend surfaces even without a deploy
-# To make it manual-only, delete the `workflow_run` and `schedule` blocks below.
+# To make it manual-only, delete the `push`, `workflow_run` and `schedule` blocks
+# below.
 #
 # Requires repo secret PLAY_SERVICE_ACCOUNT_JSON (the Firebase Admin SDK service
 # account — same one the deploy workflow uses), which has Firestore access.
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "functions/**"
   workflow_run:
     workflows: ["Deploy to Google Play"]
     types: [completed]
