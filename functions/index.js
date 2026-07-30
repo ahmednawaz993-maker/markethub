@@ -557,11 +557,6 @@ async function userTokens(db, uid) {
   return snap.docs.map((d) => d.id);
 }
 
-// Puts a device in (or out of) the topic naming its owner. That membership is
-// what lets a broadcast exclude the seller's own devices — see broadcastTarget().
-// Handled per-token rather than in the daily reconciler because a seller must
-// open the app (which rewrites its token doc) before they can post, so this
-// always runs before their first listing.
 // Puts a device in (or out of) the admin-announcement topic.
 async function setAnnouncementSubscription(token, subscribed) {
   const messaging = getMessaging();
@@ -576,19 +571,46 @@ async function setAnnouncementSubscription(token, subscribed) {
   }
 }
 
-async function setUserTopicSubscription(token, uid, subscribed) {
+// Puts a device in (or out of) the topic naming its owner. That membership is
+// what lets a broadcast exclude the seller's own devices — see broadcastTarget().
+// Accepts one token or many, since the token trigger has a single token while
+// the daily reconciler re-asserts all of a user's devices at once. Returns
+// whether the call landed, so the reconciler can report how much stuck.
+async function setUserTopicSubscription(tokens, uid, subscribed) {
   const topic = userTopic(uid);
-  if (!topic) return;
+  if (!topic) return false;
+  const list = Array.isArray(tokens) ? tokens : [tokens];
+  if (list.length === 0) return false;
   const messaging = getMessaging();
   try {
     if (subscribed) {
-      await messaging.subscribeToTopic([token], topic);
+      await messaging.subscribeToTopic(list, topic);
     } else {
-      await messaging.unsubscribeFromTopic([token], topic);
+      await messaging.unsubscribeFromTopic(list, topic);
     }
+    return true;
   } catch (e) {
     console.error(`user topic ${topic} subscription failed`, e);
+    return false;
   }
+}
+
+// Re-asserts every user's own exclusion topic. Unlike the two shared topics this
+// CANNOT be batched — each user has a distinct topic, so it is one FCM call per
+// user. Run with bounded concurrency: serial would blow the sweep's timeout once
+// the userbase grows, and unbounded would open thousands of sockets at once.
+const USER_TOPIC_CONCURRENCY = 20;
+
+async function reconcileUserTopics(entries) {
+  let ok = 0;
+  for (let i = 0; i < entries.length; i += USER_TOPIC_CONCURRENCY) {
+    const slice = entries.slice(i, i + USER_TOPIC_CONCURRENCY);
+    const results = await Promise.all(
+      slice.map((e) => setUserTopicSubscription(e.tokens, e.uid, true))
+    );
+    ok += results.filter(Boolean).length;
+  }
+  return ok;
 }
 
 // A device registered (or refreshed) its push token. The app rewrites this doc
@@ -647,41 +669,62 @@ exports.syncNewListingTopicOnPrefs = onDocumentUpdated(
 // anyone who has not reopened the app since announcements shipped was never
 // subscribed in the first place — making "Send to everyone" silently reach only
 // a fraction of the userbase.
-exports.reconcileNewListingTopic = onSchedule("every 24 hours", async () => {
-  const db = getFirestore();
-  const subscribe = [];
-  const unsubscribe = [];
-  // Every live token, regardless of preferences: announcements are service
-  // messages, and the new-listing opt-out is only about marketplace noise.
-  const announce = [];
-  const PAGE = 500;
+//
+// And the same for each user's own `user_{uid}` topic, which carries no messages
+// but is what lets a new-listing broadcast exclude the seller's own devices. It
+// had the identical gap: written only by the token trigger, so a failed call
+// meant that seller got pushed their own listings forever.
+//
+// The per-user pass is one FCM call per user, so this needs more than the 60s
+// default timeout as the userbase grows.
+exports.reconcileNewListingTopic = onSchedule(
+  { schedule: "every 24 hours", timeoutSeconds: 540, memory: "512MiB" },
+  async () => {
+    const db = getFirestore();
+    const subscribe = [];
+    const unsubscribe = [];
+    // Every live token, regardless of preferences: announcements are service
+    // messages, and the new-listing opt-out is only about marketplace noise.
+    const announce = [];
+    // One entry per user with devices — cannot be flattened, each needs its own
+    // topic call.
+    const owners = [];
+    const PAGE = 500;
 
-  let page = await db.collection("users").orderBy("__name__").limit(PAGE).get();
-  while (!page.empty) {
-    for (const u of page.docs) {
-      const tokens = await userTokens(db, u.id);
-      if (tokens.length === 0) continue;
-      announce.push(...tokens);
-      (wantsBroadcast(u.data()) ? subscribe : unsubscribe).push(...tokens);
-    }
-    if (page.size < PAGE) break;
-    page = await db
+    let page = await db
       .collection("users")
       .orderBy("__name__")
-      .startAfter(page.docs[page.size - 1])
       .limit(PAGE)
       .get();
-  }
+    while (!page.empty) {
+      for (const u of page.docs) {
+        const tokens = await userTokens(db, u.id);
+        if (tokens.length === 0) continue;
+        announce.push(...tokens);
+        owners.push({ uid: u.id, tokens });
+        (wantsBroadcast(u.data()) ? subscribe : unsubscribe).push(...tokens);
+      }
+      if (page.size < PAGE) break;
+      page = await db
+        .collection("users")
+        .orderBy("__name__")
+        .startAfter(page.docs[page.size - 1])
+        .limit(PAGE)
+        .get();
+    }
 
-  await setTopicSubscription(subscribe, true);
-  await setTopicSubscription(unsubscribe, false);
-  await setTopicSubscription(announce, true, ANNOUNCEMENT_TOPIC);
-  console.log(
-    `new-listing topic reconciled: ${subscribe.length} subscribed, ` +
-      `${unsubscribe.length} unsubscribed; ` +
-      `${announce.length} tokens on ${ANNOUNCEMENT_TOPIC}`
-  );
-});
+    await setTopicSubscription(subscribe, true);
+    await setTopicSubscription(unsubscribe, false);
+    await setTopicSubscription(announce, true, ANNOUNCEMENT_TOPIC);
+    const ownersOk = await reconcileUserTopics(owners);
+    console.log(
+      `new-listing topic reconciled: ${subscribe.length} subscribed, ` +
+        `${unsubscribe.length} unsubscribed; ` +
+        `${announce.length} tokens on ${ANNOUNCEMENT_TOPIC}; ` +
+        `${ownersOk}/${owners.length} owner topics re-asserted`
+    );
+  }
+);
 
 // ---------------------------------------------------------------------------
 // Admin-composed notifications ("Notify" tab in the admin panel).
