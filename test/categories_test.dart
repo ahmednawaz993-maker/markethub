@@ -30,6 +30,8 @@ void main() {
       advertiseOnly: false,
       advertiseOnlySubs: {'Cars'},
       hidden: true,
+      attributes: ['Year', 'KM driven'],
+      colorValue: 0xFF1E88E5,
     );
     final r = MarketplaceCategory.fromMap(original.toMap());
     expect(r.title, 'Motors');
@@ -38,6 +40,34 @@ void main() {
     expect(r.advertiseOnlySubs, {'Cars'});
     expect(r.hidden, isTrue);
     expect(r.advertiseOnly, isFalse);
+    expect(r.attributes, ['Year', 'KM driven']);
+    expect(r.colorValue, 0xFF1E88E5);
+    expect(r.color, const Color(0xFF1E88E5));
+  });
+
+  test('a category with no colour round-trips as auto', () {
+    const original = MarketplaceCategory(
+      title: 'Plain',
+      icon: Icons.category,
+      subcategories: [],
+    );
+    final r = MarketplaceCategory.fromMap(original.toMap());
+    expect(r.colorValue, isNull);
+    expect(r.color, isNull);
+    expect(r.attributes, isEmpty);
+  });
+
+  test('copyWith can clear a colour back to auto', () {
+    const c = MarketplaceCategory(
+      title: 'X',
+      icon: Icons.category,
+      subcategories: [],
+      colorValue: 0xFF123456,
+    );
+    // A bare null cannot mean "reset" - that is what clearColor is for.
+    expect(c.copyWith().colorValue, 0xFF123456);
+    expect(c.copyWith(colorValue: null).colorValue, 0xFF123456);
+    expect(c.copyWith(clearColor: true).colorValue, isNull);
   });
 
   test('advertise-only defaults are folded onto the built-in catalog', () {
@@ -47,6 +77,91 @@ void main() {
     final motors = cat.firstWhere((c) => c.title == 'Motors');
     expect(motors.advertiseOnly, isFalse);
     expect(motors.advertiseOnlySubs, contains('Cars'));
+  });
+
+  test('attribute and colour defaults are folded onto the catalog', () {
+    final cat = defaultCatalog();
+    final motors = cat.firstWhere((c) => c.title == 'Motors');
+    expect(motors.attributes, contains('KM driven'));
+    expect(motors.colorValue, 0xFF1E88E5);
+    // A category with no curated spec fields stays empty rather than inheriting.
+    final community = cat.firstWhere((c) => c.title == 'Community');
+    expect(community.attributes, isEmpty);
+  });
+
+  group('attributeFieldsFor reads the live catalog', () {
+    setUp(() => appCategories = defaultCatalog());
+
+    test('returns the built-in fields before any admin edit', () {
+      expect(attributeFieldsFor('Motors'), contains('Year'));
+    });
+
+    test('follows an admin edit', () {
+      applyStoredCategories({
+        'items': [
+          {
+            'title': 'Motors',
+            'icon': 'directions_car',
+            'attributes': ['Engine size', 'Fuel'],
+          },
+        ],
+      });
+      expect(attributeFieldsFor('Motors'), ['Engine size', 'Fuel']);
+    });
+
+    test('an admin emptying the fields is respected, not re-defaulted', () {
+      applyStoredCategories({
+        'items': [
+          {
+            'title': 'Motors',
+            'icon': 'directions_car',
+            'attributes': <String>[],
+          },
+        ],
+      });
+      expect(attributeFieldsFor('Motors'), isEmpty);
+    });
+
+    test('an unknown category still falls back to the built-ins', () {
+      applyStoredCategories({
+        'items': [
+          {'title': 'Something Else', 'icon': 'category'},
+        ],
+      });
+      expect(attributeFieldsFor('Properties'), contains('Bedrooms'));
+    });
+  });
+
+  group('categoryAccent', () {
+    setUp(() => appCategories = defaultCatalog());
+
+    test('uses the category colour when set', () {
+      expect(categoryAccent('Motors', 0), const Color(0xFF1E88E5));
+    });
+
+    test('falls back to a stable palette slot when unset', () {
+      applyStoredCategories({
+        'items': [
+          {'title': 'Nameless', 'icon': 'category'},
+        ],
+      });
+      expect(categoryAccent('Nameless', 0), kCategoryPalette[0]);
+      expect(categoryAccent('Nameless', 1), kCategoryPalette[1]);
+      // Wraps rather than throwing once the index exceeds the palette.
+      expect(
+        categoryAccent('Nameless', kCategoryPalette.length),
+        kCategoryPalette[0],
+      );
+    });
+
+    test('follows an admin colour change', () {
+      applyStoredCategories({
+        'items': [
+          {'title': 'Motors', 'icon': 'directions_car', 'colorValue': 0xFFAA0000},
+        ],
+      });
+      expect(categoryAccent('Motors', 0), const Color(0xFFAA0000));
+    });
   });
 
   group('applyStoredCategories refuses to blank the marketplace', () {

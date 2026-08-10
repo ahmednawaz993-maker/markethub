@@ -380,9 +380,21 @@ const List<String> pricingUnits = [
   'month',
 ];
 
-/// Optional spec fields shown when posting/editing in certain categories
-/// (e.g. car year & mileage, property bedrooms & area).
+/// Optional spec fields shown when posting/editing in a category (e.g. car year
+/// & mileage, property bedrooms & area).
+///
+/// Reads the live, admin-managed catalog. Falls back to the built-in defaults
+/// only for a category that is not in the catalog at all — a category whose
+/// fields the admin has deliberately emptied must stay empty, so an empty list
+/// on a KNOWN category is respected rather than re-defaulted.
 List<String> attributeFieldsFor(String category) {
+  for (final c in appCategories) {
+    if (c.title == category) return c.attributes;
+  }
+  return _defaultAttributeFields(category);
+}
+
+List<String> _defaultAttributeFields(String category) {
   switch (category) {
     case 'Motors':
       return const ['Make / Brand', 'Year', 'KM driven', 'Color'];
@@ -517,6 +529,19 @@ class MarketplaceCategory {
   /// anywhere new. Lets an admin retire a category without orphaning its ads.
   final bool hidden;
 
+  /// Extra spec fields shown when posting or editing in this category, e.g.
+  /// ['Make / Brand', 'Year', 'KM driven'] for Motors. Empty means none.
+  ///
+  /// A listing stores its answers in an `attributes` map KEYED BY THESE LABELS,
+  /// so renaming one orphans the values already saved under the old label. The
+  /// ad still shows and sells fine; the field just reads blank.
+  final List<String> attributes;
+
+  /// Accent colour for the category card, as an ARGB int (null = auto-assign
+  /// from the shared palette). Stored as an int because Firestore has no colour
+  /// type and an int survives a JSON round trip exactly.
+  final int? colorValue;
+
   const MarketplaceCategory({
     required this.title,
     required this.icon,
@@ -524,7 +549,12 @@ class MarketplaceCategory {
     this.advertiseOnly = false,
     this.advertiseOnlySubs = const {},
     this.hidden = false,
+    this.attributes = const [],
+    this.colorValue,
   });
+
+  /// The card accent, or null to let the caller fall back to the palette.
+  Color? get color => colorValue == null ? null : Color(colorValue!);
 
   Map<String, dynamic> toMap() => {
     'title': title,
@@ -533,6 +563,8 @@ class MarketplaceCategory {
     'advertiseOnly': advertiseOnly,
     'advertiseOnlySubs': advertiseOnlySubs.toList(),
     'hidden': hidden,
+    'attributes': attributes,
+    'colorValue': colorValue,
   };
 
   /// Tolerant on purpose: this parses admin-authored data, and one malformed
@@ -551,9 +583,18 @@ class MarketplaceCategory {
           .map((e) => e.toString())
           .toSet(),
       hidden: m['hidden'] == true,
+      attributes: ((m['attributes'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .where((e) => e.isNotEmpty)
+          .toList(),
+      colorValue: m['colorValue'] is num
+          ? (m['colorValue'] as num).toInt()
+          : null,
     );
   }
 
+  /// `clearColor` exists because a null [colorValue] argument cannot mean "reset
+  /// to auto" and "leave unchanged" at the same time.
   MarketplaceCategory copyWith({
     String? title,
     IconData? icon,
@@ -561,6 +602,9 @@ class MarketplaceCategory {
     bool? advertiseOnly,
     Set<String>? advertiseOnlySubs,
     bool? hidden,
+    List<String>? attributes,
+    int? colorValue,
+    bool clearColor = false,
   }) {
     return MarketplaceCategory(
       title: title ?? this.title,
@@ -569,6 +613,8 @@ class MarketplaceCategory {
       advertiseOnly: advertiseOnly ?? this.advertiseOnly,
       advertiseOnlySubs: advertiseOnlySubs ?? this.advertiseOnlySubs,
       hidden: hidden ?? this.hidden,
+      attributes: attributes ?? this.attributes,
+      colorValue: clearColor ? null : (colorValue ?? this.colorValue),
     );
   }
 }
@@ -906,8 +952,69 @@ const Set<String> _defaultAdvertiseOnlySubcategories = {
   'Car Rental',
 };
 
-/// The built-in catalog with the advertise-only seeds folded onto each category,
-/// so a stored catalog and a fallback catalog have exactly the same shape.
+/// Default accent colour per category, so the grid reads as colourful rather
+/// than uniform. Seed values only: once stored, the colour lives on the category
+/// and the admin owns it. Anything without one cycles through [kCategoryPalette].
+const Map<String, int> _defaultCategoryColors = {
+  'Food & Grocery': 0xFFF4511E, // deep orange
+  'Dry Fruits': 0xFFF9A825, // golden amber
+  'Supplements': 0xFF2E7D32, // vitamin green
+  'Motors': 0xFF1E88E5, // blue
+  'Commute & Rides': 0xFF00897B, // teal
+  'Properties': 0xFF43A047, // green
+  'Mobiles & Tablets': 0xFF3949AB, // indigo
+  'Electronics': 0xFF00ACC1, // cyan
+  'Home & Furniture': 0xFF8D6E63, // brown
+  'Crockery': 0xFFFB8C00, // amber
+  'Garments': 0xFFD81B60, // pink
+  'Men Essentials': 0xFF546E7A, // blue grey
+  'Women Essentials': 0xFF8E24AA, // purple
+  'Kids Essentials': 0xFF039BE5, // light blue
+  'Jobs': 0xFF5E35B1, // deep purple
+  'Services': 0xFFE53935, // red
+  'Pets': 0xFF7CB342, // light green
+  'Sports & Hobbies': 0xFFC0CA33, // lime
+  'Business & Industrial': 0xFF6D4C41, // dark brown
+  'Community': 0xFF00838F, // dark cyan
+};
+
+/// Fallback accents for categories with no colour set, and the swatches the
+/// admin colour picker offers.
+const List<Color> kCategoryPalette = [
+  Color(0xFFF4511E),
+  Color(0xFF1E88E5),
+  Color(0xFF43A047),
+  Color(0xFF8E24AA),
+  Color(0xFF00897B),
+  Color(0xFFFB8C00),
+  Color(0xFFD81B60),
+  Color(0xFF3949AB),
+  Color(0xFFF9A825),
+  Color(0xFF2E7D32),
+  Color(0xFF00ACC1),
+  Color(0xFF8D6E63),
+  Color(0xFF546E7A),
+  Color(0xFF039BE5),
+  Color(0xFF5E35B1),
+  Color(0xFFE53935),
+  Color(0xFF7CB342),
+  Color(0xFFC0CA33),
+  Color(0xFF6D4C41),
+  Color(0xFF00838F),
+];
+
+/// The accent for a category card: the admin's colour if set, else a stable
+/// slot from the shared palette so new categories still look deliberate.
+Color categoryAccent(String title, int index) {
+  for (final c in appCategories) {
+    if (c.title == title && c.color != null) return c.color!;
+  }
+  return kCategoryPalette[index % kCategoryPalette.length];
+}
+
+/// The built-in catalog with the advertise-only, attribute and colour seeds
+/// folded onto each category, so a stored catalog and a fallback catalog have
+/// exactly the same shape.
 List<MarketplaceCategory> defaultCatalog() => [
   for (final c in kDefaultCategories)
     c.copyWith(
@@ -915,6 +1022,8 @@ List<MarketplaceCategory> defaultCatalog() => [
       advertiseOnlySubs: c.subcategories
           .where(_defaultAdvertiseOnlySubcategories.contains)
           .toSet(),
+      attributes: _defaultAttributeFields(c.title),
+      colorValue: _defaultCategoryColors[c.title],
     ),
 ];
 

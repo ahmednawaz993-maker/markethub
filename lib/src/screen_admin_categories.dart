@@ -105,6 +105,8 @@ class _AdminCategoriesTabState extends State<_AdminCategoriesTab> {
         icon: result.icon,
         subcategories: const [],
         advertiseOnly: result.advertiseOnly,
+        attributes: result.attributes,
+        colorValue: result.colorValue,
       ),
     ], 'Added "${result.title}".');
   }
@@ -173,6 +175,10 @@ class _AdminCategoriesTabState extends State<_AdminCategoriesTab> {
       title: result.title,
       icon: result.icon,
       advertiseOnly: result.advertiseOnly,
+      attributes: result.attributes,
+      colorValue: result.colorValue,
+      // Distinguishes "picked Auto" from "left unchanged" — see copyWith.
+      clearColor: result.colorValue == null,
     );
     final ok = await _save(next, 'Updated "${result.title}".');
     if (ok && migrate) {
@@ -657,7 +663,9 @@ class _CategoryCard extends StatelessWidget {
               children: [
                 Icon(Icons.drag_indicator, color: AppColors.textMuted),
                 const SizedBox(width: 4),
-                Icon(c.icon, color: kPakGreen),
+                // Shown in its actual accent, so the grid's look is reviewable
+                // from this list without opening each editor.
+                Icon(c.icon, color: c.color ?? kPakGreen),
               ],
             ),
           ),
@@ -681,9 +689,14 @@ class _CategoryCard extends StatelessWidget {
             ],
           ),
           subtitle: Text(
-            c.subcategories.isEmpty
-                ? 'No subcategories'
-                : '${c.subcategories.length} subcategories',
+            [
+              c.subcategories.isEmpty
+                  ? 'No subcategories'
+                  : '${c.subcategories.length} subcategories',
+              if (c.attributes.isNotEmpty)
+                '${c.attributes.length} spec '
+                    '${c.attributes.length == 1 ? 'field' : 'fields'}',
+            ].join('  ·  '),
             style: TextStyle(fontSize: 11.5, color: AppColors.textMuted),
           ),
           trailing: PopupMenuButton<String>(
@@ -830,7 +843,15 @@ class _CategoryDraft {
   final String title;
   final IconData icon;
   final bool advertiseOnly;
-  const _CategoryDraft(this.title, this.icon, this.advertiseOnly);
+  final List<String> attributes;
+  final int? colorValue;
+  const _CategoryDraft(
+    this.title,
+    this.icon,
+    this.advertiseOnly,
+    this.attributes,
+    this.colorValue,
+  );
 }
 
 class _CategoryEditorDialog extends StatefulWidget {
@@ -847,11 +868,38 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
   );
   late String _icon = iconNameFor(widget.existing?.icon ?? Icons.category);
   late bool _advertiseOnly = widget.existing?.advertiseOnly ?? false;
+  late final List<String> _attributes = List.of(
+    widget.existing?.attributes ?? const [],
+  );
+  late int? _colorValue = widget.existing?.colorValue;
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _addAttribute() async {
+    final name = await _promptForText(context, 'New spec field', '');
+    if (name == null || name.isEmpty) return;
+    if (_attributes.any((a) => a.toLowerCase() == name.toLowerCase())) return;
+    setState(() => _attributes.add(name));
+  }
+
+  Future<void> _renameAttribute(int i) async {
+    final name = await _promptForText(
+      context,
+      'Rename spec field',
+      _attributes[i],
+      // Values already saved on listings are keyed by the OLD label, so say so
+      // rather than letting an admin silently blank a field across the catalog.
+      note:
+          'Ads already posted store their answer under "${_attributes[i]}". '
+          'Renaming leaves those values behind, so the field reads blank on '
+          'existing ads. The ads themselves are unaffected.',
+    );
+    if (name == null || name.isEmpty) return;
+    setState(() => _attributes[i] = name);
   }
 
   @override
@@ -903,6 +951,112 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+            Text(
+              'Card colour',
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: 320,
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  // "Auto" is a real choice, not an absence: it hands the card
+                  // back to the shared palette so it still looks deliberate.
+                  _AccentSwatch(
+                    color: null,
+                    selected: _colorValue == null,
+                    onTap: () => setState(() => _colorValue = null),
+                  ),
+                  for (final c in kCategoryPalette)
+                    _AccentSwatch(
+                      color: c,
+                      selected: _colorValue == c.toARGB32(),
+                      onTap: () => setState(() => _colorValue = c.toARGB32()),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Spec fields',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _addAttribute,
+                  icon: const Icon(Icons.add, size: 15),
+                  label: const Text('Add'),
+                ),
+              ],
+            ),
+            Text(
+              'Extra inputs sellers fill in when posting here, e.g. Year and '
+              'KM driven for Motors.',
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 4),
+            SizedBox(
+              width: 320,
+              child: _attributes.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Text(
+                        'None. Sellers just get the standard fields.',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontStyle: FontStyle.italic,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        for (var i = 0; i < _attributes.length; i++)
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.short_text,
+                                size: 15,
+                                color: AppColors.textMuted,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  _attributes[i],
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                              ),
+                              IconButton(
+                                visualDensity: VisualDensity.compact,
+                                tooltip: 'Rename',
+                                icon: const Icon(Icons.edit_outlined, size: 16),
+                                onPressed: () => _renameAttribute(i),
+                              ),
+                              IconButton(
+                                visualDensity: VisualDensity.compact,
+                                tooltip: 'Remove',
+                                icon: const Icon(
+                                  Icons.close,
+                                  size: 16,
+                                  color: Colors.red,
+                                ),
+                                onPressed: () =>
+                                    setState(() => _attributes.removeAt(i)),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+            ),
             const SizedBox(height: 6),
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
@@ -933,6 +1087,8 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
                 t,
                 kCategoryIcons[_icon] ?? Icons.category,
                 _advertiseOnly,
+                _attributes,
+                _colorValue,
               ),
             );
           },
@@ -941,6 +1097,93 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
       ],
     );
   }
+}
+
+/// One choice in the category accent picker. A null [color] is the "auto" slot.
+/// (Named to avoid colliding with the product-colour `_ColorSwatch` — every
+/// part file shares one namespace.)
+class _AccentSwatch extends StatelessWidget {
+  final Color? color;
+  final bool selected;
+  final VoidCallback onTap;
+  const _AccentSwatch({
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          color: color ?? Colors.transparent,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: selected ? AppColors.textPrimary : Colors.black26,
+            width: selected ? 2.5 : 1,
+          ),
+        ),
+        child: color == null
+            ? Icon(Icons.auto_awesome, size: 14, color: AppColors.textMuted)
+            : (selected
+                  ? const Icon(Icons.check, size: 16, color: Colors.white)
+                  : null),
+      ),
+    );
+  }
+}
+
+/// Small single-field prompt used for spec-field names.
+Future<String?> _promptForText(
+  BuildContext context,
+  String title,
+  String initial, {
+  String? note,
+}) {
+  final controller = TextEditingController(text: initial);
+  return showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Field name',
+              hintText: 'e.g. Year',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          if (note != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              note,
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+          child: const Text('OK'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _SubDraft {

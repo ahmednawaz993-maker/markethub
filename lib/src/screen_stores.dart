@@ -79,44 +79,9 @@ class StoresScreen extends StatelessWidget {
 }
 
 /// A distinct accent colour per category so the grid reads as colourful and
-/// catchy. Titles map to a curated hue; anything unlisted cycles through the
-/// same palette so new categories still get a sensible colour.
-const Map<String, Color> _categoryColors = {
-  'Food & Grocery': Color(0xFFF4511E), // deep orange
-  'Dry Fruits': Color(0xFFF9A825), // golden amber
-  'Supplements': Color(0xFF2E7D32), // vitamin green
-  'Motors': Color(0xFF1E88E5), // blue
-  'Commute & Rides': Color(0xFF00897B), // teal
-  'Properties': Color(0xFF43A047), // green
-  'Mobiles & Tablets': Color(0xFF3949AB), // indigo
-  'Electronics': Color(0xFF00ACC1), // cyan
-  'Home & Furniture': Color(0xFF8D6E63), // brown
-  'Crockery': Color(0xFFFB8C00), // amber
-  'Garments': Color(0xFFD81B60), // pink
-  'Men Essentials': Color(0xFF546E7A), // blue grey
-  'Women Essentials': Color(0xFF8E24AA), // purple
-  'Kids Essentials': Color(0xFF039BE5), // light blue
-  'Jobs': Color(0xFF5E35B1), // deep purple
-  'Services': Color(0xFFE53935), // red
-  'Pets': Color(0xFF7CB342), // light green
-  'Sports & Hobbies': Color(0xFFC0CA33), // lime
-  'Business & Industrial': Color(0xFF6D4C41), // dark brown
-  'Community': Color(0xFF00838F), // dark cyan
-};
-
-const List<Color> _categoryPalette = [
-  Color(0xFFF4511E),
-  Color(0xFF1E88E5),
-  Color(0xFF43A047),
-  Color(0xFF8E24AA),
-  Color(0xFF00897B),
-  Color(0xFFFB8C00),
-  Color(0xFFD81B60),
-  Color(0xFF3949AB),
-];
-
-Color _categoryAccent(String title, int index) =>
-    _categoryColors[title] ?? _categoryPalette[index % _categoryPalette.length];
+/// catchy. The colour is admin-editable and lives on the category itself; the
+/// curated defaults and the palette fallback are in catalog.dart.
+Color _categoryAccent(String title, int index) => categoryAccent(title, index);
 
 /// Full grid of every category, each rendered as a colourful icon card.
 class AllCategoriesScreen extends StatelessWidget {
