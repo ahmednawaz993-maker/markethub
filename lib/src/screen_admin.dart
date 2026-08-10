@@ -34,6 +34,7 @@ class AdminPanelScreen extends StatelessWidget {
       // first few is effectively undiscoverable, and sending an announcement is
       // a thing you reach for in a hurry ("payouts are delayed today").
       ('broadcasts', 'Notify', _AdminBroadcastTab()),
+      ('categories', 'Categories', _AdminCategoriesTab()),
       ('activity', 'Activity', _AdminActivityTab()),
       ('approvals', 'Approvals', _AdminApprovalsTab()),
       ('verifyId', 'Verify ID', _AdminVerificationsTab()),

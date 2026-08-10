@@ -591,8 +591,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
                 initialValue: selectedCategory,
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Main category'),
-                items: appCategories
-                    .where((category) => category.title != 'All')
+                items: categoryChoices(selectedCategory)
                     .map(
                       (category) => DropdownMenuItem(
                         value: category.title,

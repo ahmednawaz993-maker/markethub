@@ -922,7 +922,11 @@ service cloud.firestore {
     // sheet. Readable by any signed-in user; only admins can change it.
     // ---------------------------------------------------------------------
     match /config/{docId} {
-      allow read: if isSignedIn();
+      // The category catalog is public: the app loads it in main(), before auth
+      // state is known, and a signed-out visitor browsing the website needs the
+      // same category strip everyone else sees. It carries no private data.
+      // Everything else in config stays signed-in only.
+      allow read: if isSignedIn() || docId == 'categories';
       // The receiving account is money-critical → paymentAccount staff only.
       // The featuring master switch → featured staff. Anything else → super
       // admin. (A featured/marketing role must NOT change the payout account.)
@@ -931,6 +935,7 @@ service cloud.firestore {
                    || (docId == 'featuring' && can('featured'))
                    || (docId == 'verification' && can('verifyId'))
                    || (docId == 'customerCare' && can('support'))
+                   || (docId == 'categories' && can('categories'))
                    || isAdmin();
     }
 

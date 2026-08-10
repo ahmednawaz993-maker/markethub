@@ -668,9 +668,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                     labelText: 'Store category',
                   ),
                   items: [
-                    for (final c in appCategories.where(
-                      (c) => c.title != 'All',
-                    ))
+                    for (final c in categoryChoices(storeCategory))
                       DropdownMenuItem(value: c.title, child: Text(c.title)),
                   ],
                   onChanged: (v) => setState(() => storeCategory = v),

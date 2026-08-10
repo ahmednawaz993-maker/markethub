@@ -71,6 +71,56 @@ Future<void> loadFeaturingFlag() async {
   } catch (_) {}
 }
 
+/// Bumped whenever the admin-managed catalog changes, so category-driven UI
+/// rebuilds without every screen holding its own subscription. Widgets that
+/// render categories wrap in a ValueListenableBuilder on this.
+final ValueNotifier<int> categoriesVersion = ValueNotifier<int>(0);
+
+/// Firestore doc holding the whole catalog. One doc, not a collection: the
+/// catalog is small, always read in full, and an ordered array is what makes
+/// admin reordering trivial and atomic.
+DocumentReference<Map<String, dynamic>> get categoriesDoc =>
+    FirebaseFirestore.instance.collection('config').doc('categories');
+
+/// Applies a stored catalog, ignoring anything unusable.
+///
+/// An empty or unparseable list leaves [appCategories] on the built-in defaults
+/// rather than blanking the app — a bad admin save must never leave users with
+/// no categories to browse or post into.
+bool applyStoredCategories(Map<String, dynamic>? data) {
+  final raw = data?['items'];
+  if (raw is! List || raw.isEmpty) return false;
+  final parsed = <MarketplaceCategory>[];
+  for (final e in raw) {
+    if (e is! Map) continue;
+    final c = MarketplaceCategory.fromMap(Map<String, dynamic>.from(e));
+    if (c.title.isEmpty) continue;
+    parsed.add(c);
+  }
+  if (parsed.isEmpty) return false;
+  appCategories = parsed;
+  categoriesVersion.value++;
+  return true;
+}
+
+/// Loads the admin-managed catalog at startup, then keeps listening so an edit
+/// in the admin panel reaches every open app without a restart.
+Future<void> loadCategories() async {
+  try {
+    final doc = await categoriesDoc.get();
+    applyStoredCategories(doc.data());
+  } catch (_) {
+    // Offline or denied — the built-in defaults are already in place.
+  }
+  // Fire-and-forget: startup must not block on the stream.
+  try {
+    categoriesDoc.snapshots().listen(
+      (snap) => applyStoredCategories(snap.data()),
+      onError: (_) {},
+    );
+  } catch (_) {}
+}
+
 /// Whether ID / face verification is REQUIRED before a user can post, buy,
 /// make offers, or chat. Controlled by the admin (config/verification) and
 /// loaded at startup. Defaults OFF — the admin turns it on from the Verify ID
@@ -231,6 +281,7 @@ const List<(String, String)> kAdminAreas = [
   ('appeals', 'Appeals'),
   ('deletions', 'Deletions'),
   ('broadcasts', 'Notify'),
+  ('categories', 'Categories'),
 ];
 
 /// Permission codes granted to the current staff member (empty for the super

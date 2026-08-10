@@ -124,7 +124,14 @@ class AllCategoriesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cats = appCategories.where((c) => c.title != 'All').toList();
+    return ValueListenableBuilder<int>(
+      valueListenable: categoriesVersion,
+      builder: (context, _, _) => _build(context),
+    );
+  }
+
+  Widget _build(BuildContext context) {
+    final cats = visibleCategories.where((c) => c.title != 'All').toList();
     return Scaffold(
       appBar: AppBar(title: const Text('All Categories')),
       body: LayoutBuilder(

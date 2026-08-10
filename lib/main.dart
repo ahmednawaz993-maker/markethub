@@ -73,6 +73,7 @@ part 'src/screen_checkout.dart';
 part 'src/screen_addresses.dart';
 part 'src/screen_offers.dart';
 part 'src/screen_admin.dart';
+part 'src/screen_admin_categories.dart';
 part 'src/screen_notifications.dart';
 part 'src/screen_chat.dart';
 part 'src/screen_support.dart';
@@ -99,6 +100,7 @@ Future<void> main() async {
   await loadSavedThemeMode();
   await loadFeaturingFlag();
   await loadVerificationFlag();
+  await loadCategories();
 
   await loadMonetizationFlag();
   await loadLuckyDrawFlag();

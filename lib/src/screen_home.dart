@@ -366,7 +366,18 @@ class HomeCategoryStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final categories = appCategories.where((c) => c.title != 'All').toList();
+    // Rebuilds when the admin edits the catalog, so the strip reflects an edit
+    // without the user restarting the app.
+    return ValueListenableBuilder<int>(
+      valueListenable: categoriesVersion,
+      builder: (context, _, _) => _build(context),
+    );
+  }
+
+  Widget _build(BuildContext context) {
+    final categories = visibleCategories
+        .where((c) => c.title != 'All')
+        .toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

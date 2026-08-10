@@ -440,19 +440,148 @@ const List<(String, Color)> kProductColors = [
   ('Multicolour', Color(0xFF607D8B)),
 ];
 
+/// Icons an admin may pick for a category.
+///
+/// A fixed, const registry rather than free-form input for two reasons: an
+/// arbitrary string cannot become an [IconData] at runtime without defeating
+/// `--tree-shake-icons` (release builds strip every glyph not referenced as a
+/// const), and it keeps the category strip visually coherent. Every icon used by
+/// [kDefaultCategories] MUST appear here or it will not survive a save/reload
+/// round trip — see [iconNameFor].
+const Map<String, IconData> kCategoryIcons = {
+  'apps': Icons.apps,
+  'storefront': Icons.storefront,
+  'grain': Icons.grain,
+  'medication': Icons.medication,
+  'devices': Icons.devices,
+  'phone_android': Icons.phone_android,
+  'directions_car': Icons.directions_car,
+  'commute': Icons.commute,
+  'home': Icons.home,
+  'chair': Icons.chair,
+  'checkroom': Icons.checkroom,
+  'man': Icons.man,
+  'woman': Icons.woman,
+  'child_care': Icons.child_care,
+  'pets': Icons.pets,
+  'sports_soccer': Icons.sports_soccer,
+  'work': Icons.work,
+  'business_center': Icons.business_center,
+  'handyman': Icons.handyman,
+  'groups': Icons.groups,
+  'dinner_dining': Icons.dinner_dining,
+  // Spare choices for categories the admin adds later.
+  'category': Icons.category,
+  'shopping_bag': Icons.shopping_bag,
+  'local_florist': Icons.local_florist,
+  'menu_book': Icons.menu_book,
+  'toys': Icons.toys,
+  'watch': Icons.watch,
+  'diamond': Icons.diamond,
+  'build': Icons.build,
+  'agriculture': Icons.agriculture,
+  'flight': Icons.flight,
+  'celebration': Icons.celebration,
+  'health_and_safety': Icons.health_and_safety,
+  'school': Icons.school,
+  'computer': Icons.computer,
+  'kitchen': Icons.kitchen,
+  'spa': Icons.spa,
+  'music_note': Icons.music_note,
+  'camera_alt': Icons.camera_alt,
+};
+
+/// Reverse lookup for [kCategoryIcons], so a built-in category defined with a
+/// raw `Icons.x` still serialises to a stable name. Falls back to 'category'.
+String iconNameFor(IconData icon) {
+  for (final e in kCategoryIcons.entries) {
+    if (e.value.codePoint == icon.codePoint) return e.key;
+  }
+  return 'category';
+}
+
 class MarketplaceCategory {
   final String title;
   final IconData icon;
   final List<String> subcategories;
 
+  /// Whole category is advertise-only — no Buy Now / checkout, buyers contact
+  /// the seller instead.
+  final bool advertiseOnly;
+
+  /// Subcategories that are advertise-only even though the rest of the category
+  /// can be bought online (e.g. Cars within Motors).
+  final Set<String> advertiseOnlySubs;
+
+  /// Hidden categories stay valid for existing listings but are not offered
+  /// anywhere new. Lets an admin retire a category without orphaning its ads.
+  final bool hidden;
+
   const MarketplaceCategory({
     required this.title,
     required this.icon,
     required this.subcategories,
+    this.advertiseOnly = false,
+    this.advertiseOnlySubs = const {},
+    this.hidden = false,
   });
+
+  Map<String, dynamic> toMap() => {
+    'title': title,
+    'icon': iconNameFor(icon),
+    'subcategories': subcategories,
+    'advertiseOnly': advertiseOnly,
+    'advertiseOnlySubs': advertiseOnlySubs.toList(),
+    'hidden': hidden,
+  };
+
+  /// Tolerant on purpose: this parses admin-authored data, and one malformed
+  /// field must not take the whole catalog down. Anything unreadable falls back
+  /// to a sane default rather than throwing.
+  factory MarketplaceCategory.fromMap(Map<String, dynamic> m) {
+    return MarketplaceCategory(
+      title: (m['title'] ?? '').toString(),
+      icon: kCategoryIcons[(m['icon'] ?? '').toString()] ?? Icons.category,
+      subcategories: ((m['subcategories'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .where((e) => e.isNotEmpty)
+          .toList(),
+      advertiseOnly: m['advertiseOnly'] == true,
+      advertiseOnlySubs: ((m['advertiseOnlySubs'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .toSet(),
+      hidden: m['hidden'] == true,
+    );
+  }
+
+  MarketplaceCategory copyWith({
+    String? title,
+    IconData? icon,
+    List<String>? subcategories,
+    bool? advertiseOnly,
+    Set<String>? advertiseOnlySubs,
+    bool? hidden,
+  }) {
+    return MarketplaceCategory(
+      title: title ?? this.title,
+      icon: icon ?? this.icon,
+      subcategories: subcategories ?? this.subcategories,
+      advertiseOnly: advertiseOnly ?? this.advertiseOnly,
+      advertiseOnlySubs: advertiseOnlySubs ?? this.advertiseOnlySubs,
+      hidden: hidden ?? this.hidden,
+    );
+  }
 }
 
-const List<MarketplaceCategory> appCategories = [
+/// The catalog the app actually renders. Starts as the built-in defaults and is
+/// replaced at startup by whatever the admin has saved in `config/categories`
+/// (see loadCategories()). Mutable because the admin panel edits it live.
+List<MarketplaceCategory> appCategories = defaultCatalog();
+
+/// Built-in catalog. Two jobs: the seed the admin panel writes to Firestore on
+/// first use, and the fallback whenever the stored catalog is missing,
+/// unreadable or empty — the app must never render zero categories.
+const List<MarketplaceCategory> kDefaultCategories = [
   MarketplaceCategory(title: 'All', icon: Icons.apps, subcategories: ['All']),
   MarketplaceCategory(
     title: 'Food & Grocery',
@@ -753,9 +882,11 @@ const List<MarketplaceCategory> appCategories = [
   ),
 ];
 
-/// Whole categories that are advertise-only — no online Buy Now / checkout.
-/// Buyers contact the seller (call/WhatsApp/chat) and deal in person instead.
-const Set<String> advertiseOnlyCategories = {
+/// Whole categories that are advertise-only by default — no online Buy Now /
+/// checkout. Buyers contact the seller (call/WhatsApp/chat) and deal in person.
+/// Seed values only: once the catalog is stored, the flag lives on the category
+/// itself and the admin owns it.
+const Set<String> _defaultAdvertiseOnlyCategories = {
   'Properties',
   'Jobs',
   'Services',
@@ -766,12 +897,37 @@ const Set<String> advertiseOnlyCategories = {
 /// Big-ticket / non-shippable subcategories (e.g. within Motors) that are
 /// advertise-only even though the rest of their category can be bought online.
 /// Small, shippable items like Auto Parts / Car Accessories stay buyable.
-const Set<String> advertiseOnlySubcategories = {
+/// Seed values only — see above.
+const Set<String> _defaultAdvertiseOnlySubcategories = {
   'Cars',
   'Motorcycles',
   'Boats',
   'Heavy Vehicles',
   'Car Rental',
+};
+
+/// The built-in catalog with the advertise-only seeds folded onto each category,
+/// so a stored catalog and a fallback catalog have exactly the same shape.
+List<MarketplaceCategory> defaultCatalog() => [
+  for (final c in kDefaultCategories)
+    c.copyWith(
+      advertiseOnly: _defaultAdvertiseOnlyCategories.contains(c.title),
+      advertiseOnlySubs: c.subcategories
+          .where(_defaultAdvertiseOnlySubcategories.contains)
+          .toSet(),
+    ),
+];
+
+/// Derived views over the live catalog, so callers that ask "is this
+/// advertise-only?" keep working unchanged whether the catalog came from
+/// Firestore or the built-in defaults.
+Set<String> get advertiseOnlyCategories => {
+  for (final c in appCategories)
+    if (c.advertiseOnly) c.title,
+};
+
+Set<String> get advertiseOnlySubcategories => {
+  for (final c in appCategories) ...c.advertiseOnlySubs,
 };
 
 /// Whether a listing supports the online Buy Now / order checkout.
@@ -780,6 +936,38 @@ MarketplaceCategory categoryByTitle(String title) {
     (category) => category.title == title,
     orElse: () => appCategories.first,
   );
+}
+
+/// Categories offered when posting or browsing. Excludes retired ones; existing
+/// listings in a hidden category still resolve via [categoryByTitle].
+List<MarketplaceCategory> get visibleCategories =>
+    appCategories.where((c) => !c.hidden).toList();
+
+/// Options for a category dropdown: the pickable categories, minus the synthetic
+/// 'All' bucket, plus [current] even if it is hidden or has since been deleted.
+///
+/// That last part is not cosmetic — a DropdownButton whose value is absent from
+/// its items throws. Editing an old ad whose category was hidden or renamed away
+/// would otherwise crash the edit form instead of just letting the seller
+/// re-file it.
+List<MarketplaceCategory> categoryChoices(String? current) {
+  final out = visibleCategories.where((c) => c.title != 'All').toList();
+  if (current != null &&
+      current.isNotEmpty &&
+      !out.any((c) => c.title == current)) {
+    out.insert(
+      0,
+      appCategories.firstWhere(
+        (c) => c.title == current,
+        orElse: () => MarketplaceCategory(
+          title: current,
+          icon: Icons.category,
+          subcategories: const [],
+        ),
+      ),
+    );
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
