@@ -185,7 +185,12 @@ class _AuthScreenState extends State<AuthScreen> {
     PhoneAuthCredential credential,
   ) async {
     try {
-      await FirebaseAuth.instance.signInWithCredential(credential);
+      final cred = await FirebaseAuth.instance.signInWithCredential(credential);
+      // Only a first-time phone sign-in counts as a sign-up; returning users
+      // hit the same code path.
+      if (cred.additionalUserInfo?.isNewUser == true) {
+        trackSignUp(method: 'phone');
+      }
       // AuthGate listens to authStateChanges and navigates automatically.
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
@@ -292,6 +297,7 @@ class _AuthScreenState extends State<AuthScreen> {
         try {
           await cred.user?.sendEmailVerification();
         } catch (_) {}
+        trackSignUp(method: 'email');
       }
       // AuthGate listens to authStateChanges and navigates automatically.
     } on FirebaseAuthException catch (e) {

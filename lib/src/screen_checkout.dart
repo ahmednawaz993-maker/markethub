@@ -218,12 +218,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     // Guard against duplicate submissions from repeated taps.
     if (_submitting) return;
     setState(() => _submitting = true);
+    trackBeginCheckout(
+      value: grandTotal,
+      itemCount: 1,
+      paymentMethod: _paymentMethod,
+    );
     try {
       final orderId = await placeListingOrder(
         listing: listing,
         address: address,
         paymentMethod: _paymentMethod,
         notes: _notesController.text,
+      );
+      trackPurchase(
+        orderId: orderId,
+        value: grandTotal,
+        paymentMethod: _paymentMethod,
+        itemCount: 1,
       );
       // A completed order is a meaningful engagement signal for the review
       // prompt (recorded only — the prompt itself appears later, on Home).
