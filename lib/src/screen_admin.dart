@@ -2404,8 +2404,37 @@ Future<void> _toggleUserBlock(
   }
 }
 
-class _AdminUsersTab extends StatelessWidget {
+class _AdminUsersTab extends StatefulWidget {
   const _AdminUsersTab();
+
+  @override
+  State<_AdminUsersTab> createState() => _AdminUsersTabState();
+}
+
+class _AdminUsersTabState extends State<_AdminUsersTab> {
+  // Contact details live in users/{uid}/private/contact, not on the public
+  // user document, so the admin list has to fetch them separately. Cached
+  // across rebuilds and keyed by the set of uids already fetched, so
+  // scrolling and snapshot churn do not re-read.
+  final Map<String, Map<String, dynamic>> _contacts = {};
+  final Set<String> _fetched = {};
+  bool _loadingContacts = false;
+
+  Future<void> _ensureContacts(List<String> uids) async {
+    final missing = uids.where((u) => !_fetched.contains(u)).toList();
+    if (missing.isEmpty || _loadingContacts) return;
+    _loadingContacts = true;
+    _fetched.addAll(missing);
+    try {
+      final loaded = await loadPrivateContacts(missing);
+      if (!mounted) return;
+      setState(() => _contacts.addAll(loaded));
+    } catch (_) {
+      // Falls back to the legacy fields on the public document below.
+    } finally {
+      _loadingContacts = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2415,9 +2444,19 @@ class _AdminUsersTab extends StatelessWidget {
           .limit(300)
           .snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const ErrorStateWidget(
+            message: 'We could not load the user list.',
+          );
+        }
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
+        // Kick off the contact fetch for this page, once.
+        final ids = snapshot.data!.docs.map((d) => d.id).toList();
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _ensureContacts(ids),
+        );
         final docs = snapshot.data!.docs.toList()
           ..sort((a, b) {
             final at =
@@ -2440,16 +2479,25 @@ class _AdminUsersTab extends StatelessWidget {
           itemCount: docs.length,
           itemBuilder: (context, i) {
             final d = docs[i].data() as Map<String, dynamic>;
+            // Prefer the private contact doc; fall back to the legacy public
+            // fields so this reads correctly both before and after the
+            // stripPublicPii sweep has run.
+            final c = _contacts[docs[i].id] ?? const <String, dynamic>{};
+            final email = (c['email'] ?? d['email'])?.toString() ?? '';
             final isBusiness = d['isBusiness'] == true;
             final blocked = d['blocked'] == true;
             final name =
                 isBusiness && (d['businessName']?.toString() ?? '').isNotEmpty
                 ? d['businessName'].toString()
-                : (d['email']?.toString() ?? '(guest)');
+                : (email.isNotEmpty
+                      ? email
+                      : (d['displayName']?.toString().isNotEmpty == true
+                            ? d['displayName'].toString()
+                            : '(guest)'));
             final balance = (d['walletBalance'] as num?)?.toInt() ?? 0;
             final city = d['city']?.toString() ?? '';
-            final lat = (d['lat'] as num?)?.toDouble();
-            final lng = (d['lng'] as num?)?.toDouble();
+            final lat = ((c['lat'] ?? d['lat']) as num?)?.toDouble();
+            final lng = ((c['lng'] ?? d['lng']) as num?)?.toDouble();
             final hasGeo = lat != null && lng != null;
             return Card(
               child: ListTile(
@@ -4948,6 +4996,27 @@ class _BusinessAccountCard extends StatefulWidget {
 class _BusinessAccountCardState extends State<_BusinessAccountCard> {
   bool _busy = false;
 
+  // The seller's email now lives in users/{uid}/private/contact rather than on
+  // the public profile document. One read per card, fetched once.
+  String? _privateEmail;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContact();
+  }
+
+  Future<void> _loadContact() async {
+    try {
+      final c = await loadPrivateContacts([widget.userDoc.id]);
+      final email = c[widget.userDoc.id]?['email']?.toString() ?? '';
+      if (!mounted || email.isEmpty) return;
+      setState(() => _privateEmail = email);
+    } catch (_) {
+      // Falls back to the legacy public field.
+    }
+  }
+
   (String, Color) _chip(Map<String, dynamic> d) {
     final s =
         d['businessStatus']?.toString() ??
@@ -5026,7 +5095,7 @@ class _BusinessAccountCardState extends State<_BusinessAccountCard> {
         d['businessStatus']?.toString() ??
         (d['isBusiness'] == true ? 'approved' : 'none');
     final name = (d['businessName']?.toString() ?? '').trim();
-    final email = d['email']?.toString() ?? '';
+    final email = _privateEmail ?? (d['email']?.toString() ?? '');
     final (chipLabel, chipColor) = _chip(d);
     final featured = d['featuredBusiness'] == true;
     return Card(

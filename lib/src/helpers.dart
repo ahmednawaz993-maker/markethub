@@ -93,6 +93,37 @@ Future<Map<String, dynamic>> loadPrivateContact(String uid) async {
   return merged;
 }
 
+/// Batch-loads contact details for several users at once — for the admin
+/// screens, which list users and need to identify them by email.
+///
+/// Staff with 'users'/'verifyId' may read these (see the rules on
+/// users/{uid}/private). One read per user, issued in bounded-size waves
+/// rather than 300 at once, and the caller is expected to cache the result
+/// for the lifetime of the list rather than re-fetching per row build.
+Future<Map<String, Map<String, dynamic>>> loadPrivateContacts(
+  Iterable<String> uids,
+) async {
+  final ids = uids.where((u) => u.isNotEmpty).toSet().toList();
+  final out = <String, Map<String, dynamic>>{};
+  const waveSize = 30;
+  for (var i = 0; i < ids.length; i += waveSize) {
+    final end = (i + waveSize) > ids.length ? ids.length : i + waveSize;
+    final wave = ids.sublist(i, end);
+    final results = await Future.wait(
+      wave.map((uid) async {
+        try {
+          final snap = await privateContactRef(uid).get();
+          return MapEntry(uid, snap.data() ?? const <String, dynamic>{});
+        } catch (_) {
+          return MapEntry(uid, const <String, dynamic>{});
+        }
+      }),
+    );
+    out.addEntries(results);
+  }
+  return out;
+}
+
 /// Writes contact details to the private subcollection.
 Future<void> savePrivateContact(
   String uid,
