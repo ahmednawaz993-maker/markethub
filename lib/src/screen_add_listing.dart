@@ -26,7 +26,7 @@ class DraftsScreen extends StatelessWidget {
           if (snapshot.hasError) {
             return const EmptyState(
               icon: Icons.error_outline,
-              title: 'Couldnâ€™t load drafts',
+              title: 'Couldn’t load drafts',
               subtitle: 'Please try again.',
             );
           }
@@ -56,7 +56,7 @@ class DraftsScreen extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Text(
-                    '${d['category'] ?? ''} Â· ${formatPrice(d['price']?.toString() ?? '')}',
+                    '${d['category'] ?? ''} · ${formatPrice(d['price']?.toString() ?? '')}',
                   ),
                   onTap: () => Navigator.push(
                     context,
@@ -210,7 +210,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
     final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
     messenger.showSnackBar(
-      const SnackBar(content: Text('Saved to Drafts (Profile â†’ Drafts)')),
+      const SnackBar(content: Text('Saved to Drafts (Profile → Drafts)')),
     );
   }
 
@@ -272,7 +272,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
     // Guard against a double-tap re-entering during the async gaps below
     // (ensureVerified and the Firestore/Storage writes all await). The flag is
     // set *synchronously* before the first await so a second tap arriving during
-    // ensureVerified sees isSubmitting == true and bails â€” otherwise the same ad
+    // ensureVerified sees isSubmitting == true and bails — otherwise the same ad
     // could be posted twice. The finally below always clears it.
     if (isSubmitting) return;
     setState(() {
@@ -371,7 +371,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'approvalStatus': isDemoUser() ? 'approved' : 'pending',
       });
 
-      // The ad is now live. Everything below is best-effort cleanup â€” a failure
+      // The ad is now live. Everything below is best-effort cleanup — a failure
       // here must NOT be treated as a post failure (that would show an error and
       // tempt the user to re-submit, creating a duplicate live ad).
 
@@ -401,7 +401,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
 
       if (!mounted) return;
       // A published listing is a meaningful engagement signal for the review
-      // prompt (never triggers the prompt here â€” only records the signal).
+      // prompt (never triggers the prompt here — only records the signal).
       recordMeaningfulAction();
       await showDialog<void>(
         context: context,
@@ -438,7 +438,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Couldnâ€™t post your ad. Please try again.'),
+          content: Text('Couldn’t post your ad. Please try again.'),
         ),
       );
     } finally {
@@ -545,12 +545,12 @@ class _AddListingScreenState extends State<AddListingScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Post Ad')),
       // The action bar is a bottomNavigationBar, so Flutter lifts it above the
-      // keyboard â€” Submit is always reachable while typing.
+      // keyboard — Submit is always reachable while typing.
       bottomNavigationBar: StickyActionBar(
         children: [
           Expanded(
             child: PrimaryActionButton(
-              label: savingDraft ? 'Savingâ€¦' : 'Save draft',
+              label: savingDraft ? 'Saving…' : 'Save draft',
               icon: Icons.save_outlined,
               outlined: true,
               onPressed: (isSubmitting || savingDraft) ? null : saveDraft,
@@ -648,7 +648,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
                 textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(
                   labelText: 'Title',
-                  hintText: 'e.g. Honda Civic 2018 â€” single owner',
+                  hintText: 'e.g. Honda Civic 2018 — single owner',
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -760,7 +760,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
               const SizedBox(height: AppSpacing.md),
               PrimaryActionButton(
                 label: latitude != null
-                    ? 'Current location added âœ“'
+                    ? 'Current location added ✓'
                     : 'Use my current location',
                 icon: latitude != null ? Icons.location_on : Icons.my_location,
                 outlined: true,
@@ -839,13 +839,13 @@ class _AddListingScreenState extends State<AddListingScreen> {
                   labelText: 'Description',
                   alignLabelWithHint: true,
                   hintText:
-                      'Condition, age, what is included, reason for sellingâ€¦',
+                      'Condition, age, what is included, reason for selling…',
                 ),
               ),
             ],
           ),
 
-          // Seller conduct notice â€” every seller sees this before posting, so
+          // Seller conduct notice — every seller sees this before posting, so
           // the zero-tolerance policy isn't buried only in the Terms.
           InkWell(
             onTap: () => Navigator.push(

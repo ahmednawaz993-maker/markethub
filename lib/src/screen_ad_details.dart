@@ -112,7 +112,7 @@ class _FullScreenGalleryState extends State<FullScreenGallery> {
                 ),
               ),
             ),
-            // Prev / next arrows â€” the primary way to move between photos on
+            // Prev / next arrows — the primary way to move between photos on
             // web/desktop where there's no swipe gesture.
             if (multi) ...[
               Positioned(
@@ -311,7 +311,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
     final loc = [l.city, l.location].where((e) => e.isNotEmpty).join(', ');
     final text = [
       l.title,
-      '${formatPrice(l.price)}${loc.isEmpty ? '' : ' Â· $loc'}',
+      '${formatPrice(l.price)}${loc.isEmpty ? '' : ' · $loc'}',
       'See more on PakBazar: https://pakbazar24.com',
     ].join('\n');
     final messenger = ScaffoldMessenger.of(context);
@@ -342,7 +342,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                 messenger.showSnackBar(
                   const SnackBar(
                     content: Text(
-                      'Ad details copied â€” paste anywhere to share',
+                      'Ad details copied — paste anywhere to share',
                     ),
                   ),
                 );
@@ -532,7 +532,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                   ),
                 ),
               ),
-              // Prev / next arrows â€” web/desktop friendly.
+              // Prev / next arrows — web/desktop friendly.
               if (images.length > 1) ...[
                 Positioned.fill(
                   child: Align(
@@ -746,7 +746,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
-                        "Seller blocked â€” you won't see their ads.",
+                        "Seller blocked — you won't see their ads.",
                       ),
                     ),
                   );
@@ -780,7 +780,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
         children: [
           if (images.isNotEmpty) _gallery(images),
 
-          // â”€â”€ Headline: status, price, title, meta, location â”€â”€
+          // ── Headline: status, price, title, meta, location ──
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.page,
@@ -913,14 +913,14 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                     icon: Icons.category,
                     text: listing.subcategory.isEmpty
                         ? listing.category
-                        : '${listing.category} â€¢ ${listing.subcategory}',
+                        : '${listing.category} • ${listing.subcategory}',
                   ),
                 ],
               ],
             ),
           ),
 
-          // â”€â”€ Seller â”€â”€
+          // ── Seller ──
           _section(
             'Seller',
             InkWell(
@@ -947,7 +947,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                     name: listing.sellerName.isEmpty
                         ? 'Seller'
                         : listing.sellerName,
-                    subtitle: labels.join(' Â· '),
+                    subtitle: labels.join(' · '),
                     avatarUrl: data['photoUrl']?.toString() ?? '',
                     verified: data['verified'] == true,
                     rating: count > 0 ? avg : null,
@@ -963,7 +963,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
             ),
           ),
 
-          // â”€â”€ Specifications â”€â”€
+          // ── Specifications ──
           if (listing.attributes.isNotEmpty)
             _section(
               'Specifications',
@@ -1031,7 +1031,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
               ),
             ),
 
-          // â”€â”€ Description â”€â”€
+          // ── Description ──
           _section(
             'Description',
             Text(
@@ -1108,7 +1108,7 @@ class _DetailFavoriteButtonState extends State<_DetailFavoriteButton> {
   }
 }
 
-/// A small labelled pill used beside the price (delivery fee, price dropâ€¦).
+/// A small labelled pill used beside the price (delivery fee, price drop…).
 class _Pill extends StatelessWidget {
   final String label;
   final IconData? icon;
@@ -1284,7 +1284,7 @@ class _PriceInsight extends StatelessWidget {
                     ),
                     Text(
                       'Similar $scope ads sell for '
-                      '${formatPrice(low.toStringAsFixed(0))}â€“'
+                      '${formatPrice(low.toStringAsFixed(0))}–'
                       '${formatPrice(high.toStringAsFixed(0))}',
                       style: TextStyle(
                         fontSize: 12,
@@ -1402,11 +1402,11 @@ class _SafetyTips extends StatelessWidget {
           const Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              'â€¢ Meet in a public place during the day.\n'
-              'â€¢ Inspect the item before you pay.\n'
-              'â€¢ Never send money or a deposit in advance.\n'
-              'â€¢ Avoid sharing personal/banking details.\n'
-              'â€¢ Report suspicious ads using the flag icon.',
+              '• Meet in a public place during the day.\n'
+              '• Inspect the item before you pay.\n'
+              '• Never send money or a deposit in advance.\n'
+              '• Avoid sharing personal/banking details.\n'
+              '• Report suspicious ads using the flag icon.',
               style: TextStyle(height: 1.5),
             ),
           ),
@@ -1417,7 +1417,7 @@ class _SafetyTips extends StatelessWidget {
                 context,
                 MaterialPageRoute(builder: (_) => const TrustSafetyScreen()),
               ),
-              child: const Text('Read full Trust & Safety guidelines â†’'),
+              child: const Text('Read full Trust & Safety guidelines →'),
             ),
           ),
         ],

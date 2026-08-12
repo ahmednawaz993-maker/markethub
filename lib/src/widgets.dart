@@ -145,8 +145,8 @@ class EmptyState extends StatelessWidget {
 /// The page canvas behind every route, rendered once via [MaterialApp.builder].
 ///
 /// The app used to paint a full-screen navy gradient here, which forced every
-/// screen to use white-on-navy text. It is now a flat marketplace background â€”
-/// near-white in light mode, deep navy in dark mode â€” so screens use one
+/// screen to use white-on-navy text. It is now a flat marketplace background —
+/// near-white in light mode, deep navy in dark mode — so screens use one
 /// consistent on-surface text family and cards read as raised.
 class AppBackground extends StatelessWidget {
   final Widget child;
@@ -275,9 +275,9 @@ String titleCasePlace(String s) => s
 /// Opens a searchable, full-height place picker. Returns the chosen place, or
 /// null if dismissed. Much friendlier on mobile than a 190-item dropdown.
 ///
-/// When [allowCustom] is true, a `Use "â€¦"` option (with whatever was typed)
+/// When [allowCustom] is true, a `Use "…"` option (with whatever was typed)
 /// appears at the top whenever the search text doesn't exactly match a listed
-/// place â€” so a
+/// place — so a
 /// resident of any small village or town not in the curated list can still add
 /// and select their own location. (Kept off for filters, where selecting a city
 /// nobody has posted from would just return nothing.)

@@ -113,7 +113,7 @@ class WalletScreen extends StatelessWidget {
                 if (snapshot.hasError) {
                   return const EmptyState(
                     icon: Icons.error_outline,
-                    title: 'Couldnâ€™t load transactions',
+                    title: 'Couldn’t load transactions',
                     subtitle: 'Please try again.',
                   );
                 }
@@ -303,7 +303,7 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
                   messenger.showSnackBar(
                     const SnackBar(
                       content: Text(
-                        'Withdrawal requested â€” the admin will pay out to your '
+                        'Withdrawal requested — the admin will pay out to your '
                         'account.',
                       ),
                     ),
@@ -348,8 +348,8 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
   PromoPackage? selected;
 
   static const bannerPackages = [
-    PromoPackage('Home banner Â· 7 days', 7, 2000),
-    PromoPackage('Home banner Â· 30 days', 30, 6000),
+    PromoPackage('Home banner · 7 days', 7, 2000),
+    PromoPackage('Home banner · 30 days', 30, 6000),
   ];
 
   @override
@@ -449,7 +449,7 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
                     ),
                     child: imageUrl == null
                         ? const Center(
-                            child: Text('Banner preview (â‰ˆ 1000Ã—360)'),
+                            child: Text('Banner preview (≈ 1000×360)'),
                           )
                         : null,
                   ),
@@ -466,7 +466,7 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
                       : const Icon(Icons.image),
                   label: Text(
                     uploading
-                        ? 'Uploadingâ€¦'
+                        ? 'Uploading…'
                         : (imageUrl == null
                               ? 'Upload banner image'
                               : 'Change image'),
@@ -510,11 +510,11 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
                 const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: submitting ? null : _submit,
-                  child: Text(submitting ? 'Sendingâ€¦' : 'Submit request'),
+                  child: Text(submitting ? 'Sending…' : 'Submit request'),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Paid instantly from your PakBazar Wallet (Profile â†’ Wallet).',
+                  'Paid instantly from your PakBazar Wallet (Profile → Wallet).',
                   style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
               ],
