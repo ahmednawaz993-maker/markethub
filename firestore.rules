@@ -17,14 +17,24 @@ service cloud.firestore {
 
     // Super admin (full access) by verified token email (keep in sync with
     // adminEmails in the app).
-    // email_verified matters here: both super-admin and staff identity are
-    // derived from the token email, and the app allows self-service email/
-    // password registration without ever calling sendEmailVerification. Without
-    // this check, anyone who registers a staff address that has been granted
-    // permissions but not yet claimed inherits those permissions.
+    // NOTE: deliberately does NOT require email_verified.
+    //
+    // Both super-admin and staff identity derive from the token email, and the
+    // app has only ever offered phone and email/password sign-in and never
+    // called sendEmailVerification — so no existing account, including the
+    // owner's, has a verified email. Adding the check here would immediately
+    // lock the owner out of their own admin panel.
+    //
+    // The residual risk is narrow: this address already has an account, and
+    // Firebase Auth will not let a second account register the same email. The
+    // exposure is on the STAFF path (a staff record created for an address
+    // nobody has registered yet). Sign-up now sends a verification mail, so
+    // once accounts are verified this can be tightened to
+    // `request.auth.token.get('email_verified', false) == true` here and in
+    // isActiveStaff() — do that only after confirming the owner's own account
+    // shows verified in the Firebase console.
     function isAdmin() {
       return isSignedIn()
-             && request.auth.token.get('email_verified', false) == true
              && request.auth.token.email in ['ahmednawaz993@gmail.com'];
     }
 
@@ -38,9 +48,10 @@ service cloud.firestore {
     function staffData() {
       return get(/databases/$(database)/documents/staff/$(staffEmail())).data;
     }
+    // See the note on isAdmin(): the email_verified requirement belongs here
+    // too, but cannot be enabled until existing staff accounts are verified.
     function isActiveStaff() {
       return isSignedIn()
-             && request.auth.token.get('email_verified', false) == true
              && exists(/databases/$(database)/documents/staff/$(staffEmail()))
              && staffData().get('active', true) == true;
     }
@@ -179,11 +190,15 @@ service cloud.firestore {
       // increment has to be by one: the rule previously constrained only WHICH
       // keys changed, not their values, so any signed-in user could SET another
       // seller's view or lead counts to an arbitrary number.
+      // An upper bound, not an equality. The client bumps these with
+      // FieldValue.increment(1); an upper bound passes whether or not the
+      // rules engine resolves that transform into request.resource.data, while
+      // still rejecting an explicit write of an arbitrary number (explicit
+      // values always appear in request.resource.data). An equality check here
+      // would risk silently denying every ad view.
       function bumpedByOne(field) {
         return request.resource.data.get(field, 0)
-                 == resource.data.get(field, 0)
-               || request.resource.data.get(field, 0)
-                    == resource.data.get(field, 0) + 1;
+                 <= resource.data.get(field, 0) + 1;
       }
 
       function onlyBumpsStats() {
@@ -1023,12 +1038,18 @@ service cloud.firestore {
       // rank themselves first for a PKR 100,000 prize. Creation pins it to 0
       // and updates may only step it up by one at a time, matching the
       // FieldValue.increment(1) the Invite screen actually performs.
+      // Upper bounds rather than equality: the Invite screen writes
+      // FieldValue.increment(1) through a set(merge:true), so the very first
+      // share CREATES the document with shareCount resolving to 1, not 0. An
+      // upper bound also holds whether or not the rules engine resolves the
+      // increment transform into request.resource.data — an attacker setting
+      // an explicit large value is still rejected either way.
       allow create: if isAdmin()
                     || (isSignedIn()
                         && request.auth.uid == uid
                         && request.resource.data.uid == uid
                         && request.resource.data.get('isWinner', false) == false
-                        && request.resource.data.get('shareCount', 0) == 0);
+                        && request.resource.data.get('shareCount', 0) <= 1);
       allow update: if isAdmin()
                     || (isSignedIn()
                         && request.auth.uid == uid

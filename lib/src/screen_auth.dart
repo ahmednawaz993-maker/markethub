@@ -284,10 +284,14 @@ class _AuthScreenState extends State<AuthScreen> {
       } else {
         // Stash the phone so ensureUserDoc writes it onto the new profile.
         pendingSignupPhone = '+${normalizePhoneForWhatsApp(phoneRaw)}';
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
+        final cred = await FirebaseAuth.instance
+            .createUserWithEmailAndPassword(email: email, password: password);
+        // Admin and staff identity are derived from the token email, so an
+        // unverified address is a weak identity. Best-effort: never block
+        // sign-up if the mail fails to send.
+        try {
+          await cred.user?.sendEmailVerification();
+        } catch (_) {}
       }
       // AuthGate listens to authStateChanges and navigates automatically.
     } on FirebaseAuthException catch (e) {
