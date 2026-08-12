@@ -143,6 +143,7 @@ class CheckoutScreen extends StatefulWidget {
 class _CheckoutScreenState extends State<CheckoutScreen> {
   DeliveryAddress? _address;
   bool _loadingAddress = true;
+  bool _addressError = false;
   bool _submitting = false;
   late String _paymentMethod; // 'escrow' | 'cod'
   final _notesController = TextEditingController();
@@ -166,12 +167,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _loadAddress() async {
-    final a = await loadDefaultAddress();
-    if (!mounted) return;
-    setState(() {
-      _address = a;
-      _loadingAddress = false;
-    });
+    // Without the catch, a thrown read left _loadingAddress true forever and
+    // checkout showed a spinner with no retry — the whole purchase flow dead
+    // with no way out.
+    if (!_loadingAddress) setState(() => _loadingAddress = true);
+    try {
+      final a = await loadDefaultAddress();
+      if (!mounted) return;
+      setState(() {
+        _address = a;
+        _addressError = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _addressError = true);
+    } finally {
+      if (mounted) setState(() => _loadingAddress = false);
+    }
   }
 
   Future<void> _changeAddress() async {
@@ -248,6 +260,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       appBar: AppBar(title: const Text('Checkout')),
       body: _loadingAddress
           ? const Center(child: CircularProgressIndicator())
+          : _addressError
+          ? ErrorStateWidget(
+              message: 'We could not load your delivery address.',
+              onRetry: _loadAddress,
+            )
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [

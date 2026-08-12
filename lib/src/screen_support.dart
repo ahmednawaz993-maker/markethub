@@ -612,6 +612,9 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
         path = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
       }
       await _recorder.start(const RecordConfig(), path: path);
+      // The Timer.periodic below guards on mounted; this setState did not, so
+      // backing out of the thread while the mic permission prompt was up threw.
+      if (!mounted) return;
       setState(() {
         _recording = true;
         _recSeconds = 0;
@@ -654,13 +657,16 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
       final bytes = await XFile(path).readAsBytes();
       final ext = kIsWeb ? 'webm' : 'm4a';
       final ctype = kIsWeb ? 'audio/webm' : 'audio/mp4';
+      final speakerUid = FirebaseAuth.instance.currentUser?.uid;
+      if (speakerUid == null) return;
       final ref = FirebaseStorage.instance
           .ref()
           .child('support_voice')
+          .child(speakerUid)
           .child(
             '${widget.ticketId}_${DateTime.now().millisecondsSinceEpoch}.$ext',
           );
-      await ref.putData(bytes, SettableMetadata(contentType: ctype));
+      await ref.putData(bytes, imageUploadMetadata(contentType: ctype));
       final url = await ref.getDownloadURL();
       await _postMessage({
         'type': 'voice',

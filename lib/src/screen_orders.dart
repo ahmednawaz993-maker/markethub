@@ -1093,6 +1093,9 @@ Future<void> _orderFromOffer(
     final status = (snap.data() as Map<String, dynamic>?)?['status'];
     if (status == 'ordered') return;
     tx.set(orderRef, {
+      // The server validates a negotiated order against the offer it came
+      // from, so the order has to name it.
+      'offerId': ref.id,
       'listingId': offer['listingId'] ?? '',
       'listingTitle': offer['listingTitle'] ?? '',
       'listingImage': offer['listingImage'] ?? '',

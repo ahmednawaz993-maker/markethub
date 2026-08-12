@@ -329,13 +329,16 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => sendingImage = true);
     try {
       final bytes = await img.readAsBytes();
+      final senderUid = FirebaseAuth.instance.currentUser?.uid;
+      if (senderUid == null) return;
       final ref = FirebaseStorage.instance
           .ref()
           .child('chat_images')
+          .child(senderUid)
           .child(
             '${widget.chatId}_${DateTime.now().millisecondsSinceEpoch}.jpg',
           );
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      await ref.putData(bytes, imageUploadMetadata());
       final url = await ref.getDownloadURL();
       await chatRef.set({
         'chatId': widget.chatId,
@@ -484,6 +487,12 @@ class _ChatScreenState extends State<ChatScreen> {
                   .orderBy('createdAt', descending: true)
                   .snapshots(),
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return ErrorStateWidget(
+                    message: 'We could not load this conversation.',
+                    onRetry: () => setState(() {}),
+                  );
+                }
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }

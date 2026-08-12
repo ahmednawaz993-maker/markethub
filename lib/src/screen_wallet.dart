@@ -25,6 +25,11 @@ class WalletScreen extends StatelessWidget {
           StreamBuilder<DocumentSnapshot>(
             stream: userRef.snapshots(),
             builder: (context, snapshot) {
+              // Showing "Rs 0" while loading told the user their wallet was
+              // empty. Distinguish "not loaded yet" from "actually zero" —
+              // and on an error show a dash rather than spinning forever.
+              final failed = snapshot.hasError;
+              final hasValue = snapshot.hasData && !failed;
               final balance =
                   ((snapshot.data?.data()
                               as Map<String, dynamic>?)?['walletBalance']
@@ -50,14 +55,44 @@ class WalletScreen extends StatelessWidget {
                       style: TextStyle(color: Colors.white70),
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      formatPrice('$balance'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 34,
-                        fontWeight: FontWeight.bold,
+                    if (failed)
+                      const SizedBox(
+                        height: 41,
+                        child: Center(
+                          child: Text(
+                            'Balance unavailable',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      )
+                    else if (!hasValue)
+                      const SizedBox(
+                        height: 41,
+                        child: Center(
+                          child: SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.4,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white70,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      Text(
+                        formatPrice('$balance'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 34,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 14),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -113,7 +148,7 @@ class WalletScreen extends StatelessWidget {
                 if (snapshot.hasError) {
                   return const EmptyState(
                     icon: Icons.error_outline,
-                    title: 'Couldnâ€™t load transactions',
+                    title: 'Couldn’t load transactions',
                     subtitle: 'Please try again.',
                   );
                 }
@@ -192,6 +227,16 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
     text: d?['payoutNumber']?.toString() ?? '',
   );
   final amount = TextEditingController();
+  // Guards against a double tap creating two withdrawals documents, each of
+  // which reserves the amount against the seller's balance.
+  final submitting = ValueNotifier<bool>(false);
+  // The sheet is swipe-dismissible even while the button is disabled, so the
+  // write can outlive it. Without this guard the completion handlers below
+  // would touch a disposed notifier.
+  var sheetGone = false;
+  void setSubmitting(bool v) {
+    if (!sheetGone) submitting.value = v;
+  }
 
   await showModalBottomSheet(
     context: context,
@@ -252,8 +297,10 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
                 ),
               ),
               const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: () async {
+              ValueListenableBuilder<bool>(
+                valueListenable: submitting,
+                builder: (context, busy, _) => ElevatedButton.icon(
+                onPressed: busy ? null : () async {
                   final amt = int.tryParse(
                     amount.text.replaceAll(RegExp(r'[^0-9]'), ''),
                   );
@@ -281,36 +328,56 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
                     );
                     return;
                   }
-                  await userRef.set({
-                    'payoutBank': bank.text.trim(),
-                    'payoutTitle': title.text.trim(),
-                    'payoutNumber': number.text.trim(),
-                  }, SetOptions(merge: true));
-                  await FirebaseFirestore.instance
-                      .collection('withdrawals')
-                      .add({
-                        'userId': uid,
-                        'userEmail':
-                            FirebaseAuth.instance.currentUser?.email ?? '',
-                        'amount': amt,
-                        'payoutBank': bank.text.trim(),
-                        'payoutTitle': title.text.trim(),
-                        'payoutNumber': number.text.trim(),
-                        'status': 'pending',
-                        'createdAt': Timestamp.now(),
-                      });
-                  if (context.mounted) Navigator.pop(context);
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Withdrawal requested â€” the admin will pay out to your '
-                        'account.',
+                  setSubmitting(true);
+                  try {
+                    await userRef.set({
+                      'payoutBank': bank.text.trim(),
+                      'payoutTitle': title.text.trim(),
+                      'payoutNumber': number.text.trim(),
+                    }, SetOptions(merge: true));
+                    await FirebaseFirestore.instance
+                        .collection('withdrawals')
+                        .add({
+                          'userId': uid,
+                          'userEmail':
+                              FirebaseAuth.instance.currentUser?.email ?? '',
+                          'amount': amt,
+                          'payoutBank': bank.text.trim(),
+                          'payoutTitle': title.text.trim(),
+                          'payoutNumber': number.text.trim(),
+                          'status': 'pending',
+                          'createdAt': Timestamp.now(),
+                        });
+                    // Clear the guard regardless: if the sheet's context is
+                    // already unmounted it never pops, and leaving this true
+                    // would leave the button permanently disabled.
+                    setSubmitting(false);
+                    if (context.mounted) Navigator.pop(context);
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Withdrawal requested — the admin will pay out to '
+                          'your account.',
+                        ),
                       ),
-                    ),
-                  );
+                    );
+                  } catch (e) {
+                    // Previously a failed write gave the user no feedback at
+                    // all, so a withdrawal that never happened looked
+                    // identical to one that did.
+                    setSubmitting(false);
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text('Could not request withdrawal: $e'),
+                      ),
+                    );
+                  }
                 },
                 icon: const Icon(Icons.account_balance),
-                label: const Text('Request withdrawal'),
+                label: Text(
+                  busy ? 'Requesting…' : 'Request withdrawal',
+                ),
+              ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -328,6 +395,8 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
   title.dispose();
   number.dispose();
   amount.dispose();
+  sheetGone = true;
+  submitting.dispose();
 }
 
 /// Lets a business upload a home-screen banner ad and request a slot.
@@ -348,8 +417,8 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
   PromoPackage? selected;
 
   static const bannerPackages = [
-    PromoPackage('Home banner Â· 7 days', 7, 2000),
-    PromoPackage('Home banner Â· 30 days', 30, 6000),
+    PromoPackage('Home banner · 7 days', 7, 2000),
+    PromoPackage('Home banner · 30 days', 30, 6000),
   ];
 
   @override
@@ -360,7 +429,11 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
   }
 
   Future<void> _pickAndUpload() async {
-    final img = await picker.pickImage(source: ImageSource.gallery);
+    final img = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: kUploadImageQuality,
+      maxWidth: kUploadImageMaxWidth,
+    );
     if (img == null) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -370,8 +443,9 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
       final ref = FirebaseStorage.instance
           .ref()
           .child('banners')
-          .child('ad_${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg');
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+          .child(uid)
+          .child('ad_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      await ref.putData(bytes, imageUploadMetadata());
       final url = await ref.getDownloadURL();
       if (!mounted) return;
       setState(() => imageUrl = url);
@@ -449,7 +523,7 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
                     ),
                     child: imageUrl == null
                         ? const Center(
-                            child: Text('Banner preview (â‰ˆ 1000Ã—360)'),
+                            child: Text('Banner preview (≈ 1000×360)'),
                           )
                         : null,
                   ),
@@ -466,7 +540,7 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
                       : const Icon(Icons.image),
                   label: Text(
                     uploading
-                        ? 'Uploadingâ€¦'
+                        ? 'Uploading…'
                         : (imageUrl == null
                               ? 'Upload banner image'
                               : 'Change image'),
@@ -510,11 +584,11 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
                 const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: submitting ? null : _submit,
-                  child: Text(submitting ? 'Sendingâ€¦' : 'Submit request'),
+                  child: Text(submitting ? 'Sending…' : 'Submit request'),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Paid instantly from your PakBazar Wallet (Profile â†’ Wallet).',
+                  'Paid instantly from your PakBazar Wallet (Profile → Wallet).',
                   style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
               ],

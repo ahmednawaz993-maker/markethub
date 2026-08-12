@@ -249,6 +249,11 @@ class PayoutAccountsScreen extends StatelessWidget {
       body: StreamBuilder<List<PayoutAccount>>(
         stream: payoutAccountStream(),
         builder: (context, snap) {
+          if (snap.hasError) {
+            return const ErrorStateWidget(
+              message: 'We could not load your payout accounts.',
+            );
+          }
           if (!snap.hasData) {
             return const Center(child: CircularProgressIndicator());
           }

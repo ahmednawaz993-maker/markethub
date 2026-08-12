@@ -108,6 +108,11 @@ class SavedSearchesScreen extends StatelessWidget {
             .collection('savedSearches')
             .snapshots(),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const ErrorStateWidget(
+              message: 'We could not load your saved searches.',
+            );
+          }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -138,7 +143,7 @@ class SavedSearchesScreen extends StatelessWidget {
                 child: ListTile(
                   leading: const Icon(Icons.bookmark, color: kPakGreen),
                   title: Text(d['label']?.toString() ?? 'Saved search'),
-                  subtitle: const Text('Tap to run Â· alerts on new matches'),
+                  subtitle: const Text('Tap to run · alerts on new matches'),
                   onTap: () {
                     final cat = d['category']?.toString();
                     Navigator.push(
@@ -279,7 +284,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
         '${maxPrice?.toStringAsFixed(0) ?? 'any'}',
       );
     }
-    final label = parts.isEmpty ? 'All ads' : parts.join(' Â· ');
+    final label = parts.isEmpty ? 'All ads' : parts.join(' · ');
 
     await FirebaseFirestore.instance
         .collection('users')
@@ -299,7 +304,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Saved "$label" â€” we\'ll alert you on new matches'),
+        content: Text('Saved "$label" — we\'ll alert you on new matches'),
       ),
     );
   }
@@ -340,7 +345,11 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                 top: 16,
                 bottom: MediaQuery.of(context).viewInsets.bottom + 16,
               ),
-              child: Column(
+              // City + 2 fields + condition Wrap + colour swatches + 3
+              // switches + buttons do not fit a short screen, and certainly
+              // not with the keyboard up.
+              child: SingleChildScrollView(
+                child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -478,6 +487,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                   ),
                 ],
               ),
+              ),
             );
           },
         );
@@ -502,7 +512,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
 
   List<Listing> applyFilters(List<Listing> listings) {
     // Split the query into words so an ad matches when EVERY word appears
-    // somewhere in it (any field, any order) â€” e.g. "nike shoes" finds
+    // somewhere in it (any field, any order) — e.g. "nike shoes" finds
     // "Shoes - Nike". Case-insensitive substring ("alphabetic") matching, so
     // partial words match too.
     final tokens = searchText
@@ -528,7 +538,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
         ...listing.attributes.values,
       ].join(' ').toLowerCase();
       // Each query word must match the ad: as a substring (exact/partial), or
-      // â€” if not found â€” as a close typo of one of the ad's words (edit
+      // — if not found — as a close typo of one of the ad's words (edit
       // distance). Words are split out lazily, only when a typo path is hit.
       List<String>? words;
       final matchesSearch =
@@ -604,11 +614,11 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     final subcategories = ['All', ...currentCategory.subcategories];
 
     // The search box + filters live OUTSIDE the StreamBuilder so they're never
-    // rebuilt by stream ticks or replaced by the loading spinner â€” the field
+    // rebuilt by stream ticks or replaced by the loading spinner — the field
     // stays responsive and keeps focus. Only the results list reacts to data.
     return Column(
       children: [
-        // â”€â”€ Compact search + filter/sort header â”€â”€
+        // ── Compact search + filter/sort header ──
         Container(
           color: AppColors.surface,
           padding: const EdgeInsets.fromLTRB(
@@ -670,8 +680,8 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                           label: sortBy == 'Newest'
                               ? 'Newest'
                               : (sortBy == 'Price: Low to High'
-                                    ? 'Price â†‘'
-                                    : 'Price â†“'),
+                                    ? 'Price ↑'
+                                    : 'Price ↓'),
                         ),
                       ),
                     ),
@@ -729,7 +739,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return ErrorStateWidget(
-                  message: 'We couldnâ€™t load listings. Please try again.',
+                  message: 'We couldn’t load listings. Please try again.',
                   onRetry: () => setState(() {}),
                 );
               }

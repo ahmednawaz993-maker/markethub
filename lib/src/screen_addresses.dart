@@ -43,6 +43,11 @@ class AddressBookScreen extends StatelessWidget {
       body: StreamBuilder<List<DeliveryAddress>>(
         stream: addressStream(),
         builder: (context, snap) {
+          if (snap.hasError) {
+            return const ErrorStateWidget(
+              message: 'We could not load your saved addresses.',
+            );
+          }
           if (!snap.hasData) {
             return const Center(child: CircularProgressIndicator());
           }

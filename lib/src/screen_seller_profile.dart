@@ -110,7 +110,7 @@ class SellerProfileScreen extends StatelessWidget {
             padding: const EdgeInsets.all(32),
             child: Center(
               child: Text(
-                'Couldnâ€™t load ads. Please try again.',
+                'Couldn’t load ads. Please try again.',
                 style: TextStyle(color: AppColors.textSecondary),
               ),
             ),
@@ -141,13 +141,13 @@ class SellerProfileScreen extends StatelessWidget {
               icon: Icons.inventory_2_outlined,
               title: 'No products in this store yet',
               subtitle:
-                  'Check back soon â€” this seller is just getting started.',
+                  'Check back soon — this seller is just getting started.',
             ),
           );
         }
 
         // Group the seller's products by category so a store with items across
-        // several categories shows them as sections â€” all of the seller's
+        // several categories shows them as sections — all of the seller's
         // products live together here in their store.
         final groups = <String, List<Listing>>{};
         for (final l in listings) {
@@ -517,7 +517,7 @@ class _StoreInfoCard extends StatelessWidget {
                       ),
                     ),
                     child: const Text(
-                      "This store also follows PakBazar's platform rules â€º",
+                      "This store also follows PakBazar's platform rules ›",
                       style: TextStyle(
                         fontSize: 12,
                         color: kPakGreen,
@@ -534,7 +534,7 @@ class _StoreInfoCard extends StatelessWidget {
   }
 }
 
-/// A premium product tile for the storefront grid â€” a clean image-forward card
+/// A premium product tile for the storefront grid — a clean image-forward card
 /// with a prominent price, a single clear title line, a condition chip and the
 /// location. Deliberately less busy than the feed's [FeedAdCard] so a store
 /// reads like a polished catalogue.
@@ -682,6 +682,11 @@ class FollowingScreen extends StatelessWidget {
                   .limit(30)
                   .snapshots(),
               builder: (context, snap) {
+                if (snap.hasError) {
+                  return const ErrorStateWidget(
+                    message: 'We could not load who you follow.',
+                  );
+                }
                 if (!snap.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
@@ -705,7 +710,7 @@ class FollowingScreen extends StatelessWidget {
                     if (ls.hasError) {
                       return Center(
                         child: Text(
-                          'Couldnâ€™t load ads. Please try again.',
+                          'Couldn’t load ads. Please try again.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: AppColors.onNavyMuted),
                         ),

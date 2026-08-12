@@ -732,7 +732,15 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     // Ensure the profile exists first, then run the one-time location prompt so
     // the two writes don't race (ensureUserDoc does a non-merge set on create).
-    ensureUserDoc().then((_) => maybePromptLocation());
+    // catchError matters: the `verified` sync inside ensureUserDoc can be
+    // denied while the ID token's email_verified claim lags the client's view
+    // of it (up to an hour after the user clicks the verification link). An
+    // unhandled rejection there used to skip the location prompt entirely for
+    // that session, on top of raising an async error.
+    ensureUserDoc()
+        .catchError((_) {})
+        .then((_) => maybePromptLocation())
+        .catchError((_) {});
     loadFavorites();
     loadBlocked();
     loadPlatformBlockedUsers().then((_) {
@@ -776,12 +784,18 @@ class _HomeScreenState extends State<HomeScreen> {
           ? user.phoneNumber!
           : (pendingSignupPhone ?? '');
       pendingSignupPhone = null;
+      // Public profile document: no contact PII. Every signed-in user can read
+      // this collection (seller pages, Stores rails), and rules cannot filter
+      // fields on read.
       await ref.set({
-        'email': user.email ?? '',
-        'phone': phone,
         'isAnonymous': user.isAnonymous,
         'verified': user.emailVerified,
         'createdAt': Timestamp.now(),
+      });
+      await savePrivateContact(user.uid, {
+        'email': user.email ?? '',
+        'phone': phone,
+        'updatedAt': Timestamp.now(),
       });
     } else if (snap.data()?['verified'] != user.emailVerified) {
       // Keep the public "Verified" badge in sync with email verification.
@@ -807,9 +821,11 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: const Icon(Icons.location_on, color: kPakGreen, size: 44),
           title: const Text('Share your location?'),
           content: const Text(
+            // This shipped on the Play Store telling Android users to change
+            // their browser settings.
             'Allow PakBazar to use your location to show nearby ads and help '
-            'keep the marketplace safe. You can turn this off anytime in your '
-            'browser settings.',
+            'keep the marketplace safe. You can turn this off anytime in '
+            'Settings.',
           ),
           actions: [
             TextButton(

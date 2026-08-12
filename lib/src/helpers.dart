@@ -12,7 +12,119 @@ const String currencySymbol = 'Rs';
 /// App version shown in the UI (About screen, support emails). Keep in sync
 /// with the `version:` line in pubspec.yaml — that one feeds the Play
 /// versionName/versionCode, this one is what users see inside the app.
-const String kAppVersion = '1.0.34';
+const String kAppVersion = '1.0.39';
+
+// ---------------------------------------------------------------------------
+// Image upload pipeline
+// ---------------------------------------------------------------------------
+
+/// JPEG quality applied to every picked image before upload. 72 is visually
+/// indistinguishable at the sizes we display and cuts a typical phone photo
+/// from several MB to a few hundred KB.
+const int kUploadImageQuality = 72;
+
+/// Longest edge we ever upload. Well above the largest size the app renders,
+/// so full-screen gallery view stays sharp.
+const double kUploadImageMaxWidth = 1600;
+
+/// Maximum photos per listing — matches the cap promised in the posting UI.
+const int kMaxListingImages = 8;
+
+// ---------------------------------------------------------------------------
+// Private contact details
+// ---------------------------------------------------------------------------
+
+/// Document holding a user's contact PII: `users/{uid}/private/contact`.
+///
+/// The parent user document is readable by every signed-in user (seller pages
+/// need the name and rating, and the Stores rails run list queries over the
+/// collection), and Firestore rules cannot filter fields on read. So email,
+/// phone, address and captured GPS live here instead.
+DocumentReference<Map<String, dynamic>> privateContactRef(String uid) {
+  return FirebaseFirestore.instance
+      .collection('users')
+      .doc(uid)
+      .collection('private')
+      .doc('contact');
+}
+
+/// Reads a user's contact details.
+///
+/// Falls back to the legacy fields on the public user document so the app keeps
+/// working for accounts the server-side backfill has not migrated yet. Once
+/// migrateUserContactPii has swept everyone, the fallback simply stops
+/// matching anything.
+Future<Map<String, dynamic>> loadPrivateContact(String uid) async {
+  // Merge FIELD BY FIELD rather than picking one document. A signup writes
+  // only email + phone to the private doc, so returning it wholesale as soon
+  // as it is non-empty would hide a legacy `address` still living on the
+  // public document.
+  final merged = <String, dynamic>{};
+
+  try {
+    final pub = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    final d = pub.data();
+    if (d != null) {
+      for (final k in const ['email', 'phone', 'address']) {
+        final v = d[k];
+        if (v != null && v.toString().isNotEmpty) merged[k] = v;
+      }
+    }
+  } catch (_) {
+    // Legacy copy is optional.
+  }
+
+  try {
+    final priv = await privateContactRef(uid).get();
+    final d = priv.data();
+    if (d != null) {
+      // Private wins wherever it has a value.
+      d.forEach((k, v) {
+        if (v != null && v.toString().isNotEmpty) merged[k] = v;
+      });
+    }
+  } catch (_) {
+    // Owner-only read; fall back to whatever the public doc had.
+  }
+
+  return merged;
+}
+
+/// Writes contact details to the private subcollection.
+Future<void> savePrivateContact(
+  String uid,
+  Map<String, dynamic> values,
+) async {
+  await privateContactRef(uid).set(values, SetOptions(merge: true));
+}
+
+/// Public web URL for a single listing, used when sharing an ad.
+///
+/// The web build does not route on this path yet, so it currently lands on the
+/// site and the id is carried for attribution and for when deep links ship.
+/// Sharing the bare site root gave the recipient no way to reach the item.
+String listingShareUrl(String listingId) {
+  final id = listingId.trim();
+  return id.isEmpty
+      ? 'https://pakbazar24.com'
+      : 'https://pakbazar24.com/ad/$id';
+}
+
+/// Metadata for uploaded images.
+///
+/// The `cacheControl` header is the important part: Firebase Storage defaults
+/// to `private, max-age=0`, so without this every image is re-downloaded on
+/// every app start over mobile data. Object paths are timestamp-unique, so
+/// treating them as immutable is safe.
+SettableMetadata imageUploadMetadata({String contentType = 'image/jpeg'}) {
+  return SettableMetadata(
+    contentType: contentType,
+    cacheControl: 'public, max-age=31536000, immutable',
+  );
+}
 
 /// Formats a price string with thousands separators, e.g. "4250000" ->
 /// "Rs 4,250,000". Non-numeric values (e.g. "Negotiable") are shown as-is.

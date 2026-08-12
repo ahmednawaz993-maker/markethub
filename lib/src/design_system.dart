@@ -163,12 +163,18 @@ class AppNetworkImage extends StatelessWidget {
   final IconData placeholderIcon;
   final double? iconSize;
 
+  /// Overrides the decode width in logical pixels. Normally unnecessary — the
+  /// widget measures itself and decodes to fit. Set it only where the layout
+  /// width is much larger than the image is ever shown at.
+  final double? decodeWidth;
+
   const AppNetworkImage({
     super.key,
     required this.url,
     this.fit = BoxFit.cover,
     this.placeholderIcon = Icons.image_outlined,
     this.iconSize,
+    this.decodeWidth,
   });
 
   Widget _fallback(BuildContext context, IconData icon) {
@@ -183,18 +189,38 @@ class AppNetworkImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (url.trim().isEmpty) return _fallback(context, placeholderIcon);
-    return Image.network(
-      url,
-      fit: fit,
-      // Fade in rather than pop, and never show a raw grey flash.
-      frameBuilder: (context, child, frame, wasSync) {
-        if (wasSync || frame != null) return child;
-        return _fallback(context, placeholderIcon);
+
+    // Decode at the size we actually paint. Without this a 12 MP listing photo
+    // decodes to roughly 48 MB of RGBA per card no matter how small the card
+    // is, which is the single largest source of scroll jank and memory
+    // pressure in long rails. Measuring here means every existing call site
+    // gets the benefit without passing anything.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final dpr = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 1.0;
+        final logicalWidth = decodeWidth ??
+            (constraints.hasBoundedWidth && constraints.maxWidth > 0
+                ? constraints.maxWidth
+                : null);
+        final cacheWidth = logicalWidth == null
+            ? null
+            : (logicalWidth * dpr).round().clamp(1, 4096);
+
+        return Image.network(
+          url,
+          fit: fit,
+          cacheWidth: cacheWidth,
+          // Fade in rather than pop, and never show a raw grey flash.
+          frameBuilder: (context, child, frame, wasSync) {
+            if (wasSync || frame != null) return child;
+            return _fallback(context, placeholderIcon);
+          },
+          loadingBuilder: (context, child, progress) =>
+              progress == null ? child : const LoadingShimmer(),
+          errorBuilder: (context, error, stack) =>
+              _fallback(context, Icons.broken_image_outlined),
+        );
       },
-      loadingBuilder: (context, child, progress) =>
-          progress == null ? child : const LoadingShimmer(),
-      errorBuilder: (context, error, stack) =>
-          _fallback(context, Icons.broken_image_outlined),
     );
   }
 }

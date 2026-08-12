@@ -737,7 +737,9 @@ class _AdminFeaturedTab extends StatelessWidget {
                 final d = doc.data() as Map<String, dynamic>;
                 final name = (d['businessName']?.toString() ?? '').isNotEmpty
                     ? d['businessName'].toString()
-                    : (d['email']?.toString() ?? 'Business');
+                    : ((d['displayName']?.toString() ?? '').isNotEmpty
+                          ? d['displayName'].toString()
+                          : 'Business');
                 return Card(
                   child: ListTile(
                     dense: true,

@@ -87,7 +87,7 @@ class SalesDashboardScreen extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return const ErrorStateWidget(
-              message: 'We couldnâ€™t load your sales. Please try again.',
+              message: 'We couldn’t load your sales. Please try again.',
             );
           }
           if (!snapshot.hasData) {
@@ -173,7 +173,7 @@ class SalesDashboardScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$sold item(s) sold${commissionActive ? ' Â· after 2% commission' : ' Â· 0% fee (free)'}',
+                      '$sold item(s) sold${commissionActive ? ' · after 2% commission' : ' · 0% fee (free)'}',
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 12,
@@ -251,7 +251,7 @@ class SalesDashboardScreen extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 16),
-              Text('Earnings â€” last 6 months', style: AppType.sectionTitle),
+              Text('Earnings — last 6 months', style: AppType.sectionTitle),
               const SizedBox(height: 10),
               if (sold == 0)
                 Padding(
@@ -397,6 +397,11 @@ class SellerAnalyticsScreen extends StatelessWidget {
             .where('userId', isEqualTo: uid)
             .snapshots(),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const ErrorStateWidget(
+              message: 'We could not load your ads.',
+            );
+          }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -475,7 +480,7 @@ class SellerAnalyticsScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          '${a.views} views Â· $l leads '
+                          '${a.views} views · $l leads '
                           '(ðŸ“ž ${a.calls}  ðŸ’¬ ${a.chats}  ðŸŸ¢ ${a.whatsapps})',
                           style: TextStyle(
                             fontSize: 12,
@@ -523,7 +528,7 @@ class SellerAnalyticsScreen extends StatelessWidget {
   }
 }
 
-/// Quick seller action to reduce an ad's price â€” records the drop so cards show
+/// Quick seller action to reduce an ad's price — records the drop so cards show
 /// the "Price dropped" badge and savers/followers get alerted.
 Future<void> showLowerPriceSheet(BuildContext context, Listing listing) async {
   final current = parsePrice(listing.price);
@@ -603,7 +608,7 @@ Future<void> showLowerPriceSheet(BuildContext context, Listing listing) async {
                     messenger.showSnackBar(
                       const SnackBar(
                         content: Text(
-                          'Price lowered â€” buyers will be notified',
+                          'Price lowered — buyers will be notified',
                         ),
                       ),
                     );
@@ -839,7 +844,7 @@ class SellerDashboardScreen extends StatelessWidget {
                     return _statCardTile(
                       icon: Icons.star,
                       color: kGold,
-                      value: count > 0 ? avg.toStringAsFixed(1) : 'â€”',
+                      value: count > 0 ? avg.toStringAsFixed(1) : '—',
                       label: count > 0 ? 'Rating ($count)' : 'No ratings yet',
                     );
                   },
@@ -1040,7 +1045,7 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return const ErrorStateWidget(
-              message: 'We couldnâ€™t load your ads. Please try again.',
+              message: 'We couldn’t load your ads. Please try again.',
             );
           }
 
@@ -1124,7 +1129,7 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                         messenger.showSnackBar(
                           const SnackBar(
                             content: Text(
-                              'Still recent â€” you can bump 24h after '
+                              'Still recent — you can bump 24h after '
                               'posting or your last bump.',
                             ),
                           ),
@@ -1340,19 +1345,32 @@ class _EditListingScreenState extends State<EditListingScreen> {
   }
 
   Future<void> pickImages() async {
-    final imgs = await picker.pickMultiImage();
-    if (imgs.isNotEmpty) setState(() => newImages = imgs);
+    final imgs = await picker.pickMultiImage(
+      imageQuality: kUploadImageQuality,
+      maxWidth: kUploadImageMaxWidth,
+    );
+    if (imgs.isNotEmpty) {
+      setState(
+        () => newImages = [
+          ...newImages,
+          ...imgs,
+        ].take(kMaxListingImages).toList(),
+      );
+    }
   }
 
   Future<List<String>> uploadImages() async {
     final urls = <String>[];
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return urls;
     for (var i = 0; i < newImages.length; i++) {
       final bytes = await newImages[i].readAsBytes();
       final ref = FirebaseStorage.instance
           .ref()
           .child('listings')
+          .child(uid)
           .child('${DateTime.now().millisecondsSinceEpoch}_$i.jpg');
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      await ref.putData(bytes, imageUploadMetadata());
       urls.add(await ref.getDownloadURL());
     }
     return urls;
@@ -1422,7 +1440,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
         data['previousPrice'] = widget.listing.price;
         data['priceDropAt'] = Timestamp.now();
       } else if (newP != oldP) {
-        // Price unchanged-numeric or raised â€” clear any stale drop marker.
+        // Price unchanged-numeric or raised — clear any stale drop marker.
         data['previousPrice'] = '';
         data['priceDropAt'] = FieldValue.delete();
       }
@@ -1437,7 +1455,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Saved â€” your ad will be reviewed before going live'),
+          content: Text('Saved — your ad will be reviewed before going live'),
         ),
       );
       Navigator.pop(context);
@@ -1703,7 +1721,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
               const SizedBox(height: AppSpacing.md),
               PrimaryActionButton(
                 label: latitude != null
-                    ? 'Current location set âœ“'
+                    ? 'Current location set ✓'
                     : 'Use my current location',
                 icon: latitude != null ? Icons.location_on : Icons.my_location,
                 outlined: true,

@@ -4,7 +4,7 @@ part of '../main.dart';
 
 /// Help & Suggestions: lets any user send a support request or an idea. The
 /// message is saved to the `feedback` collection (the admin reviews it in
-/// Admin Panel â†’ Feedback) and also opens the user's mail app pre-addressed to
+/// Admin Panel → Feedback) and also opens the user's mail app pre-addressed to
 /// [supportEmail], so it reaches the admin inbox directly too.
 Future<void> showSupportSheet(BuildContext context) async {
   final controller = TextEditingController();
@@ -34,7 +34,7 @@ Future<void> showSupportSheet(BuildContext context) async {
                 const SizedBox(height: 4),
                 Text(
                   'Need help or have an idea to improve PakBazar? Send it to our '
-                  'team â€” we read every message.',
+                  'team — we read every message.',
                   style: TextStyle(color: AppColors.textMuted, fontSize: 13),
                 ),
                 const SizedBox(height: 12),
@@ -79,7 +79,7 @@ Future<void> showSupportSheet(BuildContext context) async {
                       return;
                     }
                     final user = FirebaseAuth.instance.currentUser;
-                    // Durable record for the admin (Admin Panel â†’ Feedback).
+                    // Durable record for the admin (Admin Panel → Feedback).
                     try {
                       await FirebaseFirestore.instance
                           .collection('feedback')
@@ -207,7 +207,7 @@ class _DisplayNameTileState extends State<_DisplayNameTile> {
               alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: (loaded && !saving) ? _save : null,
-                child: Text(saving ? 'Savingâ€¦' : 'Save'),
+                child: Text(saving ? 'Saving…' : 'Save'),
               ),
             ),
           ],
@@ -256,7 +256,11 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
   }
 
   Future<void> _pickCover() async {
-    final img = await picker.pickImage(source: ImageSource.gallery);
+    final img = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: kUploadImageQuality,
+      maxWidth: kUploadImageMaxWidth,
+    );
     if (img == null) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -266,8 +270,9 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       final ref = FirebaseStorage.instance
           .ref()
           .child('business_logos')
-          .child('cover_$uid.jpg');
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+          .child(uid)
+          .child('cover.jpg');
+      await ref.putData(bytes, imageUploadMetadata());
       final url = await ref.getDownloadURL();
       if (!mounted) return;
       setState(() => coverUrl = url);
@@ -283,7 +288,11 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
   }
 
   Future<void> _pickLogo() async {
-    final img = await picker.pickImage(source: ImageSource.gallery);
+    final img = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: kUploadImageQuality,
+      maxWidth: kUploadImageMaxWidth,
+    );
     if (img == null) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -293,8 +302,9 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       final ref = FirebaseStorage.instance
           .ref()
           .child('business_logos')
-          .child('$uid.jpg');
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+          .child(uid)
+          .child('logo.jpg');
+      await ref.putData(bytes, imageUploadMetadata());
       final url = await ref.getDownloadURL();
       if (!mounted) return;
       setState(() => logoUrl = url);
@@ -320,7 +330,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
     if (!mounted) return;
     setState(() {
       isBusiness = d?['isBusiness'] == true;
-      // Legacy business accounts have no businessStatus â€” treat them as approved
+      // Legacy business accounts have no businessStatus — treat them as approved
       // so they keep their badge without re-applying.
       businessStatus =
           d?['businessStatus']?.toString() ??
@@ -365,10 +375,10 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       String message;
       if (wantsBusiness) {
         if (!isBusiness && businessStatus != 'approved') {
-          // Submit / resubmit for review. A seller can NEVER self-approve â€”
+          // Submit / resubmit for review. A seller can NEVER self-approve —
           // isBusiness is only flipped true by an admin (enforced in rules).
           data['businessStatus'] = 'pending';
-          message = 'Business details submitted â€” pending admin review.';
+          message = 'Business details submitted — pending admin review.';
         } else {
           // Already an approved business; just saving store details.
           message = 'Business store updated.';
@@ -427,7 +437,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Featured Business activated â€” free for 3 months!'),
+          content: Text('Featured Business activated — free for 3 months!'),
         ),
       );
     } catch (e) {
@@ -447,11 +457,11 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
     super.dispose();
   }
 
-  /// Shows the approval state of the business request, and â€” once approved â€”
+  /// Shows the approval state of the business request, and — once approved —
   /// quick access to the business dashboard and the seller's own storefront
   /// (where all of their products live together).
   Widget _buildBusinessStatusBanner(BuildContext context) {
-    // Approved (or grandfathered) and not suspended â†’ live business.
+    // Approved (or grandfathered) and not suspended → live business.
     if (isBusiness && businessStatus != 'suspended') {
       final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
       final name = nameController.text.trim();
@@ -495,7 +505,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
           title: 'Pending review',
           body:
               'Our team is reviewing your business. Your badge and store go '
-              'live once approved â€” you can keep editing your details below.',
+              'live once approved — you can keep editing your details below.',
         );
       case 'rejected':
         return _statusCard(
@@ -603,7 +613,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                             )
                           : const Icon(Icons.upload),
                       label: Text(
-                        uploadingLogo ? 'Uploadingâ€¦' : 'Upload logo',
+                        uploadingLogo ? 'Uploading…' : 'Upload logo',
                       ),
                     ),
                   ],
@@ -637,7 +647,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                             )
                           : const Icon(Icons.panorama),
                       label: Text(
-                        uploadingCover ? 'Uploadingâ€¦' : 'Cover photo',
+                        uploadingCover ? 'Uploading…' : 'Cover photo',
                       ),
                     ),
                   ],
@@ -696,7 +706,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
               alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: (loaded && !saving) ? _save : null,
-                child: Text(saving ? 'Savingâ€¦' : 'Save'),
+                child: Text(saving ? 'Saving…' : 'Save'),
               ),
             ),
             if (isBusiness) ...[
@@ -745,7 +755,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                           const SizedBox(height: 6),
                           if (active)
                             Text(
-                              'Active â€” featured on the home screen until '
+                              'Active — featured on the home screen until '
                               '${featuredUntil!.toDate().day}/'
                               '${featuredUntil!.toDate().month}/'
                               '${featuredUntil!.toDate().year}.',
@@ -762,7 +772,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                           else ...[
                             Text(
                               'Get a Featured Business spot on the home screen '
-                              'â€” free for 3 months.',
+                              '— free for 3 months.',
                               style: TextStyle(
                                 fontSize: 13,
                                 color: AppColors.textMuted,
@@ -811,7 +821,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
 /// Identity verification: user uploads a selfie + CNIC for admin face-match
 /// review. On approval the admin sets `idVerified` on the user doc.
 /// Lets a user request deletion of their account and data. The request is
-/// queued for the admin (Admin Panel â†’ Deletions) to action â€” satisfies the
+/// queued for the admin (Admin Panel → Deletions) to action — satisfies the
 /// app stores' account-deletion requirement.
 Future<void> _requestAccountDeletion(BuildContext context) async {
   final user = FirebaseAuth.instance.currentUser;
@@ -922,6 +932,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
     final fs = FirebaseFirestore.instance;
     final vDoc = await fs.collection('verifications').doc(uid).get();
     final uDoc = await fs.collection('users').doc(uid).get();
+    final contact = await loadPrivateContact(uid);
     if (!mounted) return;
     setState(() {
       final v = vDoc.data();
@@ -931,14 +942,14 @@ class _VerificationScreenState extends State<VerificationScreen> {
       addressProofUrl = v?['addressProofUrl']?.toString();
       addressController.text =
           v?['address']?.toString() ??
-          uDoc.data()?['address']?.toString() ??
+          contact['address']?.toString() ??
           '';
       idVerified = uDoc.data()?['idVerified'] == true;
       loaded = true;
     });
   }
 
-  /// Address proof (utility bill, bank letter, etc.) â€” a document, so gallery
+  /// Address proof (utility bill, bank letter, etc.) — a document, so gallery
   /// upload is allowed here (unlike the live-camera-only selfie/CNIC).
   Future<void> _uploadProof() async {
     final img = await picker.pickImage(
@@ -956,7 +967,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
           .child('verifications')
           .child(uid)
           .child('address_proof.jpg');
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      await ref.putData(bytes, imageUploadMetadata());
       final url = await ref.getDownloadURL();
       if (!mounted) return;
       setState(() => addressProofUrl = url);
@@ -996,7 +1007,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
           .child('verifications')
           .child(uid)
           .child(selfie ? 'selfie.jpg' : 'cnic.jpg');
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      await ref.putData(bytes, imageUploadMetadata());
       final url = await ref.getDownloadURL();
       if (!mounted) return;
       setState(() {
@@ -1056,7 +1067,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         setState(() => status = 'pending');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Submitted â€” we\'ll review it shortly.'),
+            content: Text('Submitted — we\'ll review it shortly.'),
           ),
         );
       }
@@ -1085,7 +1096,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 ),
         ),
         title: Text(label),
-        subtitle: Text(url == null ? 'Not captured' : 'Captured âœ“'),
+        subtitle: Text(url == null ? 'Not captured' : 'Captured ✓'),
         trailing: busy
             ? const SizedBox(
                 width: 18,
@@ -1143,7 +1154,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   child: Text(
                     'Verify your identity to earn an ID-Verified badge that buyers '
                     'and sellers trust. Use your camera to take a live selfie and a '
-                    'photo of your CNIC â€” uploads from the gallery are not allowed. '
+                    'photo of your CNIC — uploads from the gallery are not allowed. '
                     'Our team checks that the face matches the ID.',
                     style: AppType.secondary,
                   ),
@@ -1181,7 +1192,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 ),
                 const SizedBox(height: 8),
                 _uploadTile(
-                  'Proof of address (bill/letter) â€” optional',
+                  'Proof of address (bill/letter) — optional',
                   addressProofUrl,
                   uploadingProof,
                   _uploadProof,
@@ -1192,7 +1203,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     onPressed: submitting ? null : _submit,
                     child: Text(
                       submitting
-                          ? 'Submittingâ€¦'
+                          ? 'Submitting…'
                           : (status == 'pending'
                                 ? 'Resubmit for review'
                                 : 'Submit for verification'),
@@ -1201,7 +1212,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 Padding(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   child: Text(
-                    'Your documents are private â€” visible only to you and our '
+                    'Your documents are private — visible only to you and our '
                     'review team, never shown publicly. See the Privacy Policy.',
                     style: AppType.caption,
                   ),
@@ -1244,7 +1255,7 @@ class TrustSafetyScreen extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('â€¢  '),
+                    const Text('•  '),
                     Expanded(child: Text(p)),
                   ],
                 ),
@@ -1268,15 +1279,15 @@ class TrustSafetyScreen extends StatelessWidget {
             child: Text(
               'These are the rules every PakBazar member agrees to. Buyers and '
               'sellers each have matching responsibilities at every step of a '
-              'deal â€” follow them to keep the marketplace safe and fair.',
+              'deal — follow them to keep the marketplace safe and fair.',
               style: AppType.secondary,
             ),
           ),
           _card(Icons.verified_user, 'For everyone', kPakGreen, const [
-            'Be honest and respectful â€” no harassment, threats, hate speech, '
+            'Be honest and respectful — no harassment, threats, hate speech, '
                 'or discrimination.',
             'Keep every chat, offer, and payment on PakBazar so there is a '
-                'record â€” never move a deal off the app.',
+                'record — never move a deal off the app.',
             'Never share OTPs, passwords, CNIC numbers, or card PINs with '
                 'anyone, for any reason.',
             'Verify your identity and address to build trust and unlock '
@@ -1289,20 +1300,20 @@ class TrustSafetyScreen extends StatelessWidget {
           // fair confirmation/review) so both sides know what to expect.
           _card(Icons.shopping_cart, 'For buyers', Colors.blue, const [
             'Inspect the item and confirm it matches the ad before you pay.',
-            'Pay through PakBazar (escrow or Cash on Delivery) â€” never pay the '
+            'Pay through PakBazar (escrow or Cash on Delivery) — never pay the '
                 'full amount in advance to an unknown seller.',
             'Be cautious of prices that look too good to be true.',
-            'Negotiate openly with "Make an Offer" â€” don\'t ask to deal '
+            'Negotiate openly with "Make an Offer" — don\'t ask to deal '
                 'outside the app.',
             'Confirm receipt honestly so the seller\'s payment is released '
                 'fairly.',
             'Leave an honest rating and review after the deal.',
           ]),
           _card(Icons.sell, 'For sellers', Colors.deepOrange, const [
-            'Describe items honestly and use your own real photos â€” no '
+            'Describe items honestly and use your own real photos — no '
                 'misleading or fake listings.',
             'Only list items you actually own and are legally allowed to sell.',
-            'Honour the price and details you advertised â€” no bait-and-switch.',
+            'Honour the price and details you advertised — no bait-and-switch.',
             'Confirm payment is fully received or escrow is funded before you '
                 'hand over the item.',
             'Hand over or ship promptly once paid; never release goods before '
@@ -1317,7 +1328,7 @@ class TrustSafetyScreen extends StatelessWidget {
                 'outside PakBazar.',
             'No spam, duplicate ads, or misleading prices.',
             'Breaking these rules can lead to ad removal, a warning, or account '
-                'suspension â€” you can appeal a suspension from the app.',
+                'suspension — you can appeal a suspension from the app.',
           ]),
           _card(Icons.shield_moon, 'How PakBazar protects you', kPakGreen, const [
             'Identity & address verification before members can post, buy, '
@@ -1333,15 +1344,15 @@ class TrustSafetyScreen extends StatelessWidget {
             Colors.indigo,
             const [
               'Order or delivery problems are between the buyer and the '
-                  'seller â€” contact the seller directly through chat or their '
+                  'seller — contact the seller directly through chat or their '
                   'listed phone number.',
               'PakBazar can only help with a refund if you paid through the '
                   'platform\'s on-platform payment options (escrow).',
-              'If you paid the seller directly â€” Cash on Delivery, bank '
-                  'transfer, or any off-platform method â€” settle it with the '
+              'If you paid the seller directly — Cash on Delivery, bank '
+                  'transfer, or any off-platform method — settle it with the '
                   'seller. PakBazar cannot refund money it never held.',
               'For a dispute on an escrow-funded order, or to report a scam, '
-                  'open a request in Customer Care (24/7) â€” we aim to resolve '
+                  'open a request in Customer Care (24/7) — we aim to resolve '
                   'it within 24 hours.',
               'Always keep your payment on PakBazar so you stay protected.',
             ],
@@ -1363,7 +1374,7 @@ class TrustSafetyScreen extends StatelessWidget {
   }
 }
 
-/// Renders a legal document as titled sections. A line starting with "â€¢ " is
+/// Renders a legal document as titled sections. A line starting with "• " is
 /// shown as a bullet; everything else as a paragraph.
 class _LegalScreen extends StatelessWidget {
   final String title;
@@ -1406,11 +1417,11 @@ class _LegalScreen extends StatelessWidget {
                   for (final line in lines)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: line.startsWith('â€¢ ')
+                      child: line.startsWith('• ')
                           ? Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('â€¢  '),
+                                const Text('•  '),
                                 Expanded(child: Text(line.substring(2))),
                               ],
                             )
@@ -1453,23 +1464,23 @@ class PrivacyPolicyScreen extends StatelessWidget {
         (
           'Information we collect',
           [
-            'â€¢ Account details: your email and/or phone number, and a password '
+            '• Account details: your email and/or phone number, and a password '
                 '(handled by Firebase Authentication).',
-            'â€¢ Profile: display or business name, city, and address.',
-            'â€¢ Verification: a live selfie, CNIC photo, your address and an '
+            '• Profile: display or business name, city, and address.',
+            '• Verification: a live selfie, CNIC photo, your address and an '
                 'optional proof-of-address document, submitted for ID and address '
                 'verification.',
-            'â€¢ Listings: photos, descriptions, price, category, the contact '
+            '• Listings: photos, descriptions, price, category, the contact '
                 'number you choose to show, and the item location (city and, if '
                 'you allow it, GPS coordinates).',
-            'â€¢ Location: approximate or precise device location, only if you '
+            '• Location: approximate or precise device location, only if you '
                 'grant permission.',
-            'â€¢ Usage and device data: app interactions, views and leads, '
+            '• Usage and device data: app interactions, views and leads, '
                 'recently viewed items, saved searches, favourites, and push '
                 'notification tokens.',
-            'â€¢ Communications: in-app chat messages, offers, support requests, '
+            '• Communications: in-app chat messages, offers, support requests, '
                 'and reports you submit.',
-            'â€¢ Payments: wallet balance, top-up and withdrawal requests, and '
+            '• Payments: wallet balance, top-up and withdrawal requests, and '
                 'escrow transactions. We do not store full card numbers; payments '
                 'are handled manually or by a payment provider.',
           ],
@@ -1477,28 +1488,28 @@ class PrivacyPolicyScreen extends StatelessWidget {
         (
           'How we use your information',
           [
-            'â€¢ To run the marketplace â€” show listings, enable chat, offers, '
+            '• To run the marketplace — show listings, enable chat, offers, '
                 'orders, and escrow.',
-            'â€¢ To verify identity and address and to prevent fraud and abuse.',
-            'â€¢ To moderate content â€” every ad is reviewed before it goes live.',
-            'â€¢ To process payments, escrow, wallet top-ups and withdrawals.',
-            'â€¢ To send you notifications about chats, offers, orders, and '
+            '• To verify identity and address and to prevent fraud and abuse.',
+            '• To moderate content — every ad is reviewed before it goes live.',
+            '• To process payments, escrow, wallet top-ups and withdrawals.',
+            '• To send you notifications about chats, offers, orders, and '
                 'account decisions.',
-            'â€¢ To provide support and to improve and secure the service.',
-            'â€¢ To comply with the law and enforce our Terms and rules.',
+            '• To provide support and to improve and secure the service.',
+            '• To comply with the law and enforce our Terms and rules.',
           ],
         ),
         (
           'How we share information',
           [
-            'â€¢ With other users: your public profile, listings, ratings, and any '
+            '• With other users: your public profile, listings, ratings, and any '
                 'contact number you add to an ad are visible to others.',
-            'â€¢ With service providers that power the app, such as Google '
+            '• With service providers that power the app, such as Google '
                 'Firebase / Google Cloud (hosting, database, authentication, '
                 'notifications) and our payment and email providers.',
-            'â€¢ For safety and legal reasons: to investigate fraud, enforce our '
+            '• For safety and legal reasons: to investigate fraud, enforce our '
                 'rules, or comply with a lawful request.',
-            'â€¢ We do not sell your personal information.',
+            '• We do not sell your personal information.',
           ],
         ),
         (
@@ -1522,10 +1533,10 @@ class PrivacyPolicyScreen extends StatelessWidget {
         (
           'Your choices',
           [
-            'â€¢ You can edit your profile information in the app at any time.',
-            'â€¢ You can turn location and notification permissions on or off in '
+            '• You can edit your profile information in the app at any time.',
+            '• You can turn location and notification permissions on or off in '
                 'your device/browser settings.',
-            'â€¢ You can delete your account and data with "Delete my account" in '
+            '• You can delete your account and data with "Delete my account" in '
                 'your Profile, or by contacting us at ahmednawaz993@gmail.com.',
           ],
         ),
@@ -1568,11 +1579,11 @@ class TermsScreen extends StatelessWidget {
         (
           'Eligibility & account',
           [
-            'â€¢ You must be at least 18 years old and provide accurate '
+            '• You must be at least 18 years old and provide accurate '
                 'information.',
-            'â€¢ Posting ads, buying, making offers and chatting require identity '
+            '• Posting ads, buying, making offers and chatting require identity '
                 'and address verification.',
-            'â€¢ You are responsible for keeping your account secure and for all '
+            '• You are responsible for keeping your account secure and for all '
                 'activity under it.',
           ],
         ),
@@ -1589,12 +1600,12 @@ class TermsScreen extends StatelessWidget {
         (
           'Listings & moderation',
           [
-            'â€¢ You may list only items you own and are legally allowed to sell.',
-            'â€¢ Listings must be honest, with your own photos and accurate '
+            '• You may list only items you own and are legally allowed to sell.',
+            '• Listings must be honest, with your own photos and accurate '
                 'details and prices.',
-            'â€¢ Every ad is reviewed before going live; we may approve, reject, '
+            '• Every ad is reviewed before going live; we may approve, reject, '
                 'or remove any listing at our discretion.',
-            'â€¢ Prohibited items and conduct are described in Trust & Safety and '
+            '• Prohibited items and conduct are described in Trust & Safety and '
                 'are not allowed.',
           ],
         ),
@@ -1602,7 +1613,7 @@ class TermsScreen extends StatelessWidget {
           'Buyer & seller responsibilities',
           [
             'Buyers and sellers must follow the matched responsibilities set out '
-                'in our Trust & Safety rules â€” including honest dealing, keeping '
+                'in our Trust & Safety rules — including honest dealing, keeping '
                 'communication and payment on PakBazar, and completing deals '
                 'fairly.',
           ],
@@ -1610,23 +1621,23 @@ class TermsScreen extends StatelessWidget {
         (
           'Payments, escrow & fees',
           [
-            'â€¢ Payments can be made through in-app escrow or Cash on Delivery '
+            '• Payments can be made through in-app escrow or Cash on Delivery '
                 'where offered.',
-            'â€¢ With escrow, we hold the payment until the buyer confirms '
+            '• With escrow, we hold the payment until the buyer confirms '
                 'receipt, then release it to the seller.',
-            'â€¢ A platform commission may apply to completed sales, and sellers '
+            '• A platform commission may apply to completed sales, and sellers '
                 'can request withdrawals of their wallet balance.',
-            'â€¢ Never make or request payments outside PakBazar.',
+            '• Never make or request payments outside PakBazar.',
           ],
         ),
         (
           'Prohibited conduct & enforcement',
           [
-            'â€¢ No fraud, scams, off-platform payment requests, harassment, or '
+            '• No fraud, scams, off-platform payment requests, harassment, or '
                 'illegal activity.',
-            'â€¢ Breaking these Terms or our rules may lead to ad removal, '
+            '• Breaking these Terms or our rules may lead to ad removal, '
                 'warnings, or suspension of your account.',
-            'â€¢ Suspended users may submit an appeal from within the app.',
+            '• Suspended users may submit an appeal from within the app.',
           ],
         ),
         (
@@ -1634,20 +1645,20 @@ class TermsScreen extends StatelessWidget {
           [
             'Sellers are held to a strict standard. If any fraud or violent '
                 'activity is found on your account, your seller account will be '
-                'SUSPENDED IMMEDIATELY â€” without prior warning.',
-            'â€¢ Fraud includes (but is not limited to): fake, stolen, or '
+                'SUSPENDED IMMEDIATELY — without prior warning.',
+            '• Fraud includes (but is not limited to): fake, stolen, or '
                 'misrepresented listings; scams or advance-fee tricks; requesting '
                 'or taking payment off-platform; taking payment and not '
                 'delivering; and counterfeit or illegal goods.',
-            'â€¢ Violent activity includes any threats, intimidation, harassment, '
-                'or abuse towards buyers, our staff, or other users â€” in chat or '
+            '• Violent activity includes any threats, intimidation, harassment, '
+                'or abuse towards buyers, our staff, or other users — in chat or '
                 'in person.',
-            'â€¢ On immediate suspension you can no longer post ads, sell, make '
+            '• On immediate suspension you can no longer post ads, sell, make '
                 'offers, or chat, and any pending payouts may be held while we '
                 'investigate.',
-            'â€¢ Serious cases â€” fraud, threats, or violence â€” may also be '
+            '• Serious cases — fraud, threats, or violence — may also be '
                 'reported to the relevant law-enforcement authorities.',
-            'â€¢ If you believe a suspension was a mistake, you may submit an '
+            '• If you believe a suspension was a mistake, you may submit an '
                 'appeal from within the app for review.',
           ],
         ),
@@ -1766,7 +1777,7 @@ class AboutScreen extends StatelessWidget {
                   leading: const Icon(Icons.support_agent, color: kPakGreen),
                   title: const Text('Customer Care (24/7)'),
                   subtitle: const Text(
-                    'Open a request â€” resolved within 24h',
+                    'Open a request — resolved within 24h',
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.push(
@@ -1789,7 +1800,7 @@ class AboutScreen extends StatelessWidget {
                     leading: const Icon(Icons.card_giftcard, color: kGold),
                     title: const Text('Invite friends & win'),
                     subtitle: const Text(
-                      'Win PKR 100,000 â€” draw on 14 Aug 2026',
+                      'Win PKR 100,000 — draw on 14 Aug 2026',
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => Navigator.push(
@@ -1816,7 +1827,7 @@ class AboutScreen extends StatelessWidget {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Link copied â€” share it anywhere!'),
+                          content: Text('Link copied — share it anywhere!'),
                         ),
                       );
                     }
@@ -1836,14 +1847,14 @@ class AboutScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          Center(child: Text('Â© 2026 PakBazar', style: AppType.caption)),
+          Center(child: Text('© 2026 PakBazar', style: AppType.caption)),
         ],
       ),
     );
   }
 }
 
-/// Compact "X Followers Â· Y Following" row for the current user's own profile.
+/// Compact "X Followers · Y Following" row for the current user's own profile.
 class _FollowStatsRow extends StatelessWidget {
   const _FollowStatsRow();
 
@@ -1900,7 +1911,7 @@ class _FollowStatsRow extends StatelessWidget {
 }
 
 /// The "Menu" tab: account header, then grouped shortcuts into every part of
-/// the app. Every destination that used to live here is still here â€” My Ads is
+/// the app. Every destination that used to live here is still here — My Ads is
 /// now surfaced at the top of Selling, since it left the bottom bar.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});

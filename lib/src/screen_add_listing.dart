@@ -26,7 +26,7 @@ class DraftsScreen extends StatelessWidget {
           if (snapshot.hasError) {
             return const EmptyState(
               icon: Icons.error_outline,
-              title: 'Couldnâ€™t load drafts',
+              title: 'Couldn’t load drafts',
               subtitle: 'Please try again.',
             );
           }
@@ -56,7 +56,7 @@ class DraftsScreen extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Text(
-                    '${d['category'] ?? ''} Â· ${formatPrice(d['price']?.toString() ?? '')}',
+                    '${d['category'] ?? ''} · ${formatPrice(d['price']?.toString() ?? '')}',
                   ),
                   onTap: () => Navigator.push(
                     context,
@@ -158,11 +158,8 @@ class _AddListingScreenState extends State<AddListingScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      final phone = doc.data()?['phone']?.toString() ?? '';
+      final contact = await loadPrivateContact(uid);
+      final phone = contact['phone']?.toString() ?? '';
       if (phone.isNotEmpty && phoneController.text.trim().isEmpty && mounted) {
         setState(() => phoneController.text = phone);
       }
@@ -200,17 +197,28 @@ class _AddListingScreenState extends State<AddListingScreen> {
         .collection('users')
         .doc(uid)
         .collection('drafts');
-    if (widget.draftId != null) {
-      await col.doc(widget.draftId).set(data);
-    } else {
-      await col.add(data);
+    // A failed write used to leave savingDraft true forever, permanently
+    // disabling Save, while the success snackbar fired regardless.
+    try {
+      if (widget.draftId != null) {
+        await col.doc(widget.draftId).set(data);
+      } else {
+        await col.add(data);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => savingDraft = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save your draft: $e')),
+      );
+      return;
     }
     if (!mounted) return;
     setState(() => savingDraft = false);
     final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
     messenger.showSnackBar(
-      const SnackBar(content: Text('Saved to Drafts (Profile â†’ Drafts)')),
+      const SnackBar(content: Text('Saved to Drafts (Profile → Drafts)')),
     );
   }
 
@@ -241,27 +249,44 @@ class _AddListingScreenState extends State<AddListingScreen> {
   }
 
   Future<void> pickImages() async {
-    final images = await picker.pickMultiImage();
+    // Compress on the way in. A raw phone photo is 3-8 MB; at quality 72 and
+    // 1600px it lands around 250 KB with no visible loss at the sizes we ever
+    // display. On a Pakistani mobile connection this is the difference between
+    // an ad that posts and one the seller abandons.
+    final images = await picker.pickMultiImage(
+      imageQuality: kUploadImageQuality,
+      maxWidth: kUploadImageMaxWidth,
+    );
 
     if (images.isNotEmpty) {
       setState(() {
-        selectedImages = images;
+        // Enforce the 8-photo cap the UI already promises, and append to the
+        // existing selection instead of replacing it.
+        selectedImages = [
+          ...selectedImages,
+          ...images,
+        ].take(kMaxListingImages).toList();
       });
     }
   }
 
   Future<List<String>> uploadImages() async {
     final urls = <String>[];
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return urls;
 
     for (var i = 0; i < selectedImages.length; i++) {
       final bytes = await selectedImages[i].readAsBytes();
 
+      // Path is scoped by uid so Storage rules can prove ownership; without
+      // it any signed-in user could overwrite these photos.
       final ref = FirebaseStorage.instance
           .ref()
           .child('listings')
+          .child(uid)
           .child('${DateTime.now().millisecondsSinceEpoch}_$i.jpg');
 
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      await ref.putData(bytes, imageUploadMetadata());
       urls.add(await ref.getDownloadURL());
     }
 
@@ -272,7 +297,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
     // Guard against a double-tap re-entering during the async gaps below
     // (ensureVerified and the Firestore/Storage writes all await). The flag is
     // set *synchronously* before the first await so a second tap arriving during
-    // ensureVerified sees isSubmitting == true and bails â€” otherwise the same ad
+    // ensureVerified sees isSubmitting == true and bails — otherwise the same ad
     // could be posted twice. The finally below always clears it.
     if (isSubmitting) return;
     setState(() {
@@ -318,12 +343,16 @@ class _AddListingScreenState extends State<AddListingScreen> {
       // local-part > generic. Never expose the full email address.
       final me = FirebaseAuth.instance.currentUser;
       String sellerName = 'Seller';
+      // Real identity-verification state, read from the same user document we
+      // already fetch for the display name.
+      bool sellerIdVerified = false;
       if (me != null) {
         final udoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(me.uid)
             .get();
         final d = udoc.data();
+        sellerIdVerified = d?['idVerified'] == true;
         final dn = (d?['displayName'] as String?)?.trim() ?? '';
         final bn = (d?['businessName'] as String?)?.trim() ?? '';
         if (dn.isNotEmpty) {
@@ -356,7 +385,10 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'deliveryAvailable': deliveryAvailable,
         'codAvailable': codAvailable,
         'negotiable': negotiable,
-        'sellerVerified': true,
+        // Was hardcoded true on every ad, so the shield badge appeared on
+        // every listing in the app and told a buyer nothing. A badge everyone
+        // has trains people to ignore the one real trust marker.
+        'sellerVerified': sellerIdVerified,
         'attributes': attributes,
         'userId': FirebaseAuth.instance.currentUser?.uid ?? '',
         'sellerName': sellerName,
@@ -371,7 +403,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'approvalStatus': isDemoUser() ? 'approved' : 'pending',
       });
 
-      // The ad is now live. Everything below is best-effort cleanup â€” a failure
+      // The ad is now live. Everything below is best-effort cleanup — a failure
       // here must NOT be treated as a post failure (that would show an error and
       // tempt the user to re-submit, creating a duplicate live ad).
 
@@ -401,7 +433,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
 
       if (!mounted) return;
       // A published listing is a meaningful engagement signal for the review
-      // prompt (never triggers the prompt here â€” only records the signal).
+      // prompt (never triggers the prompt here — only records the signal).
       recordMeaningfulAction();
       await showDialog<void>(
         context: context,
@@ -438,7 +470,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Couldnâ€™t post your ad. Please try again.'),
+          content: Text('Couldn’t post your ad. Please try again.'),
         ),
       );
     } finally {
@@ -545,12 +577,12 @@ class _AddListingScreenState extends State<AddListingScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Post Ad')),
       // The action bar is a bottomNavigationBar, so Flutter lifts it above the
-      // keyboard â€” Submit is always reachable while typing.
+      // keyboard — Submit is always reachable while typing.
       bottomNavigationBar: StickyActionBar(
         children: [
           Expanded(
             child: PrimaryActionButton(
-              label: savingDraft ? 'Savingâ€¦' : 'Save draft',
+              label: savingDraft ? 'Saving…' : 'Save draft',
               icon: Icons.save_outlined,
               outlined: true,
               onPressed: (isSubmitting || savingDraft) ? null : saveDraft,
@@ -648,7 +680,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
                 textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(
                   labelText: 'Title',
-                  hintText: 'e.g. Honda Civic 2018 â€” single owner',
+                  hintText: 'e.g. Honda Civic 2018 — single owner',
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -760,7 +792,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
               const SizedBox(height: AppSpacing.md),
               PrimaryActionButton(
                 label: latitude != null
-                    ? 'Current location added âœ“'
+                    ? 'Current location added ✓'
                     : 'Use my current location',
                 icon: latitude != null ? Icons.location_on : Icons.my_location,
                 outlined: true,
@@ -839,13 +871,13 @@ class _AddListingScreenState extends State<AddListingScreen> {
                   labelText: 'Description',
                   alignLabelWithHint: true,
                   hintText:
-                      'Condition, age, what is included, reason for sellingâ€¦',
+                      'Condition, age, what is included, reason for selling…',
                 ),
               ),
             ],
           ),
 
-          // Seller conduct notice â€” every seller sees this before posting, so
+          // Seller conduct notice — every seller sees this before posting, so
           // the zero-tolerance policy isn't buried only in the Terms.
           InkWell(
             onTap: () => Navigator.push(

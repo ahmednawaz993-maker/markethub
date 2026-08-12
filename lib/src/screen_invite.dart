@@ -32,12 +32,14 @@ Future<void> recordLuckyDrawShare() async {
     final ref = db.collection('luckyDrawEntries').doc(uid);
     final existing = await ref.get();
     final u = (await db.collection('users').doc(uid).get()).data() ?? {};
+    final contact = await loadPrivateContact(uid);
     final data = <String, dynamic>{
       'uid': uid,
       'name': (u['name'] ?? u['displayName'] ?? '').toString(),
-      'phone': (u['phone'] ?? '').toString(),
-      'email': (u['email'] ?? FirebaseAuth.instance.currentUser?.email ?? '')
-          .toString(),
+      'phone': (contact['phone'] ?? '').toString(),
+      'email':
+          (contact['email'] ?? FirebaseAuth.instance.currentUser?.email ?? '')
+              .toString(),
       'shareCount': FieldValue.increment(1),
       'lastSharedAt': FieldValue.serverTimestamp(),
     };

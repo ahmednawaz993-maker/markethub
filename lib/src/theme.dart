@@ -519,6 +519,15 @@ ThemeData buildAppTheme(Brightness brightness) {
       secondarySelectedColor: kPakGreen,
       side: BorderSide(color: borderSoftCol),
       labelStyle: TextStyle(color: onSurface, fontWeight: FontWeight.w500),
+      // ChoiceChip/FilterChip use secondaryLabelStyle when selected. Without
+      // it the label kept labelStyle's dark navy on the kPakGreen (also dark
+      // navy) selected fill, so selected filter, language, address, payout and
+      // support chips were navy-on-navy — effectively invisible.
+      secondaryLabelStyle: const TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.w600,
+      ),
+      checkmarkColor: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadius.pill),
       ),

@@ -17,6 +17,22 @@ service cloud.firestore {
 
     // Super admin (full access) by verified token email (keep in sync with
     // adminEmails in the app).
+    // NOTE: deliberately does NOT require email_verified.
+    //
+    // Both super-admin and staff identity derive from the token email, and the
+    // app has only ever offered phone and email/password sign-in and never
+    // called sendEmailVerification — so no existing account, including the
+    // owner's, has a verified email. Adding the check here would immediately
+    // lock the owner out of their own admin panel.
+    //
+    // The residual risk is narrow: this address already has an account, and
+    // Firebase Auth will not let a second account register the same email. The
+    // exposure is on the STAFF path (a staff record created for an address
+    // nobody has registered yet). Sign-up now sends a verification mail, so
+    // once accounts are verified this can be tightened to
+    // `request.auth.token.get('email_verified', false) == true` here and in
+    // isActiveStaff() — do that only after confirming the owner's own account
+    // shows verified in the Firebase console.
     function isAdmin() {
       return isSignedIn()
              && request.auth.token.email in ['ahmednawaz993@gmail.com'];
@@ -32,6 +48,8 @@ service cloud.firestore {
     function staffData() {
       return get(/databases/$(database)/documents/staff/$(staffEmail())).data;
     }
+    // See the note on isAdmin(): the email_verified requirement belongs here
+    // too, but cannot be enabled until existing staff accounts are verified.
     function isActiveStaff() {
       return isSignedIn()
              && exists(/databases/$(database)/documents/staff/$(staffEmail()))
@@ -168,11 +186,37 @@ service cloud.firestore {
                         || (can('deletions')
                             && exists(/databases/$(database)/documents/deletionRequests/$(resource.data.userId))));
 
-      // Non-owners may only increment view/lead counters, nothing else.
+      // Non-owners may only increment view/lead counters, nothing else. The
+      // increment has to be by one: the rule previously constrained only WHICH
+      // keys changed, not their values, so any signed-in user could SET another
+      // seller's view or lead counts to an arbitrary number.
+      // Bounded on both sides: at most +1 (so nobody can inflate another
+      // seller's numbers) and never downward (so nobody can zero them either —
+      // views backs the most-viewed rail and the seller's analytics).
+      //
+      // This relies on the rules engine materialising FieldValue.increment
+      // into request.resource.data, which it does. Worth re-confirming in the
+      // emulator before deploying, because the client swallows the failure
+      // (screen_ad_details.dart catches and ignores), so if it did NOT hold,
+      // every view and lead counter would stop updating silently.
+      function bumpedByOne(field) {
+        return request.resource.data.get(field, 0)
+                 <= resource.data.get(field, 0) + 1
+               // Lower bound too, or the upper bound alone would let anyone
+               // RESET another seller's counters to zero. views backs the
+               // most-viewed rail and the seller's analytics.
+               && request.resource.data.get(field, 0)
+                    >= resource.data.get(field, 0);
+      }
+
       function onlyBumpsStats() {
         return request.resource.data.diff(resource.data)
                  .affectedKeys()
-                 .hasOnly(['views', 'calls', 'whatsapps', 'chats']);
+                 .hasOnly(['views', 'calls', 'whatsapps', 'chats'])
+               && bumpedByOne('views')
+               && bumpedByOne('calls')
+               && bumpedByOne('whatsapps')
+               && bumpedByOne('chats');
       }
 
       // An owner edit may not move the ad into a live state itself: either the
@@ -215,7 +259,8 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
                       isAdmin()
                       || (request.auth.uid == userId && walletUnchanged()
-                          && businessSelfOk())
+                          && verifiedMatchesToken() && featuredSelfOk()
+                          && trialFlagMonotonic() && businessSelfOk())
                       || ((can('users') || can('verifyId') || can('appeals')
                            || can('businessVerify'))
                           && noWalletChange())
@@ -229,10 +274,12 @@ service cloud.firestore {
       // Staff may moderate a profile (block, verify, feature) but never touch
       // the money field or the rating aggregate — walletBalance / ratingSum /
       // ratingCount stay super-admin / Cloud Function only.
+      // featuredBusiness* are deliberately NOT listed: staff run the Featured
+      // Business tools from the admin panel.
       function noWalletChange() {
         return !request.resource.data.diff(resource.data)
                  .affectedKeys().hasAny(['walletBalance', 'ratingSum',
-                                         'ratingCount']);
+                                         'ratingCount', 'verified']);
       }
 
       // walletBalance is money, idVerified is an identity decision, blocked is
@@ -246,6 +293,46 @@ service cloud.firestore {
                  .affectedKeys().hasAny(['walletBalance', 'idVerified',
                                          'blocked', 'ratingSum',
                                          'ratingCount']);
+      }
+
+      // The public "Verified" badge mirrors Firebase's own email_verified
+      // claim, and the app syncs it on every launch. Rather than freeze the
+      // field (which broke that sync and left the badge write-once), require
+      // it to agree with the token — so it stays self-maintaining but can
+      // never be self-granted.
+      function verifiedMatchesToken() {
+        return !request.resource.data.diff(resource.data)
+                  .affectedKeys().hasAny(['verified'])
+               || request.resource.data.verified
+                    == request.auth.token.get('email_verified', false);
+      }
+
+      // Featuring is normally bought through processPurchase, but approved
+      // businesses also get one free 90-day trial they activate themselves.
+      // Allow the owner to set the featured fields only on the write that
+      // consumes that one-time trial flag.
+      // The trial flag must be monotonic, or the whole gate is decorative: the
+      // owner could clear featuredTrialUsed in one write (which touches no
+      // featured* key and so short-circuits this function) and re-activate in
+      // the next, forever. The window is bounded too, so a crafted "trial"
+      // cannot set featuredBusinessUntil a century out where expireFeatured
+      // would never reach it.
+      function trialFlagMonotonic() {
+        return !request.resource.data.diff(resource.data)
+                  .affectedKeys().hasAny(['featuredTrialUsed'])
+               || request.resource.data.featuredTrialUsed == true;
+      }
+
+      function featuredSelfOk() {
+        return !request.resource.data.diff(resource.data)
+                  .affectedKeys().hasAny(['featuredBusiness',
+                                          'featuredBusinessUntil'])
+               || (resource.data.get('featuredTrialUsed', false) == false
+                   && request.resource.data.get('featuredTrialUsed', false)
+                        == true
+                   && request.resource.data.get('isBusiness', false) == true
+                   && request.resource.data.featuredBusinessUntil
+                        < request.time + duration.value(91, 'd'));
       }
 
       // "Sell as a business" is admin-approved. The owner may REQUEST it
@@ -263,6 +350,26 @@ service cloud.firestore {
                      == resource.data.get('businessStatus', 'none')
                    || request.resource.data.get('businessStatus', 'none')
                         in ['pending', 'none']);
+      }
+
+      // Contact PII — email, phone, home address, captured GPS.
+      //
+      // The parent users/{userId} document is readable by any signed-in user,
+      // because seller pages need name / rating / "Member since" and the
+      // Stores and Featured Business rails run real list queries over the
+      // collection. Rules cannot filter FIELDS on read, so anything private
+      // must not live on that document: previously an unfiltered
+      // collection('users').get() returned every user's phone number and home
+      // address. This subcollection is the private half.
+      //
+      // Staff with 'users' may read it to run support; nobody but the owner
+      // and the super admin may write it.
+      match /private/{docId} {
+        allow read: if isSignedIn()
+                    && (request.auth.uid == userId
+                        || can('users') || can('verifyId'));
+        allow write: if isSignedIn()
+                     && (request.auth.uid == userId || isAdmin());
       }
 
       match /favorites/{favoriteId} {
@@ -402,9 +509,15 @@ service cloud.firestore {
     // only back-office may resolve (update). An open dispute blocks the seller
     // payout (enforced server-side in onEscrowAction). Never client-deletable.
     match /disputes/{disputeId} {
+      // The dispute must name an order the creator actually bought. Without
+      // this, a stranger holding any orderId could open a dispute against it,
+      // and the Cloud Function would put that seller's payout on hold
+      // indefinitely.
       allow create: if isSignedIn()
                     && request.resource.data.buyerId == request.auth.uid
-                    && request.resource.data.status == 'open';
+                    && request.resource.data.status == 'open'
+                    && get(/databases/$(database)/documents/orders/$(request.resource.data.orderId))
+                         .data.buyerId == request.auth.uid;
       allow read: if isSignedIn()
                   && (resource.data.buyerId == request.auth.uid
                       || resource.data.sellerId == request.auth.uid
@@ -458,16 +571,30 @@ service cloud.firestore {
                             || (resource.data.sellerId == request.auth.uid
                                 && sellerShippingChange())
                             || (resource.data.buyerId == request.auth.uid
-                                && buyerConfirmChange())));
+                                && buyerConfirmChange())
+                            || (resource.data.buyerId == request.auth.uid
+                                && buyerCodCompleteChange())));
       allow delete: if can('orders');
 
       function onlySafeOrderChange() {
         return request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['buyerConfirmed', 'buyerConfirmedAt',
-                           'buyerConfirmedBy', 'orderStatus', 'status',
+                 .hasOnly(['orderStatus', 'status',
                            'completedAt', 'cancelledAt', 'cancelledBy',
                            'cancelledByRole', 'cancelReason',
                            'cancelReasonCode', 'updatedAt'])
+               // Delivery confirmation is reachable ONLY through
+               // buyerConfirmChange(), which is buyer-scoped. This rule is
+               // offered to buyer AND seller, and previously listed the
+               // buyerConfirmed* keys, making it a strict superset of the
+               // narrow rule: a seller could write buyerConfirmed on their own
+               // in_escrow order, satisfy onOrderProgress's release-eligibility
+               // check, and unlock their own payout without the buyer ever
+               // confirming receipt.
+               && !request.resource.data.diff(resource.data).affectedKeys()
+                    .hasAny(['buyerConfirmed', 'buyerConfirmedAt',
+                             'buyerConfirmedBy'])
+               && request.resource.data.get('orderStatus', 'pending')
+                    != 'buyer_confirmed'
                && (
                  request.resource.data.status == resource.data.status
                  || (resource.data.status == 'pending_payment'
@@ -543,8 +670,36 @@ service cloud.firestore {
                && request.resource.data.buyerConfirmed == true
                && request.resource.data.orderStatus == 'buyer_confirmed'
                && resource.data.status == 'in_escrow'
+               // The confirmation must name its actual author, mirroring the
+               // cancelledBy pin in onlySafeOrderChange. The Cloud Function
+               // cross-checks this against the order's buyerId before treating
+               // the release as eligible.
+               && request.resource.data.buyerConfirmedBy == request.auth.uid
                && (resource.data.get('orderStatus', 'legacy')
                      in ['shipped', 'delivered', 'legacy']);
+      }
+
+      // Buyer confirms receipt of a COD order. There is no held payment — cash
+      // was collected on delivery — so the order completes outright rather than
+      // going through the escrow release path.
+      //
+      // This used to ride on onlySafeOrderChange, whose key list included the
+      // buyerConfirmed* fields. Removing them from there (so a seller could not
+      // forge the buyer's escrow confirmation) also removed the only rule that
+      // permitted COD completion, stranding every COD order short of
+      // 'completed'. This is the buyer-scoped replacement.
+      function buyerCodCompleteChange() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['orderStatus', 'buyerConfirmed', 'buyerConfirmedAt',
+                           'buyerConfirmedBy', 'status', 'completedAt',
+                           'updatedAt'])
+               && !request.resource.data.diff(resource.data)
+                    .affectedKeys().hasAny(orderMoneyFields())
+               && resource.data.status == 'cod_pending'
+               && request.resource.data.status == 'completed'
+               && request.resource.data.buyerConfirmed == true
+               && request.resource.data.buyerConfirmedBy == request.auth.uid
+               && request.resource.data.orderStatus == 'delivered';
       }
 
       // Buyer cancellation requests (spec section 8). The buyer files a
@@ -947,11 +1102,30 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
     match /luckyDrawEntries/{uid} {
       allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
-      allow create, update: if isAdmin()
-                            || (isSignedIn()
-                                && request.auth.uid == uid
-                                && request.resource.data.uid == uid
-                                && request.resource.data.get('isWinner', false) == false);
+      // shareCount decides the draw: the admin winner-picker orders by it and
+      // flags entries at >= 5. It was freely self-settable, so an entrant could
+      // rank themselves first for a PKR 100,000 prize. Creation pins it to 0
+      // and updates may only step it up by one at a time, matching the
+      // FieldValue.increment(1) the Invite screen actually performs.
+      // Upper bounds rather than equality: the Invite screen writes
+      // FieldValue.increment(1) through a set(merge:true), so the very first
+      // share CREATES the document with shareCount resolving to 1, not 0. An
+      // upper bound also holds whether or not the rules engine resolves the
+      // increment transform into request.resource.data — an attacker setting
+      // an explicit large value is still rejected either way.
+      allow create: if isAdmin()
+                    || (isSignedIn()
+                        && request.auth.uid == uid
+                        && request.resource.data.uid == uid
+                        && request.resource.data.get('isWinner', false) == false
+                        && request.resource.data.get('shareCount', 0) <= 1);
+      allow update: if isAdmin()
+                    || (isSignedIn()
+                        && request.auth.uid == uid
+                        && request.resource.data.uid == uid
+                        && request.resource.data.get('isWinner', false) == false
+                        && request.resource.data.get('shareCount', 0)
+                             <= resource.data.get('shareCount', 0) + 1);
       allow delete: if isAdmin();
     }
 
@@ -1001,9 +1175,15 @@ service cloud.firestore {
     // Purchases — user spends wallet balance on a feature. A Cloud Function
     // (processPurchase) validates the balance and applies the effect.
     // ---------------------------------------------------------------------
+    // The price a purchase costs is decided server-side by processPurchase from
+    // a price table; `amount` written here is advisory only and is overwritten.
+    // A purchase must start pending so the function is the thing that settles
+    // it.
     match /purchases/{purchaseId} {
       allow create: if isSignedIn()
-                    && request.resource.data.userId == request.auth.uid;
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.get('status', 'pending')
+                         == 'pending';
       allow read: if isSignedIn()
                   && (resource.data.userId == request.auth.uid
                       || can('purchases'));
@@ -1029,12 +1209,21 @@ service cloud.firestore {
       // listing. Without this a buyer could lower offerAmount after the seller
       // accepts and buy the item for almost nothing (the order copies this
       // amount). Admins (can('offers')) are unrestricted.
+      // Transitions are scoped to the party entitled to make them. Previously
+      // both parties shared one rule that only checked THAT you were a party,
+      // never WHICH party — so a buyer could create an offer of Rs 1, accept
+      // it themselves with agreedAmount 1, and hold a genuine-looking accepted
+      // offer against a listing of any price.
       allow update: if isSignedIn() && (
                       can('offers')
-                      || ((resource.data.buyerId == request.auth.uid
-                           || resource.data.sellerId == request.auth.uid)
+                      || (resource.data.sellerId == request.auth.uid
                           && onlySafeOfferChange()
-                          && validOfferTransition())
+                          && agreedAmountOnlyOnAccept()
+                          && sellerOfferTransition())
+                      || (resource.data.buyerId == request.auth.uid
+                          && onlySafeOfferChange()
+                          && buyerAgreedOk()
+                          && buyerOfferTransition())
                     );
       allow delete: if can('offers');
 
@@ -1045,18 +1234,61 @@ service cloud.firestore {
                  .hasOnly(['status', 'counterAmount', 'agreedAmount']);
       }
 
-      // Legal status transitions (or an idempotent write that leaves status
-      // unchanged) — blocks re-actioning a finished offer.
-      function validOfferTransition() {
+      // The seller decides the outcome of a negotiation: accept, counter or
+      // decline. They may never mark it 'ordered' — only the buyer places the
+      // order.
+      function sellerOfferTransition() {
         return request.resource.data.status == resource.data.status
                || (resource.data.status == 'pending'
                    && request.resource.data.status in
-                      ['accepted', 'countered', 'declined', 'cancelled'])
+                      ['accepted', 'countered', 'declined'])
                || (resource.data.status == 'countered'
                    && request.resource.data.status in
-                      ['ordered', 'declined', 'cancelled'])
-               || (resource.data.status == 'accepted'
+                      ['accepted', 'declined']);
+      }
+
+      // The buyer may withdraw their offer, decline a counter, or convert an
+      // agreed one into an order. They may never move an offer to 'accepted'.
+      function buyerOfferTransition() {
+        return request.resource.data.status == resource.data.status
+               || (resource.data.status == 'pending'
+                   && request.resource.data.status == 'cancelled')
+               || (resource.data.status == 'countered'
+                   && request.resource.data.status == 'declined')
+               || (resource.data.status in ['accepted', 'countered']
                    && request.resource.data.status in ['ordered', 'cancelled']);
+      }
+
+      // agreedAmount is the price the resulting order copies, so the buyer may
+      // never invent one. They MAY pin it when converting to an order —
+      // accepting a seller's counter writes counterAmount into agreedAmount —
+      // but only to a value the negotiation already recorded on this document.
+      // The ONLY case where the buyer may introduce agreedAmount is accepting
+      // the seller's counter, and then only at exactly the counter price.
+      //
+      // An earlier version also allowed "== offerAmount", which reopened the
+      // hole this whole block exists to close: offer Rs 1, let the seller
+      // counter at Rs 450,000, then convert to an order with agreedAmount 1 —
+      // the transition is countered->ordered, so the unscoped alternative
+      // matched and the server's equality check passed against it. The accept
+      // path does not need it: the seller writes agreedAmount when accepting,
+      // so the buyer's write is a no-op caught by the first clause.
+      function buyerAgreedOk() {
+        return request.resource.data.get('agreedAmount', 0)
+                 == resource.data.get('agreedAmount', 0)
+               || (resource.data.status == 'countered'
+                   && request.resource.data.status == 'ordered'
+                   && request.resource.data.get('agreedAmount', 0)
+                        == resource.data.get('counterAmount', 0));
+      }
+
+      // The seller may only introduce or change agreedAmount at the moment of
+      // accepting — not afterwards, which would let them raise the price out
+      // from under a buyer who had already agreed.
+      function agreedAmountOnlyOnAccept() {
+        return request.resource.data.get('agreedAmount', 0)
+                 == resource.data.get('agreedAmount', 0)
+               || request.resource.data.status == 'accepted';
       }
     }
 
