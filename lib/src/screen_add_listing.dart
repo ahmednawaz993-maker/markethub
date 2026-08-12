@@ -241,27 +241,44 @@ class _AddListingScreenState extends State<AddListingScreen> {
   }
 
   Future<void> pickImages() async {
-    final images = await picker.pickMultiImage();
+    // Compress on the way in. A raw phone photo is 3-8 MB; at quality 72 and
+    // 1600px it lands around 250 KB with no visible loss at the sizes we ever
+    // display. On a Pakistani mobile connection this is the difference between
+    // an ad that posts and one the seller abandons.
+    final images = await picker.pickMultiImage(
+      imageQuality: kUploadImageQuality,
+      maxWidth: kUploadImageMaxWidth,
+    );
 
     if (images.isNotEmpty) {
       setState(() {
-        selectedImages = images;
+        // Enforce the 8-photo cap the UI already promises, and append to the
+        // existing selection instead of replacing it.
+        selectedImages = [
+          ...selectedImages,
+          ...images,
+        ].take(kMaxListingImages).toList();
       });
     }
   }
 
   Future<List<String>> uploadImages() async {
     final urls = <String>[];
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return urls;
 
     for (var i = 0; i < selectedImages.length; i++) {
       final bytes = await selectedImages[i].readAsBytes();
 
+      // Path is scoped by uid so Storage rules can prove ownership; without
+      // it any signed-in user could overwrite these photos.
       final ref = FirebaseStorage.instance
           .ref()
           .child('listings')
+          .child(uid)
           .child('${DateTime.now().millisecondsSinceEpoch}_$i.jpg');
 
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      await ref.putData(bytes, imageUploadMetadata());
       urls.add(await ref.getDownloadURL());
     }
 

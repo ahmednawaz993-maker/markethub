@@ -360,7 +360,11 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
   }
 
   Future<void> _pickAndUpload() async {
-    final img = await picker.pickImage(source: ImageSource.gallery);
+    final img = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: kUploadImageQuality,
+      maxWidth: kUploadImageMaxWidth,
+    );
     if (img == null) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -370,8 +374,9 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
       final ref = FirebaseStorage.instance
           .ref()
           .child('banners')
-          .child('ad_${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg');
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+          .child(uid)
+          .child('ad_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      await ref.putData(bytes, imageUploadMetadata());
       final url = await ref.getDownloadURL();
       if (!mounted) return;
       setState(() => imageUrl = url);

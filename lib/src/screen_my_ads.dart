@@ -1340,19 +1340,32 @@ class _EditListingScreenState extends State<EditListingScreen> {
   }
 
   Future<void> pickImages() async {
-    final imgs = await picker.pickMultiImage();
-    if (imgs.isNotEmpty) setState(() => newImages = imgs);
+    final imgs = await picker.pickMultiImage(
+      imageQuality: kUploadImageQuality,
+      maxWidth: kUploadImageMaxWidth,
+    );
+    if (imgs.isNotEmpty) {
+      setState(
+        () => newImages = [
+          ...newImages,
+          ...imgs,
+        ].take(kMaxListingImages).toList(),
+      );
+    }
   }
 
   Future<List<String>> uploadImages() async {
     final urls = <String>[];
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return urls;
     for (var i = 0; i < newImages.length; i++) {
       final bytes = await newImages[i].readAsBytes();
       final ref = FirebaseStorage.instance
           .ref()
           .child('listings')
+          .child(uid)
           .child('${DateTime.now().millisecondsSinceEpoch}_$i.jpg');
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      await ref.putData(bytes, imageUploadMetadata());
       urls.add(await ref.getDownloadURL());
     }
     return urls;

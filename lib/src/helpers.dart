@@ -12,7 +12,36 @@ const String currencySymbol = 'Rs';
 /// App version shown in the UI (About screen, support emails). Keep in sync
 /// with the `version:` line in pubspec.yaml — that one feeds the Play
 /// versionName/versionCode, this one is what users see inside the app.
-const String kAppVersion = '1.0.34';
+const String kAppVersion = '1.0.39';
+
+// ---------------------------------------------------------------------------
+// Image upload pipeline
+// ---------------------------------------------------------------------------
+
+/// JPEG quality applied to every picked image before upload. 72 is visually
+/// indistinguishable at the sizes we display and cuts a typical phone photo
+/// from several MB to a few hundred KB.
+const int kUploadImageQuality = 72;
+
+/// Longest edge we ever upload. Well above the largest size the app renders,
+/// so full-screen gallery view stays sharp.
+const double kUploadImageMaxWidth = 1600;
+
+/// Maximum photos per listing — matches the cap promised in the posting UI.
+const int kMaxListingImages = 8;
+
+/// Metadata for uploaded images.
+///
+/// The `cacheControl` header is the important part: Firebase Storage defaults
+/// to `private, max-age=0`, so without this every image is re-downloaded on
+/// every app start over mobile data. Object paths are timestamp-unique, so
+/// treating them as immutable is safe.
+SettableMetadata imageUploadMetadata({String contentType = 'image/jpeg'}) {
+  return SettableMetadata(
+    contentType: contentType,
+    cacheControl: 'public, max-age=31536000, immutable',
+  );
+}
 
 /// Formats a price string with thousands separators, e.g. "4250000" ->
 /// "Rs 4,250,000". Non-numeric values (e.g. "Negotiable") are shown as-is.

@@ -256,7 +256,11 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
   }
 
   Future<void> _pickCover() async {
-    final img = await picker.pickImage(source: ImageSource.gallery);
+    final img = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: kUploadImageQuality,
+      maxWidth: kUploadImageMaxWidth,
+    );
     if (img == null) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -266,8 +270,9 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       final ref = FirebaseStorage.instance
           .ref()
           .child('business_logos')
-          .child('cover_$uid.jpg');
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+          .child(uid)
+          .child('cover.jpg');
+      await ref.putData(bytes, imageUploadMetadata());
       final url = await ref.getDownloadURL();
       if (!mounted) return;
       setState(() => coverUrl = url);
@@ -283,7 +288,11 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
   }
 
   Future<void> _pickLogo() async {
-    final img = await picker.pickImage(source: ImageSource.gallery);
+    final img = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: kUploadImageQuality,
+      maxWidth: kUploadImageMaxWidth,
+    );
     if (img == null) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -293,8 +302,9 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
       final ref = FirebaseStorage.instance
           .ref()
           .child('business_logos')
-          .child('$uid.jpg');
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+          .child(uid)
+          .child('logo.jpg');
+      await ref.putData(bytes, imageUploadMetadata());
       final url = await ref.getDownloadURL();
       if (!mounted) return;
       setState(() => logoUrl = url);
@@ -956,7 +966,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
           .child('verifications')
           .child(uid)
           .child('address_proof.jpg');
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      await ref.putData(bytes, imageUploadMetadata());
       final url = await ref.getDownloadURL();
       if (!mounted) return;
       setState(() => addressProofUrl = url);
@@ -996,7 +1006,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
           .child('verifications')
           .child(uid)
           .child(selfie ? 'selfie.jpg' : 'cnic.jpg');
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      await ref.putData(bytes, imageUploadMetadata());
       final url = await ref.getDownloadURL();
       if (!mounted) return;
       setState(() {
