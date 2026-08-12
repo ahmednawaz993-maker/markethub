@@ -1265,18 +1265,18 @@ exports.notifyOnNewOrder = onDocumentCreated(
         // the wild, so fall back to locating the buyer's own agreed offer for
         // this listing rather than voiding a legitimate order. Still fully
         // validated below — this only changes how the offer is found.
+        // Filter by status IN THE QUERY. Applying limit() first and filtering
+        // afterwards meant a buyer who haggled repeatedly on one listing could
+        // have their agreed offer fall outside the window, voiding a
+        // legitimate order.
         const q = await db
           .collection("offers")
           .where("buyerId", "==", order.buyerId)
           .where("listingId", "==", order.listingId)
-          .limit(10)
+          .where("status", "in", ["accepted", "ordered"])
+          .limit(25)
           .get();
-        const candidates = q.docs
-          .map((d) => d.data())
-          .filter(
-            (o) =>
-              ["accepted", "ordered"].indexOf(String(o.status || "")) !== -1
-          );
+        const candidates = q.docs.map((d) => d.data());
         // Prefer one whose agreed amount matches what the order charged.
         offer =
           candidates.find(
@@ -1302,6 +1302,27 @@ exports.notifyOnNewOrder = onDocumentCreated(
           { merge: true }
         );
         return;
+      }
+
+      // An agreed offer is single-use. Its status is already 'ordered' by the
+      // time this runs (the client sets it in the same transaction that
+      // creates the order), so status alone cannot distinguish the first order
+      // from a replay — a scripted client could cite the same offerId again
+      // and again to keep buying at the negotiated price.
+      if (offerId) {
+        const prior = await db
+          .collection("orders")
+          .where("offerId", "==", offerId)
+          .limit(2)
+          .get();
+        const others = prior.docs.filter((d) => d.id !== snap.ref.id);
+        if (others.length > 0) {
+          await snap.ref.set(
+            { status: "cancelled", voidReason: "offer_already_used" },
+            { merge: true }
+          );
+          return;
+        }
       }
 
       // The agreed price is the buyer's to negotiate; the platform's cut is
@@ -1808,12 +1829,14 @@ exports.cleanupDeletedUserPrivate = onDocumentDeleted(
   async (event) => {
     const db = getFirestore();
     try {
-      const docs = await db
-        .collection("users")
-        .doc(event.params.userId)
-        .collection("private")
-        .listDocuments();
-      await Promise.all(docs.map((d) => d.delete()));
+      // recursiveDelete, not just private/: addresses hold a full street
+      // address and phone, payoutAccounts hold IBANs and account numbers, and
+      // drafts / savedSearches / notifications / fcmTokens / walletTransactions
+      // all survive the parent too. Deleting the account has to remove more
+      // PII than it leaves behind.
+      await db.recursiveDelete(
+        db.collection("users").doc(event.params.userId)
+      );
     } catch (e) {
       console.error("cleanupDeletedUserPrivate failed:", (e && e.message) || e);
     }

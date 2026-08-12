@@ -230,6 +230,13 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
   // Guards against a double tap creating two withdrawals documents, each of
   // which reserves the amount against the seller's balance.
   final submitting = ValueNotifier<bool>(false);
+  // The sheet is swipe-dismissible even while the button is disabled, so the
+  // write can outlive it. Without this guard the completion handlers below
+  // would touch a disposed notifier.
+  var sheetGone = false;
+  void setSubmitting(bool v) {
+    if (!sheetGone) submitting.value = v;
+  }
 
   await showModalBottomSheet(
     context: context,
@@ -321,7 +328,7 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
                     );
                     return;
                   }
-                  submitting.value = true;
+                  setSubmitting(true);
                   try {
                     await userRef.set({
                       'payoutBank': bank.text.trim(),
@@ -344,7 +351,7 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
                     // Clear the guard regardless: if the sheet's context is
                     // already unmounted it never pops, and leaving this true
                     // would leave the button permanently disabled.
-                    submitting.value = false;
+                    setSubmitting(false);
                     if (context.mounted) Navigator.pop(context);
                     messenger.showSnackBar(
                       const SnackBar(
@@ -358,7 +365,7 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
                     // Previously a failed write gave the user no feedback at
                     // all, so a withdrawal that never happened looked
                     // identical to one that did.
-                    submitting.value = false;
+                    setSubmitting(false);
                     messenger.showSnackBar(
                       SnackBar(
                         content: Text('Could not request withdrawal: $e'),
@@ -388,6 +395,7 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
   title.dispose();
   number.dispose();
   amount.dispose();
+  sheetGone = true;
   submitting.dispose();
 }
 

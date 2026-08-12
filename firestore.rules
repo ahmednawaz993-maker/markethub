@@ -190,12 +190,15 @@ service cloud.firestore {
       // increment has to be by one: the rule previously constrained only WHICH
       // keys changed, not their values, so any signed-in user could SET another
       // seller's view or lead counts to an arbitrary number.
-      // An upper bound, not an equality. The client bumps these with
-      // FieldValue.increment(1); an upper bound passes whether or not the
-      // rules engine resolves that transform into request.resource.data, while
-      // still rejecting an explicit write of an arbitrary number (explicit
-      // values always appear in request.resource.data). An equality check here
-      // would risk silently denying every ad view.
+      // Bounded on both sides: at most +1 (so nobody can inflate another
+      // seller's numbers) and never downward (so nobody can zero them either —
+      // views backs the most-viewed rail and the seller's analytics).
+      //
+      // This relies on the rules engine materialising FieldValue.increment
+      // into request.resource.data, which it does. Worth re-confirming in the
+      // emulator before deploying, because the client swallows the failure
+      // (screen_ad_details.dart catches and ignores), so if it did NOT hold,
+      // every view and lead counter would stop updating silently.
       function bumpedByOne(field) {
         return request.resource.data.get(field, 0)
                  <= resource.data.get(field, 0) + 1
@@ -257,7 +260,7 @@ service cloud.firestore {
                       isAdmin()
                       || (request.auth.uid == userId && walletUnchanged()
                           && verifiedMatchesToken() && featuredSelfOk()
-                          && businessSelfOk())
+                          && trialFlagMonotonic() && businessSelfOk())
                       || ((can('users') || can('verifyId') || can('appeals')
                            || can('businessVerify'))
                           && noWalletChange())
@@ -308,6 +311,18 @@ service cloud.firestore {
       // businesses also get one free 90-day trial they activate themselves.
       // Allow the owner to set the featured fields only on the write that
       // consumes that one-time trial flag.
+      // The trial flag must be monotonic, or the whole gate is decorative: the
+      // owner could clear featuredTrialUsed in one write (which touches no
+      // featured* key and so short-circuits this function) and re-activate in
+      // the next, forever. The window is bounded too, so a crafted "trial"
+      // cannot set featuredBusinessUntil a century out where expireFeatured
+      // would never reach it.
+      function trialFlagMonotonic() {
+        return !request.resource.data.diff(resource.data)
+                  .affectedKeys().hasAny(['featuredTrialUsed'])
+               || request.resource.data.featuredTrialUsed == true;
+      }
+
       function featuredSelfOk() {
         return !request.resource.data.diff(resource.data)
                   .affectedKeys().hasAny(['featuredBusiness',
@@ -315,7 +330,9 @@ service cloud.firestore {
                || (resource.data.get('featuredTrialUsed', false) == false
                    && request.resource.data.get('featuredTrialUsed', false)
                         == true
-                   && request.resource.data.get('isBusiness', false) == true);
+                   && request.resource.data.get('isBusiness', false) == true
+                   && request.resource.data.featuredBusinessUntil
+                        < request.time + duration.value(91, 'd'));
       }
 
       // "Sell as a business" is admin-approved. The owner may REQUEST it
@@ -1246,14 +1263,23 @@ service cloud.firestore {
       // never invent one. They MAY pin it when converting to an order —
       // accepting a seller's counter writes counterAmount into agreedAmount —
       // but only to a value the negotiation already recorded on this document.
+      // The ONLY case where the buyer may introduce agreedAmount is accepting
+      // the seller's counter, and then only at exactly the counter price.
+      //
+      // An earlier version also allowed "== offerAmount", which reopened the
+      // hole this whole block exists to close: offer Rs 1, let the seller
+      // counter at Rs 450,000, then convert to an order with agreedAmount 1 —
+      // the transition is countered->ordered, so the unscoped alternative
+      // matched and the server's equality check passed against it. The accept
+      // path does not need it: the seller writes agreedAmount when accepting,
+      // so the buyer's write is a no-op caught by the first clause.
       function buyerAgreedOk() {
         return request.resource.data.get('agreedAmount', 0)
                  == resource.data.get('agreedAmount', 0)
-               || (request.resource.data.status == 'ordered'
-                   && (request.resource.data.get('agreedAmount', 0)
-                         == resource.data.get('counterAmount', 0)
-                       || request.resource.data.get('agreedAmount', 0)
-                            == resource.data.get('offerAmount', 0)));
+               || (resource.data.status == 'countered'
+                   && request.resource.data.status == 'ordered'
+                   && request.resource.data.get('agreedAmount', 0)
+                        == resource.data.get('counterAmount', 0));
       }
 
       // The seller may only introduce or change agreedAmount at the moment of
