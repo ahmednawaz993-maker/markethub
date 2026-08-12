@@ -727,9 +727,24 @@ class _HomeScreenState extends State<HomeScreen> {
   String homeSort = 'Newest';
   final searchController = TextEditingController();
 
+  /// The "Recommended for you" grid. Paged so the feed no longer stops dead at
+  /// 60 ads. The RAILS above it deliberately keep their own bounded window —
+  /// they each show ~10 items drawn from a nationwide sample, so feeding them
+  /// from a paged source would leave them showing whatever happened to be on
+  /// page one.
+  late final PagedListings _feedSource;
+
   @override
   void initState() {
     super.initState();
+    _feedSource = PagedListings(
+      query: FirebaseFirestore.instance
+          .collection('listings')
+          .where('approvalStatus', isEqualTo: 'approved')
+          .orderBy('createdAt', descending: true),
+      clientFilter: _feedAccepts,
+    );
+    _feedSource.loadMore();
     // Ensure the profile exists first, then run the one-time location prompt so
     // the two writes don't race (ensureUserDoc does a non-merge set on create).
     // catchError matters: the `verified` sync inside ensureUserDoc can be
@@ -764,8 +779,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _feedSource.dispose();
     searchController.dispose();
     super.dispose();
+  }
+
+  /// Which ads belong in the main feed: publicly visible, not from a seller
+  /// this user (or the platform) has blocked, and matching the city filter.
+  bool _feedAccepts(Listing l) {
+    if (!l.isApproved || !l.isPubliclyVisible) return false;
+    if (isHiddenSeller(l.userId)) return false;
+    if (homeCity != 'All Pakistan' && l.city != homeCity) return false;
+    return true;
   }
 
   /// Creates a `users/{uid}` profile doc the first time we see this account,
@@ -917,6 +942,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted || c == null) return;
     final picked = c == 'All' ? 'All Pakistan' : c;
     setState(() => homeCity = picked);
+    // The city is part of the feed's accept test, so previously loaded pages
+    // no longer qualify.
+    _feedSource.refresh();
     // Auto-save the chosen city to the profile for the admin panel.
     saveUserLocation(city: picked);
   }
@@ -1114,8 +1142,6 @@ class _HomeScreenState extends State<HomeScreen> {
         final nearby = homeCity == 'All Pakistan'
             ? const <Listing>[]
             : listings.where((l) => l.city == homeCity).toList();
-        final feed = homeCity == 'All Pakistan' ? listings : nearby;
-
         final featured = nationwide
             .where((l) => l.isCurrentlyFeatured)
             .take(12)
@@ -1127,7 +1153,9 @@ class _HomeScreenState extends State<HomeScreen> {
         return RefreshIndicator(
           color: AppColors.accent,
           onRefresh: () async {
-            await Future<void>.delayed(const Duration(milliseconds: 500));
+            // Actually reload. This used to await a 500ms timer and no data,
+            // so pulling down looked like a refresh without being one.
+            await _feedSource.refresh();
             if (mounted) setState(() {});
           },
           child: LayoutBuilder(
@@ -1142,152 +1170,195 @@ class _HomeScreenState extends State<HomeScreen> {
                 columns: columns,
               );
 
-              return CustomScrollView(
-                slivers: [
-                  const SliverToBoxAdapter(child: LuckyDrawBanner()),
-                  const SliverToBoxAdapter(child: VerifyBanner()),
-                  const SliverToBoxAdapter(child: HomeCategoryStrip()),
-                  const SliverToBoxAdapter(child: WhatsNewSection()),
-                  SliverToBoxAdapter(
-                    child: RecentSearchesSection(
-                      onOpen: (s) => openSearch(s.query, category: s.category),
-                    ),
-                  ),
-                  const SliverToBoxAdapter(child: ContinueBrowsingRail()),
-                  if (featuringEnabled.value)
-                    SliverToBoxAdapter(
-                      child: HorizontalListingSection(
-                        title: 'Featured on PakBazar',
-                        icon: Icons.star,
-                        iconColor: kGold,
-                        listings: featured,
-                      ),
-                    ),
-                  SliverToBoxAdapter(
-                    child: HorizontalListingSection(
-                      title: 'Top deals',
-                      subtitle: 'Most viewed this week',
-                      icon: Icons.local_fire_department_outlined,
-                      iconColor: Colors.deepOrange,
-                      listings: topDeals.take(10).toList(),
-                      minItems: 3,
-                    ),
-                  ),
-                  if (nearby.isNotEmpty)
-                    SliverToBoxAdapter(
-                      child: HorizontalListingSection(
-                        title: 'Nearby in $homeCity',
-                        icon: Icons.near_me_outlined,
-                        listings: nearby.take(12).toList(),
-                        minItems: 3,
-                      ),
-                    ),
-                  SliverToBoxAdapter(
-                    child: _categoryRail(
-                      'Popular in Motors',
-                      'Motors',
-                      nationwide,
-                      icon: Icons.directions_car_outlined,
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: _categoryRail(
-                      'Popular in Properties',
-                      'Properties',
-                      nationwide,
-                      icon: Icons.home_work_outlined,
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: _categoryRail(
-                      'Latest mobile phones',
-                      'Mobiles & Tablets',
-                      nationwide,
-                      icon: Icons.smartphone_outlined,
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: _categoryRail(
-                      'Trending electronics',
-                      'Electronics',
-                      nationwide,
-                      icon: Icons.devices_other_outlined,
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: _categoryRail(
-                      'Fashion & essentials',
-                      'Garments',
-                      nationwide,
-                      icon: Icons.checkroom_outlined,
-                    ),
-                  ),
-                  const SliverToBoxAdapter(child: DealsRail()),
-                  const SliverToBoxAdapter(child: FollowingRail()),
-                  if (featuringEnabled.value)
-                    const SliverToBoxAdapter(child: FeaturedBusinessesRail()),
+              return AnimatedBuilder(
+                animation: _feedSource,
+                builder: (context, _) {
+                  // Sorting applies to what has been loaded; scrolling widens
+                  // the set. Same behaviour as before, except the window is no
+                  // longer capped at 60.
+                  final pagedFeed = _feedSource.items.toList()
+                    ..sort((a, b) {
+                      if (a.isSold != b.isSold) return a.isSold ? 1 : -1;
+                      if (a.isCurrentlyFeatured != b.isCurrentlyFeatured) {
+                        return a.isCurrentlyFeatured ? -1 : 1;
+                      }
+                      switch (homeSort) {
+                        case 'Price: Low to High':
+                          return parsePrice(
+                            a.price,
+                          ).compareTo(parsePrice(b.price));
+                        case 'Price: High to Low':
+                          return parsePrice(
+                            b.price,
+                          ).compareTo(parsePrice(a.price));
+                        default:
+                          final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
+                          final bt = b.createdAt?.millisecondsSinceEpoch ?? 0;
+                          return bt.compareTo(at);
+                      }
+                    });
 
-                  // ── Recommended feed ──
-                  const SliverToBoxAdapter(
-                    child: SizedBox(height: AppSpacing.section),
-                  ),
-                  SliverToBoxAdapter(
-                    child: SectionHeader(
-                      title: 'Recommended for you',
-                      actionLabel: '',
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.page,
-                        0,
-                        AppSpacing.page,
-                        AppSpacing.md,
-                      ),
+                  return InfiniteScrollTrigger(
+                    onLoadMore: _feedSource.loadMore,
+                    child: CustomScrollView(
+                      slivers: [
+                        const SliverToBoxAdapter(child: LuckyDrawBanner()),
+                        const SliverToBoxAdapter(child: VerifyBanner()),
+                        const SliverToBoxAdapter(child: HomeCategoryStrip()),
+                        const SliverToBoxAdapter(child: WhatsNewSection()),
+                        SliverToBoxAdapter(
+                          child: RecentSearchesSection(
+                            onOpen: (s) =>
+                                openSearch(s.query, category: s.category),
+                          ),
+                        ),
+                        const SliverToBoxAdapter(child: ContinueBrowsingRail()),
+                        if (featuringEnabled.value)
+                          SliverToBoxAdapter(
+                            child: HorizontalListingSection(
+                              title: 'Featured on PakBazar',
+                              icon: Icons.star,
+                              iconColor: kGold,
+                              listings: featured,
+                            ),
+                          ),
+                        SliverToBoxAdapter(
+                          child: HorizontalListingSection(
+                            title: 'Top deals',
+                            subtitle: 'Most viewed this week',
+                            icon: Icons.local_fire_department_outlined,
+                            iconColor: Colors.deepOrange,
+                            listings: topDeals.take(10).toList(),
+                            minItems: 3,
+                          ),
+                        ),
+                        if (nearby.isNotEmpty)
+                          SliverToBoxAdapter(
+                            child: HorizontalListingSection(
+                              title: 'Nearby in $homeCity',
+                              icon: Icons.near_me_outlined,
+                              listings: nearby.take(12).toList(),
+                              minItems: 3,
+                            ),
+                          ),
+                        SliverToBoxAdapter(
+                          child: _categoryRail(
+                            'Popular in Motors',
+                            'Motors',
+                            nationwide,
+                            icon: Icons.directions_car_outlined,
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: _categoryRail(
+                            'Popular in Properties',
+                            'Properties',
+                            nationwide,
+                            icon: Icons.home_work_outlined,
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: _categoryRail(
+                            'Latest mobile phones',
+                            'Mobiles & Tablets',
+                            nationwide,
+                            icon: Icons.smartphone_outlined,
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: _categoryRail(
+                            'Trending electronics',
+                            'Electronics',
+                            nationwide,
+                            icon: Icons.devices_other_outlined,
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: _categoryRail(
+                            'Fashion & essentials',
+                            'Garments',
+                            nationwide,
+                            icon: Icons.checkroom_outlined,
+                          ),
+                        ),
+                        const SliverToBoxAdapter(child: DealsRail()),
+                        const SliverToBoxAdapter(child: FollowingRail()),
+                        if (featuringEnabled.value)
+                          const SliverToBoxAdapter(
+                            child: FeaturedBusinessesRail(),
+                          ),
+
+                        // ── Recommended feed ──
+                        const SliverToBoxAdapter(
+                          child: SizedBox(height: AppSpacing.section),
+                        ),
+                        SliverToBoxAdapter(
+                          child: SectionHeader(
+                            title: 'Recommended for you',
+                            actionLabel: '',
+                            padding: const EdgeInsets.fromLTRB(
+                              AppSpacing.page,
+                              0,
+                              AppSpacing.page,
+                              AppSpacing.md,
+                            ),
+                          ),
+                        ),
+                        SliverToBoxAdapter(child: _sortRow()),
+                        if (pagedFeed.isEmpty && _feedSource.isLoading)
+                          SliverPadding(
+                            padding: AppSpacing.pageH,
+                            sliver: SliverGrid(
+                              gridDelegate: delegate,
+                              delegate: SliverChildBuilderDelegate(
+                                (context, i) => const ListingCardSkeleton(),
+                                childCount: columns * 3,
+                              ),
+                            ),
+                          )
+                        else if (pagedFeed.isEmpty)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 40),
+                              child: EmptyStateWidget(
+                                icon: Icons.storefront_outlined,
+                                title: homeCity == 'All Pakistan'
+                                    ? 'No ads yet'
+                                    : 'Nothing in $homeCity yet',
+                                subtitle: homeCity == 'All Pakistan'
+                                    ? 'Be the first to post an ad on PakBazar.'
+                                    : 'Try another city, or post the first ad here.',
+                                actionLabel: 'Post an ad',
+                                onAction: _postAd,
+                              ),
+                            ),
+                          )
+                        else
+                          SliverPadding(
+                            padding: AppSpacing.pageH,
+                            sliver: SliverGrid(
+                              gridDelegate: delegate,
+                              delegate: SliverChildBuilderDelegate(
+                                (context, i) => MarketplaceListingCard(
+                                  listing: pagedFeed[i],
+                                ),
+                                childCount: pagedFeed.length,
+                              ),
+                            ),
+                          ),
+                        SliverToBoxAdapter(
+                          child: PagedListingFooter(
+                            source: _feedSource,
+                            onRetry: _feedSource.loadMore,
+                          ),
+                        ),
+                        const SliverToBoxAdapter(
+                          child: SizedBox(height: AppSpacing.navClearance),
+                        ),
+                      ],
                     ),
-                  ),
-                  SliverToBoxAdapter(child: _sortRow()),
-                  if (!snapshot.hasData)
-                    SliverPadding(
-                      padding: AppSpacing.pageH,
-                      sliver: SliverGrid(
-                        gridDelegate: delegate,
-                        delegate: SliverChildBuilderDelegate(
-                          (context, i) => const ListingCardSkeleton(),
-                          childCount: columns * 3,
-                        ),
-                      ),
-                    )
-                  else if (feed.isEmpty)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 40),
-                        child: EmptyStateWidget(
-                          icon: Icons.storefront_outlined,
-                          title: homeCity == 'All Pakistan'
-                              ? 'No ads yet'
-                              : 'Nothing in $homeCity yet',
-                          subtitle: homeCity == 'All Pakistan'
-                              ? 'Be the first to post an ad on PakBazar.'
-                              : 'Try another city, or post the first ad here.',
-                          actionLabel: 'Post an ad',
-                          onAction: _postAd,
-                        ),
-                      ),
-                    )
-                  else
-                    SliverPadding(
-                      padding: AppSpacing.pageH,
-                      sliver: SliverGrid(
-                        gridDelegate: delegate,
-                        delegate: SliverChildBuilderDelegate(
-                          (context, i) =>
-                              MarketplaceListingCard(listing: feed[i]),
-                          childCount: feed.length,
-                        ),
-                      ),
-                    ),
-                  const SliverToBoxAdapter(
-                    child: SizedBox(height: AppSpacing.navClearance),
-                  ),
-                ],
+                  );
+                },
               );
             },
           ),

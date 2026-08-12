@@ -40,6 +40,7 @@ import 'package:safe_device/safe_device.dart';
 part 'src/i18n.dart';
 part 'src/helpers.dart';
 part 'src/observability.dart';
+part 'src/pagination.dart';
 part 'src/security.dart';
 part 'src/theme.dart';
 part 'src/design_system.dart';
