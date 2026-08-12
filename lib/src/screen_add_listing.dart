@@ -407,6 +407,12 @@ class _AddListingScreenState extends State<AddListingScreen> {
       // here must NOT be treated as a post failure (that would show an error and
       // tempt the user to re-submit, creating a duplicate live ad).
 
+      trackPostListing(
+        category: selectedCategory,
+        price: parsePrice(priceController.text.trim()),
+        photoCount: selectedImages.length,
+      );
+
       // Mirror the seller's location onto their profile (for the admin panel).
       try {
         await saveUserLocation(

@@ -889,12 +889,26 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
     setState(() => _submitting = true);
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
+    final itemCount = widget.items.fold<int>(0, (a, i) => a + i.quantity);
+    // Item total only — per-seller delivery is computed server-side.
+    final cartValue = cartTotal(widget.items);
+    trackBeginCheckout(
+      value: cartValue,
+      itemCount: itemCount,
+      paymentMethod: _payment,
+    );
     try {
-      await placeCartOrder(
+      final masterId = await placeCartOrder(
         items: widget.items,
         address: _address!,
         paymentMethod: _payment,
         notes: _notes.text,
+      );
+      trackPurchase(
+        orderId: masterId,
+        value: cartValue,
+        paymentMethod: _payment,
+        itemCount: itemCount,
       );
     } on CheckoutException catch (e) {
       if (mounted) setState(() => _submitting = false);

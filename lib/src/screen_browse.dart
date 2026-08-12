@@ -510,6 +510,26 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     return count;
   }
 
+  // Signature of the last search reported, so a rebuild does not re-report the
+  // same search. Never contains the query TEXT — see below.
+  String? _lastTrackedSearch;
+
+  void _maybeTrackSearch(int resultCount) {
+    final query = searchText.trim();
+    final filters = activeFilterCount;
+    if (query.isEmpty && filters == 0) return;
+    // The signature includes the query only to detect change; it is local
+    // state and never leaves the device.
+    final signature = '$query|$filters|${widget.category}|$resultCount';
+    if (signature == _lastTrackedSearch) return;
+    _lastTrackedSearch = signature;
+    trackSearch(
+      resultCount: resultCount,
+      hasFilters: filters > 0,
+      category: widget.category ?? '',
+    );
+  }
+
   List<Listing> applyFilters(List<Listing> listings) {
     // Split the query into words so an ad matches when EVERY word appears
     // somewhere in it (any field, any order) — e.g. "nike shoes" finds
@@ -750,6 +770,11 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
               final docs = snapshot.data?.docs ?? [];
               final allListings = docs.map((d) => Listing.fromDoc(d)).toList();
               final filtered = applyFilters(allListings);
+              // Reported here rather than at keystroke time so the event
+              // carries the real result count — the number that matters, since
+              // a rising share of zero-result searches is the clearest signal
+              // that supply is missing.
+              _maybeTrackSearch(filtered.length);
 
               if (filtered.isEmpty) {
                 return const EmptyStateWidget(

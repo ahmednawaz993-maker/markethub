@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:ui' show PlatformDispatcher;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart'
     show kIsWeb, kReleaseMode, defaultTargetPlatform, TargetPlatform;
@@ -18,6 +19,8 @@ import 'package:flutter/services.dart'
         SystemUiOverlayStyle;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
@@ -36,6 +39,7 @@ import 'package:safe_device/safe_device.dart';
 // Implementation is split across part files under lib/src/ (see below).
 part 'src/i18n.dart';
 part 'src/helpers.dart';
+part 'src/observability.dart';
 part 'src/security.dart';
 part 'src/theme.dart';
 part 'src/design_system.dart';
@@ -96,6 +100,9 @@ Future<void> main() async {
   );
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Immediately after Firebase.initializeApp and before anything else can
+  // throw, so a crash during the remaining startup work is still reported.
+  await initObservability();
   await loadSavedLocale();
   await loadSavedThemeMode();
   await loadFeaturingFlag();

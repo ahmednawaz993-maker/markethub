@@ -59,6 +59,10 @@ class AuthGate extends StatelessWidget {
           );
         }
 
+        // Attribute crashes and events to the account. Fire-and-forget; the
+        // uid is the account handle, not PII beyond what we already store.
+        setObservabilityUser(snapshot.data?.uid);
+
         if (snapshot.hasData) {
           return const _PresenceHost(child: _GatedHome());
         }

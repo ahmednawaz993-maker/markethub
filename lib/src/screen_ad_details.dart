@@ -184,6 +184,11 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
     super.initState();
     _incrementViews();
     recordRecentlyViewed(widget.listing);
+    trackViewListing(
+      listingId: widget.listing.id,
+      category: widget.listing.category,
+      price: parsePrice(widget.listing.price),
+    );
   }
 
   @override

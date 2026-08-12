@@ -48,6 +48,8 @@ dependencies:
   in_app_review: ^2.0.12
   geolocator: ^14.0.3
   firebase_messaging: ^16.4.0
+  firebase_crashlytics: ^5.0.2
+  firebase_analytics: ^12.0.2
   record: ^5.2.1
   audioplayers: ^6.5.0
   cross_file: ^0.3.4
