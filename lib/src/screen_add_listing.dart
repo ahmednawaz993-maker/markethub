@@ -158,11 +158,8 @@ class _AddListingScreenState extends State<AddListingScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      final phone = doc.data()?['phone']?.toString() ?? '';
+      final contact = await loadPrivateContact(uid);
+      final phone = contact['phone']?.toString() ?? '';
       if (phone.isNotEmpty && phoneController.text.trim().isEmpty && mounted) {
         setState(() => phoneController.text = phone);
       }

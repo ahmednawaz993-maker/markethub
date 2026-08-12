@@ -30,6 +30,62 @@ const double kUploadImageMaxWidth = 1600;
 /// Maximum photos per listing — matches the cap promised in the posting UI.
 const int kMaxListingImages = 8;
 
+// ---------------------------------------------------------------------------
+// Private contact details
+// ---------------------------------------------------------------------------
+
+/// Document holding a user's contact PII: `users/{uid}/private/contact`.
+///
+/// The parent user document is readable by every signed-in user (seller pages
+/// need the name and rating, and the Stores rails run list queries over the
+/// collection), and Firestore rules cannot filter fields on read. So email,
+/// phone, address and captured GPS live here instead.
+DocumentReference<Map<String, dynamic>> privateContactRef(String uid) {
+  return FirebaseFirestore.instance
+      .collection('users')
+      .doc(uid)
+      .collection('private')
+      .doc('contact');
+}
+
+/// Reads a user's contact details.
+///
+/// Falls back to the legacy fields on the public user document so the app keeps
+/// working for accounts the server-side backfill has not migrated yet. Once
+/// migrateUserContactPii has swept everyone, the fallback simply stops
+/// matching anything.
+Future<Map<String, dynamic>> loadPrivateContact(String uid) async {
+  try {
+    final priv = await privateContactRef(uid).get();
+    final d = priv.data();
+    if (d != null && d.isNotEmpty) return d;
+  } catch (_) {
+    // Fall through to the legacy location.
+  }
+  try {
+    final pub = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    final d = pub.data() ?? const <String, dynamic>{};
+    return {
+      'email': d['email'] ?? '',
+      'phone': d['phone'] ?? '',
+      'address': d['address'] ?? '',
+    };
+  } catch (_) {
+    return const <String, dynamic>{};
+  }
+}
+
+/// Writes contact details to the private subcollection.
+Future<void> savePrivateContact(
+  String uid,
+  Map<String, dynamic> values,
+) async {
+  await privateContactRef(uid).set(values, SetOptions(merge: true));
+}
+
 /// Public web URL for a single listing, used when sharing an ad.
 ///
 /// The web build does not route on this path yet, so it currently lands on the

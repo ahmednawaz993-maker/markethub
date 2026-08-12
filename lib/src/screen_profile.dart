@@ -932,6 +932,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
     final fs = FirebaseFirestore.instance;
     final vDoc = await fs.collection('verifications').doc(uid).get();
     final uDoc = await fs.collection('users').doc(uid).get();
+    final contact = await loadPrivateContact(uid);
     if (!mounted) return;
     setState(() {
       final v = vDoc.data();
@@ -941,7 +942,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
       addressProofUrl = v?['addressProofUrl']?.toString();
       addressController.text =
           v?['address']?.toString() ??
-          uDoc.data()?['address']?.toString() ??
+          contact['address']?.toString() ??
           '';
       idVerified = uDoc.data()?['idVerified'] == true;
       loaded = true;

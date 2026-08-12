@@ -776,12 +776,18 @@ class _HomeScreenState extends State<HomeScreen> {
           ? user.phoneNumber!
           : (pendingSignupPhone ?? '');
       pendingSignupPhone = null;
+      // Public profile document: no contact PII. Every signed-in user can read
+      // this collection (seller pages, Stores rails), and rules cannot filter
+      // fields on read.
       await ref.set({
-        'email': user.email ?? '',
-        'phone': phone,
         'isAnonymous': user.isAnonymous,
         'verified': user.emailVerified,
         'createdAt': Timestamp.now(),
+      });
+      await savePrivateContact(user.uid, {
+        'email': user.email ?? '',
+        'phone': phone,
+        'updatedAt': Timestamp.now(),
       });
     } else if (snap.data()?['verified'] != user.emailVerified) {
       // Keep the public "Verified" badge in sync with email verification.

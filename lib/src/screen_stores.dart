@@ -43,9 +43,13 @@ class StoresScreen extends StatelessWidget {
             separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
             itemBuilder: (context, i) {
               final d = docs[i].data() as Map<String, dynamic>;
+              // Never fall back to the email address: this list is public, so
+              // that printed a stranger's email as their shop name.
               final name = d['businessName']?.toString().isNotEmpty == true
                   ? d['businessName'].toString()
-                  : (d['email']?.toString() ?? 'Business');
+                  : (d['displayName']?.toString().isNotEmpty == true
+                        ? d['displayName'].toString()
+                        : 'Business');
               final featured = d['featuredBusiness'] == true;
               return SellerCard(
                 name: name,

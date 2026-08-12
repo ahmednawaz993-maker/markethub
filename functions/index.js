@@ -1748,6 +1748,90 @@ exports.processPurchase = onDocumentCreated("purchases/{id}", async (event) => {
 
 // Daily job: turn off Featured listings / businesses / banners whose paid
 // window (featuredUntil / featuredBusinessUntil / expiresAt) has passed.
+// ---------------------------------------------------------------------------
+// One-time (self-terminating) backfill: move contact PII off the public user
+// document into users/{uid}/private/contact.
+//
+// users/{uid} is readable by every signed-in user — seller pages need the name
+// and rating, and the Stores / Featured Business rails run real list queries
+// over the collection — and Firestore rules cannot filter fields on read. So
+// an unfiltered collection('users').get() used to return every user's email,
+// phone number and home address.
+//
+// The client already writes new accounts to the private subcollection and
+// reads from it with a fallback to these legacy fields, so this sweep is safe
+// to run repeatedly and safe to run while older app versions are still live:
+// it copies before it clears. Once no document matches, it costs one empty
+// query per day.
+// ---------------------------------------------------------------------------
+exports.migrateUserContactPii = onSchedule(
+  { schedule: "every 24 hours", timeoutSeconds: 540, memory: "512MiB" },
+  async () => {
+    const db = getFirestore();
+    const PII = ["email", "phone", "address", "latitude", "longitude"];
+
+    // Copying is always safe. CLEARING the public copy is gated, because the
+    // admin panel still reads users.email / users.phone in several list views
+    // and would render blank rows the moment those fields disappear. Migrate
+    // the admin reads to the private subcollection, confirm, then set
+    // config/privacy { stripPublicPii: true } to close the exposure.
+    let strip = false;
+    try {
+      const cfg = await db.collection("config").doc("privacy").get();
+      strip = cfg.exists && cfg.get("stripPublicPii") === true;
+    } catch (_) {
+      strip = false;
+    }
+
+    let cursor = null;
+    let moved = 0;
+
+    // Page through the collection rather than loading it all into memory.
+    for (let page = 0; page < 200; page++) {
+      let q = db.collection("users").orderBy("__name__").limit(300);
+      if (cursor) q = q.startAfter(cursor);
+      const snap = await q.get();
+      if (snap.empty) break;
+      cursor = snap.docs[snap.docs.length - 1];
+
+      const batch = db.batch();
+      let pending = 0;
+
+      for (const doc of snap.docs) {
+        const d = doc.data() || {};
+        const carried = {};
+        for (const k of PII) {
+          if (d[k] !== undefined && d[k] !== null && d[k] !== "") {
+            carried[k] = d[k];
+          }
+        }
+        if (Object.keys(carried).length === 0) continue;
+
+        // Copy into the private doc without clobbering anything already
+        // written there by a newer client.
+        batch.set(
+          doc.ref.collection("private").doc("contact"),
+          { ...carried, migratedAt: FieldValue.serverTimestamp() },
+          { merge: true }
+        );
+        pending += 1;
+        if (strip) {
+          const clear = {};
+          for (const k of Object.keys(carried)) clear[k] = FieldValue.delete();
+          batch.update(doc.ref, clear);
+          pending += 1;
+        }
+        moved++;
+      }
+
+      if (pending > 0) await batch.commit();
+      if (snap.size < 300) break;
+    }
+
+    if (moved > 0) console.log(`migrateUserContactPii: moved ${moved} users`);
+  }
+);
+
 exports.expireFeatured = onSchedule("every 24 hours", async () => {
   const db = getFirestore();
   const now = Timestamp.now();

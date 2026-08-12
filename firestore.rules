@@ -293,6 +293,26 @@ service cloud.firestore {
                         in ['pending', 'none']);
       }
 
+      // Contact PII — email, phone, home address, captured GPS.
+      //
+      // The parent users/{userId} document is readable by any signed-in user,
+      // because seller pages need name / rating / "Member since" and the
+      // Stores and Featured Business rails run real list queries over the
+      // collection. Rules cannot filter FIELDS on read, so anything private
+      // must not live on that document: previously an unfiltered
+      // collection('users').get() returned every user's phone number and home
+      // address. This subcollection is the private half.
+      //
+      // Staff with 'users' may read it to run support; nobody but the owner
+      // and the super admin may write it.
+      match /private/{docId} {
+        allow read: if isSignedIn()
+                    && (request.auth.uid == userId
+                        || can('users') || can('verifyId'));
+        allow write: if isSignedIn()
+                     && (request.auth.uid == userId || isAdmin());
+      }
+
       match /favorites/{favoriteId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
       }
