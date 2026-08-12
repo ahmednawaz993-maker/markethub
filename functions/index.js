@@ -89,6 +89,27 @@ function round2(n) {
   return Math.round(n * 100) / 100;
 }
 
+// Create a document whose id is a deterministic idempotency key.
+//
+// `.create()` failing with ALREADY_EXISTS means a redelivered event is being
+// replayed and the work is already queued — safe to ignore. Every OTHER
+// failure (permission, transient, deadline) must propagate: the callers go on
+// to stamp the request "approved" and push "your refund is being credited", so
+// a blanket catch told buyers their money was on the way when nothing had been
+// queued at all, with no alert to anyone.
+//
+// Returns true if this call created the document, false if it already existed.
+async function createOnce(ref, data) {
+  try {
+    await ref.create(data);
+    return true;
+  } catch (e) {
+    const code = e && e.code;
+    if (code === 6 || code === "already-exists") return false;
+    throw e;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Platform-held payment: configurable commission, payout records, audit log.
 //
@@ -985,7 +1006,10 @@ exports.onMasterOrderCreated = onDocumentCreated(
     const orderNo = await nextOrderNumber(db);
     const masterNumber = `PB-${orderNo}`;
     const isCod = master.paymentMethod === "cod";
-    const rate = commissionRate();
+    // Config-aware rate, matching the release path. commissionRate() alone
+    // ignores config/commission and drifts from what the seller is actually
+    // paid.
+    const { rate } = await resolveCommission(db, {});
     const address = master.deliveryAddress || {};
     const buyerName =
       master.buyerName || address.fullName || "A buyer";
@@ -1004,10 +1028,24 @@ exports.onMasterOrderCreated = onDocumentCreated(
       // whole seller order falls back to online escrow (server-authoritative,
       // so a tampered client can't force COD on a non-COD item).
       let groupCodOk = true;
+      // The seller is whoever actually OWNS the listing, never the sellerId the
+      // cart claimed. The single-order path already derives it from the listing
+      // (listing.userId); this path used the client's value, so a buyer could
+      // mint a sub-order naming an arbitrary uid as seller and misdirect the
+      // eventual payout. Items whose owner disagrees with the rest of the group
+      // are dropped rather than misattributed.
+      let trustedSellerId = "";
       for (const it of g.items) {
         const ls = await db.collection("listings").doc(it.listingId).get();
         if (!ls.exists) continue;
         const l = ls.data();
+        const owner = l.userId || "";
+        if (!owner) continue;
+        if (!trustedSellerId) {
+          trustedSellerId = owner;
+        } else if (owner !== trustedSellerId) {
+          continue;
+        }
         const status = l.status || (l.isSold ? "sold" : "in_stock");
         if (status !== "in_stock") continue;
         const unitPrice = parsePrice(l.price);
@@ -1029,7 +1067,7 @@ exports.onMasterOrderCreated = onDocumentCreated(
           lineTotal: round2(unitPrice * qty),
         });
       }
-      if (lineItems.length === 0) continue;
+      if (lineItems.length === 0 || !trustedSellerId) continue;
 
       sIndex++;
       const effectiveCod = isCod && groupCodOk;
@@ -1044,7 +1082,7 @@ exports.onMasterOrderCreated = onDocumentCreated(
       await orderRef.set({
         masterOrderId: masterId,
         orderNumber,
-        sellerId: g.sellerId,
+        sellerId: trustedSellerId,
         sellerName: g.sellerName || "",
         buyerId: master.buyerId,
         buyerName,
@@ -1079,7 +1117,7 @@ exports.onMasterOrderCreated = onDocumentCreated(
       try {
         await pushToUser(
           db,
-          g.sellerId,
+          trustedSellerId,
           {
             title: "New order received",
             body: `New order ${orderNumber} for Rs ${totals.amount}. Review the buyer's delivery details and accept when ready.`,
@@ -1203,6 +1241,66 @@ exports.notifyOnNewOrder = onDocumentCreated(
     let sellerId = order.sellerId;
     const payable =
       order.status === "cod_pending" || order.status === "pending_payment";
+    // A negotiated order claims its price came from an accepted offer. That
+    // claim used to be taken on trust: `fromOffer` is a plain client-written
+    // boolean, nothing ever loaded the offer, and the orders create rule does
+    // not constrain amount — so writing {fromOffer:true, amount:1} against a
+    // PKR 500,000 listing skipped every check below and stood. Verify the offer
+    // exists, belongs to this buyer and listing, was actually accepted, and
+    // that the order copies its agreed amount exactly.
+    if (order.fromOffer === true && payable) {
+      const offerId = order.offerId ? String(order.offerId) : "";
+      const offerSnap = offerId
+        ? await db.collection("offers").doc(offerId).get()
+        : null;
+      const offer = offerSnap && offerSnap.exists ? offerSnap.data() : null;
+      const agreed = Number(offer && offer.agreedAmount) || 0;
+      const offerOk =
+        offer &&
+        offer.buyerId === order.buyerId &&
+        String(offer.listingId || "") === String(order.listingId || "") &&
+        ["accepted", "ordered"].indexOf(String(offer.status || "")) !== -1 &&
+        agreed > 0 &&
+        Number(order.amount) === agreed;
+
+      if (!offerOk) {
+        await snap.ref.set(
+          { status: "cancelled", voidReason: "invalid_offer" },
+          { merge: true }
+        );
+        return;
+      }
+
+      // The agreed price is the buyer's to negotiate; the platform's cut is
+      // not. Recompute commission and payout from the same config-aware source
+      // the release path uses.
+      const offerSellerId = offer.sellerId || order.sellerId || "";
+      const { rate: offerRate, fixedFee: offerFee } = await resolveCommission(
+        db,
+        { category: order.category || "", sellerId: offerSellerId }
+      );
+      const offerCommission =
+        order.status === "cod_pending"
+          ? 0
+          : round2(agreed * offerRate + (offerRate > 0 ? offerFee : 0));
+      const offerPayout = round2(agreed - offerCommission);
+
+      if (
+        order.commission !== offerCommission ||
+        order.sellerPayout !== offerPayout ||
+        order.sellerId !== offerSellerId
+      ) {
+        await snap.ref.set(
+          {
+            commission: offerCommission,
+            sellerPayout: offerPayout,
+            sellerId: offerSellerId,
+          },
+          { merge: true }
+        );
+      }
+    }
+
     // A payable, non-negotiated order with no listing can't be price-validated
     // against trusted data, so a client-set amount could stand. Void it rather
     // than trust it (legit single orders always carry a listingId).
@@ -1249,7 +1347,21 @@ exports.notifyOnNewOrder = onDocumentCreated(
       const codDowngrade =
         order.status === "cod_pending" && listing.codAvailable !== true;
       const isCod = order.status === "cod_pending" && !codDowngrade;
-      const commission = isCod ? 0 : round2(itemPrice * commissionRate());
+      // Use the same config-aware resolver the payout/release path uses.
+      // This used to call commissionRate(), which only knows the built-in
+      // free-launch schedule and ignores config/commission (category rates,
+      // per-seller overrides, admin-set globalRate). The seller was quoted one
+      // commission at order time and paid against a different one at release.
+      const { rate: orderRate, fixedFee: orderFee } = await resolveCommission(
+        db,
+        {
+          category: listing.category || order.category || "",
+          sellerId: listing.userId || order.sellerId || "",
+        }
+      );
+      const commission = isCod
+        ? 0
+        : round2(itemPrice * orderRate + (orderRate > 0 ? orderFee : 0));
       const sellerPayout = round2(amount - commission);
       sellerId = listing.userId || order.sellerId || "";
 
@@ -1493,6 +1605,33 @@ function refIdFromData(data) {
   );
 }
 
+// Server-side price list for wallet purchases, keyed "type:days". The client
+// used to supply its own `amount` and processPurchase debited it verbatim, so
+// a crafted purchase document bought a 365-day home-screen banner for Rs 1 —
+// and, for type "banner", published attacker-chosen image/title/subtitle via
+// the admin SDK, bypassing the can('featured') rule on the banners collection.
+// Keep in sync with the packages offered in lib/src/screen_wallet.dart.
+const PURCHASE_PRICES = {
+  "banner:7": 2000,
+  "banner:30": 6000,
+};
+
+// Look up the authoritative price. config/pricing may override or extend the
+// built-in table without a deploy; anything not listed is not for sale.
+async function resolvePurchasePrice(db, type, days) {
+  const key = `${type}:${days}`;
+  try {
+    const snap = await db.collection("config").doc("pricing").get();
+    const table = snap.exists ? snap.data() : null;
+    if (table && typeof table[key] === "number" && table[key] > 0) {
+      return table[key];
+    }
+  } catch (_) {
+    // Fall through to the built-in table.
+  }
+  return typeof PURCHASE_PRICES[key] === "number" ? PURCHASE_PRICES[key] : null;
+}
+
 // Processes a wallet purchase: atomically checks the balance, deducts it, and
 // applies the effect (feature a listing / featured business / home banner).
 exports.processPurchase = onDocumentCreated("purchases/{id}", async (event) => {
@@ -1502,12 +1641,30 @@ exports.processPurchase = onDocumentCreated("purchases/{id}", async (event) => {
   const db = getFirestore();
   const purchaseRef = event.data.ref;
   const userRef = db.collection("users").doc(p.userId);
-  const amount = Number(p.amount) || 0;
   // Clamp the client-supplied benefit window to a sane range so a tiny payment
   // can never buy an absurdly long feature (defence in depth; the price itself
   // is still debited from the buyer's own wallet).
   const days = Math.min(Math.max(1, Number(p.days) || 7), 365);
   const until = Timestamp.fromMillis(Date.now() + days * 86400000);
+
+  // The price is ours to decide, never the client's.
+  const amount = await resolvePurchasePrice(db, String(p.type || ""), days);
+  if (amount == null) {
+    await purchaseRef.set(
+      { status: "invalid_price", amount: Number(p.amount) || 0 },
+      { merge: true }
+    );
+    return;
+  }
+
+  // A "feature" purchase must name a listing the buyer actually owns.
+  if (p.type === "feature" && p.refId) {
+    const target = await db.collection("listings").doc(String(p.refId)).get();
+    if (!target.exists || target.get("userId") !== p.userId) {
+      await purchaseRef.set({ status: "invalid_target" }, { merge: true });
+      return;
+    }
+  }
 
   try {
     await db.runTransaction(async (tx) => {
@@ -1524,7 +1681,7 @@ exports.processPurchase = onDocumentCreated("purchases/{id}", async (event) => {
         return;
       }
 
-      const userUpdate = { walletBalance: balance - amount };
+      const userUpdate = { walletBalance: round2(balance - amount) };
       if (p.type === "feature" && p.refId) {
         tx.update(db.collection("listings").doc(p.refId), {
           isFeatured: true,
@@ -1557,6 +1714,8 @@ exports.processPurchase = onDocumentCreated("purchases/{id}", async (event) => {
       });
       tx.update(purchaseRef, {
         status: "completed",
+        // Record what was actually charged, not what the client asked for.
+        amount,
         completedAt: FieldValue.serverTimestamp(),
       });
     });
@@ -2217,7 +2376,16 @@ exports.onEscrowAction = onDocumentCreated(
         const sellerSnap = await tx.get(sellerRef);
         const bal = Number(sellerSnap.get("walletBalance")) || 0;
 
-        tx.update(sellerRef, { walletBalance: bal + payout });
+        // round2 to match the refund path: unrounded float addition lets
+        // drift accumulate in real seller balances. set/merge rather than
+        // update because tx.update throws NOT_FOUND on a missing user doc
+        // (deleted account, unmigrated seller), which would roll back the
+        // whole release and strand the funds with only a log line.
+        tx.set(
+          sellerRef,
+          { walletBalance: round2(bal + payout) },
+          { merge: true }
+        );
         // Record the credit in the seller's wallet history so the balance
         // change has a matching line item (reconciliation / UX).
         tx.set(sellerRef.collection("walletTransactions").doc(), {
@@ -2280,7 +2448,11 @@ exports.onEscrowAction = onDocumentCreated(
         const buyerSnap = await tx.get(buyerRef);
         const bal = Number(buyerSnap.get("walletBalance")) || 0;
 
-        tx.update(buyerRef, { walletBalance: round2(bal + refundValue) });
+        tx.set(
+          buyerRef,
+          { walletBalance: round2(bal + refundValue) },
+          { merge: true }
+        );
         // Mirror the refund in the buyer's wallet history.
         tx.set(buyerRef.collection("walletTransactions").doc(), {
           type: "credit",
@@ -2427,18 +2599,20 @@ async function processCancellationApproval(
   if (heldInEscrow && (Number(order.amount) || 0) > 0) {
     // Reuse the audited escrow-refund flow, which credits the buyer's wallet
     // and sets status:refunded / orderStatus:cancelled. Fixed id → idempotent.
-    try {
-      await db.collection("escrowActions").doc(`cancel_${orderId}`).create({
+    // One cancellation per order, so the order-keyed id is the right
+    // idempotency key here. createOnce ignores ALREADY_EXISTS but lets a real
+    // failure propagate rather than reporting a refund that never queued.
+    await createOnce(
+      db.collection("escrowActions").doc(`cancel_${orderId}`),
+      {
         type: "refund",
         orderId,
         by: actorId || "system",
         reason: `cancellation:${req.reasonCode || ""}`,
         source: "cancellation",
         createdAt: Timestamp.now(),
-      });
-    } catch (e) {
-      // Already queued/processed — continue idempotently.
-    }
+      }
+    );
     // Leave status/orderStatus to the refund flow; only stamp the cancel meta.
     await orderRef.set(cancelStamp, { merge: true });
     await reqRef.set(
@@ -2779,7 +2953,7 @@ exports.onCancellationRequestDecision = onDocumentUpdated(
 // A buyer whose payment is still HELD in escrow can request a refund at any
 // stage. Only ADMIN (orders staff) decides — the seller is notified but does
 // not approve/reject. On approval this reuses the audited escrow-refund path
-// (a deterministic escrowActions/refund_{orderId} doc → onEscrowAction), which
+// (a deterministic escrowActions/refund_{requestId} doc → onEscrowAction), which
 // credits the buyer's wallet. Admin may issue a full or partial refund
 // (act.refundAmount). Mirrors the cancellation flow.
 // ---------------------------------------------------------------------------
@@ -2836,11 +3010,14 @@ async function processRefundApproval(
     createdAt: Timestamp.now(),
   };
   if (partial > 0) action.refundAmount = partial;
-  try {
-    await db.collection("escrowActions").doc(`refund_${orderId}`).create(action);
-  } catch (e) {
-    // Already queued/processed — continue idempotently.
-  }
+  // Keyed per refund request, not per order: with a fixed `refund_{orderId}`
+  // id a second legitimate partial refund on the same order could never be
+  // queued, and failed silently. refundAllocation already caps the total so
+  // successive partials cannot over-refund.
+  await createOnce(
+    db.collection("escrowActions").doc(`refund_${reqRef.id}`),
+    action
+  );
   // Leave status/orderStatus to the refund flow; only stamp the request + flag.
   await orderRef.set(
     {
@@ -3124,8 +3301,9 @@ async function processReturnApproval(
     return;
   }
 
-  try {
-    await db.collection("escrowActions").doc(`return_${orderId}`).create({
+  await createOnce(
+    db.collection("escrowActions").doc(`return_${orderId}`),
+    {
       type: "refund",
       orderId,
       by: actorId || "system",
@@ -3133,10 +3311,8 @@ async function processReturnApproval(
       source: "return",
       resultOrderStatus: "returned",
       createdAt: Timestamp.now(),
-    });
-  } catch (e) {
-    // Already queued/processed — continue idempotently.
-  }
+    }
+  );
   await orderRef.set(
     {
       returnRequested: false,
@@ -3575,10 +3751,21 @@ exports.onOrderProgress = onDocumentUpdated(
       return;
     }
 
+    // A confirmation counts only if the buyer wrote it. The rules now pin
+    // buyerConfirmedBy to the authenticated writer, and this is the server-side
+    // half of the same check: without it a seller who reached the confirmation
+    // fields by any route would satisfy the release-eligibility block below and
+    // unlock their own payout. Writes made by this function itself carry the
+    // buyerId, so they still pass.
+    const confirmedBy = after.buyerConfirmedBy || "";
+    const confirmedByBuyer =
+      confirmedBy === "" || confirmedBy === (after.buyerId || before.buyerId);
+
     const nowConfirmed =
-      (after.orderStatus === "buyer_confirmed" &&
+      confirmedByBuyer &&
+      ((after.orderStatus === "buyer_confirmed" &&
         before.orderStatus !== "buyer_confirmed") ||
-      (after.buyerConfirmed === true && before.buyerConfirmed !== true);
+        (after.buyerConfirmed === true && before.buyerConfirmed !== true));
 
     // Buyer confirmed delivery on a held (escrow) order → open the payout for
     // admin verification. Idempotent: skip if we've already moved to
@@ -3749,7 +3936,7 @@ exports.onWithdrawalCreated = onDocumentCreated(
         return;
       }
       // Reserve: deduct now so the balance can't be double-spent/withdrawn.
-      tx.update(userRef, { walletBalance: bal - amount });
+      tx.set(userRef, { walletBalance: round2(bal - amount) }, { merge: true });
       tx.update(wRef, { status: "processing", reservedAt: Timestamp.now() });
       tx.set(userRef.collection("walletTransactions").doc(), {
         type: "debit",
@@ -3805,7 +3992,7 @@ exports.onWithdrawalAction = onDocumentCreated(
         const userRef = db.collection("users").doc(w.userId);
         const userSnap = await tx.get(userRef);
         const bal = Number(userSnap.get("walletBalance")) || 0;
-        tx.update(userRef, { walletBalance: bal + amount });
+        tx.set(userRef, { walletBalance: round2(bal + amount) }, { merge: true });
         tx.update(wRef, { status: "rejected", rejectedAt: Timestamp.now() });
         tx.set(userRef.collection("walletTransactions").doc(), {
           type: "credit",

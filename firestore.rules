@@ -17,8 +17,14 @@ service cloud.firestore {
 
     // Super admin (full access) by verified token email (keep in sync with
     // adminEmails in the app).
+    // email_verified matters here: both super-admin and staff identity are
+    // derived from the token email, and the app allows self-service email/
+    // password registration without ever calling sendEmailVerification. Without
+    // this check, anyone who registers a staff address that has been granted
+    // permissions but not yet claimed inherits those permissions.
     function isAdmin() {
       return isSignedIn()
+             && request.auth.token.get('email_verified', false) == true
              && request.auth.token.email in ['ahmednawaz993@gmail.com'];
     }
 
@@ -34,6 +40,7 @@ service cloud.firestore {
     }
     function isActiveStaff() {
       return isSignedIn()
+             && request.auth.token.get('email_verified', false) == true
              && exists(/databases/$(database)/documents/staff/$(staffEmail()))
              && staffData().get('active', true) == true;
     }
@@ -168,11 +175,25 @@ service cloud.firestore {
                         || (can('deletions')
                             && exists(/databases/$(database)/documents/deletionRequests/$(resource.data.userId))));
 
-      // Non-owners may only increment view/lead counters, nothing else.
+      // Non-owners may only increment view/lead counters, nothing else. The
+      // increment has to be by one: the rule previously constrained only WHICH
+      // keys changed, not their values, so any signed-in user could SET another
+      // seller's view or lead counts to an arbitrary number.
+      function bumpedByOne(field) {
+        return request.resource.data.get(field, 0)
+                 == resource.data.get(field, 0)
+               || request.resource.data.get(field, 0)
+                    == resource.data.get(field, 0) + 1;
+      }
+
       function onlyBumpsStats() {
         return request.resource.data.diff(resource.data)
                  .affectedKeys()
-                 .hasOnly(['views', 'calls', 'whatsapps', 'chats']);
+                 .hasOnly(['views', 'calls', 'whatsapps', 'chats'])
+               && bumpedByOne('views')
+               && bumpedByOne('calls')
+               && bumpedByOne('whatsapps')
+               && bumpedByOne('chats');
       }
 
       // An owner edit may not move the ad into a live state itself: either the
@@ -232,7 +253,9 @@ service cloud.firestore {
       function noWalletChange() {
         return !request.resource.data.diff(resource.data)
                  .affectedKeys().hasAny(['walletBalance', 'ratingSum',
-                                         'ratingCount']);
+                                         'ratingCount', 'verified',
+                                         'featuredBusiness',
+                                         'featuredBusinessUntil']);
       }
 
       // walletBalance is money, idVerified is an identity decision, blocked is
@@ -241,11 +264,16 @@ service cloud.firestore {
       // owner may edit every other profile field freely (an update is allowed
       // as long as it does not touch any protected field); critically a
       // suspended user cannot clear their own `blocked` flag.
+      // `verified` is the public verified badge, and featuredBusiness* are
+      // owned by processPurchase — a user could previously grant themselves
+      // both by writing their own profile document.
       function walletUnchanged() {
         return !request.resource.data.diff(resource.data)
                  .affectedKeys().hasAny(['walletBalance', 'idVerified',
                                          'blocked', 'ratingSum',
-                                         'ratingCount']);
+                                         'ratingCount', 'verified',
+                                         'featuredBusiness',
+                                         'featuredBusinessUntil']);
       }
 
       // "Sell as a business" is admin-approved. The owner may REQUEST it
@@ -402,9 +430,15 @@ service cloud.firestore {
     // only back-office may resolve (update). An open dispute blocks the seller
     // payout (enforced server-side in onEscrowAction). Never client-deletable.
     match /disputes/{disputeId} {
+      // The dispute must name an order the creator actually bought. Without
+      // this, a stranger holding any orderId could open a dispute against it,
+      // and the Cloud Function would put that seller's payout on hold
+      // indefinitely.
       allow create: if isSignedIn()
                     && request.resource.data.buyerId == request.auth.uid
-                    && request.resource.data.status == 'open';
+                    && request.resource.data.status == 'open'
+                    && get(/databases/$(database)/documents/orders/$(request.resource.data.orderId))
+                         .data.buyerId == request.auth.uid;
       allow read: if isSignedIn()
                   && (resource.data.buyerId == request.auth.uid
                       || resource.data.sellerId == request.auth.uid
@@ -463,11 +497,23 @@ service cloud.firestore {
 
       function onlySafeOrderChange() {
         return request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['buyerConfirmed', 'buyerConfirmedAt',
-                           'buyerConfirmedBy', 'orderStatus', 'status',
+                 .hasOnly(['orderStatus', 'status',
                            'completedAt', 'cancelledAt', 'cancelledBy',
                            'cancelledByRole', 'cancelReason',
                            'cancelReasonCode', 'updatedAt'])
+               // Delivery confirmation is reachable ONLY through
+               // buyerConfirmChange(), which is buyer-scoped. This rule is
+               // offered to buyer AND seller, and previously listed the
+               // buyerConfirmed* keys, making it a strict superset of the
+               // narrow rule: a seller could write buyerConfirmed on their own
+               // in_escrow order, satisfy onOrderProgress's release-eligibility
+               // check, and unlock their own payout without the buyer ever
+               // confirming receipt.
+               && !request.resource.data.diff(resource.data).affectedKeys()
+                    .hasAny(['buyerConfirmed', 'buyerConfirmedAt',
+                             'buyerConfirmedBy'])
+               && request.resource.data.get('orderStatus', 'pending')
+                    != 'buyer_confirmed'
                && (
                  request.resource.data.status == resource.data.status
                  || (resource.data.status == 'pending_payment'
@@ -543,6 +589,11 @@ service cloud.firestore {
                && request.resource.data.buyerConfirmed == true
                && request.resource.data.orderStatus == 'buyer_confirmed'
                && resource.data.status == 'in_escrow'
+               // The confirmation must name its actual author, mirroring the
+               // cancelledBy pin in onlySafeOrderChange. The Cloud Function
+               // cross-checks this against the order's buyerId before treating
+               // the release as eligible.
+               && request.resource.data.buyerConfirmedBy == request.auth.uid
                && (resource.data.get('orderStatus', 'legacy')
                      in ['shipped', 'delivered', 'legacy']);
       }
@@ -947,11 +998,24 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
     match /luckyDrawEntries/{uid} {
       allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
-      allow create, update: if isAdmin()
-                            || (isSignedIn()
-                                && request.auth.uid == uid
-                                && request.resource.data.uid == uid
-                                && request.resource.data.get('isWinner', false) == false);
+      // shareCount decides the draw: the admin winner-picker orders by it and
+      // flags entries at >= 5. It was freely self-settable, so an entrant could
+      // rank themselves first for a PKR 100,000 prize. Creation pins it to 0
+      // and updates may only step it up by one at a time, matching the
+      // FieldValue.increment(1) the Invite screen actually performs.
+      allow create: if isAdmin()
+                    || (isSignedIn()
+                        && request.auth.uid == uid
+                        && request.resource.data.uid == uid
+                        && request.resource.data.get('isWinner', false) == false
+                        && request.resource.data.get('shareCount', 0) == 0);
+      allow update: if isAdmin()
+                    || (isSignedIn()
+                        && request.auth.uid == uid
+                        && request.resource.data.uid == uid
+                        && request.resource.data.get('isWinner', false) == false
+                        && request.resource.data.get('shareCount', 0)
+                             <= resource.data.get('shareCount', 0) + 1);
       allow delete: if isAdmin();
     }
 
@@ -1001,9 +1065,15 @@ service cloud.firestore {
     // Purchases — user spends wallet balance on a feature. A Cloud Function
     // (processPurchase) validates the balance and applies the effect.
     // ---------------------------------------------------------------------
+    // The price a purchase costs is decided server-side by processPurchase from
+    // a price table; `amount` written here is advisory only and is overwritten.
+    // A purchase must start pending so the function is the thing that settles
+    // it.
     match /purchases/{purchaseId} {
       allow create: if isSignedIn()
-                    && request.resource.data.userId == request.auth.uid;
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.get('status', 'pending')
+                         == 'pending';
       allow read: if isSignedIn()
                   && (resource.data.userId == request.auth.uid
                       || can('purchases'));
@@ -1029,12 +1099,21 @@ service cloud.firestore {
       // listing. Without this a buyer could lower offerAmount after the seller
       // accepts and buy the item for almost nothing (the order copies this
       // amount). Admins (can('offers')) are unrestricted.
+      // Transitions are scoped to the party entitled to make them. Previously
+      // both parties shared one rule that only checked THAT you were a party,
+      // never WHICH party — so a buyer could create an offer of Rs 1, accept
+      // it themselves with agreedAmount 1, and hold a genuine-looking accepted
+      // offer against a listing of any price.
       allow update: if isSignedIn() && (
                       can('offers')
-                      || ((resource.data.buyerId == request.auth.uid
-                           || resource.data.sellerId == request.auth.uid)
+                      || (resource.data.sellerId == request.auth.uid
                           && onlySafeOfferChange()
-                          && validOfferTransition())
+                          && agreedAmountOnlyOnAccept()
+                          && sellerOfferTransition())
+                      || (resource.data.buyerId == request.auth.uid
+                          && onlySafeOfferChange()
+                          && buyerAgreedUnchanged()
+                          && buyerOfferTransition())
                     );
       allow delete: if can('offers');
 
@@ -1045,18 +1124,43 @@ service cloud.firestore {
                  .hasOnly(['status', 'counterAmount', 'agreedAmount']);
       }
 
-      // Legal status transitions (or an idempotent write that leaves status
-      // unchanged) — blocks re-actioning a finished offer.
-      function validOfferTransition() {
+      // The seller decides the outcome of a negotiation: accept, counter or
+      // decline. They may never mark it 'ordered' — only the buyer places the
+      // order.
+      function sellerOfferTransition() {
         return request.resource.data.status == resource.data.status
                || (resource.data.status == 'pending'
                    && request.resource.data.status in
-                      ['accepted', 'countered', 'declined', 'cancelled'])
+                      ['accepted', 'countered', 'declined'])
                || (resource.data.status == 'countered'
                    && request.resource.data.status in
-                      ['ordered', 'declined', 'cancelled'])
-               || (resource.data.status == 'accepted'
+                      ['accepted', 'declined']);
+      }
+
+      // The buyer may withdraw their offer, or convert an agreed one into an
+      // order. They may never move an offer to 'accepted'.
+      function buyerOfferTransition() {
+        return request.resource.data.status == resource.data.status
+               || (resource.data.status == 'pending'
+                   && request.resource.data.status == 'cancelled')
+               || (resource.data.status in ['accepted', 'countered']
                    && request.resource.data.status in ['ordered', 'cancelled']);
+      }
+
+      // agreedAmount is the price the resulting order copies, so the buyer must
+      // never be able to move it.
+      function buyerAgreedUnchanged() {
+        return request.resource.data.get('agreedAmount', 0)
+                 == resource.data.get('agreedAmount', 0);
+      }
+
+      // The seller may only introduce or change agreedAmount at the moment of
+      // accepting — not afterwards, which would let them raise the price out
+      // from under a buyer who had already agreed.
+      function agreedAmountOnlyOnAccept() {
+        return request.resource.data.get('agreedAmount', 0)
+                 == resource.data.get('agreedAmount', 0)
+               || request.resource.data.status == 'accepted';
       }
     }
 
