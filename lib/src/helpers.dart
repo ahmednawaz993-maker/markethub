@@ -55,27 +55,42 @@ DocumentReference<Map<String, dynamic>> privateContactRef(String uid) {
 /// migrateUserContactPii has swept everyone, the fallback simply stops
 /// matching anything.
 Future<Map<String, dynamic>> loadPrivateContact(String uid) async {
-  try {
-    final priv = await privateContactRef(uid).get();
-    final d = priv.data();
-    if (d != null && d.isNotEmpty) return d;
-  } catch (_) {
-    // Fall through to the legacy location.
-  }
+  // Merge FIELD BY FIELD rather than picking one document. A signup writes
+  // only email + phone to the private doc, so returning it wholesale as soon
+  // as it is non-empty would hide a legacy `address` still living on the
+  // public document.
+  final merged = <String, dynamic>{};
+
   try {
     final pub = await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
         .get();
-    final d = pub.data() ?? const <String, dynamic>{};
-    return {
-      'email': d['email'] ?? '',
-      'phone': d['phone'] ?? '',
-      'address': d['address'] ?? '',
-    };
+    final d = pub.data();
+    if (d != null) {
+      for (final k in const ['email', 'phone', 'address']) {
+        final v = d[k];
+        if (v != null && v.toString().isNotEmpty) merged[k] = v;
+      }
+    }
   } catch (_) {
-    return const <String, dynamic>{};
+    // Legacy copy is optional.
   }
+
+  try {
+    final priv = await privateContactRef(uid).get();
+    final d = priv.data();
+    if (d != null) {
+      // Private wins wherever it has a value.
+      d.forEach((k, v) {
+        if (v != null && v.toString().isNotEmpty) merged[k] = v;
+      });
+    }
+  } catch (_) {
+    // Owner-only read; fall back to whatever the public doc had.
+  }
+
+  return merged;
 }
 
 /// Writes contact details to the private subcollection.

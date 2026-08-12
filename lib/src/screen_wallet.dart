@@ -25,11 +25,11 @@ class WalletScreen extends StatelessWidget {
           StreamBuilder<DocumentSnapshot>(
             stream: userRef.snapshots(),
             builder: (context, snapshot) {
-              // Showing "Rs 0" while loading (or on a permission/network
-              // failure) told the user their wallet was empty. Distinguish
-              // "not loaded yet" from "actually zero".
-              final hasValue =
-                  snapshot.hasData && !snapshot.hasError;
+              // Showing "Rs 0" while loading told the user their wallet was
+              // empty. Distinguish "not loaded yet" from "actually zero" —
+              // and on an error show a dash rather than spinning forever.
+              final failed = snapshot.hasError;
+              final hasValue = snapshot.hasData && !failed;
               final balance =
                   ((snapshot.data?.data()
                               as Map<String, dynamic>?)?['walletBalance']
@@ -55,7 +55,20 @@ class WalletScreen extends StatelessWidget {
                       style: TextStyle(color: Colors.white70),
                     ),
                     const SizedBox(height: 6),
-                    if (!hasValue)
+                    if (failed)
+                      const SizedBox(
+                        height: 41,
+                        child: Center(
+                          child: Text(
+                            'Balance unavailable',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      )
+                    else if (!hasValue)
                       const SizedBox(
                         height: 41,
                         child: Center(
@@ -328,6 +341,10 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
                           'status': 'pending',
                           'createdAt': Timestamp.now(),
                         });
+                    // Clear the guard regardless: if the sheet's context is
+                    // already unmounted it never pops, and leaving this true
+                    // would leave the button permanently disabled.
+                    submitting.value = false;
                     if (context.mounted) Navigator.pop(context);
                     messenger.showSnackBar(
                       const SnackBar(
@@ -371,6 +388,7 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
   title.dispose();
   number.dispose();
   amount.dispose();
+  submitting.dispose();
 }
 
 /// Lets a business upload a home-screen banner ad and request a slot.

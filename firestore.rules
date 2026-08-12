@@ -198,7 +198,12 @@ service cloud.firestore {
       // would risk silently denying every ad view.
       function bumpedByOne(field) {
         return request.resource.data.get(field, 0)
-                 <= resource.data.get(field, 0) + 1;
+                 <= resource.data.get(field, 0) + 1
+               // Lower bound too, or the upper bound alone would let anyone
+               // RESET another seller's counters to zero. views backs the
+               // most-viewed rail and the seller's analytics.
+               && request.resource.data.get(field, 0)
+                    >= resource.data.get(field, 0);
       }
 
       function onlyBumpsStats() {
@@ -251,6 +256,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
                       isAdmin()
                       || (request.auth.uid == userId && walletUnchanged()
+                          && verifiedMatchesToken() && featuredSelfOk()
                           && businessSelfOk())
                       || ((can('users') || can('verifyId') || can('appeals')
                            || can('businessVerify'))
@@ -265,12 +271,12 @@ service cloud.firestore {
       // Staff may moderate a profile (block, verify, feature) but never touch
       // the money field or the rating aggregate — walletBalance / ratingSum /
       // ratingCount stay super-admin / Cloud Function only.
+      // featuredBusiness* are deliberately NOT listed: staff run the Featured
+      // Business tools from the admin panel.
       function noWalletChange() {
         return !request.resource.data.diff(resource.data)
                  .affectedKeys().hasAny(['walletBalance', 'ratingSum',
-                                         'ratingCount', 'verified',
-                                         'featuredBusiness',
-                                         'featuredBusinessUntil']);
+                                         'ratingCount', 'verified']);
       }
 
       // walletBalance is money, idVerified is an identity decision, blocked is
@@ -279,16 +285,37 @@ service cloud.firestore {
       // owner may edit every other profile field freely (an update is allowed
       // as long as it does not touch any protected field); critically a
       // suspended user cannot clear their own `blocked` flag.
-      // `verified` is the public verified badge, and featuredBusiness* are
-      // owned by processPurchase — a user could previously grant themselves
-      // both by writing their own profile document.
       function walletUnchanged() {
         return !request.resource.data.diff(resource.data)
                  .affectedKeys().hasAny(['walletBalance', 'idVerified',
                                          'blocked', 'ratingSum',
-                                         'ratingCount', 'verified',
-                                         'featuredBusiness',
-                                         'featuredBusinessUntil']);
+                                         'ratingCount']);
+      }
+
+      // The public "Verified" badge mirrors Firebase's own email_verified
+      // claim, and the app syncs it on every launch. Rather than freeze the
+      // field (which broke that sync and left the badge write-once), require
+      // it to agree with the token — so it stays self-maintaining but can
+      // never be self-granted.
+      function verifiedMatchesToken() {
+        return !request.resource.data.diff(resource.data)
+                  .affectedKeys().hasAny(['verified'])
+               || request.resource.data.verified
+                    == request.auth.token.get('email_verified', false);
+      }
+
+      // Featuring is normally bought through processPurchase, but approved
+      // businesses also get one free 90-day trial they activate themselves.
+      // Allow the owner to set the featured fields only on the write that
+      // consumes that one-time trial flag.
+      function featuredSelfOk() {
+        return !request.resource.data.diff(resource.data)
+                  .affectedKeys().hasAny(['featuredBusiness',
+                                          'featuredBusinessUntil'])
+               || (resource.data.get('featuredTrialUsed', false) == false
+                   && request.resource.data.get('featuredTrialUsed', false)
+                        == true
+                   && request.resource.data.get('isBusiness', false) == true);
       }
 
       // "Sell as a business" is admin-approved. The owner may REQUEST it
@@ -527,7 +554,9 @@ service cloud.firestore {
                             || (resource.data.sellerId == request.auth.uid
                                 && sellerShippingChange())
                             || (resource.data.buyerId == request.auth.uid
-                                && buyerConfirmChange())));
+                                && buyerConfirmChange())
+                            || (resource.data.buyerId == request.auth.uid
+                                && buyerCodCompleteChange())));
       allow delete: if can('orders');
 
       function onlySafeOrderChange() {
@@ -631,6 +660,29 @@ service cloud.firestore {
                && request.resource.data.buyerConfirmedBy == request.auth.uid
                && (resource.data.get('orderStatus', 'legacy')
                      in ['shipped', 'delivered', 'legacy']);
+      }
+
+      // Buyer confirms receipt of a COD order. There is no held payment — cash
+      // was collected on delivery — so the order completes outright rather than
+      // going through the escrow release path.
+      //
+      // This used to ride on onlySafeOrderChange, whose key list included the
+      // buyerConfirmed* fields. Removing them from there (so a seller could not
+      // forge the buyer's escrow confirmation) also removed the only rule that
+      // permitted COD completion, stranding every COD order short of
+      // 'completed'. This is the buyer-scoped replacement.
+      function buyerCodCompleteChange() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['orderStatus', 'buyerConfirmed', 'buyerConfirmedAt',
+                           'buyerConfirmedBy', 'status', 'completedAt',
+                           'updatedAt'])
+               && !request.resource.data.diff(resource.data)
+                    .affectedKeys().hasAny(orderMoneyFields())
+               && resource.data.status == 'cod_pending'
+               && request.resource.data.status == 'completed'
+               && request.resource.data.buyerConfirmed == true
+               && request.resource.data.buyerConfirmedBy == request.auth.uid
+               && request.resource.data.orderStatus == 'delivered';
       }
 
       // Buyer cancellation requests (spec section 8). The buyer files a
@@ -1153,7 +1205,7 @@ service cloud.firestore {
                           && sellerOfferTransition())
                       || (resource.data.buyerId == request.auth.uid
                           && onlySafeOfferChange()
-                          && buyerAgreedUnchanged()
+                          && buyerAgreedOk()
                           && buyerOfferTransition())
                     );
       allow delete: if can('offers');
@@ -1178,21 +1230,30 @@ service cloud.firestore {
                       ['accepted', 'declined']);
       }
 
-      // The buyer may withdraw their offer, or convert an agreed one into an
-      // order. They may never move an offer to 'accepted'.
+      // The buyer may withdraw their offer, decline a counter, or convert an
+      // agreed one into an order. They may never move an offer to 'accepted'.
       function buyerOfferTransition() {
         return request.resource.data.status == resource.data.status
                || (resource.data.status == 'pending'
                    && request.resource.data.status == 'cancelled')
+               || (resource.data.status == 'countered'
+                   && request.resource.data.status == 'declined')
                || (resource.data.status in ['accepted', 'countered']
                    && request.resource.data.status in ['ordered', 'cancelled']);
       }
 
-      // agreedAmount is the price the resulting order copies, so the buyer must
-      // never be able to move it.
-      function buyerAgreedUnchanged() {
+      // agreedAmount is the price the resulting order copies, so the buyer may
+      // never invent one. They MAY pin it when converting to an order —
+      // accepting a seller's counter writes counterAmount into agreedAmount —
+      // but only to a value the negotiation already recorded on this document.
+      function buyerAgreedOk() {
         return request.resource.data.get('agreedAmount', 0)
-                 == resource.data.get('agreedAmount', 0);
+                 == resource.data.get('agreedAmount', 0)
+               || (request.resource.data.status == 'ordered'
+                   && (request.resource.data.get('agreedAmount', 0)
+                         == resource.data.get('counterAmount', 0)
+                       || request.resource.data.get('agreedAmount', 0)
+                            == resource.data.get('offerAmount', 0)));
       }
 
       // The seller may only introduce or change agreedAmount at the moment of

@@ -7,6 +7,7 @@
 
 const {
   onDocumentCreated,
+  onDocumentDeleted,
   onDocumentUpdated,
   onDocumentWritten,
 } = require("firebase-functions/v2/firestore");
@@ -1009,6 +1010,11 @@ exports.onMasterOrderCreated = onDocumentCreated(
     // Config-aware rate, matching the release path. commissionRate() alone
     // ignores config/commission and drifts from what the seller is actually
     // paid.
+    // Note: resolved once for the whole cart, so per-category and per-seller
+    // overrides in config/commission do not apply on the multi-seller path.
+    // computePayoutBreakdown passes both at release time, so a cart spanning
+    // sellers with overrides can still drift. Resolving per seller group is
+    // the correct fix; harmless while the launch rate is a flat 0%.
     const { rate } = await resolveCommission(db, {});
     const address = master.deliveryAddress || {};
     const buyerName =
@@ -1250,10 +1256,35 @@ exports.notifyOnNewOrder = onDocumentCreated(
     // that the order copies its agreed amount exactly.
     if (order.fromOffer === true && payable) {
       const offerId = order.offerId ? String(order.offerId) : "";
-      const offerSnap = offerId
-        ? await db.collection("offers").doc(offerId).get()
-        : null;
-      const offer = offerSnap && offerSnap.exists ? offerSnap.data() : null;
+      let offer = null;
+      if (offerId) {
+        const offerSnap = await db.collection("offers").doc(offerId).get();
+        offer = offerSnap.exists ? offerSnap.data() : null;
+      } else if (order.buyerId && order.listingId) {
+        // Older app versions do not write offerId. Those clients are still in
+        // the wild, so fall back to locating the buyer's own agreed offer for
+        // this listing rather than voiding a legitimate order. Still fully
+        // validated below — this only changes how the offer is found.
+        const q = await db
+          .collection("offers")
+          .where("buyerId", "==", order.buyerId)
+          .where("listingId", "==", order.listingId)
+          .limit(10)
+          .get();
+        const candidates = q.docs
+          .map((d) => d.data())
+          .filter(
+            (o) =>
+              ["accepted", "ordered"].indexOf(String(o.status || "")) !== -1
+          );
+        // Prefer one whose agreed amount matches what the order charged.
+        offer =
+          candidates.find(
+            (o) => (Number(o.agreedAmount) || 0) === Number(order.itemSubtotal)
+          ) ||
+          candidates[0] ||
+          null;
+      }
       const agreed = Number(offer && offer.agreedAmount) || 0;
       const offerOk =
         offer &&
@@ -1261,7 +1292,9 @@ exports.notifyOnNewOrder = onDocumentCreated(
         String(offer.listingId || "") === String(order.listingId || "") &&
         ["accepted", "ordered"].indexOf(String(offer.status || "")) !== -1 &&
         agreed > 0 &&
-        Number(order.amount) === agreed;
+        // Compare the ITEM subtotal, not the order total: the negotiated price
+        // covers the product, and the delivery fee is added on top of it.
+        Number(order.itemSubtotal) === agreed;
 
       if (!offerOk) {
         await snap.ref.set(
@@ -1279,11 +1312,16 @@ exports.notifyOnNewOrder = onDocumentCreated(
         db,
         { category: order.category || "", sellerId: offerSellerId }
       );
+      // Commission is charged on the product only; the delivery fee passes
+      // through to the seller in full, so the payout is computed from the
+      // order TOTAL rather than the negotiated item price. Using `agreed` here
+      // silently docked the seller the delivery fee on every offer order.
       const offerCommission =
         order.status === "cod_pending"
           ? 0
           : round2(agreed * offerRate + (offerRate > 0 ? offerFee : 0));
-      const offerPayout = round2(agreed - offerCommission);
+      const offerTotal = Number(order.amount) || agreed;
+      const offerPayout = round2(offerTotal - offerCommission);
 
       if (
         order.commission !== offerCommission ||
@@ -1743,11 +1781,45 @@ exports.processPurchase = onDocumentCreated("purchases/{id}", async (event) => {
       "purchase",
       purchaseRef.id
     );
+  } else if (status === "invalid_price" || status === "invalid_target") {
+    // Without this the buyer sits on "activating shortly…" forever, because
+    // nothing else ever writes back to a rejected purchase.
+    await recordNotification(
+      db,
+      p.userId,
+      "Purchase could not be completed",
+      "That promotion is no longer available. You have not been charged — " +
+        "please try again from the Wallet screen.",
+      "purchase",
+      purchaseRef.id
+    );
   }
 });
 
 // Daily job: turn off Featured listings / businesses / banners whose paid
 // window (featuredUntil / featuredBusinessUntil / expiresAt) has passed.
+// Deleting users/{uid} does not cascade in Firestore, so the private contact
+// document would outlive the account. Once the public copy is stripped that
+// subcollection is the ONLY copy of the person's email, phone and address, so
+// leaving it behind turns account deletion into PII retention. Runs for every
+// delete path (admin panel, deletion requests, support tooling).
+exports.cleanupDeletedUserPrivate = onDocumentDeleted(
+  "users/{userId}",
+  async (event) => {
+    const db = getFirestore();
+    try {
+      const docs = await db
+        .collection("users")
+        .doc(event.params.userId)
+        .collection("private")
+        .listDocuments();
+      await Promise.all(docs.map((d) => d.delete()));
+    } catch (e) {
+      console.error("cleanupDeletedUserPrivate failed:", (e && e.message) || e);
+    }
+  }
+);
+
 // ---------------------------------------------------------------------------
 // One-time (self-terminating) backfill: move contact PII off the public user
 // document into users/{uid}/private/contact.
@@ -1768,7 +1840,9 @@ exports.migrateUserContactPii = onSchedule(
   { schedule: "every 24 hours", timeoutSeconds: 540, memory: "512MiB" },
   async () => {
     const db = getFirestore();
-    const PII = ["email", "phone", "address", "latitude", "longitude"];
+    // saveUserLocation() writes lat/lng (not latitude/longitude, which only
+    // exist on listings) — captured home coordinates, so they belong here.
+    const PII = ["email", "phone", "address", "lat", "lng"];
 
     // Copying is always safe. CLEARING the public copy is gated, because the
     // admin panel still reads users.email / users.phone in several list views
