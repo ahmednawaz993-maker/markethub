@@ -1,10 +1,22 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Location: lets sellers attach their current location to an ad. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <!-- Push notifications (chat + saved-search alerts) on Android 13+. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!--
+      firebase_analytics pulls in play-services-measurement-api, which merges
+      the advertising-ID permission into the manifest. PakBazar has no ads and
+      does no attribution, and the Play Console data-safety declaration says
+      the app does not use an advertising ID — Play rejects the release
+      outright if the two disagree. Removing it keeps analytics working
+      (only ad-targeting/attribution features depend on it) and avoids opting
+      into advertising-ID policy for no benefit.
+    -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID"
+        tools:node="remove"/>
     <application
         android:label="PakBazar"
         android:name="${applicationName}"
