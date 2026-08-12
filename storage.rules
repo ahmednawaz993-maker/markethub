@@ -36,11 +36,18 @@ service firebase.storage {
       allow write: if owns(userId) && isImageUnder(10);
     }
 
-    // Legacy flat listing photos: readable so existing ads keep their
-    // images, but frozen — no client may overwrite or delete them.
+    // Legacy flat listing photos.
+    //
+    // TRANSITIONAL — remove the create allowance once v1.0.40+ is the floor on
+    // Play. Versions up to 1.0.39 upload here, so freezing this path outright
+    // would break ad posting for every user still on the old build. `resource
+    // == null` restricts it to CREATING a new object: the exploit was
+    // OVERWRITING someone else's photo (the listing document publishes its own
+    // image paths), and that is now denied outright. Legacy names are
+    // timestamp-based so a genuine upload never collides.
     match /listings/{imageId} {
       allow read: if true;
-      allow write: if false;
+      allow write: if signedIn() && resource == null && isImageUnder(10);
     }
 
     // ---------------------------------------------------------------
@@ -53,9 +60,11 @@ service firebase.storage {
       allow write: if owns(userId) && isImageUnder(10);
     }
 
+    // TRANSITIONAL, as above. Legacy names are ad_{uid}_{timestamp}.jpg, so
+    // they are always new objects.
     match /banners/{imageId} {
       allow read: if true;
-      allow write: if false;
+      allow write: if signedIn() && resource == null && isImageUnder(10);
     }
 
     // ---------------------------------------------------------------
@@ -68,9 +77,10 @@ service firebase.storage {
       allow write: if owns(userId) && isImageUnder(8);
     }
 
+    // TRANSITIONAL, as above. Legacy names are {chatId}_{timestamp}.jpg.
     match /chat_images/{imageId} {
       allow read: if signedIn();
-      allow write: if false;
+      allow write: if signedIn() && resource == null && isImageUnder(8);
     }
 
     // ---------------------------------------------------------------
@@ -81,9 +91,16 @@ service firebase.storage {
       allow write: if owns(userId) && isImageUnder(5);
     }
 
+    // TRANSITIONAL — but this one legitimately OVERWRITES, because the shipped
+    // client writes a fixed name per user and replaces it on every re-upload.
+    // The name encodes the owner's uid, so ownership is still provable here:
+    // only {uid}.jpg and cover_{uid}.jpg may be written, and only by that uid.
     match /business_logos/{imageId} {
       allow read: if true;
-      allow write: if false;
+      allow write: if signedIn()
+                   && (imageId == request.auth.uid + '.jpg'
+                       || imageId == 'cover_' + request.auth.uid + '.jpg')
+                   && isImageUnder(5);
     }
 
     // ---------------------------------------------------------------
@@ -96,9 +113,13 @@ service firebase.storage {
                    && request.resource.contentType.matches('audio/.*');
     }
 
+    // TRANSITIONAL, as above. Legacy names are {ticketId}_{timestamp}.{ext}.
     match /support_voice/{fileName} {
       allow read: if signedIn();
-      allow write: if false;
+      allow write: if signedIn()
+                   && resource == null
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('audio/.*');
     }
 
     // ---------------------------------------------------------------
