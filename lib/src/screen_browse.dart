@@ -215,7 +215,7 @@ class ListingsBrowser extends StatefulWidget {
 class _ListingsBrowserState extends State<ListingsBrowser> {
   late String searchText;
   late final TextEditingController searchController;
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _listingsStream;
+  late final PagedListings _source;
   Timer? _debounce;
   late String selectedSubcategory;
   String sortBy = 'Newest';
@@ -259,12 +259,30 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     }
     // Read-level moderation: only approved ads are fetched for public browsing.
     q = q.where('approvalStatus', isEqualTo: 'approved');
-    // Load a wide window so search covers effectively the whole catalogue (not
-    // just the latest 100). Client-side token search then filters this set.
-    _listingsStream = q
-        .orderBy('createdAt', descending: true)
-        .limit(1000)
-        .snapshots();
+    // Paged rather than a fixed window. This used to pull 1000 documents on
+    // every open — the app's largest single read cost — and still capped the
+    // catalogue: ad number 1001 was invisible to search with nothing in the UI
+    // to say so. matchesFilters is applied per document as pages arrive, and
+    // PagedListings keeps fetching until it finds matches, so a search still
+    // reaches the whole collection.
+    _source = PagedListings(
+      query: q.orderBy('createdAt', descending: true),
+      clientFilter: matchesFilters,
+    );
+    _source.loadMore();
+  }
+
+  /// Applies a filter mutation and restarts paging, since a filter change
+  /// invalidates every page loaded under the previous criteria.
+  void _applyFilterChange(VoidCallback mutate) {
+    setState(mutate);
+    _restartPaging();
+  }
+
+  /// Restarts paging. Called whenever the search text or a filter changes,
+  /// since those change which documents qualify.
+  void _restartPaging() {
+    _source.refresh();
   }
 
   /// Saves the current search criteria so the user can be alerted when a new
@@ -312,6 +330,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _source.dispose();
     searchController.dispose();
     super.dispose();
   }
@@ -350,143 +369,151 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
               // not with the keyboard up.
               child: SingleChildScrollView(
                 child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Filters',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  CitySelector(
-                    value: tempCity,
-                    includeAll: true,
-                    onChanged: (value) => setSheetState(() => tempCity = value),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: minController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Min price',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Filters',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: maxController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Max price',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Condition',
-                      style: TextStyle(fontWeight: FontWeight.w600),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: ['Any', ...itemConditions].map((c) {
-                      final selected = tempCondition == c;
-                      return ChoiceChip(
-                        label: Text(c),
-                        selected: selected,
-                        selectedColor: kPakGreen.withValues(alpha: 0.18),
-                        onSelected: (_) =>
-                            setSheetState(() => tempCondition = c),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 8),
-                  ColorSwatchSelector(
-                    label: 'Colour',
-                    selected: tempColor,
-                    onChanged: (v) => setSheetState(() => tempColor = v),
-                  ),
-                  const SizedBox(height: 8),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Negotiable price only'),
-                    value: tempNegotiable,
-                    activeThumbColor: kPakGreen,
-                    onChanged: (v) => setSheetState(() => tempNegotiable = v),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Delivery available only'),
-                    value: tempDelivery,
-                    activeThumbColor: kPakGreen,
-                    onChanged: (v) => setSheetState(() => tempDelivery = v),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Hide sold items'),
-                    value: tempHideSold,
-                    activeThumbColor: kPakGreen,
-                    onChanged: (v) => setSheetState(() => tempHideSold = v),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () {
-                            setState(() {
-                              cityFilter = 'All';
-                              minPrice = null;
-                              maxPrice = null;
-                              deliveryOnly = false;
-                              hideSold = false;
-                              conditionFilter = 'Any';
-                              negotiableOnly = false;
-                              colorFilter = '';
-                            });
-                            Navigator.pop(context);
-                          },
-                          child: const Text('Reset'),
+                    const SizedBox(height: 16),
+                    CitySelector(
+                      value: tempCity,
+                      includeAll: true,
+                      onChanged: (value) =>
+                          setSheetState(() => tempCity = value),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: minController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Min price',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            setState(() {
-                              cityFilter = tempCity;
-                              minPrice = double.tryParse(
-                                minController.text.trim(),
-                              );
-                              maxPrice = double.tryParse(
-                                maxController.text.trim(),
-                              );
-                              deliveryOnly = tempDelivery;
-                              hideSold = tempHideSold;
-                              conditionFilter = tempCondition;
-                              negotiableOnly = tempNegotiable;
-                              colorFilter = tempColor;
-                            });
-                            Navigator.pop(context);
-                          },
-                          child: const Text('Apply'),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: maxController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Max price',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Condition',
+                        style: TextStyle(fontWeight: FontWeight.w600),
                       ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: ['Any', ...itemConditions].map((c) {
+                        final selected = tempCondition == c;
+                        return ChoiceChip(
+                          label: Text(c),
+                          selected: selected,
+                          selectedColor: kPakGreen.withValues(alpha: 0.18),
+                          onSelected: (_) =>
+                              setSheetState(() => tempCondition = c),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 8),
+                    ColorSwatchSelector(
+                      label: 'Colour',
+                      selected: tempColor,
+                      onChanged: (v) => setSheetState(() => tempColor = v),
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Negotiable price only'),
+                      value: tempNegotiable,
+                      activeThumbColor: kPakGreen,
+                      onChanged: (v) => setSheetState(() => tempNegotiable = v),
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Delivery available only'),
+                      value: tempDelivery,
+                      activeThumbColor: kPakGreen,
+                      onChanged: (v) => setSheetState(() => tempDelivery = v),
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Hide sold items'),
+                      value: tempHideSold,
+                      activeThumbColor: kPakGreen,
+                      onChanged: (v) => setSheetState(() => tempHideSold = v),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              setState(() {
+                                cityFilter = 'All';
+                                minPrice = null;
+                                maxPrice = null;
+                                deliveryOnly = false;
+                                hideSold = false;
+                                conditionFilter = 'Any';
+                                negotiableOnly = false;
+                                colorFilter = '';
+                              });
+                              _restartPaging();
+                              Navigator.pop(context);
+                            },
+                            child: const Text('Reset'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              setState(() {
+                                cityFilter = tempCity;
+                                minPrice = double.tryParse(
+                                  minController.text.trim(),
+                                );
+                                maxPrice = double.tryParse(
+                                  maxController.text.trim(),
+                                );
+                                deliveryOnly = tempDelivery;
+                                hideSold = tempHideSold;
+                                conditionFilter = tempCondition;
+                                negotiableOnly = tempNegotiable;
+                                colorFilter = tempColor;
+                              });
+                              // Filters decide which documents qualify, so the
+                              // already-loaded pages are no longer valid.
+                              _restartPaging();
+                              Navigator.pop(context);
+                            },
+                            child: const Text('Apply'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -530,19 +557,36 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     );
   }
 
-  List<Listing> applyFilters(List<Listing> listings) {
-    // Split the query into words so an ad matches when EVERY word appears
-    // somewhere in it (any field, any order) — e.g. "nike shoes" finds
-    // "Shoes - Nike". Case-insensitive substring ("alphabetic") matching, so
-    // partial words match too.
-    final tokens = searchText
-        .trim()
-        .toLowerCase()
-        .split(RegExp(r'\s+'))
-        .where((t) => t.isNotEmpty)
-        .toList();
+  // Split the query into words so an ad matches when EVERY word appears
+  // somewhere in it (any field, any order) — e.g. "nike shoes" finds
+  // "Shoes - Nike". Case-insensitive substring ("alphabetic") matching, so
+  // partial words match too.
+  //
+  // Memoised on searchText: the predicate below now runs per DOCUMENT as pages
+  // stream in, so re-splitting the query for every listing would put a regex
+  // split on the hot path.
+  String? _tokenSource;
+  List<String> _tokensCache = const <String>[];
 
-    final result = listings.where((listing) {
+  List<String> get _searchTokens {
+    if (_tokenSource != searchText) {
+      _tokenSource = searchText;
+      _tokensCache = searchText
+          .trim()
+          .toLowerCase()
+          .split(RegExp(r'\s+'))
+          .where((t) => t.isNotEmpty)
+          .toList();
+    }
+    return _tokensCache;
+  }
+
+  /// Whether one listing satisfies the search text and every active filter.
+  /// Used both to filter an in-memory list and, as pages arrive, to accept or
+  /// reject each freshly fetched document.
+  bool matchesFilters(Listing listing) {
+    final tokens = _searchTokens;
+    {
       // One searchable haystack covering every text field on the ad.
       final haystack = [
         listing.title,
@@ -605,7 +649,13 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
           notBlocked &&
           listing.isPubliclyVisible &&
           listing.isApproved;
-    }).toList();
+    }
+  }
+
+  /// Filters and sorts an in-memory list. Kept for callers that already hold
+  /// every listing; paged surfaces use matchesFilters per document instead.
+  List<Listing> applyFilters(List<Listing> listings) {
+    final result = listings.where(matchesFilters).toList();
 
     result.sort((a, b) {
       // Available items first, then featured.
@@ -658,12 +708,16 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                 onChanged: (value) {
                   _debounce?.cancel();
                   _debounce = Timer(const Duration(milliseconds: 250), () {
-                    if (mounted) setState(() => searchText = value);
+                    if (mounted) {
+                      setState(() => searchText = value);
+                      _restartPaging();
+                    }
                   });
                 },
                 onSubmitted: (value) {
                   _debounce?.cancel();
                   setState(() => searchText = value);
+                  _restartPaging();
                 },
                 trailing: IconButton(
                   tooltip: 'Save this search & get alerts',
@@ -745,8 +799,9 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                     ),
                     visualDensity: VisualDensity.compact,
                     selected: selectedSubcategory == subcategory,
-                    onSelected: (_) =>
-                        setState(() => selectedSubcategory = subcategory),
+                    onSelected: (_) => _applyFilterChange(
+                      () => selectedSubcategory = subcategory,
+                    ),
                   );
                 },
               ),
@@ -754,33 +809,37 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
           ),
         Divider(height: 1, color: AppColors.borderSoft),
         Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: _listingsStream,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return ErrorStateWidget(
-                  message: 'We couldn’t load listings. Please try again.',
-                  onRetry: () => setState(() {}),
-                );
-              }
-              if (snapshot.connectionState == ConnectionState.waiting) {
+          child: AnimatedBuilder(
+            animation: _source,
+            builder: (context, _) {
+              final loaded = _source.items;
+
+              // First page still in flight.
+              if (loaded.isEmpty && _source.isLoading) {
                 return _resultsSkeleton();
               }
+              // Nothing loaded and the very first fetch failed.
+              if (loaded.isEmpty && _source.error != null) {
+                return ErrorStateWidget(
+                  message: 'We couldn’t load listings. Please try again.',
+                  onRetry: _restartPaging,
+                );
+              }
 
-              final docs = snapshot.data?.docs ?? [];
-              final allListings = docs.map((d) => Listing.fromDoc(d)).toList();
-              final filtered = applyFilters(allListings);
-              // Reported here rather than at keystroke time so the event
-              // carries the real result count — the number that matters, since
-              // a rising share of zero-result searches is the clearest signal
-              // that supply is missing.
-              _maybeTrackSearch(filtered.length);
+              // Sorting applies to what has been loaded; scrolling further
+              // widens the set. Reported once the query is exhausted so the
+              // count is the real total, not a partial page.
+              final sorted = applyFilters(loaded);
+              if (!_source.hasMore) _maybeTrackSearch(sorted.length);
 
-              if (filtered.isEmpty) {
-                return const EmptyStateWidget(
+              if (sorted.isEmpty && !_source.hasMore) {
+                return EmptyStateWidget(
                   icon: Icons.search_off,
                   title: 'No listings found',
-                  subtitle: 'Try a different search or adjust your filters.',
+                  subtitle: _source.scannedCount > 0
+                      ? 'We looked through every ad and none matched. Try a '
+                            'different search or adjust your filters.'
+                      : 'Try a different search or adjust your filters.',
                 );
               }
 
@@ -796,13 +855,24 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                     child: Align(
                       alignment: AlignmentDirectional.centerStart,
                       child: Text(
-                        '${filtered.length} result'
-                        '${filtered.length == 1 ? '' : 's'}',
+                        // "+" while more pages remain, so the count never
+                        // claims to be the whole catalogue when it isn't.
+                        '${sorted.length}${_source.hasMore ? '+' : ''} result'
+                        '${sorted.length == 1 ? '' : 's'}',
                         style: AppType.label,
                       ),
                     ),
                   ),
-                  Expanded(child: _results(filtered)),
+                  Expanded(
+                    child: InfiniteScrollTrigger(
+                      onLoadMore: _source.loadMore,
+                      child: _results(sorted),
+                    ),
+                  ),
+                  PagedListingFooter(
+                    source: _source,
+                    onRetry: _source.loadMore,
+                  ),
                 ],
               );
             },
