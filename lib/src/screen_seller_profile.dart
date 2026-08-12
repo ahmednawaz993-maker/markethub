@@ -682,6 +682,11 @@ class FollowingScreen extends StatelessWidget {
                   .limit(30)
                   .snapshots(),
               builder: (context, snap) {
+                if (snap.hasError) {
+                  return const ErrorStateWidget(
+                    message: 'We could not load who you follow.',
+                  );
+                }
                 if (!snap.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }

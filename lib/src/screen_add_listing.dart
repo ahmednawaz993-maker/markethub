@@ -200,10 +200,21 @@ class _AddListingScreenState extends State<AddListingScreen> {
         .collection('users')
         .doc(uid)
         .collection('drafts');
-    if (widget.draftId != null) {
-      await col.doc(widget.draftId).set(data);
-    } else {
-      await col.add(data);
+    // A failed write used to leave savingDraft true forever, permanently
+    // disabling Save, while the success snackbar fired regardless.
+    try {
+      if (widget.draftId != null) {
+        await col.doc(widget.draftId).set(data);
+      } else {
+        await col.add(data);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => savingDraft = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save your draft: $e')),
+      );
+      return;
     }
     if (!mounted) return;
     setState(() => savingDraft = false);
@@ -335,12 +346,16 @@ class _AddListingScreenState extends State<AddListingScreen> {
       // local-part > generic. Never expose the full email address.
       final me = FirebaseAuth.instance.currentUser;
       String sellerName = 'Seller';
+      // Real identity-verification state, read from the same user document we
+      // already fetch for the display name.
+      bool sellerIdVerified = false;
       if (me != null) {
         final udoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(me.uid)
             .get();
         final d = udoc.data();
+        sellerIdVerified = d?['idVerified'] == true;
         final dn = (d?['displayName'] as String?)?.trim() ?? '';
         final bn = (d?['businessName'] as String?)?.trim() ?? '';
         if (dn.isNotEmpty) {
@@ -373,7 +388,10 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'deliveryAvailable': deliveryAvailable,
         'codAvailable': codAvailable,
         'negotiable': negotiable,
-        'sellerVerified': true,
+        // Was hardcoded true on every ad, so the shield badge appeared on
+        // every listing in the app and told a buyer nothing. A badge everyone
+        // has trains people to ignore the one real trust marker.
+        'sellerVerified': sellerIdVerified,
         'attributes': attributes,
         'userId': FirebaseAuth.instance.currentUser?.uid ?? '',
         'sellerName': sellerName,

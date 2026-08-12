@@ -30,6 +30,18 @@ const double kUploadImageMaxWidth = 1600;
 /// Maximum photos per listing — matches the cap promised in the posting UI.
 const int kMaxListingImages = 8;
 
+/// Public web URL for a single listing, used when sharing an ad.
+///
+/// The web build does not route on this path yet, so it currently lands on the
+/// site and the id is carried for attribution and for when deep links ship.
+/// Sharing the bare site root gave the recipient no way to reach the item.
+String listingShareUrl(String listingId) {
+  final id = listingId.trim();
+  return id.isEmpty
+      ? 'https://pakbazar24.com'
+      : 'https://pakbazar24.com/ad/$id';
+}
+
 /// Metadata for uploaded images.
 ///
 /// The `cacheControl` header is the important part: Firebase Storage defaults

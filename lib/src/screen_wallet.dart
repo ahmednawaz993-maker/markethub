@@ -25,6 +25,11 @@ class WalletScreen extends StatelessWidget {
           StreamBuilder<DocumentSnapshot>(
             stream: userRef.snapshots(),
             builder: (context, snapshot) {
+              // Showing "Rs 0" while loading (or on a permission/network
+              // failure) told the user their wallet was empty. Distinguish
+              // "not loaded yet" from "actually zero".
+              final hasValue =
+                  snapshot.hasData && !snapshot.hasError;
               final balance =
                   ((snapshot.data?.data()
                               as Map<String, dynamic>?)?['walletBalance']
@@ -50,14 +55,31 @@ class WalletScreen extends StatelessWidget {
                       style: TextStyle(color: Colors.white70),
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      formatPrice('$balance'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 34,
-                        fontWeight: FontWeight.bold,
+                    if (!hasValue)
+                      const SizedBox(
+                        height: 41,
+                        child: Center(
+                          child: SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.4,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white70,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      Text(
+                        formatPrice('$balance'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 34,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 14),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -192,6 +214,9 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
     text: d?['payoutNumber']?.toString() ?? '',
   );
   final amount = TextEditingController();
+  // Guards against a double tap creating two withdrawals documents, each of
+  // which reserves the amount against the seller's balance.
+  final submitting = ValueNotifier<bool>(false);
 
   await showModalBottomSheet(
     context: context,
@@ -252,8 +277,10 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
                 ),
               ),
               const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: () async {
+              ValueListenableBuilder<bool>(
+                valueListenable: submitting,
+                builder: (context, busy, _) => ElevatedButton.icon(
+                onPressed: busy ? null : () async {
                   final amt = int.tryParse(
                     amount.text.replaceAll(RegExp(r'[^0-9]'), ''),
                   );
@@ -281,36 +308,52 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
                     );
                     return;
                   }
-                  await userRef.set({
-                    'payoutBank': bank.text.trim(),
-                    'payoutTitle': title.text.trim(),
-                    'payoutNumber': number.text.trim(),
-                  }, SetOptions(merge: true));
-                  await FirebaseFirestore.instance
-                      .collection('withdrawals')
-                      .add({
-                        'userId': uid,
-                        'userEmail':
-                            FirebaseAuth.instance.currentUser?.email ?? '',
-                        'amount': amt,
-                        'payoutBank': bank.text.trim(),
-                        'payoutTitle': title.text.trim(),
-                        'payoutNumber': number.text.trim(),
-                        'status': 'pending',
-                        'createdAt': Timestamp.now(),
-                      });
-                  if (context.mounted) Navigator.pop(context);
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Withdrawal requested — the admin will pay out to your '
-                        'account.',
+                  submitting.value = true;
+                  try {
+                    await userRef.set({
+                      'payoutBank': bank.text.trim(),
+                      'payoutTitle': title.text.trim(),
+                      'payoutNumber': number.text.trim(),
+                    }, SetOptions(merge: true));
+                    await FirebaseFirestore.instance
+                        .collection('withdrawals')
+                        .add({
+                          'userId': uid,
+                          'userEmail':
+                              FirebaseAuth.instance.currentUser?.email ?? '',
+                          'amount': amt,
+                          'payoutBank': bank.text.trim(),
+                          'payoutTitle': title.text.trim(),
+                          'payoutNumber': number.text.trim(),
+                          'status': 'pending',
+                          'createdAt': Timestamp.now(),
+                        });
+                    if (context.mounted) Navigator.pop(context);
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Withdrawal requested — the admin will pay out to '
+                          'your account.',
+                        ),
                       ),
-                    ),
-                  );
+                    );
+                  } catch (e) {
+                    // Previously a failed write gave the user no feedback at
+                    // all, so a withdrawal that never happened looked
+                    // identical to one that did.
+                    submitting.value = false;
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text('Could not request withdrawal: $e'),
+                      ),
+                    );
+                  }
                 },
                 icon: const Icon(Icons.account_balance),
-                label: const Text('Request withdrawal'),
+                label: Text(
+                  busy ? 'Requesting…' : 'Request withdrawal',
+                ),
+              ),
               ),
               const SizedBox(height: 8),
               Text(

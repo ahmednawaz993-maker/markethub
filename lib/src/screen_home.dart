@@ -807,9 +807,11 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: const Icon(Icons.location_on, color: kPakGreen, size: 44),
           title: const Text('Share your location?'),
           content: const Text(
+            // This shipped on the Play Store telling Android users to change
+            // their browser settings.
             'Allow PakBazar to use your location to show nearby ads and help '
-            'keep the marketplace safe. You can turn this off anytime in your '
-            'browser settings.',
+            'keep the marketplace safe. You can turn this off anytime in '
+            'Settings.',
           ),
           actions: [
             TextButton(

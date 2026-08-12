@@ -312,7 +312,10 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
     final text = [
       l.title,
       '${formatPrice(l.price)}${loc.isEmpty ? '' : ' · $loc'}',
-      'See more on PakBazar: https://pakbazar24.com',
+      // Link to the ad itself, not the site root. WhatsApp is the main way
+      // sellers distribute their listings here, and sharing previously sent
+      // the buyer to a homepage with no way back to the item.
+      'See it on PakBazar: ${listingShareUrl(l.id)}',
     ].join('\n');
     final messenger = ScaffoldMessenger.of(context);
 
@@ -1402,10 +1405,17 @@ class _SafetyTips extends StatelessWidget {
           const Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              '• Meet in a public place during the day.\n'
-              '• Inspect the item before you pay.\n'
-              '• Never send money or a deposit in advance.\n'
-              '• Avoid sharing personal/banking details.\n'
+              // "Never send money in advance" directly contradicted the
+              // product: paying online IS sending money in advance, into
+              // PakBazar's hold. The distinction that matters to a buyer is
+              // paying through the platform versus paying the seller directly.
+              '• Pay through PakBazar — your money is held until you '
+              'confirm delivery.\n'
+              '• Never send money directly to a seller\'s bank or wallet '
+              'account.\n'
+              '• Meet in a public place during the day for cash deals.\n'
+              '• Inspect the item before you confirm delivery.\n'
+              '• Avoid sharing personal/banking details in chat.\n'
               '• Report suspicious ads using the flag icon.',
               style: TextStyle(height: 1.5),
             ),

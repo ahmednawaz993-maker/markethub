@@ -612,6 +612,9 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
         path = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
       }
       await _recorder.start(const RecordConfig(), path: path);
+      // The Timer.periodic below guards on mounted; this setState did not, so
+      // backing out of the thread while the mic permission prompt was up threw.
+      if (!mounted) return;
       setState(() {
         _recording = true;
         _recSeconds = 0;

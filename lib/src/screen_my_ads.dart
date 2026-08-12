@@ -397,6 +397,11 @@ class SellerAnalyticsScreen extends StatelessWidget {
             .where('userId', isEqualTo: uid)
             .snapshots(),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const ErrorStateWidget(
+              message: 'We could not load your ads.',
+            );
+          }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }

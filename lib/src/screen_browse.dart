@@ -108,6 +108,11 @@ class SavedSearchesScreen extends StatelessWidget {
             .collection('savedSearches')
             .snapshots(),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const ErrorStateWidget(
+              message: 'We could not load your saved searches.',
+            );
+          }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -340,7 +345,11 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                 top: 16,
                 bottom: MediaQuery.of(context).viewInsets.bottom + 16,
               ),
-              child: Column(
+              // City + 2 fields + condition Wrap + colour swatches + 3
+              // switches + buttons do not fit a short screen, and certainly
+              // not with the keyboard up.
+              child: SingleChildScrollView(
+                child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -477,6 +486,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                     ],
                   ),
                 ],
+              ),
               ),
             );
           },
