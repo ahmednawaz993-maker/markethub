@@ -38,9 +38,48 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!--
+              Hands the incoming URL path to Flutter's router instead of just
+              opening the app at Home, so onGenerateRoute in app.dart receives
+              e.g. /ad/{listingId}. Without this the intent filters below would
+              launch the app but drop the destination.
+            -->
+            <meta-data
+              android:name="flutter_deeplinking_enabled"
+              android:value="true" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!--
+              Android App Links. android:autoVerify makes Android fetch
+              https://pakbazar24.com/.well-known/assetlinks.json and confirm the
+              app is allowed to handle these URLs; once verified, links open
+              straight in the app with no chooser. Both hosts are declared
+              because the site is served from the apex and www.
+            -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"
+                      android:host="pakbazar24.com"
+                      android:pathPrefix="/ad"/>
+                <data android:scheme="https"
+                      android:host="www.pakbazar24.com"
+                      android:pathPrefix="/ad"/>
+            </intent-filter>
+            <!--
+              Custom scheme as a fallback for contexts that strip https links
+              (some in-app browsers and messaging clients), and for testing
+              with `adb shell am start -a android.intent.action.VIEW -d
+              "pakbazar://ad/<id>"`.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="pakbazar"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
