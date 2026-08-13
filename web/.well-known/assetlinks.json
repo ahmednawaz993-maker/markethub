@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.pakbazar24.app",
+      "sha256_cert_fingerprints": [
+        "2C:10:3B:4E:75:3D:71:59:47:C4:73:4E:31:22:B6:AC:8A:8B:D6:94:A9:11:C6:A8:F4:9F:DC:5B:24:04:98:47",
+        "3B:DE:7F:DB:34:2D:2D:59:FC:04:8F:23:6A:B6:F3:DA:0F:6C:42:D9:75:F7:3C:FD:C1:A8:96:90:44:D2:7B:33"
+      ]
+    }
+  }
+]
