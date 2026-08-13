@@ -620,7 +620,7 @@ class _SearchBarDivider extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     width: 1,
     height: 22,
-    margin: const EdgeInsets.only(right: 2),
+    margin: const EdgeInsetsDirectional.only(end: 2),
     color: AppColors.divider,
   );
 }
@@ -658,8 +658,8 @@ class AppIconBadgeButton extends StatelessWidget {
             children: [
               Icon(icon, size: 24, color: iconColor ?? AppColors.textPrimary),
               if (count > 0)
-                Positioned(
-                  right: -5,
+                PositionedDirectional(
+                  end: -5,
                   top: -5,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -715,12 +715,7 @@ class SectionHeader extends StatelessWidget {
     this.iconColor,
     this.actionLabel = 'See all',
     this.onAction,
-    this.padding = const EdgeInsets.fromLTRB(
-      AppSpacing.page,
-      0,
-      AppSpacing.sm,
-      AppSpacing.md,
-    ),
+    this.padding = const EdgeInsetsDirectional.fromSTEB(AppSpacing.page, 0, AppSpacing.sm, AppSpacing.md),
   });
 
   @override
@@ -961,14 +956,14 @@ class _MarketplaceListingCardState extends State<MarketplaceListingCard> {
                         color: AppColors.error,
                       ),
                     if (images.length > 1)
-                      Positioned(
-                        left: 8,
+                      PositionedDirectional(
+                        start: 8,
                         bottom: 8,
                         child: _ImageCountPill(count: images.length),
                       ),
                     if (l.sellerVerified)
-                      Positioned(
-                        right: 8,
+                      PositionedDirectional(
+                        end: 8,
                         bottom: 8,
                         child: Tooltip(
                           message: 'Verified seller',
@@ -987,8 +982,8 @@ class _MarketplaceListingCardState extends State<MarketplaceListingCard> {
                         ),
                       ),
                     if (widget.showFavorite)
-                      Positioned(
-                        right: 6,
+                      PositionedDirectional(
+                        end: 6,
                         top: 6,
                         child: _HeartButton(active: _isFav, onTap: _toggleFav),
                       ),
@@ -1116,9 +1111,9 @@ class _CardBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
+    return PositionedDirectional(
       top: 7,
-      left: 7,
+      start: 7,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
         decoration: BoxDecoration(
@@ -1525,9 +1520,9 @@ class FeaturedBannerCard extends StatelessWidget {
                       iconSize: 40,
                     ),
                     if (badge != null && badge!.isNotEmpty)
-                      Positioned(
+                      PositionedDirectional(
                         top: AppSpacing.sm,
-                        left: AppSpacing.sm,
+                        start: AppSpacing.sm,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.sm,

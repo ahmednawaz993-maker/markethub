@@ -136,10 +136,10 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
             reverseCurve: Curves.easeInCubic,
           ),
         );
-    return Positioned(
+    return PositionedDirectional(
       top: 0,
-      left: 0,
-      right: 0,
+      start: 0,
+      end: 0,
       child: SafeArea(
         bottom: false,
         child: SlideTransition(
@@ -172,7 +172,7 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
                         ),
                       ],
                     ),
-                    padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+                    padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 6, 10),
                     child: Row(
                       children: [
                         Container(

@@ -17,9 +17,9 @@ Future<void> showSupportSheet(BuildContext context) async {
       return StatefulBuilder(
         builder: (context, setSheetState) {
           return Padding(
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
+            padding: EdgeInsetsDirectional.only(
+              start: 16,
+              end: 16,
               top: 16,
               bottom: MediaQuery.of(context).viewInsets.bottom + 16,
             ),
@@ -204,7 +204,7 @@ class _DisplayNameTileState extends State<_DisplayNameTile> {
               ),
             ),
             Align(
-              alignment: Alignment.centerRight,
+              alignment: AlignmentDirectional.centerEnd,
               child: TextButton(
                 onPressed: (loaded && !saving) ? _save : null,
                 child: Text(saving ? 'Saving…' : 'Save'),
@@ -703,7 +703,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
               ),
             ],
             Align(
-              alignment: Alignment.centerRight,
+              alignment: AlignmentDirectional.centerEnd,
               child: TextButton(
                 onPressed: (loaded && !saving) ? _save : null,
                 child: Text(saving ? 'Saving…' : 'Save'),
@@ -2228,7 +2228,7 @@ class _MenuGroup extends StatelessWidget {
       children: [
         const SizedBox(height: AppSpacing.section),
         Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.md, left: 2),
+          padding: const EdgeInsetsDirectional.only(bottom: AppSpacing.md, start: 2),
           child: Text(title, style: AppType.sectionTitle),
         ),
         AppCard(

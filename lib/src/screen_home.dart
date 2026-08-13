@@ -274,8 +274,8 @@ class LuckyDrawBanner extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               colors: [kPakGreen, kPakGreenLight],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
+              begin: AlignmentDirectional.centerStart,
+              end: AlignmentDirectional.centerEnd,
             ),
             borderRadius: AppRadius.rCard,
           ),
@@ -966,12 +966,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _homeHeader() {
     return Container(
       color: AppColors.surface,
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.page,
-        AppSpacing.sm,
-        AppSpacing.sm,
-        AppSpacing.md,
-      ),
+      padding: const EdgeInsetsDirectional.fromSTEB(AppSpacing.page, AppSpacing.sm, AppSpacing.sm, AppSpacing.md),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -999,7 +994,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       'assets/pakbazar_logo.png',
                       height: 28,
                       fit: BoxFit.contain,
-                      alignment: Alignment.centerLeft,
+                      alignment: AlignmentDirectional.centerStart,
                       errorBuilder: (context, error, stack) => Text(
                         'PakBazar',
                         maxLines: 1,
@@ -1043,7 +1038,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: AppSpacing.sm),
           Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.sm),
+            padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
             child: AppSearchBar(
               controller: searchController,
               hintText: 'Search in PakBazar',
@@ -1216,7 +1211,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         if (featuringEnabled.value)
                           SliverToBoxAdapter(
                             child: HorizontalListingSection(
-                              title: 'Featured on PakBazar',
+                              title: tr('home.featured', 'Featured on PakBazar'),
                               icon: Icons.star,
                               iconColor: kGold,
                               listings: featured,
@@ -1224,7 +1219,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         SliverToBoxAdapter(
                           child: HorizontalListingSection(
-                            title: 'Top deals',
+                            title: tr('home.topDeals', 'Top deals'),
                             subtitle: 'Most viewed this week',
                             icon: Icons.local_fire_department_outlined,
                             iconColor: Colors.deepOrange,
@@ -1294,7 +1289,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         SliverToBoxAdapter(
                           child: SectionHeader(
-                            title: 'Recommended for you',
+                            title: tr('home.recommended', 'Recommended for you'),
                             actionLabel: '',
                             padding: const EdgeInsets.fromLTRB(
                               AppSpacing.page,
@@ -1328,7 +1323,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 subtitle: homeCity == 'All Pakistan'
                                     ? 'Be the first to post an ad on PakBazar.'
                                     : 'Try another city, or post the first ad here.',
-                                actionLabel: 'Post an ad',
+                                actionLabel: tr('action.postAd', 'Post an ad'),
                                 onAction: _postAd,
                               ),
                             ),

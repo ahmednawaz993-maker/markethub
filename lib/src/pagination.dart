@@ -178,13 +178,13 @@ class PagedListingFooter extends StatelessWidget {
           child: Column(
             children: [
               Text(
-                'Could not load more ads.',
+                tr('state.loadMoreFailed', 'Could not load more ads.'),
                 style: TextStyle(color: AppColors.textMuted),
               ),
               const SizedBox(height: AppSpacing.sm),
               OutlinedButton(
                 onPressed: onRetry,
-                child: const Text('Try again'),
+                child: Text(tr('action.retry', 'Try again')),
               ),
             ],
           ),
@@ -208,7 +208,7 @@ class PagedListingFooter extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
         child: Center(
           child: Text(
-            "You've seen everything",
+            tr('state.seenEverything', "You've seen everything"),
             style: TextStyle(color: AppColors.textMuted, fontSize: 12.5),
           ),
         ),

@@ -334,9 +334,9 @@ Future<void> _showNewTicketSheet(BuildContext context) async {
     isScrollControlled: true,
     builder: (ctx) {
       return SingleChildScrollView(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
+        padding: EdgeInsetsDirectional.only(
+          start: 16,
+          end: 16,
           top: 16,
           bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
         ),
@@ -825,8 +825,8 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                         (m['senderRole']?.toString() ?? '') == 'support';
                     return Align(
                       alignment: mine
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
+                          ? AlignmentDirectional.centerEnd
+                          : AlignmentDirectional.centerStart,
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         padding: const EdgeInsets.symmetric(
@@ -1232,7 +1232,7 @@ class CareNumbersAdminScreen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Align(
-                  alignment: Alignment.centerRight,
+                  alignment: AlignmentDirectional.centerEnd,
                   child: ElevatedButton.icon(
                     onPressed: () => _edit(context, numbers, null),
                     icon: const Icon(Icons.add),
@@ -1321,7 +1321,7 @@ class _SupportTabLabel extends StatelessWidget {
             label: Text('$count'),
             offset: const Offset(6, -4),
             child: Padding(
-              padding: const EdgeInsets.only(right: 4),
+              padding: const EdgeInsetsDirectional.only(end: 4),
               child: Text(title),
             ),
           ),
@@ -1433,7 +1433,7 @@ class _AdminSupportTabState extends State<_AdminSupportTab> {
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
           child: Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: OutlinedButton.icon(
               onPressed: () => Navigator.push(
                 context,
@@ -1460,7 +1460,7 @@ class _AdminSupportTabState extends State<_AdminSupportTab> {
                 ('all', 'All'),
               ])
                 Padding(
-                  padding: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsetsDirectional.only(end: 8),
                   child: ChoiceChip(
                     label: Text(label),
                     selected: _filter == value,

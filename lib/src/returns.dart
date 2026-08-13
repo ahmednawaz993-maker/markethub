@@ -204,7 +204,7 @@ class _BuyerReturnAction extends StatelessWidget {
         return const SizedBox.shrink();
       case ReturnUi.supportOnly:
         return Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: TextButton.icon(
             onPressed: () => showDisputeSheet(context, orderId, data),
             icon: const Icon(Icons.assignment_return_outlined, size: 16),
@@ -213,7 +213,7 @@ class _BuyerReturnAction extends StatelessWidget {
         );
       case ReturnUi.request:
         return Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: TextButton.icon(
             onPressed: () => showReturnSheet(context, orderId, data),
             icon: const Icon(Icons.assignment_return_outlined, size: 16),
@@ -271,7 +271,7 @@ class _BuyerReturnPendingCard extends StatelessWidget {
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             Align(
-              alignment: Alignment.centerRight,
+              alignment: AlignmentDirectional.centerEnd,
               child: TextButton(
                 onPressed: () async {
                   final messenger = ScaffoldMessenger.of(context);

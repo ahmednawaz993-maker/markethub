@@ -115,15 +115,15 @@ class _FullScreenGalleryState extends State<FullScreenGallery> {
             // Prev / next arrows — the primary way to move between photos on
             // web/desktop where there's no swipe gesture.
             if (multi) ...[
-              Positioned(
-                left: 8,
+              PositionedDirectional(
+                start: 8,
                 child: _GalleryNavArrow(
                   icon: Icons.chevron_left,
                   onTap: _index > 0 ? () => _go(-1) : null,
                 ),
               ),
-              Positioned(
-                right: 8,
+              PositionedDirectional(
+                end: 8,
                 child: _GalleryNavArrow(
                   icon: Icons.chevron_right,
                   onTap: _index < images.length - 1 ? () => _go(1) : null,
@@ -486,9 +486,9 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
               ),
               // Photo counter (top-right).
               if (images.length > 1)
-                Positioned(
+                PositionedDirectional(
                   top: AppSpacing.md,
-                  right: AppSpacing.md,
+                  end: AppSpacing.md,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.md,
@@ -520,9 +520,9 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                   ),
                 ),
               // Tap-to-expand button (bottom-right).
-              Positioned(
+              PositionedDirectional(
                 bottom: AppSpacing.md,
-                right: AppSpacing.md,
+                end: AppSpacing.md,
                 child: Material(
                   color: Colors.black.withValues(alpha: 0.6),
                   shape: const CircleBorder(),
@@ -544,9 +544,9 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
               if (images.length > 1) ...[
                 Positioned.fill(
                   child: Align(
-                    alignment: Alignment.centerLeft,
+                    alignment: AlignmentDirectional.centerStart,
                     child: Padding(
-                      padding: const EdgeInsets.only(left: 6),
+                      padding: const EdgeInsetsDirectional.only(start: 6),
                       child: _GalleryNavArrow(
                         icon: Icons.chevron_left,
                         onTap: currentImage > 0
@@ -558,9 +558,9 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                 ),
                 Positioned.fill(
                   child: Align(
-                    alignment: Alignment.centerRight,
+                    alignment: AlignmentDirectional.centerEnd,
                     child: Padding(
-                      padding: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsetsDirectional.only(end: 6),
                       child: _GalleryNavArrow(
                         icon: Icons.chevron_right,
                         onTap: currentImage < images.length - 1
@@ -674,7 +674,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                   Expanded(
                     child: _ContactAction(
                       icon: Icons.phone,
-                      label: 'Call',
+                      label: tr('ad.call', 'Call'),
                       onTap: callSeller,
                     ),
                   ),
@@ -682,7 +682,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                   Expanded(
                     child: _ContactAction(
                       icon: Icons.chat,
-                      label: 'WhatsApp',
+                      label: tr('ad.whatsapp', 'WhatsApp'),
                       color: const Color(0xFF25D366),
                       onTap: openWhatsApp,
                     ),
@@ -691,7 +691,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                   Expanded(
                     child: _ContactAction(
                       icon: Icons.message_outlined,
-                      label: 'Chat',
+                      label: tr('ad.chat', 'Chat'),
                       onTap: openChat,
                     ),
                   ),
@@ -742,7 +742,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.flag_outlined),
-            tooltip: 'Report ad',
+            tooltip: tr('ad.reportAd', 'Report ad'),
             onPressed: reportAd,
           ),
           if (!isOwnAd)
@@ -1408,7 +1408,7 @@ class _SafetyTips extends StatelessWidget {
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         children: [
           const Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: Text(
               // "Never send money in advance" directly contradicted the
               // product: paying online IS sending money in advance, into
@@ -1426,7 +1426,7 @@ class _SafetyTips extends StatelessWidget {
             ),
           ),
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: TextButton(
               onPressed: () => Navigator.push(
                 context,

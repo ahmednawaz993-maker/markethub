@@ -161,7 +161,7 @@ class AddressBookScreen extends StatelessWidget {
                         if (selectMode) ...[
                           const SizedBox(height: 6),
                           Align(
-                            alignment: Alignment.centerRight,
+                            alignment: AlignmentDirectional.centerEnd,
                             child: TextButton(
                               onPressed: () => Navigator.pop(context, a),
                               child: const Text('Deliver here'),

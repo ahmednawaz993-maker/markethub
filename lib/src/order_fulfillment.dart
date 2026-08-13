@@ -165,7 +165,7 @@ class OrderFulfillmentPanel extends StatelessWidget {
       _ => ('Advance', Icons.arrow_forward),
     };
     return Align(
-      alignment: Alignment.centerRight,
+      alignment: AlignmentDirectional.centerEnd,
       child: Padding(
         padding: const EdgeInsets.only(top: 6),
         child: ElevatedButton.icon(
@@ -232,7 +232,7 @@ class OrderFulfillmentPanel extends StatelessWidget {
       );
     }
     return Align(
-      alignment: Alignment.centerRight,
+      alignment: AlignmentDirectional.centerEnd,
       child: Padding(
         padding: const EdgeInsets.only(top: 6),
         child: ElevatedButton.icon(

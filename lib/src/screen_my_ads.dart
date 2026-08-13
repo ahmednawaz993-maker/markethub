@@ -374,7 +374,7 @@ class _MonthBar extends StatelessWidget {
                   ? formatPrice(value.toStringAsFixed(0))
                   : '${value.toInt()}',
               style: TextStyle(fontSize: 11, color: AppColors.textPrimary),
-              textAlign: TextAlign.right,
+              textAlign: TextAlign.end,
             ),
           ),
         ],
@@ -1498,7 +1498,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
               if (showNew)
                 for (final x in newImages)
                   Padding(
-                    padding: const EdgeInsets.only(right: AppSpacing.sm),
+                    padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
                     child: ClipRRect(
                       borderRadius: AppRadius.rSm,
                       child: FutureBuilder<Uint8List>(
@@ -1517,7 +1517,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
               else
                 for (final u in existing)
                   Padding(
-                    padding: const EdgeInsets.only(right: AppSpacing.sm),
+                    padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
                     child: ClipRRect(
                       borderRadius: AppRadius.rSm,
                       child: SizedBox(

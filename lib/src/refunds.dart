@@ -224,7 +224,7 @@ class _BuyerRefundAction extends StatelessWidget {
   Widget build(BuildContext context) {
     if (refundUiFor(data) == RefundUi.none) return const SizedBox.shrink();
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: AlignmentDirectional.centerStart,
       child: TextButton.icon(
         onPressed: () => showRefundSheet(context, orderId, data),
         icon: const Icon(Icons.currency_exchange, size: 16),
@@ -282,7 +282,7 @@ class _BuyerRefundPendingCard extends StatelessWidget {
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             Align(
-              alignment: Alignment.centerRight,
+              alignment: AlignmentDirectional.centerEnd,
               child: TextButton(
                 onPressed: () async {
                   final messenger = ScaffoldMessenger.of(context);

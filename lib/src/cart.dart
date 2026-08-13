@@ -1122,7 +1122,7 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
             ),
           const Divider(),
           Align(
-            alignment: Alignment.centerRight,
+            alignment: AlignmentDirectional.centerEnd,
             child: Text(
               'Subtotal: ${formatPrice(g.subtotal.toStringAsFixed(0))}',
               style: const TextStyle(fontWeight: FontWeight.w600),
