@@ -132,7 +132,7 @@ class _ListingDeepLinkScreenState extends State<ListingDeepLinkScreen> {
             appBar: AppBar(title: const Text('PakBazar')),
             body: EmptyStateWidget(
               icon: Icons.link_off,
-              title: 'This ad is no longer available',
+              title: tr('ad.unavailable', 'This ad is no longer available'),
               subtitle: 'It may have been sold or removed by the seller.',
               actionLabel: 'Browse PakBazar',
               onAction: _goHome,

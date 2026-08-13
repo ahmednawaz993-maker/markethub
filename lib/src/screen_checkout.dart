@@ -268,7 +268,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Checkout')),
+      appBar: AppBar(title: Text(tr('checkout.title', 'Checkout'))),
       body: _loadingAddress
           ? const Center(child: CircularProgressIndicator())
           : _addressError

@@ -231,7 +231,7 @@ class _AdminActivityTabState extends State<_AdminActivityTab> {
             children: [
               for (final f in _filters)
                 Padding(
-                  padding: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsetsDirectional.only(end: 6),
                   child: ChoiceChip(
                     label: Text(f),
                     selected: _filter == f,
@@ -4864,7 +4864,7 @@ class _AdminBusinessTabState extends State<_AdminBusinessTab> {
                 ('activity', 'Activity'),
               ])
                 Padding(
-                  padding: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsetsDirectional.only(end: 6),
                   child: ChoiceChip(
                     label: Text(m.$2),
                     selected: _mode == m.$1,
@@ -4884,7 +4884,7 @@ class _AdminBusinessTabState extends State<_AdminBusinessTab> {
                 children: [
                   for (final s in _statuses)
                     Padding(
-                      padding: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsetsDirectional.only(end: 6),
                       child: ChoiceChip(
                         label: Text(s.$2),
                         selected: _status == s.$1,
@@ -5356,7 +5356,7 @@ class _AdminPayoutAccountsTabState extends State<_AdminPayoutAccountsTab> {
               children: [
                 for (final s in _statuses)
                   Padding(
-                    padding: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsetsDirectional.only(end: 6),
                     child: ChoiceChip(
                       label: Text(_label(s)),
                       selected: _status == s,
@@ -5923,7 +5923,7 @@ class _AdminApprovalsTab extends StatelessWidget {
     return Column(
       children: [
         Align(
-          alignment: Alignment.centerRight,
+          alignment: AlignmentDirectional.centerEnd,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
             child: TextButton.icon(
@@ -6318,7 +6318,7 @@ class _AdminStaffTab extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.all(12),
           child: Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: ElevatedButton.icon(
               onPressed: () => _editStaffDialog(context),
               icon: const Icon(Icons.person_add_alt),

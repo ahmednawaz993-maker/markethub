@@ -308,7 +308,7 @@ class _BuyerCancelAction extends StatelessWidget {
         return const SizedBox.shrink();
       case CancelUi.supportOnly:
         return Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: TextButton.icon(
             onPressed: () => showDisputeSheet(context, orderId, data),
             icon: const Icon(Icons.support_agent, size: 16),
@@ -322,7 +322,7 @@ class _BuyerCancelAction extends StatelessWidget {
             ? 'Request cancellation'
             : 'Cancel order';
         return Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: TextButton.icon(
             onPressed: () => showCancellationSheet(context, orderId, data, ui),
             icon: const Icon(Icons.cancel_outlined, size: 16),
@@ -377,7 +377,7 @@ class _BuyerPendingRequestCard extends StatelessWidget {
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             Align(
-              alignment: Alignment.centerRight,
+              alignment: AlignmentDirectional.centerEnd,
               child: TextButton(
                 onPressed: () async {
                   final messenger = ScaffoldMessenger.of(context);

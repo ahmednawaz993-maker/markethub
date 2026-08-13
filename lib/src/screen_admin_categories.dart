@@ -544,14 +544,14 @@ class _AdminCategoriesTabState extends State<_AdminCategoriesTab> {
           },
         ),
         if (_saving)
-          const Positioned(
+          const PositionedDirectional(
             top: 0,
-            left: 0,
-            right: 0,
+            start: 0,
+            end: 0,
             child: LinearProgressIndicator(minHeight: 3),
           ),
-        Positioned(
-          right: 16,
+        PositionedDirectional(
+          end: 16,
           bottom: 16 + AppSpacing.navClearance / 2,
           child: FloatingActionButton.extended(
             onPressed: _saving ? null : _addCategory,
@@ -733,7 +733,7 @@ class _CategoryCard extends StatelessWidget {
                     onToggleSubAdvertise(c.subcategories[s]),
               ),
             Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: TextButton.icon(
                 onPressed: busy ? null : onAddSub,
                 icon: const Icon(Icons.add, size: 16),
@@ -779,7 +779,7 @@ class _SubRow extends StatelessWidget {
           Expanded(child: Text(name, style: const TextStyle(fontSize: 13))),
           if (advertiseOnly)
             const Padding(
-              padding: EdgeInsets.only(right: 4),
+              padding: EdgeInsetsDirectional.only(end: 4),
               child: _CatPill(text: 'Contact only', color: Colors.deepOrange),
             ),
           IconButton(

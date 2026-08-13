@@ -67,9 +67,9 @@ Future<void> _submitPaymentProofSheet(
           }
 
           return Padding(
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
+            padding: EdgeInsetsDirectional.only(
+              start: 16,
+              end: 16,
               top: 16,
               bottom: MediaQuery.of(context).viewInsets.bottom + 16,
             ),
@@ -594,7 +594,7 @@ class _OrdersList extends StatelessWidget {
                             status == 'completed' ||
                             status == 'cod_pending'))
                       Align(
-                        alignment: Alignment.centerLeft,
+                        alignment: AlignmentDirectional.centerStart,
                         child: TextButton.icon(
                           onPressed: () =>
                               showDisputeSheet(context, docs[i].id, d),

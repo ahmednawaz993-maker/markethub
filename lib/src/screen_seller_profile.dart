@@ -337,8 +337,8 @@ class _StoreHeroBar extends StatelessWidget {
               ),
             ),
             // Store logo, bottom-right, with a white ring + shadow.
-            Positioned(
-              right: 14,
+            PositionedDirectional(
+              end: 14,
               bottom: 12,
               child: Container(
                 decoration: BoxDecoration(

@@ -133,7 +133,7 @@ class WalletScreen extends StatelessWidget {
               AppSpacing.sm,
             ),
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: Text('Transactions', style: AppType.sectionTitle),
             ),
           ),
@@ -243,9 +243,9 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
     isScrollControlled: true,
     builder: (context) {
       return Padding(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
+        padding: EdgeInsetsDirectional.only(
+          start: 16,
+          end: 16,
           top: 16,
           bottom: MediaQuery.of(context).viewInsets.bottom + 16,
         ),

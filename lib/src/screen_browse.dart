@@ -358,9 +358,9 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
         return StatefulBuilder(
           builder: (context, setSheetState) {
             return Padding(
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
+              padding: EdgeInsetsDirectional.only(
+                start: 16,
+                end: 16,
                 top: 16,
                 bottom: MediaQuery.of(context).viewInsets.bottom + 16,
               ),
@@ -414,7 +414,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                     ),
                     const SizedBox(height: 16),
                     const Align(
-                      alignment: Alignment.centerLeft,
+                      alignment: AlignmentDirectional.centerStart,
                       child: Text(
                         'Condition',
                         style: TextStyle(fontWeight: FontWeight.w600),
@@ -481,7 +481,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                               _restartPaging();
                               Navigator.pop(context);
                             },
-                            child: const Text('Reset'),
+                            child: Text(tr('action.reset', 'Reset')),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -507,7 +507,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                               _restartPaging();
                               Navigator.pop(context);
                             },
-                            child: const Text('Apply'),
+                            child: Text(tr('action.apply', 'Apply')),
                           ),
                         ),
                       ],
@@ -702,7 +702,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
             children: [
               AppSearchBar(
                 controller: searchController,
-                hintText: 'Search title, brand, category or city',
+                hintText: tr('home.searchHint', 'Search title, brand, category or city'),
                 // Debounced: re-filter 250ms after the user stops typing, not
                 // on every keystroke (which would rebuild the results list).
                 onChanged: (value) {
@@ -835,7 +835,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
               if (sorted.isEmpty && !_source.hasMore) {
                 return EmptyStateWidget(
                   icon: Icons.search_off,
-                  title: 'No listings found',
+                  title: tr('state.noResults', 'No listings found'),
                   subtitle: _source.scannedCount > 0
                       ? 'We looked through every ad and none matched. Try a '
                             'different search or adjust your filters.'

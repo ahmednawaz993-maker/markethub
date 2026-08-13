@@ -248,7 +248,7 @@ class AdminLiveUsersPill extends StatelessWidget {
     return OnlineUsersCount(
       builder: (context, onlineCount) => Center(
         child: Container(
-          margin: const EdgeInsets.only(right: 12),
+          margin: const EdgeInsetsDirectional.only(end: 12),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.16),

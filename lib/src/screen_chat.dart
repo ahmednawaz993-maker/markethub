@@ -111,8 +111,8 @@ class ChatsScreen extends StatelessWidget {
                               backgroundImage: NetworkImage(listingImage),
                             ),
                       if (otherUid.isNotEmpty)
-                        Positioned(
-                          right: -1,
+                        PositionedDirectional(
+                          end: -1,
                           bottom: -1,
                           child: PresenceDot(otherUid),
                         ),
@@ -560,8 +560,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
                           return Align(
                             alignment: isMine
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
+                                ? AlignmentDirectional.centerEnd
+                                : AlignmentDirectional.centerStart,
                             child: Container(
                               margin: const EdgeInsets.symmetric(vertical: 4),
                               padding: const EdgeInsets.symmetric(
@@ -702,7 +702,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             'Thank you for contacting!',
                           ])
                             Padding(
-                              padding: const EdgeInsets.only(right: 6),
+                              padding: const EdgeInsetsDirectional.only(end: 6),
                               child: ActionChip(
                                 visualDensity: VisualDensity.compact,
                                 label: Text(
