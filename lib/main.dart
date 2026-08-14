@@ -102,19 +102,57 @@ Future<void> main() async {
   );
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // The Firestore database lives in nam5 (multi-region US), so every read from
+  // Pakistan is a cross-continent round trip. The local cache is the only
+  // lever that does not require migrating the database.
+  //
+  // Mobile enables persistence by default; WEB DOES NOT — which is why the
+  // site refetched everything on every navigation. Setting it here, before any
+  // Firestore call, turns repeat reads into local cache hits. Must run before
+  // the first Firestore use or it throws.
+  try {
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+  } catch (_) {
+    // Web persistence is unavailable with several tabs open on some browsers.
+    // Losing the cache is a slowdown, never a failure, so carry on.
+  }
+
   // Immediately after Firebase.initializeApp and before anything else can
   // throw, so a crash during the remaining startup work is still reported.
   await initObservability();
+
+  // Only these two gate the first frame, and both are local SharedPreferences
+  // reads costing well under a millisecond. They decide the language and theme
+  // the very first pixel is painted in, so rendering before them would flash
+  // the wrong one.
   await loadSavedLocale();
   await loadSavedThemeMode();
-  await loadFeaturingFlag();
-  await loadVerificationFlag();
-  await loadCategories();
-
-  await loadMonetizationFlag();
-  await loadLuckyDrawFlag();
-  await loadRecentSearches();
-  await recordAppSession();
 
   runApp(const PakBazarApp());
+
+  // Everything below used to run BEFORE runApp, as eleven sequential awaits —
+  // five of them separate Firestore round trips to config/*. On a Pakistani
+  // mobile connection that was seconds of blank screen before the app started
+  // painting, and it was pure waste: every one of these has a safe default
+  // already in place and feeds a ValueNotifier that rebuilds the UI when it
+  // resolves. So they now run AFTER the first frame, and in parallel with each
+  // other rather than one after another.
+  //
+  // Each already swallows its own errors; unawaited() documents that nothing
+  // here is allowed to hold up the app.
+  unawaited(
+    Future.wait([
+      loadFeaturingFlag(),
+      loadVerificationFlag(),
+      loadCategories(),
+      loadMonetizationFlag(),
+      loadLuckyDrawFlag(),
+      loadRecentSearches(),
+      recordAppSession(),
+    ]).catchError((_) => <void>[]),
+  );
 }

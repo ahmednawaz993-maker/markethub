@@ -23,7 +23,7 @@
           "headers": [
             {
               "key": "Cache-Control",
-              "value": "no-cache, no-store, must-revalidate"
+              "value": "no-cache, must-revalidate"
             }
           ]
         },
@@ -32,7 +32,7 @@
           "headers": [
             {
               "key": "Cache-Control",
-              "value": "no-cache, no-store, must-revalidate"
+              "value": "no-cache, must-revalidate"
             }
           ]
         },
@@ -41,7 +41,7 @@
           "headers": [
             {
               "key": "Cache-Control",
-              "value": "no-cache, no-store, must-revalidate"
+              "value": "no-cache, must-revalidate"
             }
           ]
         },
@@ -50,7 +50,34 @@
           "headers": [
             {
               "key": "Cache-Control",
-              "value": "no-cache, no-store, must-revalidate"
+              "value": "no-cache, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "/canvaskit/**",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=86400"
+            }
+          ]
+        },
+        {
+          "source": "/assets/**",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=86400"
+            }
+          ]
+        },
+        {
+          "source": "**/*.wasm",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=86400"
             }
           ]
         }
@@ -76,7 +103,7 @@
           "headers": [
             {
               "key": "Cache-Control",
-              "value": "no-cache, no-store, must-revalidate"
+              "value": "no-cache, must-revalidate"
             }
           ]
         },
@@ -85,7 +112,7 @@
           "headers": [
             {
               "key": "Cache-Control",
-              "value": "no-cache, no-store, must-revalidate"
+              "value": "no-cache, must-revalidate"
             }
           ]
         },
@@ -94,7 +121,7 @@
           "headers": [
             {
               "key": "Cache-Control",
-              "value": "no-cache, no-store, must-revalidate"
+              "value": "no-cache, must-revalidate"
             }
           ]
         },
@@ -103,7 +130,34 @@
           "headers": [
             {
               "key": "Cache-Control",
-              "value": "no-cache, no-store, must-revalidate"
+              "value": "no-cache, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "/canvaskit/**",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=86400"
+            }
+          ]
+        },
+        {
+          "source": "/assets/**",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=86400"
+            }
+          ]
+        },
+        {
+          "source": "**/*.wasm",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=86400"
             }
           ]
         }
