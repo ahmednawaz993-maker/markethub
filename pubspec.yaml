@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.45+51
+version: 1.0.46+52
 
 environment:
   sdk: ^3.12.1
@@ -55,6 +55,7 @@ dependencies:
   cross_file: ^0.3.4
   path_provider: ^2.1.4
   safe_device: ^1.4.1
+  package_info_plus: ^10.1.0
 
 # record 5.2.1 pulls record_linux 0.7.2, which doesn't implement the members
 # added in record_platform_interface 1.6.0 (startStream + hasPermission's

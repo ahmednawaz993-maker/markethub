@@ -40,7 +40,9 @@ class PakBazarApp extends StatelessWidget {
               // return null so MaterialApp falls back to `home` — a stale
               // shared link should land the user in the app, not on an error.
               onGenerateRoute: generateAppRoute,
-              home: const SecurityGate(child: AuthGate()),
+              home: const AppGate(
+                child: SecurityGate(child: AuthGate()),
+              ),
             );
           },
         );

@@ -35,6 +35,7 @@ import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:safe_device/safe_device.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 // Implementation is split across part files under lib/src/ (see below).
 part 'src/i18n.dart';
@@ -42,6 +43,7 @@ part 'src/helpers.dart';
 part 'src/observability.dart';
 part 'src/pagination.dart';
 part 'src/deep_links.dart';
+part 'src/app_gate.dart';
 part 'src/security.dart';
 part 'src/theme.dart';
 part 'src/design_system.dart';
@@ -146,6 +148,9 @@ Future<void> main() async {
   // here is allowed to hold up the app.
   unawaited(
     Future.wait([
+      // The gate needs the real build number, and this is a local platform
+      // call rather than a network one.
+      loadPackageInfo(),
       loadFeaturingFlag(),
       loadVerificationFlag(),
       loadCategories(),
@@ -155,4 +160,9 @@ Future<void> main() async {
       recordAppSession(),
     ]).catchError((_) => <void>[]),
   );
+
+  // Live subscription, so flipping maintenance on reaches running apps in
+  // seconds rather than at next launch — which is the entire point during a
+  // database cutover.
+  listenToAppGate();
 }
