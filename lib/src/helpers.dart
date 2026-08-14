@@ -14,6 +14,27 @@ const String currencySymbol = 'Rs';
 /// versionName/versionCode, this one is what users see inside the app.
 const String kAppVersion = '1.0.45';
 
+/// Version name and build number as reported by the platform, so they cannot
+/// drift from what was actually installed.
+///
+/// kAppVersion above is a hand-maintained fallback, and it HAS drifted before —
+/// it sat at 1.0.34 while five releases shipped, so every support email carried
+/// the wrong version. Prefer these at runtime.
+String appVersionName = kAppVersion;
+int appBuildNumber = 0;
+
+/// Reads the installed version. Local call, no network.
+Future<void> loadPackageInfo() async {
+  try {
+    final info = await PackageInfo.fromPlatform();
+    if (info.version.trim().isNotEmpty) appVersionName = info.version.trim();
+    appBuildNumber = int.tryParse(info.buildNumber.trim()) ?? 0;
+  } catch (_) {
+    // Leave the compiled-in fallback, and a build number of 0, which the
+    // version gate treats as "unknown" and therefore never blocks on.
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Image upload pipeline
 // ---------------------------------------------------------------------------

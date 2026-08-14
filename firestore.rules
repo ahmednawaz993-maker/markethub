@@ -1081,7 +1081,12 @@ service cloud.firestore {
       // state is known, and a signed-out visitor browsing the website needs the
       // same category strip everyone else sees. It carries no private data.
       // Everything else in config stays signed-in only.
-      allow read: if isSignedIn() || docId == 'categories';
+      // appGate is public for the same reason plus a stronger one: it is what
+      // tells an outdated or locked-out client to stop, and that has to work
+      // before sign-in.
+      allow read: if isSignedIn()
+                  || docId == 'categories'
+                  || docId == 'appGate';
       // The receiving account is money-critical → paymentAccount staff only.
       // The featuring master switch → featured staff. Anything else → super
       // admin. (A featured/marketing role must NOT change the payout account.)
