@@ -1,0 +1,71 @@
+# Changelog
+
+User-visible changes to PakBazar, newest first. Versions match the `version:`
+field in `pubspec.yaml` (the versionName users see); the Play versionCode is
+auto-incremented by CI on every build, so it is not tracked here.
+
+This file starts at 1.0.46 — earlier history lives in the git log.
+
+Deploy topology matters when reading these entries: a push to `main` ships the
+app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
+Functions and the website are deployed by hand, so backend items are marked
+with where they landed.
+
+## [1.0.47] — unreleased
+
+### Fixed
+
+- **Admin panel reset itself while you were using it.** The panel restarted its
+  permission load on every rebuild — opening the keyboard on a tab with a text
+  field was enough — which dropped it to a spinner, rebuilt every tab and
+  bounced you back to the first tab.
+- **Staff Panel button came and went.** Staff permissions were cleared before
+  each reload rather than after, so during every load a staff member briefly
+  looked like they had none: the button disappeared from the Menu and the panel
+  could show "No access". A failed read (offline) locked them out for the rest
+  of the session. The button also had nothing to rebuild it when grants
+  arrived, so on a cold start it stayed hidden until something unrelated
+  redrew the Menu.
+- **Removing staff no longer deletes on a single tap.** It asks first, and
+  points at the "Active" toggle as the reversible option.
+- **Re-adding an existing staff email no longer wipes their permissions.**
+  "Add staff" merged over the existing record; duplicates are now refused with
+  a pointer to "Edit permissions".
+- **A typo in a staff email no longer discards the dialog.** The address is
+  validated inline instead of after the dialog closes.
+- **Verify ID staff can see the documents they are reviewing.** Read access to
+  verification images was hard-coded to the owner's account, so anyone else
+  granted the Verify ID permission opened the queue to broken image tiles.
+  *(storage.rules — deployed 2026-08-16.)*
+
+### Security
+
+- **An approved ID verification can no longer be edited by its owner.**
+  Previously the owner could rewrite the selfie, CNIC and address on an
+  already-approved record — the rules only required the new status to be
+  `pending`, and the `idVerified` badge on the account was never reset by that
+  write. A verified account could end up vouching for documents no reviewer had
+  seen. Approved records are now frozen for the owner in both the app and the
+  rules, and verification images are written to a fresh object per capture so a
+  retake cannot overwrite what was approved.
+  *(firestore.rules deployed 2026-08-16; storage.rules deployed by hand the
+  same day.)*
+
+### Added
+
+- **"Re-open for re-submission"** on approved records in the Verify ID tab, so
+  support can start someone's verification over (renewed CNIC, moved house,
+  approved by mistake). It clears the badge — spelled out in the confirmation —
+  and notifies the user.
+
+> These fixes were merged and deployed on 2026-08-16 while `pubspec.yaml` still
+> read 1.0.46, so the production build carrying them reports 1.0.46. The rules
+> changes are live regardless of app version.
+
+## [1.0.46] — 2026-08-14
+
+### Added
+
+- **Minimum-version gate and maintenance mode**, so a build below the supported
+  floor can be told to update, and the app can be put into maintenance from
+  `config/appGate` without a release.
