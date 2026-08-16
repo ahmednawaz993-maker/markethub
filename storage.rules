@@ -124,13 +124,52 @@ service firebase.storage {
 
     // ---------------------------------------------------------------
     // Identity-verification images (selfie + CNIC) — SENSITIVE. Readable
-    // only by the owner and the admin; never public.
+    // only by the owner, the super admin, and staff granted 'verifyId';
+    // never public.
     // ---------------------------------------------------------------
+
+    // Cross-service lookups into Firestore (same project). Each of these costs
+    // a document read, so they are only used on this one path — verification
+    // uploads and reviews are rare compared with listing photos.
+    function staffEmail() {
+      return request.auth.token.email != null
+             ? request.auth.token.email.lower() : 'none';
+    }
+    function staffDoc() {
+      return firestore.get(/databases/(default)/documents/staff/$(staffEmail()));
+    }
+    // Mirrors can('verifyId') in firestore.rules. The reviewer UI lives behind
+    // that same permission, so without this a staff member granted Verify ID
+    // opened the queue and saw nothing but broken image tiles — only the
+    // hard-coded super-admin address could load the photos they were meant to
+    // be checking.
+    function canVerifyId() {
+      return firestore.exists(/databases/(default)/documents/staff/$(staffEmail()))
+             && staffDoc().data.get('active', true) == true
+             && staffDoc().data.get('permissions', {}).get('verifyId', false) == true;
+    }
+    // True once a reviewer has approved this user's submission. An approved
+    // record is frozen in firestore.rules; freezing the images too closes the
+    // matching hole here, where a retake overwrote the exact photo that was
+    // approved (fixed object names — selfie.jpg — made that a plain overwrite,
+    // and the stored URL then resolved to a picture no reviewer had seen).
+    // Uploads resume as soon as an admin re-opens the record for resubmission.
+    function verificationApproved(userId) {
+      return firestore.exists(/databases/(default)/documents/verifications/$(userId))
+             && firestore.get(/databases/(default)/documents/verifications/$(userId))
+                  .data.get('status', '') == 'approved';
+    }
+
     match /verifications/{userId}/{fileName} {
+      // Owner and super admin are checked first and short-circuit, so neither
+      // can be affected by the Firestore lookup in canVerifyId().
       allow read: if signedIn()
                   && (owns(userId)
-                      || request.auth.token.email == 'ahmednawaz993@gmail.com');
-      allow write: if owns(userId) && isImageUnder(8);
+                      || request.auth.token.email == 'ahmednawaz993@gmail.com'
+                      || canVerifyId());
+      allow write: if owns(userId)
+                   && isImageUnder(8)
+                   && !verificationApproved(userId);
     }
 
     // Anything not matched above is denied.

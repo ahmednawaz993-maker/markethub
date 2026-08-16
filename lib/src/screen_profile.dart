@@ -893,6 +893,13 @@ Future<void> _requestAccountDeletion(BuildContext context) async {
   }
 }
 
+/// A unique object name per capture. These used to be fixed (`selfie.jpg`), so
+/// a retake OVERWROTE the exact image an admin had already approved — the
+/// stored URL then resolved to a picture no reviewer had ever seen. Writing a
+/// fresh object every time keeps the approved evidence intact.
+String _verificationFileName(String kind) =>
+    '${kind}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
 class VerificationScreen extends StatefulWidget {
   const VerificationScreen({super.key});
 
@@ -966,7 +973,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
           .ref()
           .child('verifications')
           .child(uid)
-          .child('address_proof.jpg');
+          .child(_verificationFileName('address_proof'));
       await ref.putData(bytes, imageUploadMetadata());
       final url = await ref.getDownloadURL();
       if (!mounted) return;
@@ -1006,7 +1013,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
           .ref()
           .child('verifications')
           .child(uid)
-          .child(selfie ? 'selfie.jpg' : 'cnic.jpg');
+          .child(_verificationFileName(selfie ? 'selfie' : 'cnic'));
       await ref.putData(bytes, imageUploadMetadata());
       final url = await ref.getDownloadURL();
       if (!mounted) return;
@@ -1036,6 +1043,19 @@ class _VerificationScreenState extends State<VerificationScreen> {
   Future<void> _submit() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+    // Backstop for the locked state — firestore.rules rejects this write on an
+    // approved record, and a raw permission-denied is not a useful message.
+    if (idVerified || status == 'approved') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Your verification is approved and locked. Contact Customer Care '
+            'to change your ID or address.',
+          ),
+        ),
+      );
+      return;
+    }
     if (selfieUrl == null || cnicUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Upload both a selfie and your CNIC')),
@@ -1082,7 +1102,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
     }
   }
 
-  Widget _uploadTile(String label, String? url, bool busy, VoidCallback onTap) {
+  /// [onTap] is null once the record is locked (approved) — the capture button
+  /// then renders disabled instead of silently uploading a replacement.
+  Widget _uploadTile(String label, String? url, bool busy, VoidCallback? onTap) {
     return Card(
       child: ListTile(
         leading: SizedBox(
@@ -1113,6 +1135,11 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Once approved, the submission is read-only. The badge on the account is
+    // the admin's decision about THESE documents, so letting the owner keep
+    // swapping them afterwards would leave the badge vouching for photos
+    // nobody reviewed. Changes go through Customer Care from here on.
+    final locked = idVerified || status == 'approved';
     return Scaffold(
       appBar: AppBar(title: const Text('Identity & Address Verification')),
       body: !loaded
@@ -1120,13 +1147,17 @@ class _VerificationScreenState extends State<VerificationScreen> {
           : ListView(
               padding: const EdgeInsets.all(12),
               children: [
-                if (idVerified)
+                if (locked)
                   Card(
                     color: kPakGreen.withValues(alpha: 0.1),
                     child: const ListTile(
                       leading: Icon(Icons.verified_user, color: kPakGreen),
                       title: Text('Your identity is verified'),
-                      subtitle: Text('You have the ID-Verified badge.'),
+                      subtitle: Text(
+                        'You have the ID-Verified badge. These details are now '
+                        'locked — contact Customer Care if your CNIC or '
+                        'address changes.',
+                      ),
                     ),
                   )
                 else if (status == 'pending')
@@ -1163,13 +1194,13 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   'Your selfie',
                   selfieUrl,
                   uploadingSelfie,
-                  () => _upload(true),
+                  locked ? null : () => _upload(true),
                 ),
                 _uploadTile(
                   'CNIC (front)',
                   cnicUrl,
                   uploadingCnic,
-                  () => _upload(false),
+                  locked ? null : () => _upload(false),
                 ),
                 const SizedBox(height: 8),
                 const Padding(
@@ -1181,7 +1212,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 ),
                 TextField(
                   controller: addressController,
-                  enabled: !idVerified,
+                  enabled: !locked,
                   maxLines: 2,
                   decoration: const InputDecoration(
                     labelText: 'Full address',
@@ -1195,10 +1226,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   'Proof of address (bill/letter) — optional',
                   addressProofUrl,
                   uploadingProof,
-                  _uploadProof,
+                  locked ? null : _uploadProof,
                 ),
                 const SizedBox(height: 12),
-                if (!idVerified)
+                if (!locked)
                   ElevatedButton(
                     onPressed: submitting ? null : _submit,
                     child: Text(
@@ -1942,18 +1973,29 @@ class ProfileScreen extends StatelessWidget {
             const _BusinessAccountTile(),
           ],
 
-          if (canOpenAdminPanel()) ...[
-            const SizedBox(height: AppSpacing.lg),
-            PrimaryActionButton(
-              label: isSuperAdmin() ? tr('profile.adminPanel') : 'Staff Panel',
-              icon: Icons.admin_panel_settings,
-              color: const Color(0xFF5E35B1),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AdminPanelScreen()),
-              ),
-            ),
-          ],
+          // Listens to staffPermissionsVersion: the grants load asynchronously,
+          // so a plain `if (canOpenAdminPanel())` here left staff staring at a
+          // Menu with no Staff Panel button until an unrelated rebuild ran.
+          ValueListenableBuilder<int>(
+            valueListenable: staffPermissionsVersion,
+            builder: (context, _, child) {
+              if (!canOpenAdminPanel()) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.lg),
+                child: PrimaryActionButton(
+                  label: isSuperAdmin()
+                      ? tr('profile.adminPanel')
+                      : 'Staff Panel',
+                  icon: Icons.admin_panel_settings,
+                  color: const Color(0xFF5E35B1),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AdminPanelScreen()),
+                  ),
+                ),
+              );
+            },
+          ),
 
           _MenuGroup(
             title: 'Selling',

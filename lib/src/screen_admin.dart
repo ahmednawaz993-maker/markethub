@@ -2,16 +2,34 @@ part of '../main.dart';
 
 // Admin panel and its tabs.
 
-class AdminPanelScreen extends StatelessWidget {
+class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  State<AdminPanelScreen> createState() => _AdminPanelScreenState();
+}
+
+class _AdminPanelScreenState extends State<AdminPanelScreen> {
+  /// Started once, in initState. It used to be built inline in `build()`, which
+  /// re-ran the whole load on EVERY rebuild of this route — opening the
+  /// keyboard on a tab with a text field, or a theme/metrics change, threw the
+  /// panel back to a spinner, rebuilt every tab and reset the selected tab to
+  /// the first one (DefaultTabController is recreated with it).
+  late final Future<void> _ready;
+
+  @override
+  void initState() {
+    super.initState();
     // Refresh permissions each time the panel opens so a staff member's tabs
     // reflect the latest grants (and aren't empty due to a cold-start race
     // where the panel is opened before the startup load finishes).
+    _ready = loadStaffPermissions().then((_) => syncSupportPushToken());
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return FutureBuilder<void>(
-      future: loadStaffPermissions().then((_) => syncSupportPushToken()),
+      future: _ready,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return Scaffold(
@@ -1787,6 +1805,11 @@ class _AdminVerificationsTab extends StatelessWidget {
                               uid: uid,
                               ref: docs[i].reference,
                               address: address,
+                            )
+                          else if (status == 'approved')
+                            _VerificationReopen(
+                              uid: uid,
+                              ref: docs[i].reference,
                             ),
                         ],
                       ),
@@ -1901,6 +1924,15 @@ class _VerificationActionsState extends State<_VerificationActions> {
         'status': approve ? 'approved' : 'rejected',
         'reviewedAt': Timestamp.now(),
       });
+    } catch (e) {
+      // The three writes are not a transaction; if one fails the reviewer needs
+      // to know the decision did not fully land rather than see it silently
+      // revert on the next snapshot.
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not save decision: $e')));
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -1927,6 +1959,103 @@ class _VerificationActionsState extends State<_VerificationActions> {
               : const Text('Approve'),
         ),
       ],
+    );
+  }
+}
+
+/// Re-opens an already-approved verification so the user can submit fresh
+/// documents (CNIC renewed, moved house, approved by mistake).
+///
+/// An approved record is frozen for its owner — both in the app and in
+/// firestore.rules — so without this the only way to re-verify someone was to
+/// edit Firestore by hand. Re-opening deliberately clears the badge too: the
+/// badge is the reviewer's statement about the documents on file, so it cannot
+/// outlive them.
+class _VerificationReopen extends StatefulWidget {
+  const _VerificationReopen({required this.uid, required this.ref});
+
+  final String uid;
+  final DocumentReference ref;
+
+  @override
+  State<_VerificationReopen> createState() => _VerificationReopenState();
+}
+
+class _VerificationReopenState extends State<_VerificationReopen> {
+  bool busy = false;
+
+  Future<void> _reopen() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Re-open verification?'),
+        content: const Text(
+          'This user loses the ID-Verified badge until they submit new '
+          'documents and you approve them again.\n\n'
+          'While ID verification is required platform-wide, that also means '
+          'they cannot post, buy, make offers or chat in the meantime.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Re-open'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || busy) return;
+    setState(() => busy = true);
+    try {
+      final users = FirebaseFirestore.instance.collection('users');
+      await users.doc(widget.uid).set({
+        'idVerified': false,
+        'addressVerified': false,
+      }, SetOptions(merge: true));
+      await users.doc(widget.uid).collection('notifications').add({
+        'title': 'Please verify your identity again',
+        'body':
+            'Our team needs an up-to-date selfie and CNIC. Open Identity & '
+            'Address Verification to submit them.',
+        'type': 'verification',
+        'read': false,
+        'createdAt': Timestamp.now(),
+      });
+      await widget.ref.update({
+        'status': 'rejected',
+        'reopenedAt': Timestamp.now(),
+        'reopenedBy': FirebaseAuth.instance.currentUser?.email ?? '',
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not re-open: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: AlignmentDirectional.centerEnd,
+      child: TextButton.icon(
+        onPressed: busy ? null : _reopen,
+        icon: busy
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.lock_reset, size: 18),
+        label: const Text('Re-open for re-submission'),
+      ),
     );
   }
 }
@@ -6197,8 +6326,10 @@ Future<void> _editStaffDialog(
       if (perms?[a.$1] == true) a.$1,
   };
   var isActive = active;
+  String? emailError;
   final isNew = email == null;
   final messenger = ScaffoldMessenger.of(context);
+  final fs = FirebaseFirestore.instance;
 
   final saved = await showDialog<bool>(
     context: context,
@@ -6216,10 +6347,15 @@ Future<void> _editStaffDialog(
                   controller: emailCtrl,
                   enabled: isNew,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
+                  autocorrect: false,
+                  onChanged: (_) {
+                    if (emailError != null) setLocal(() => emailError = null);
+                  },
+                  decoration: InputDecoration(
                     labelText: 'Staff email',
                     hintText: 'person@example.com',
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
+                    errorText: emailError,
                   ),
                 ),
                 SwitchListTile(
@@ -6276,7 +6412,17 @@ Future<void> _editStaffDialog(
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            // Validated here rather than after the dialog closes: popping on an
+            // invalid address threw away every permission the admin had just
+            // ticked, and only then said "Enter a valid email".
+            onPressed: () {
+              final v = emailCtrl.text.trim().toLowerCase();
+              if (!_isPlausibleEmail(v)) {
+                setLocal(() => emailError = 'Enter a valid email address');
+                return;
+              }
+              Navigator.pop(ctx, true);
+            },
             child: const Text('Save'),
           ),
         ],
@@ -6286,7 +6432,7 @@ Future<void> _editStaffDialog(
   final e = emailCtrl.text.trim().toLowerCase();
   emailCtrl.dispose();
   if (saved != true) return;
-  if (e.isEmpty || !e.contains('@')) {
+  if (!_isPlausibleEmail(e)) {
     messenger.showSnackBar(
       const SnackBar(content: Text('Enter a valid email')),
     );
@@ -6294,18 +6440,35 @@ Future<void> _editStaffDialog(
   }
   final permsMap = {for (final a in kAdminAreas) a.$1: selected.contains(a.$1)};
   try {
-    await FirebaseFirestore.instance.collection('staff').doc(e).set({
+    // "Add staff" writes with merge, so re-adding an address that is already on
+    // the roster silently REPLACED that person's whole permission set. Adding a
+    // duplicate is almost always a mistake — send the admin to Edit instead.
+    if (isNew && (await fs.collection('staff').doc(e).get()).exists) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('$e is already staff — use "Edit permissions" instead.'),
+        ),
+      );
+      return;
+    }
+    await fs.collection('staff').doc(e).set({
       'email': e,
       'permissions': permsMap,
       'active': isActive,
       'addedBy': FirebaseAuth.instance.currentUser?.email ?? '',
       'updatedAt': Timestamp.now(),
+      if (isNew) 'createdAt': Timestamp.now(),
     }, SetOptions(merge: true));
     messenger.showSnackBar(SnackBar(content: Text('Saved staff: $e')));
   } catch (err) {
     messenger.showSnackBar(SnackBar(content: Text('Could not save: $err')));
   }
 }
+
+/// Cheap sanity check for a staff address — the doc id is the email, so a typo
+/// creates an orphan record nobody can ever sign in as.
+bool _isPlausibleEmail(String v) =>
+    RegExp(r'^[^@\s]+@[^@\s.]+\.[^@\s]+$').hasMatch(v);
 
 /// Super-admin-only tab to manage staff and their permissions.
 class _AdminStaffTab extends StatelessWidget {
@@ -6385,7 +6548,7 @@ class _AdminStaffTab extends StatelessWidget {
                       ),
                       isThreeLine: true,
                       trailing: PopupMenuButton<String>(
-                        onSelected: (v) {
+                        onSelected: (v) async {
                           if (v == 'edit') {
                             _editStaffDialog(
                               context,
@@ -6397,7 +6560,36 @@ class _AdminStaffTab extends StatelessWidget {
                               active: active,
                             );
                           } else if (v == 'remove') {
-                            docs[i].reference.delete();
+                            // Was an unconfirmed delete: one stray tap in this
+                            // menu revoked a staff member's access outright,
+                            // with no undo and no record of what they had.
+                            final ok = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Remove staff?'),
+                                content: Text(
+                                  '$email loses access to the admin panel '
+                                  'immediately. Their permissions are not kept '
+                                  '— you would have to grant them again.\n\n'
+                                  'To pause access instead, edit them and turn '
+                                  'off "Active".',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Colors.red,
+                                    ),
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    child: const Text('Remove'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (ok == true) await docs[i].reference.delete();
                           }
                         },
                         itemBuilder: (_) => const [
