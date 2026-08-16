@@ -922,9 +922,17 @@ service cloud.firestore {
       allow create: if isSignedIn()
                     && request.auth.uid == userId
                     && request.resource.data.status == 'pending';
+      // An APPROVED record is frozen for its owner. Without this the owner
+      // could rewrite selfieUrl/cnicUrl/address on an already-approved record
+      // (status back to 'pending' satisfied the old check), while the
+      // authoritative idVerified flag on their user doc — admin-only, and never
+      // reset by that write — kept the verified badge lit. Net effect: a
+      // verified account could swap in documents no reviewer ever saw.
+      // Re-verification after approval is a support/admin action from here on.
       allow update: if can('verifyId')
                     || (isSignedIn()
                         && request.auth.uid == userId
+                        && resource.data.get('status', 'pending') != 'approved'
                         && request.resource.data.status == 'pending');
       allow delete: if can('verifyId');
     }

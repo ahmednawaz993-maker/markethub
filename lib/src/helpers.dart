@@ -453,25 +453,50 @@ const List<(String, String)> kAdminAreas = [
 /// startup by [loadStaffPermissions].
 final Set<String> staffPermissions = <String>{};
 
+/// Bumped every time [loadStaffPermissions] finishes. Widgets that gate on
+/// [canOpenAdminPanel] / [hasAdminPerm] listen to this so they rebuild when the
+/// grants land — reading the plain [staffPermissions] set from `build()` left
+/// the Staff Panel button missing until some unrelated rebuild happened to run.
+final ValueNotifier<int> staffPermissionsVersion = ValueNotifier<int>(0);
+
 /// Loads the signed-in user's staff permissions from `staff/{email}`. The super
 /// admin needs no entry. Safe to call repeatedly.
+///
+/// The set is swapped in only once the read succeeds. Clearing it up-front (as
+/// this used to) opened a window on every call where an active staff member
+/// looked like they had no permissions at all — the Staff Panel button vanished
+/// from the Menu and the panel itself could paint "No access" — and a transient
+/// network error left them locked out for the rest of the session.
 Future<void> loadStaffPermissions() async {
-  staffPermissions.clear();
   final email = FirebaseAuth.instance.currentUser?.email?.toLowerCase();
-  if (email == null || isSuperAdmin()) return;
+  if (email == null || isSuperAdmin()) {
+    staffPermissions.clear();
+    staffPermissionsVersion.value++;
+    return;
+  }
+  final Set<String> next;
   try {
     final doc = await FirebaseFirestore.instance
         .collection('staff')
         .doc(email)
         .get();
     final d = doc.data();
+    next = <String>{};
     if (d != null && d['active'] != false) {
       final perms = (d['permissions'] as Map?) ?? const {};
       perms.forEach((k, v) {
-        if (v == true) staffPermissions.add(k.toString());
+        if (v == true) next.add(k.toString());
       });
     }
-  } catch (_) {}
+  } catch (_) {
+    // Offline or a denied read: keep whatever we already had rather than
+    // silently stripping access mid-session.
+    return;
+  }
+  staffPermissions
+    ..clear()
+    ..addAll(next);
+  staffPermissionsVersion.value++;
 }
 
 /// True if the user may act on the given admin area (super admin or granted).
