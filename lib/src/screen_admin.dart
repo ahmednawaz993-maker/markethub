@@ -3355,10 +3355,39 @@ class _AdminOrdersTabState extends State<_AdminOrdersTab> {
   final _searchController = TextEditingController();
   String _query = '';
 
+  /// Which slice of the order book is listed. 'attention' is first on purpose:
+  /// an order the seller has left unaccepted is the one case where nothing
+  /// moves until the back office steps in.
+  String _filter = 'attention';
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Buckets an order for the filter chips. Kept in one place so the chip
+  /// counts and the list can never disagree.
+  bool _inFilter(String filter, Map<String, dynamic> d) {
+    final s = orderStatusOf(d);
+    return switch (filter) {
+      'attention' => orderAwaitingSellerTooLong(d),
+      'pending' => s == 'pending',
+      'active' => const [
+        'accepted',
+        'processing',
+        'shipped',
+        'delivered',
+      ].contains(s),
+      'completed' => s == 'completed' || s == 'buyer_confirmed',
+      'closed' => const [
+        'cancelled',
+        'rejected',
+        'returned',
+        'disputed',
+      ].contains(s),
+      _ => true,
+    };
   }
 
   /// Matches an order against the search box. Order number first, since quoting
@@ -3463,16 +3492,58 @@ class _AdminOrdersTabState extends State<_AdminOrdersTab> {
                 onChanged: (v) => setState(() => _query = v),
               ),
             ),
+            SizedBox(
+              height: 42,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.page,
+                ),
+                children: [
+                  for (final (code, label) in const [
+                    ('attention', 'Needs action'),
+                    ('pending', 'Awaiting seller'),
+                    ('active', 'In progress'),
+                    ('completed', 'Completed'),
+                    ('closed', 'Cancelled'),
+                    ('all', 'All'),
+                  ])
+                    Padding(
+                      padding: const EdgeInsets.only(right: AppSpacing.sm),
+                      child: Builder(
+                        builder: (context) {
+                          final n = docs
+                              .where(
+                                (doc) => _inFilter(
+                                  code,
+                                  doc.data() as Map<String, dynamic>,
+                                ),
+                              )
+                              .length;
+                          return FilterChip(
+                            selected: _filter == code,
+                            label: Text('$label ($n)'),
+                            onSelected: (_) => setState(() => _filter = code),
+                            // The one bucket that means "somebody has to do
+                            // something" gets the warning colour.
+                            selectedColor: code == 'attention'
+                                ? Colors.orange.withValues(alpha: 0.25)
+                                : null,
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
             Expanded(
               child: Builder(
                 builder: (context) {
                   // Stats above stay platform-wide; only the list is filtered.
-                  final shown = docs
-                      .where(
-                        (doc) =>
-                            _matchesQuery(doc.data() as Map<String, dynamic>),
-                      )
-                      .toList();
+                  final shown = docs.where((doc) {
+                    final m = doc.data() as Map<String, dynamic>;
+                    return _inFilter(_filter, m) && _matchesQuery(m);
+                  }).toList();
                   if (docs.isEmpty) {
                     return const EmptyState(
                       icon: Icons.receipt_long,
@@ -3481,9 +3552,16 @@ class _AdminOrdersTabState extends State<_AdminOrdersTab> {
                   }
                   if (shown.isEmpty) {
                     return EmptyState(
-                      icon: Icons.search_off,
-                      title: 'No match',
-                      subtitle: 'No order matches "$_query".',
+                      icon: _filter == 'attention'
+                          ? Icons.check_circle_outline
+                          : Icons.search_off,
+                      title: _filter == 'attention' && _query.isEmpty
+                          ? 'Nothing needs you'
+                          : 'No match',
+                      subtitle: _filter == 'attention' && _query.isEmpty
+                          ? 'Every order has been accepted within '
+                                '$kSellerAcceptSlaHours hours.'
+                          : 'No order here matches "$_query".',
                     );
                   }
                   return ListView.builder(
@@ -3497,9 +3575,32 @@ class _AdminOrdersTabState extends State<_AdminOrdersTab> {
                       itemBuilder: (context, i) {
                         final d = shown[i].data() as Map<String, dynamic>;
                         final number = d['orderNumber']?.toString() ?? '';
+                        final overdue = orderAwaitingSellerTooLong(d);
+                        final age = orderAgeHours(d);
                         return Card(
                           margin: const EdgeInsets.only(bottom: 8),
+                          color: overdue ? const Color(0xFFFFF3CD) : null,
                           child: ListTile(
+                            // Delete used to be the only thing you could do to
+                            // an order from here. The row now opens the full
+                            // manager (accept on the seller's behalf, edit,
+                            // contact, cancel, delete) instead.
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    AdminOrderScreen(orderId: shown[i].id),
+                              ),
+                            ),
+                            leading: overdue
+                                ? const Icon(
+                                    Icons.running_with_errors,
+                                    color: Colors.orange,
+                                  )
+                                : Icon(
+                                    Icons.receipt_long,
+                                    color: AppColors.textMuted,
+                                  ),
                             title: Text(
                               d['listingTitle']?.toString() ?? '',
                               maxLines: 1,
@@ -3509,49 +3610,11 @@ class _AdminOrdersTabState extends State<_AdminOrdersTab> {
                               '${number.isEmpty ? shown[i].id : number}\n'
                               '${d['buyerName']} → ${d['sellerName']}\n'
                               '${formatPrice('${d['amount']}')} · '
-                              'fee ${formatPrice('${d['commission']}')} · '
-                              '${d['status']}',
+                              '${orderStatusLabel(orderStatusOf(d))}'
+                              '${overdue && age != null ? ' · unaccepted ${age.round()}h' : ''}',
                             ),
                             isThreeLine: true,
-                            trailing: IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                color: Colors.red,
-                              ),
-                              tooltip: 'Delete order',
-                              onPressed: () async {
-                                final ok = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text('Delete this order?'),
-                                    content: Text(
-                                      d['listingTitle']?.toString() ?? '',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(ctx, false),
-                                        child: const Text('Cancel'),
-                                      ),
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.red,
-                                        ),
-                                        onPressed: () =>
-                                            Navigator.pop(ctx, true),
-                                        child: const Text('Delete'),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (ok == true) {
-                                  // shown[i], NOT docs[i] — with a search active
-                                  // the two lists differ and docs[i] would
-                                  // delete a completely unrelated order.
-                                  await shown[i].reference.delete();
-                                }
-                              },
-                            ),
+                            trailing: const Icon(Icons.chevron_right),
                           ),
                         );
                       },

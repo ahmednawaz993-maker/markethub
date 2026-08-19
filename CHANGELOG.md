@@ -53,6 +53,19 @@ with where they landed.
 
 ### Added
 
+- **Admin order management.** Every order is now openable from Admin → Orders
+  into a full management screen: buyer and seller with one-tap WhatsApp, call
+  and in-app reminder; the delivery address, courier and tracking; the payment
+  breakdown; the fulfillment timeline; and a trail of every admin action taken
+  on it. Orders the seller has not accepted within 24 hours are flagged, sorted
+  into a "Needs action" filter and highlighted in the list, and an admin can
+  **accept on the seller's behalf** — the buyer gets the same notification they
+  would have got from the seller, and the order is stamped as an admin
+  acceptance. Admins can also advance, edit (delivery/tracking only), cancel
+  and delete. Money is deliberately untouchable from this screen: amounts,
+  commission and payouts stay with the payment backend, cancelling an order
+  with a held payment is refused and routed to the refund flow, and deleting
+  one requires typing the order number.
 - **"Re-open for re-submission"** on approved records in the Verify ID tab, so
   support can start someone's verification over (renewed CNIC, moved house,
   approved by mistake). It clears the badge — spelled out in the confirmation —
