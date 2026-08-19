@@ -81,6 +81,7 @@ part 'src/screen_checkout.dart';
 part 'src/screen_addresses.dart';
 part 'src/screen_offers.dart';
 part 'src/screen_admin.dart';
+part 'src/admin_orders.dart';
 part 'src/screen_admin_categories.dart';
 part 'src/screen_notifications.dart';
 part 'src/screen_chat.dart';

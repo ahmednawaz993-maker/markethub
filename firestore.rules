@@ -364,10 +364,16 @@ service cloud.firestore {
       //
       // Staff with 'users' may read it to run support; nobody but the owner
       // and the super admin may write it.
+      //
+      // 'orders' is on the read list too: chasing a seller who has not accepted
+      // an order — or a buyer whose delivery address looks wrong — is the whole
+      // job of the orders desk, and the order document itself carries no seller
+      // phone. Without this the admin order screen silently shows "no phone on
+      // file" for every staff member who is not the super admin.
       match /private/{docId} {
         allow read: if isSignedIn()
                     && (request.auth.uid == userId
-                        || can('users') || can('verifyId'));
+                        || can('users') || can('verifyId') || can('orders'));
         allow write: if isSignedIn()
                      && (request.auth.uid == userId || isAdmin());
       }
