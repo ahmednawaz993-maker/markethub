@@ -11,7 +11,7 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
-## [1.0.47] — unreleased
+## [1.0.47] — 2026-08-20
 
 ### Fixed
 
@@ -71,9 +71,10 @@ with where they landed.
   approved by mistake). It clears the badge — spelled out in the confirmation —
   and notifies the user.
 
-> These fixes were merged and deployed on 2026-08-16 while `pubspec.yaml` still
-> read 1.0.46, so the production build carrying them reports 1.0.46. The rules
-> changes are live regardless of app version.
+> The Fixed and Security items above were merged and deployed on 2026-08-16
+> while `pubspec.yaml` still read 1.0.46, so they first reached production in a
+> build reporting 1.0.46; 1.0.47 is the first release to carry them under their
+> own version number. Rules changes are live independently of app version.
 
 ## [1.0.46] — 2026-08-14
 
