@@ -11,6 +11,22 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.49] — 2026-08-20
+
+### Changed
+
+- **Updated the Firebase SDKs**, led by `firebase_messaging` 16.4.0 → 16.5.0.
+  Play Vitals showed three separate ANR clusters inside the messaging plugin's
+  own broadcast receiver (`c2dm.intent.RECEIVE`) on budget Android devices —
+  there is no app code in that path, so the plugin update is the fix available
+  to us.
+
+  16.5.0 requires `firebase_core` 4.13.0, so the whole FlutterFire stack moved
+  with it: `cloud_firestore` 6.5.0 → 6.8.0, `firebase_auth` 6.5.2 → 6.5.7,
+  `firebase_storage` 13.4.2 → 13.4.6, `firebase_crashlytics` 5.2.4 → 5.2.7,
+  `firebase_analytics` 12.4.3 → 12.4.6, and `firebase_core_platform_interface`
+  7.1.0 → 8.1.0 (a major bump). No app code changed.
+
 ## [1.0.48] — 2026-08-20
 
 ### Fixed
