@@ -11,6 +11,17 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.48] — 2026-08-20
+
+### Fixed
+
+- **The admin order screen overflowed on a phone.** Its five-step progress
+  strip laid the long-form status names ("Ready to dispatch", "Order accepted")
+  across a single row, which ran 354 pixels past the edge of a 320px screen —
+  508 at large text. The steps now use short names and wrap, so the strip fits
+  at any width and text size. Shipped in 1.0.47; caught by new layout tests
+  rather than in review.
+
 ## [1.0.47] — 2026-08-20
 
 ### Fixed
