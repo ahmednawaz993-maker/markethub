@@ -207,6 +207,18 @@ Future<void> adminNotifyUser(
       });
 }
 
+/// Compact step names for the admin progress strip. The buyer-facing
+/// [orderStatusLabel] strings ("Ready to dispatch") are far too long to sit
+/// five-across on a phone.
+String _shortStepLabel(String s) => switch (s) {
+  'pending' => 'Placed',
+  'accepted' => 'Accepted',
+  'processing' => 'Ready',
+  'shipped' => 'Dispatched',
+  'delivered' => 'Delivered',
+  _ => orderStatusLabel(s),
+};
+
 void _openWhatsAppNumber(String number) {
   final cleaned = normalizePhoneForWhatsApp(number);
   if (cleaned.isEmpty) return;
@@ -258,14 +270,17 @@ class AdminOrderScreen extends StatelessWidget {
           );
         }
         final d = snap.data!.data() as Map<String, dynamic>;
-        return _AdminOrderView(orderId: orderId, data: d);
+        return AdminOrderView(orderId: orderId, data: d);
       },
     );
   }
 }
 
-class _AdminOrderView extends StatelessWidget {
-  const _AdminOrderView({required this.orderId, required this.data});
+/// Public so the layout tests can pump it at real phone widths — it is a dense
+/// screen (fixed-width label column, a five-step timeline in one Row) and this
+/// repo treats "no overflow at 320px" as a rule worth pinning.
+class AdminOrderView extends StatelessWidget {
+  const AdminOrderView({super.key, required this.orderId, required this.data});
 
   final String orderId;
   final Map<String, dynamic> data;
@@ -419,25 +434,35 @@ class _AdminOrderView extends StatelessWidget {
       const SizedBox(height: AppSpacing.sm),
       // Same order of steps the buyer sees on their own order card, so an
       // admin reading a complaint is looking at the buyer's view.
-      Row(
+      //
+      // A Wrap, not a Row: five steps of long-form labels overflowed a 320px
+      // phone by 354px. Short step names (the seller's own progress strip uses
+      // these) plus wrapping means it cannot overflow at any width or text
+      // scale — the long labels still appear on the status chip above.
+      Wrap(
+        spacing: AppSpacing.sm,
+        runSpacing: AppSpacing.xs,
         children: [
-          for (var i = 0; i < steps.length; i++) ...[
-            Icon(
-              i <= idx ? Icons.check_circle : Icons.radio_button_unchecked,
-              size: 13,
-              color: i <= idx ? kPakGreen : Colors.grey.shade400,
+          for (var i = 0; i < steps.length; i++)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  i <= idx ? Icons.check_circle : Icons.radio_button_unchecked,
+                  size: 13,
+                  color: i <= idx ? kPakGreen : Colors.grey.shade400,
+                ),
+                const SizedBox(width: 3),
+                Text(
+                  _shortStepLabel(steps[i]),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: i <= idx ? kPakGreen : Colors.grey,
+                    fontWeight: i == idx ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 2),
-            Text(
-              orderStatusLabel(steps[i]),
-              style: TextStyle(
-                fontSize: 9,
-                color: i <= idx ? kPakGreen : Colors.grey,
-              ),
-            ),
-            if (i < steps.length - 1)
-              const Expanded(child: Divider(indent: 2, endIndent: 2)),
-          ],
         ],
       ),
       const SizedBox(height: AppSpacing.sm),
