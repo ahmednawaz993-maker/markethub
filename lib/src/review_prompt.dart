@@ -229,16 +229,26 @@ Future<void> _showPrivateFeedbackDialog(
     final text = controller.text.trim();
     if (text.isNotEmpty) {
       try {
+        // Same field names as the Help & Feedback sheet. This used to write
+        // `userEmail` with no `type` or `status`, so every review-prompt
+        // message landed in the admin queue with a blank sender and no
+        // status to filter or resolve it by.
         await FirebaseFirestore.instance.collection('feedback').add({
           'userId': FirebaseAuth.instance.currentUser?.uid ?? '',
-          'userEmail': FirebaseAuth.instance.currentUser?.email ?? '',
+          'email': FirebaseAuth.instance.currentUser?.email ?? '',
+          'type': 'Suggestion',
           'source': 'review_prompt',
           'message': text,
+          'status': 'open',
           'createdAt': Timestamp.now(),
         });
         await prefs.setBool(_kFeedbackSubmitted, true);
         _logReviewEvent('feedback_submitted');
-      } catch (_) {}
+      } catch (_) {
+        // Unverified users are refused by firestore.rules. This prompt is an
+        // unsolicited interruption, not something the user set out to do, so it
+        // stays silent rather than nagging them to go and verify.
+      }
     }
   }
   controller.dispose();

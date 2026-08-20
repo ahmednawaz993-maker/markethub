@@ -61,7 +61,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       ('payments', 'Payout a/c', _AdminPayoutAccountsTab()),
       ('escrow', 'Escrow', _AdminEscrowTab()),
       ('featured', 'Featured', _AdminFeaturedTab()),
-      ('feedback', 'Feedback', _AdminFeedbackTab()),
+      ('feedback', 'Feedback', AdminFeedbackTab()),
       ('support', 'Customer Care', _AdminSupportTab()),
       ('users', 'Users', _AdminUsersTab()),
       ('reports', 'Reports', _AdminReportsTab()),
@@ -1497,125 +1497,6 @@ class _WithdrawalActionsState extends State<_WithdrawalActions> {
               : const Text('Mark paid'),
         ),
       ],
-    );
-  }
-}
-
-/// Support requests and suggestions sent from the Help & Feedback sheet.
-class _AdminFeedbackTab extends StatelessWidget {
-  const _AdminFeedbackTab();
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('feedback')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final docs = snapshot.data!.docs;
-        if (docs.isEmpty) {
-          return const EmptyState(
-            icon: Icons.feedback_outlined,
-            title: 'No messages yet',
-            subtitle: 'Help requests and suggestions appear here.',
-          );
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.page,
-            AppSpacing.lg,
-            AppSpacing.page,
-            AppSpacing.navClearance,
-          ),
-          itemCount: docs.length,
-          itemBuilder: (context, i) {
-            final d = docs[i].data() as Map<String, dynamic>;
-            final type = d['type']?.toString() ?? 'Help';
-            final email = d['email']?.toString() ?? '';
-            final msg = d['message']?.toString() ?? '';
-            final resolved = (d['status']?.toString() ?? 'open') == 'resolved';
-            final isSuggestion = type == 'Suggestion';
-            return Card(
-              margin: const EdgeInsets.only(bottom: 10),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          isSuggestion
-                              ? Icons.lightbulb_outline
-                              : Icons.help_outline,
-                          size: 18,
-                          color: isSuggestion ? kGold : kPakGreen,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          type,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const Spacer(),
-                        if (resolved)
-                          const Text(
-                            'Resolved',
-                            style: TextStyle(
-                              color: Colors.green,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                      ],
-                    ),
-                    if (email.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          email,
-                          style: TextStyle(
-                            color: AppColors.textMuted,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    const SizedBox(height: 6),
-                    Text(msg),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        if (email.isNotEmpty)
-                          TextButton.icon(
-                            onPressed: () => launchUrl(
-                              Uri.parse(
-                                'mailto:$email?subject='
-                                '${Uri.encodeComponent('Re: PakBazar $type')}',
-                              ),
-                              mode: LaunchMode.externalApplication,
-                            ),
-                            icon: const Icon(Icons.reply, size: 18),
-                            label: const Text('Reply'),
-                          ),
-                        if (!resolved)
-                          TextButton(
-                            onPressed: () => docs[i].reference.update({
-                              'status': 'resolved',
-                            }),
-                            child: const Text('Mark resolved'),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
     );
   }
 }

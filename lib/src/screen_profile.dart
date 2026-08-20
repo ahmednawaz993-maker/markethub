@@ -78,8 +78,21 @@ Future<void> showSupportSheet(BuildContext context) async {
                       );
                       return;
                     }
+                    // Feedback is answered by a person and the reply comes back
+                    // to this account, so it carries the same identity bar as
+                    // posting or buying. Mirrors isVerifiedUser() in
+                    // firestore.rules, and respects the same platform-wide
+                    // switch — with verification off, this passes for everyone.
+                    if (!context.mounted) return;
+                    if (!await ensureVerified(context)) return;
+
                     final user = FirebaseAuth.instance.currentUser;
                     // Durable record for the admin (Admin Panel → Feedback).
+                    //
+                    // The failure is surfaced now. This used to swallow the
+                    // error and still say "sent to our team", so a rejected
+                    // write looked identical to a delivered message and the
+                    // user waited for a reply that could never come.
                     try {
                       await FirebaseFirestore.instance
                           .collection('feedback')
@@ -91,7 +104,17 @@ Future<void> showSupportSheet(BuildContext context) async {
                             'status': 'open',
                             'createdAt': Timestamp.now(),
                           });
-                    } catch (_) {}
+                    } catch (e) {
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Could not send your message. Please check your '
+                            'connection and try again. ($e)',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
                     // Also deliver straight to the admin's email inbox.
                     try {
                       await launchUrl(
@@ -107,7 +130,8 @@ Future<void> showSupportSheet(BuildContext context) async {
                     messenger.showSnackBar(
                       const SnackBar(
                         content: Text(
-                          'Thanks! Your message has been sent to our team.',
+                          'Thanks! Your message has been sent to our team. '
+                          'Any reply will arrive in your notifications.',
                         ),
                       ),
                     );

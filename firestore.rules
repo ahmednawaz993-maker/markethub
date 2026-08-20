@@ -373,7 +373,8 @@ service cloud.firestore {
       match /private/{docId} {
         allow read: if isSignedIn()
                     && (request.auth.uid == userId
-                        || can('users') || can('verifyId') || can('orders'));
+                        || can('users') || can('verifyId') || can('orders')
+                        || can('feedback'));
         allow write: if isSignedIn()
                      && (request.auth.uid == userId || isAdmin());
       }
@@ -949,8 +950,17 @@ service cloud.firestore {
     // admins resolve/delete.
     // ---------------------------------------------------------------------
     match /feedback/{feedbackId} {
+      // Verified users only. Feedback reaches a human and gets a reply, so it
+      // is worth the same identity bar as posting or buying — isVerifiedUser()
+      // is the same helper those use, which means the admin's platform-wide
+      // "Require ID & face verification" switch governs this too. With that
+      // switch off, everyone can still send feedback.
+      //
+      // Deliberately NOT gated on isNotBlocked(): a suspended user must keep a
+      // way to reach support about their suspension.
       allow create: if isSignedIn()
-                    && request.resource.data.userId == request.auth.uid;
+                    && request.resource.data.userId == request.auth.uid
+                    && isVerifiedUser();
       allow read: if isSignedIn()
                   && (resource.data.userId == request.auth.uid
                       || can('feedback'));

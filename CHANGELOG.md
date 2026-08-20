@@ -11,6 +11,44 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.50] — 2026-08-20
+
+### Changed
+
+- **Feedback now requires a verified account.** Sending help requests and
+  suggestions carries the same identity bar as posting or buying, and respects
+  the same platform-wide "Require ID & face verification" switch — with that
+  switch off, everyone can still write in. Suspended users are deliberately
+  still allowed to send feedback, so nobody loses their route to support over a
+  suspension they want to appeal.
+- **Sending feedback no longer claims success when it failed.** The write error
+  was swallowed and the app said "sent to our team" regardless, so a rejected
+  message looked exactly like a delivered one and the user waited for a reply
+  that could never come.
+
+### Added
+
+- **Admins can reply to feedback in-app.** The reply is recorded on the message
+  — with who sent it and when — and delivered to the user's notifications, so
+  both sides can see it was answered. Feedback now moves through
+  open → replied → resolved, with filter chips and counts, and a resolved item
+  can be re-opened.
+- **Every message shows who wrote it.** Name, ID-verified / suspended /
+  business standing, how long they have been a member, email, and phone with
+  one-tap WhatsApp, call and email. Previously the queue showed an email
+  address and nothing else.
+
+### Fixed
+
+- **Review-prompt feedback was near-invisible in the admin queue.** It wrote
+  `userEmail` with no type or status, so those messages showed a blank sender
+  and could not be filtered or resolved. They now use the same shape as the
+  Help & Feedback sheet, and the admin panel reads either schema so the
+  existing backlog displays correctly too.
+- **The new feedback card overflowed on a phone** — up to 154px at 320px wide
+  with large text, across the header, the action buttons and the contact row.
+  Caught by new layout tests before release.
+
 ## [1.0.49] — 2026-08-20
 
 ### Changed
