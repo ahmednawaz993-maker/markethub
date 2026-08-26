@@ -199,7 +199,7 @@ class _AppGateBlockedScreen extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: AppColors.textMuted,
-                      fontSize: 12.5,
+                      fontSize: 12,
                     ),
                   ),
               ],

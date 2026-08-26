@@ -287,7 +287,7 @@ class _StoreHeroBar extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 16,
+                  fontSize: 15.5,
                   fontWeight: FontWeight.bold,
                 ),
               ),

@@ -109,7 +109,7 @@ class InviteFriendsScreen extends StatelessWidget {
               foregroundColor: Colors.white,
               minimumSize: const Size.fromHeight(52),
               textStyle: const TextStyle(
-                fontSize: 16,
+                fontSize: 15.5,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -163,7 +163,7 @@ class InviteFriendsScreen extends StatelessWidget {
           'Win PKR 100,000',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 26,
+            fontSize: 24,
             fontWeight: FontWeight.w900,
           ),
         ),
@@ -199,7 +199,7 @@ class InviteFriendsScreen extends StatelessWidget {
       children: const [
         Text(
           'How to enter',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5),
         ),
         SizedBox(height: 10),
         _Step(

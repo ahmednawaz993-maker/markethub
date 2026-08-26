@@ -301,7 +301,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     padding: const EdgeInsets.only(bottom: 8),
     child: Text(
       t,
-      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5),
     ),
   );
 
@@ -552,7 +552,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     : Text(
                         'Place Order · ${formatPrice(grandTotal.toStringAsFixed(0))}',
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: 15.5,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -607,7 +607,7 @@ class OrderConfirmationScreen extends StatelessWidget {
           const Center(
             child: Text(
               'Order placed successfully!',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
             ),
           ),
           const SizedBox(height: 4),

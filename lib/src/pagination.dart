@@ -209,7 +209,7 @@ class PagedListingFooter extends StatelessWidget {
         child: Center(
           child: Text(
             tr('state.seenEverything', "You've seen everything"),
-            style: TextStyle(color: AppColors.textMuted, fontSize: 12.5),
+            style: TextStyle(color: AppColors.textMuted, fontSize: 12),
           ),
         ),
       );

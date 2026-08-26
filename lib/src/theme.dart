@@ -424,7 +424,7 @@ ThemeData buildAppTheme(Brightness brightness) {
           : SystemUiOverlayStyle.dark,
       titleTextStyle: TextStyle(
         color: onSurface,
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: FontWeight.w700,
         letterSpacing: 0.1,
       ),
@@ -452,7 +452,7 @@ ThemeData buildAppTheme(Brightness brightness) {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
-        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15.5),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -478,8 +478,8 @@ ThemeData buildAppTheme(Brightness brightness) {
     listTileTheme: ListTileThemeData(
       iconColor: onSurfaceMuted,
       textColor: onSurface,
-      titleTextStyle: TextStyle(fontSize: 14.5, color: onSurface),
-      subtitleTextStyle: TextStyle(fontSize: 12.5, color: onSurfaceMuted),
+      titleTextStyle: TextStyle(fontSize: 14, color: onSurface),
+      subtitleTextStyle: TextStyle(fontSize: 12, color: onSurfaceMuted),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
@@ -559,8 +559,8 @@ ThemeData buildAppTheme(Brightness brightness) {
       unselectedLabelColor: onSurfaceFaint,
       indicatorColor: accent,
       dividerColor: borderSoftCol,
-      labelStyle: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
-      unselectedLabelStyle: const TextStyle(fontSize: 13.5),
+      labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+      unselectedLabelStyle: const TextStyle(fontSize: 13),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
@@ -580,7 +580,7 @@ ThemeData buildAppTheme(Brightness brightness) {
       ),
       titleTextStyle: TextStyle(
         color: onSurface,
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: FontWeight.w700,
       ),
       contentTextStyle: TextStyle(color: onSurfaceMuted, height: 1.4),

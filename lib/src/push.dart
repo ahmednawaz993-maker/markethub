@@ -213,7 +213,7 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                      fontSize: 12.5,
+                                      fontSize: 12,
                                       color: AppColors.textSecondary,
                                     ),
                                   ),

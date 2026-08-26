@@ -325,7 +325,7 @@ class OrderFulfillmentPanel extends StatelessWidget {
               children: [
                 const Text(
                   'Dispatch order',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
                 Text(

@@ -11,6 +11,33 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.55] — 2026-08-26
+
+### Changed
+
+- **Text now follows one type scale.** The app was using 27 different font
+  sizes, including pairs nobody can tell apart — 11 and 11.5, 17 and 18, 12 and
+  12.5. Steps that look identical aren't a scale, they're noise, and noise is
+  what makes typography feel unconsidered. It's now 13 sizes, and no piece of
+  text moves by more than 2px.
+
+  The caption style moved from 11.5 to 11, because 47 places had independently
+  settled on 11 and only 7 on 11.5 — the scale followed what the app was
+  actually doing rather than the other way round.
+
+### Fixed
+
+- **Two cards were reserving the wrong amount of height for their own text.**
+  The listing card and the featured banner each computed their height from
+  copied numbers that had drifted from the sizes they actually render. Both now
+  read the real values, so the "this card can never overflow" guarantee can't
+  quietly rot when the type scale moves.
+
+  Doing that surfaced a genuine latent bug: both were summing ideal line
+  heights, while the text painter rounds each line up to whole pixels
+  independently — leaving them a fraction of a pixel short of what paints. They
+  now round the same way the painter does.
+
 ## [1.0.54] — 2026-08-26
 
 ### Changed

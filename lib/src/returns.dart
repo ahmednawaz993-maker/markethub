@@ -466,7 +466,7 @@ Future<void> showReturnSheet(
               children: [
                 const Text(
                   'Request a return',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
                 const Text(

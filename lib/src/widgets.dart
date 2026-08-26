@@ -319,7 +319,7 @@ Future<String?> showCityPicker(
                   Text(
                     allowCustom ? 'City / Town / Village' : 'Select City',
                     style: const TextStyle(
-                      fontSize: 18,
+                      fontSize: 17,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -449,7 +449,7 @@ class SoldTag extends StatelessWidget {
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
-                  fontSize: 22,
+                  fontSize: 20,
                   letterSpacing: 3,
                 ),
               ),

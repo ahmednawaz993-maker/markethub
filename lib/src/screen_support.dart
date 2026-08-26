@@ -166,7 +166,7 @@ class CustomerCareScreen extends StatelessWidget {
                       '24/7 Customer Care',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 18,
+                        fontSize: 17,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -347,7 +347,7 @@ Future<void> _showNewTicketSheet(BuildContext context) async {
             children: [
               const Text(
                 'New support request',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
@@ -378,7 +378,7 @@ Future<void> _showNewTicketSheet(BuildContext context) async {
                       Expanded(
                         child: Text(
                           _categoryNote(category)!,
-                          style: const TextStyle(fontSize: 12.5, height: 1.3),
+                          style: const TextStyle(fontSize: 12, height: 1.3),
                         ),
                       ),
                     ],

@@ -63,7 +63,7 @@ class WalletScreen extends StatelessWidget {
                             'Balance unavailable',
                             style: TextStyle(
                               color: Colors.white70,
-                              fontSize: 15,
+                              fontSize: 15.5,
                             ),
                           ),
                         ),
@@ -256,7 +256,7 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
             children: [
               const Text(
                 'Withdraw to your account',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
               Text(

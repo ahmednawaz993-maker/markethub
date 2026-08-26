@@ -297,7 +297,7 @@ class LuckyDrawBanner extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 16,
+                              fontSize: 15.5,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -1000,7 +1000,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 17,
                           fontWeight: FontWeight.w800,
                           color: AppColors.accent,
                         ),
@@ -1419,7 +1419,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     label(),
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textSecondary,
                     ),

@@ -717,7 +717,7 @@ class _CartScreenState extends State<CartScreen> {
                     Text(
                       formatPrice(total.toStringAsFixed(0)),
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 17,
                         fontWeight: FontWeight.bold,
                         color: kPakGreen,
                       ),
@@ -996,7 +996,7 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
                       Text(
                         formatPrice(total.toStringAsFixed(0)),
                         style: const TextStyle(
-                          fontSize: 18,
+                          fontSize: 17,
                           fontWeight: FontWeight.bold,
                           color: kPakGreen,
                         ),

@@ -590,7 +590,7 @@ Future<void> showCancellationSheet(
                 Text(
                   isRequest ? 'Request cancellation' : 'Cancel order',
                   style: const TextStyle(
-                    fontSize: 18,
+                    fontSize: 17,
                     fontWeight: FontWeight.bold,
                   ),
                 ),

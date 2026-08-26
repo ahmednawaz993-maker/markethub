@@ -593,7 +593,7 @@ class _CategoriesHeader extends StatelessWidget {
                     '$count categories',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                      fontSize: 15.5,
                     ),
                   ),
                 ),
@@ -613,7 +613,7 @@ class _CategoriesHeader extends StatelessWidget {
             Text(
               'Drag to reorder. This is the order buyers see on the home strip '
               'and in every category picker. Changes reach open apps live.',
-              style: TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
             ),
           ],
         ),
@@ -697,7 +697,7 @@ class _CategoryCard extends StatelessWidget {
                 '${c.attributes.length} spec '
                     '${c.attributes.length == 1 ? 'field' : 'fields'}',
             ].join('  ·  '),
-            style: TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
           ),
           trailing: PopupMenuButton<String>(
             enabled: !busy,
@@ -828,7 +828,7 @@ class _CatPill extends StatelessWidget {
       child: Text(
         text,
         style: TextStyle(
-          fontSize: 9.5,
+          fontSize: 10,
           color: color,
           fontWeight: FontWeight.w700,
         ),
@@ -1012,7 +1012,7 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
                       child: Text(
                         'None. Sellers just get the standard fields.',
                         style: TextStyle(
-                          fontSize: 11.5,
+                          fontSize: 11,
                           fontStyle: FontStyle.italic,
                           color: AppColors.textMuted,
                         ),

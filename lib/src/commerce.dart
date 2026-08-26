@@ -30,7 +30,7 @@ Future<void> showPromoteSheet(BuildContext context, Listing listing) async {
                     child: Text(
                       'Feature your ad',
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 17,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -382,7 +382,7 @@ Future<void> showInventorySheet(BuildContext context, Listing listing) async {
                 padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
                 child: Text(
                   'Inventory status',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
               ),
               Padding(
@@ -633,7 +633,7 @@ Future<void> showOfferSheet(BuildContext context, Listing listing) async {
                 children: [
                   const Text(
                     'Make an offer',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -801,7 +801,7 @@ Future<void> showTopupSheet(BuildContext context) async {
                 padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
                 child: Text(
                   'Top up your wallet',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
               ),
               Padding(

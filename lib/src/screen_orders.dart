@@ -80,7 +80,7 @@ Future<void> _submitPaymentProofSheet(
                 children: [
                   const Text(
                     'Pay & hold securely',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -242,7 +242,7 @@ Future<void> showDisputeSheet(
               children: [
                 const Text(
                   'Report a problem',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
                 Text(

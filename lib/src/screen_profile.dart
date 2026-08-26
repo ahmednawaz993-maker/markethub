@@ -29,7 +29,7 @@ Future<void> showSupportSheet(BuildContext context) async {
               children: [
                 const Text(
                   'Help & Suggestions',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -1298,7 +1298,7 @@ class TrustSafetyScreen extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                    fontSize: 15.5,
                   ),
                 ),
               ],
@@ -1464,7 +1464,7 @@ class _LegalScreen extends StatelessWidget {
                     heading,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                      fontSize: 15.5,
                       color: kPakGreen,
                     ),
                   ),
@@ -2326,7 +2326,7 @@ class _MenuGroup extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 14.5,
+                      fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
                     ),

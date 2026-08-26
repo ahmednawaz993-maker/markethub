@@ -536,7 +536,7 @@ class _AdminPaymentsTab extends StatelessWidget {
                       formatPrice(amount.toStringAsFixed(0)),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        fontSize: 15.5,
                       ),
                     ),
                     Text(
@@ -672,7 +672,7 @@ class _AdminFeaturedTab extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(4, 12, 4, 6),
           child: Text(
             'Featured ads',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5),
           ),
         ),
         StreamBuilder<QuerySnapshot>(
@@ -725,7 +725,7 @@ class _AdminFeaturedTab extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(4, 12, 4, 6),
           child: Text(
             'Featured businesses',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5),
           ),
         ),
         StreamBuilder<QuerySnapshot>(
@@ -1339,7 +1339,7 @@ class _PaymentAccountEditorState extends State<_PaymentAccountEditor> {
       children: [
         const Text(
           'Receiving account',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5),
         ),
         const SizedBox(height: 4),
         const Text(
@@ -1415,7 +1415,7 @@ class _AdminWithdrawalsTab extends StatelessWidget {
                       formatPrice(amount.toStringAsFixed(0)),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        fontSize: 15.5,
                       ),
                     ),
                     Text(
@@ -1973,7 +1973,7 @@ class _LiveUsersCard extends StatelessWidget {
                       Text(
                         '$onlineCount',
                         style: const TextStyle(
-                          fontSize: 26,
+                          fontSize: 24,
                           fontWeight: FontWeight.bold,
                           color: kPakGreen,
                         ),
@@ -2063,7 +2063,7 @@ class _AdminOverviewTab extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontSize: 18,
+                                fontSize: 17,
                                 fontWeight: FontWeight.w800,
                                 color: kPakGreen,
                               ),
@@ -2228,7 +2228,7 @@ class _AdminOverviewTab extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(4, 10, 4, 6),
           child: Text(
             'Trends — last 6 months',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5),
           ),
         ),
         _trendCard(
@@ -3157,7 +3157,7 @@ class _AdminTopupsTab extends StatelessWidget {
                       formatPrice('$amount'),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        fontSize: 15.5,
                       ),
                     ),
                     Text(
@@ -3540,7 +3540,7 @@ class _AdminOrdersTabState extends State<_AdminOrdersTab> {
           value,
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 18,
+            fontSize: 17,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -6977,7 +6977,7 @@ class _AdminBroadcastTabState extends State<_AdminBroadcastTab> {
             children: [
               const Text(
                 'Send a notification',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5),
               ),
               const SizedBox(height: 12),
               SegmentedButton<String>(

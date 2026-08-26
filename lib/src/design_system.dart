@@ -136,7 +136,7 @@ abstract final class AppType {
       TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.35);
 
   static TextStyle get caption =>
-      TextStyle(fontSize: 11.5, color: AppColors.textMuted, height: 1.3);
+      TextStyle(fontSize: 11, color: AppColors.textMuted, height: 1.3);
 
   static TextStyle get label => TextStyle(
     fontSize: 12,
@@ -587,11 +587,11 @@ class AppSearchBar extends StatelessWidget {
       textInputAction: TextInputAction.search,
       onSubmitted: onSubmitted,
       onChanged: onChanged,
-      style: TextStyle(fontSize: 14.5, color: AppColors.textPrimary),
+      style: TextStyle(fontSize: 14, color: AppColors.textPrimary),
       decoration: InputDecoration(
         isDense: true,
         hintText: hintText,
-        hintStyle: TextStyle(fontSize: 14.5, color: AppColors.textMuted),
+        hintStyle: TextStyle(fontSize: 14, color: AppColors.textMuted),
         filled: false,
         contentPadding: EdgeInsets.zero,
         border: InputBorder.none,
@@ -640,7 +640,7 @@ class AppSearchBar extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 12.5,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: AppColors.accent,
                           ),
@@ -726,7 +726,7 @@ class AppIconBadgeButton extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 9.5,
+                        fontSize: 10,
                         fontWeight: FontWeight.w700,
                         height: 1.2,
                       ),
@@ -890,18 +890,22 @@ class MarketplaceListingCard extends StatefulWidget {
   /// Height of the text block below the image at the current text scale.
   static double infoHeightFor(BuildContext context) {
     final ts = MediaQuery.textScalerOf(context);
+    // Read straight off the styles the card actually renders. These used to be
+    // copied numbers, and they had already drifted: the caption step moved and
+    // this still budgeted for the old size. Deriving it means the guarantee
+    // cannot rot the next time the type scale moves.
+    // Ceil PER LINE, because that is what the painter does: each line is laid
+    // out to whole pixels independently, so summing ideal heights always lands
+    // a hair short of what actually paints.
+    double line(TextStyle t, {int lines = 1}) =>
+        (ts.scale(t.fontSize!) * (t.height ?? 1.2)).ceilToDouble() * lines;
     return 18 // vertical padding
         +
-        ts.scale(15.5) *
-            1.2 // price
-            +
+        line(AppType.price) +
         3 +
-        ts.scale(13) *
-            1.25 *
-            2 // title, two lines
-            +
+        line(AppType.cardTitle, lines: 2) +
         5 +
-        ts.scale(11.5) * 1.3; // location + time
+        line(AppType.caption);
   }
 
   /// Total card height for a given card width — used by rails.
@@ -1185,7 +1189,7 @@ class _CardBadge extends StatelessWidget {
               label,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 8.5,
+                fontSize: 9,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.4,
               ),
@@ -1222,7 +1226,7 @@ class _ImageCountPill extends StatelessWidget {
             '$count',
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 10.5,
+              fontSize: 10,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1429,7 +1433,7 @@ class MetaChip extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 11.5,
+            fontSize: 11,
             color: c,
             fontWeight: FontWeight.w500,
           ),
@@ -1535,6 +1539,12 @@ class FeaturedBannerCard extends StatelessWidget {
 
   /// Total height of a card of [width] at the current text scale — used by the
   /// rail that hosts it so nothing is ever clipped.
+  /// Text sizes used by BOTH the layout below and [heightFor]. Shared
+  /// constants rather than repeated literals: the two had already drifted
+  /// apart, leaving the title budgeted 0.5px short of what it renders.
+  static const double _titleSize = 15.5;
+  static const double _subtitleSize = 12;
+
   static double heightFor(BuildContext context, double width) {
     final ts = MediaQuery.textScalerOf(context);
     return width /
@@ -1543,11 +1553,11 @@ class FeaturedBannerCard extends StatelessWidget {
         AppSpacing
             .md // gap
             +
-        ts.scale(15) *
-            1.25 // title
-            +
+        // Ceil per line, as in MarketplaceListingCard.infoHeightFor.
+        (ts.scale(_titleSize) * 1.25).ceilToDouble() // title
+        +
         3 +
-        ts.scale(12.5) * 1.3 * 2; // subtitle, up to two lines
+        (ts.scale(_subtitleSize) * 1.3).ceilToDouble() * 2; // subtitle, 2 lines
   }
 
   @override
@@ -1591,7 +1601,7 @@ class FeaturedBannerCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 10.5,
+                              fontSize: 10,
                               fontWeight: FontWeight.w700,
                               color: AppColors.textPrimary,
                             ),
@@ -1608,7 +1618,7 @@ class FeaturedBannerCard extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 15,
+                fontSize: _titleSize,
                 fontWeight: FontWeight.w700,
                 color: AppColors.textPrimary,
                 height: 1.25,
@@ -1620,7 +1630,7 @@ class FeaturedBannerCard extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 12.5,
+                fontSize: _subtitleSize,
                 color: AppColors.textSecondary,
                 height: 1.3,
               ),
@@ -1699,7 +1709,7 @@ class RecentSearchCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     softWrap: false,
                     style: TextStyle(
-                      fontSize: 13.5,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
                     ),
@@ -1849,7 +1859,7 @@ class SellerCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 14.5,
+                          fontSize: 14,
                           fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary,
                         ),
@@ -1982,7 +1992,7 @@ class AppBottomNavigation extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 10.5,
+                    fontSize: 10,
                     height: 1.1,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                     color: selected ? AppColors.accent : AppColors.textMuted,
@@ -2028,7 +2038,7 @@ class AppBottomNavigation extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 8,
+                    fontSize: 9,
                     height: 1.1,
                     color: Colors.white,
                     fontWeight: FontWeight.w800,

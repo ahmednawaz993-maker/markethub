@@ -55,6 +55,50 @@ void main() {
     );
   });
 
+  // Typography drifted furthest of the three scales: 27 distinct font sizes
+  // across the app, including pairs a reader cannot tell apart (11 vs 11.5,
+  // 17 vs 18, 12 vs 12.5). Perceptually identical steps are not a scale, they
+  // are just noise, and noise is what makes type feel unconsidered.
+  //
+  // Unlike radii and spacing, there is no safe mechanical substitution here: a
+  // bare TextStyle(fontSize: 12) is not swappable for AppType.label, because
+  // the token also carries weight, colour and line-height. So this pins the
+  // SIZES rather than requiring the tokens, and the per-site work of choosing
+  // the right AppType style stays a screen-by-screen job.
+  test('the app uses one type scale, with no perceptually duplicate steps', () {
+    // Not const: Dart forbids doubles in a constant set.
+    final allowed = <double>{9, 10, 11, 12, 13, 14, 15.5, 17, 20, 24, 28,
+      34, 40};
+    final re = RegExp(r'fontSize:\s*([\d.]+)');
+    final offenders = <String>[];
+    final seen = <double>{};
+    for (final f in _uiSources(includeDesignSystem: true)) {
+      final lines = f.readAsLinesSync();
+      for (var i = 0; i < lines.length; i++) {
+        for (final m in re.allMatches(lines[i])) {
+          final v = double.parse(m.group(1)!);
+          seen.add(v);
+          if (!allowed.contains(v)) {
+            offenders.add('${f.uri.pathSegments.last}:${i + 1} → ${v}px');
+          }
+        }
+      }
+    }
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'Off-scale font size. Snap to the nearest step, or add a step to '
+          '`allowed` deliberately if the scale genuinely needs one:\n'
+          '${offenders.join('\n')}',
+    );
+    expect(
+      seen.length,
+      lessThanOrEqualTo(allowed.length),
+      reason: 'the scale should shrink or hold, never grow',
+    );
+  });
+
   group('the radius scale', () {
     // The steps are load-bearing: several screens were snapped onto them, so
     // changing a value here silently restyles the app.

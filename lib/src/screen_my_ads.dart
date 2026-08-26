@@ -49,7 +49,7 @@ class SalesDashboardScreen extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 17,
               fontWeight: FontWeight.bold,
               color: color,
             ),
@@ -167,7 +167,7 @@ class SalesDashboardScreen extends StatelessWidget {
                       formatPrice(earnings.toStringAsFixed(0)),
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 30,
+                        fontSize: 28,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -550,7 +550,7 @@ Future<void> showLowerPriceSheet(BuildContext context, Listing listing) async {
               children: [
                 const Text(
                   'Lower the price',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -927,7 +927,7 @@ class SellerDashboardScreen extends StatelessWidget {
       style: TextStyle(
         color: AppColors.textPrimary,
         fontWeight: FontWeight.bold,
-        fontSize: 15,
+        fontSize: 15.5,
       ),
     ),
   );
@@ -971,7 +971,7 @@ class SellerDashboardScreen extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 17,
                 fontWeight: FontWeight.bold,
                 color: color,
               ),

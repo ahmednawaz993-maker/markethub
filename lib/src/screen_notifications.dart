@@ -377,7 +377,7 @@ class NotificationsScreen extends StatelessWidget {
                                             child: Text(
                                               title,
                                               style: TextStyle(
-                                                fontSize: 14.5,
+                                                fontSize: 14,
                                                 color: AppColors.textPrimary,
                                                 fontWeight: read
                                                     ? FontWeight.w500
@@ -410,7 +410,7 @@ class NotificationsScreen extends StatelessWidget {
                                               d['createdAt'] as Timestamp?,
                                             ),
                                             style: TextStyle(
-                                              fontSize: 11.5,
+                                              fontSize: 11,
                                               color: AppColors.textMuted,
                                             ),
                                           ),

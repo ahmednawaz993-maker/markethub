@@ -950,7 +950,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
                         ],
                       ),
                       style: TextStyle(
-                        fontSize: 12.5,
+                        fontSize: 12,
                         height: 1.35,
                         color: AppColors.textSecondary,
                       ),
