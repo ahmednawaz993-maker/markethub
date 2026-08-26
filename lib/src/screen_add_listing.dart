@@ -67,7 +67,35 @@ class DraftsScreen extends StatelessWidget {
                   ),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => docs[i].reference.delete(),
+                    tooltip: 'Delete draft',
+                    // Was a one-tap delete: a mis-tap next to the row's own
+                    // onTap threw away a half-written ad with no way back.
+                    onPressed: () async {
+                      final ok = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Delete this draft?'),
+                          content: Text(
+                            '"${d['title'] ?? 'Untitled ad'}" will be removed. '
+                            'This cannot be undone.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Keep'),
+                            ),
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.red,
+                              ),
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text('Delete'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (ok == true) await docs[i].reference.delete();
+                    },
                   ),
                 ),
               );

@@ -11,6 +11,22 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.51] — 2026-08-26
+
+### Fixed
+
+- **Admin "Delete ad" destroyed a seller's live listing on a single tap.** The
+  Reports queue deleted the ad and the report outright with no confirmation and
+  nothing to restore from. It now states the consequence first — including that
+  the seller is never told why — and suggests opening the ad before acting.
+  "Dismiss" confirms too.
+- **Deleting an ad draft asked nothing.** The delete icon sits next to the row's
+  own tap target, so a mis-tap threw away a half-written ad permanently.
+- **The business activity card re-queried Firestore on every rebuild.** Its two
+  aggregate count queries were issued inline in `build()`, so scrolling the
+  Business tab re-ran them continuously — billable reads, and the row flickering
+  back to "Loading activity…" each time. They now run once per card.
+
 ## [1.0.50] — 2026-08-20
 
 ### Changed

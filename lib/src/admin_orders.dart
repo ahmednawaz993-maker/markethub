@@ -207,6 +207,39 @@ Future<void> adminNotifyUser(
       });
 }
 
+/// Shared confirmation for a back-office action that destroys something.
+///
+/// The admin panel had several one-tap deletes with no confirmation at all —
+/// a stray tap in the Reports queue permanently removed a seller's live ad.
+/// Anything irreversible routes through here so the consequence is stated
+/// before it happens.
+Future<bool> _confirmDestructive(
+  BuildContext context, {
+  required String title,
+  required String body,
+  required String action,
+}) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(title),
+      content: Text(body),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          style: TextButton.styleFrom(foregroundColor: Colors.red),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(action),
+        ),
+      ],
+    ),
+  );
+  return ok == true;
+}
+
 /// Compact step names for the admin progress strip. The buyer-facing
 /// [orderStatusLabel] strings ("Ready to dispatch") are far too long to sit
 /// five-across on a phone.

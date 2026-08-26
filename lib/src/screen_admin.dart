@@ -2893,7 +2893,17 @@ class _AdminReportsTab extends StatelessWidget {
                         ),
                         const Spacer(),
                         TextButton(
-                          onPressed: () => docs[i].reference.delete(),
+                          onPressed: () async {
+                            final ok = await _confirmDestructive(
+                              context,
+                              title: 'Dismiss this report?',
+                              body:
+                                  'The report is deleted and the ad is left '
+                                  'as it is. This cannot be undone.',
+                              action: 'Dismiss',
+                            );
+                            if (ok) await docs[i].reference.delete();
+                          },
                           child: const Text('Dismiss'),
                         ),
                         const SizedBox(width: 4),
@@ -2901,7 +2911,21 @@ class _AdminReportsTab extends StatelessWidget {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.red,
                           ),
+                          // Was a bare one-tap delete of a LIVE listing: a
+                          // stray tap destroyed a seller's ad outright, with no
+                          // confirmation and nothing to restore it from.
                           onPressed: () async {
+                            final ok = await _confirmDestructive(
+                              context,
+                              title: 'Delete this ad?',
+                              body:
+                                  'The seller\'s live listing is permanently '
+                                  'deleted along with this report. It cannot '
+                                  'be restored, and the seller is not told '
+                                  'why. Consider opening the ad first.',
+                              action: 'Delete ad',
+                            );
+                            if (!ok) return;
                             if (listingId.isNotEmpty) {
                               await FirebaseFirestore.instance
                                   .collection('listings')
@@ -5328,20 +5352,31 @@ class _BusinessAccountCardState extends State<_BusinessAccountCard> {
 /// A business store's activity at a glance: live-listing count and total
 /// orders, with a tap into the store. Counts use aggregate queries (cheap,
 /// bounded to approved businesses).
-class _BusinessActivityCard extends StatelessWidget {
+class _BusinessActivityCard extends StatefulWidget {
   final QueryDocumentSnapshot<Map<String, dynamic>> userDoc;
   const _BusinessActivityCard({required this.userDoc});
+
+  @override
+  State<_BusinessActivityCard> createState() => _BusinessActivityCardState();
+}
+
+class _BusinessActivityCardState extends State<_BusinessActivityCard> {
+  /// Started once. It used to be `future: _counts()` inline in build(), which
+  /// re-issued BOTH aggregate queries on every rebuild of the row — billable
+  /// reads on every scroll, and the subtitle flickering back to "Loading
+  /// activity…" each time.
+  late final Future<(int, int)> _countsFuture = _counts();
 
   Future<(int, int)> _counts() async {
     final fs = FirebaseFirestore.instance;
     final listings = await fs
         .collection('listings')
-        .where('userId', isEqualTo: userDoc.id)
+        .where('userId', isEqualTo: widget.userDoc.id)
         .count()
         .get();
     final orders = await fs
         .collection('orders')
-        .where('sellerId', isEqualTo: userDoc.id)
+        .where('sellerId', isEqualTo: widget.userDoc.id)
         .count()
         .get();
     return (listings.count ?? 0, orders.count ?? 0);
@@ -5349,7 +5384,7 @@ class _BusinessActivityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final d = userDoc.data();
+    final d = widget.userDoc.data();
     final name = (d['businessName']?.toString() ?? '').trim();
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -5365,7 +5400,7 @@ class _BusinessActivityCard extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
         subtitle: FutureBuilder<(int, int)>(
-          future: _counts(),
+          future: _countsFuture,
           builder: (context, snap) {
             if (!snap.hasData) return const Text('Loading activity…');
             final (listings, orders) = snap.data!;
@@ -5377,7 +5412,10 @@ class _BusinessActivityCard extends StatelessWidget {
           context,
           MaterialPageRoute(
             builder: (_) =>
-                SellerProfileScreen(sellerId: userDoc.id, sellerName: name),
+                SellerProfileScreen(
+                  sellerId: widget.userDoc.id,
+                  sellerName: name,
+                ),
           ),
         ),
       ),
