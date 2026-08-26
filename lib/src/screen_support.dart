@@ -147,13 +147,13 @@ class CustomerCareScreen extends StatelessWidget {
         children: [
           Container(
             width: double.infinity,
-            margin: const EdgeInsets.all(12),
-            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [kPakGreen, kPakGreenLight],
               ),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: AppRadius.rMd,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -314,7 +314,7 @@ class _TicketCard extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     decoration: BoxDecoration(
       color: color.withValues(alpha: 0.14),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: AppRadius.rXl,
     ),
     child: Text(
       text,
@@ -367,7 +367,7 @@ Future<void> _showNewTicketSheet(BuildContext context) async {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: kGold.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: AppRadius.rSm,
                     border: Border.all(color: kGold.withValues(alpha: 0.4)),
                   ),
                   child: Row(
@@ -815,7 +815,7 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                 );
 
                 return ListView.builder(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   itemCount: docs.length,
                   itemBuilder: (context, i) {
                     final m = docs[i].data() as Map<String, dynamic>;
@@ -843,7 +843,7 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                               : (isSupport
                                     ? const Color(0xFFFBF3D5) // light gold tint
                                     : AppColors.surface),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: AppRadius.rMd,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -991,7 +991,7 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
     decoration: BoxDecoration(
       color: color.withValues(alpha: 0.16),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: AppRadius.rXl,
     ),
     child: Text(
       text,
@@ -1230,7 +1230,7 @@ class CareNumbersAdminScreen extends StatelessWidget {
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 child: Align(
                   alignment: AlignmentDirectional.centerEnd,
                   child: ElevatedButton.icon(
@@ -1248,7 +1248,7 @@ class CareNumbersAdminScreen extends StatelessWidget {
                         subtitle: 'Add a number for users to call.',
                       )
                     : SurfacePanel(
-                        margin: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.all(AppSpacing.md),
                         child: ListView.separated(
                           padding: EdgeInsets.zero,
                           itemCount: numbers.length,
@@ -1506,7 +1506,7 @@ class _AdminSupportTabState extends State<_AdminSupportTab> {
                 );
               }
               return ListView.builder(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 itemCount: docs.length,
                 itemBuilder: (context, i) {
                   final d = docs[i].data() as Map<String, dynamic>;

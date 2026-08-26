@@ -37,6 +37,10 @@ abstract final class AppSpacing {
 
 /// Corner radii. Cards are 14, controls 12, pills fully rounded.
 abstract final class AppRadius {
+  /// Tightest radius in the app — colour swatches and small thumbnails, where
+  /// 8 already reads as noticeably soft. Added because three call sites were
+  /// using a bare 4: the gap was in the scale, not in them.
+  static const double xs = 4;
   static const double sm = 8;
   static const double md = 12;
   static const double card = 14;
@@ -44,6 +48,7 @@ abstract final class AppRadius {
   static const double xl = 20;
   static const double pill = 999;
 
+  static final BorderRadius rXs = BorderRadius.circular(xs);
   static final BorderRadius rSm = BorderRadius.circular(sm);
   static final BorderRadius rMd = BorderRadius.circular(md);
   static final BorderRadius rCard = BorderRadius.circular(card);
@@ -1167,7 +1172,7 @@ class _CardBadge extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
         decoration: BoxDecoration(
           color: color,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: AppRadius.rSm,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

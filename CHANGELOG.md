@@ -11,6 +11,28 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.53] — 2026-08-26
+
+### Changed
+
+- **Corner radii are now consistent across the whole app.** Every rounded
+  corner ran through one of six hand-typed numbers; 23 of them were off the
+  design scale entirely, which is the kind of inconsistency you feel without
+  being able to point at it. All 67 now use a token, and a test fails the build
+  if a raw number comes back.
+
+  The radius scale gained a 4 step — three screens were already using a bare 4
+  for colour swatches and small thumbnails, so the gap was in the scale rather
+  than in them. Those keep their exact pixels. Twenty small badges and
+  thumbnails move by 2px (6→8, 10→12); nothing else changes, because a corner
+  radius affects only how a corner is painted, never how much room anything
+  takes.
+
+- **134 spacing and radius values now read from the design system** instead of
+  repeating a number. Every one of those was verified to be numerically
+  identical to the token replacing it, so not a single pixel moved — this buys
+  no new polish today, it stops the polish drifting apart tomorrow.
+
 ## [1.0.52] — 2026-08-26
 
 ### Changed

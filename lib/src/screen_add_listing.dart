@@ -42,7 +42,7 @@ class DraftsScreen extends StatelessWidget {
             );
           }
           return ListView.builder(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(AppSpacing.sm),
             itemCount: docs.length,
             itemBuilder: (context, i) {
               final d = docs[i].data() as Map<String, dynamic>;

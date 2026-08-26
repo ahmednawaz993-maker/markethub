@@ -822,7 +822,7 @@ class _CatPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: AppRadius.rXs,
         border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(
@@ -1116,7 +1116,7 @@ class _AccentSwatch extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: AppRadius.rXl,
       child: Container(
         width: 30,
         height: 30,

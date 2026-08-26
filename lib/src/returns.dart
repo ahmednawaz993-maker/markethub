@@ -244,7 +244,7 @@ class _BuyerReturnPendingCard extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Colors.blueGrey.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.rSm,
           border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.3)),
         ),
         child: Column(
@@ -320,7 +320,7 @@ class _SellerReturnCard extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Colors.blueGrey.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.rSm,
           border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.3)),
         ),
         child: Column(
@@ -459,7 +459,7 @@ Future<void> showReturnSheet(
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,

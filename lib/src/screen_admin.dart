@@ -333,9 +333,9 @@ class _AdminActivityTabState extends State<_AdminActivityTab> {
       margin: const EdgeInsets.only(bottom: 8),
       child: InkWell(
         onTap: () => _showDetail(context, m),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.rMd,
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(AppSpacing.md),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -528,7 +528,7 @@ class _AdminPaymentsTab extends StatelessWidget {
             return Card(
               margin: const EdgeInsets.only(bottom: 10),
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -683,14 +683,14 @@ class _AdminFeaturedTab extends StatelessWidget {
           builder: (context, snap) {
             if (!snap.hasData) {
               return const Padding(
-                padding: EdgeInsets.all(8),
+                padding: EdgeInsets.all(AppSpacing.sm),
                 child: LinearProgressIndicator(),
               );
             }
             final docs = snap.data!.docs;
             if (docs.isEmpty) {
               return const Padding(
-                padding: EdgeInsets.all(8),
+                padding: EdgeInsets.all(AppSpacing.sm),
                 child: Text(
                   'No featured ads.',
                   style: TextStyle(color: Colors.grey),
@@ -736,14 +736,14 @@ class _AdminFeaturedTab extends StatelessWidget {
           builder: (context, snap) {
             if (!snap.hasData) {
               return const Padding(
-                padding: EdgeInsets.all(8),
+                padding: EdgeInsets.all(AppSpacing.sm),
                 child: LinearProgressIndicator(),
               );
             }
             final docs = snap.data!.docs;
             if (docs.isEmpty) {
               return const Padding(
-                padding: EdgeInsets.all(8),
+                padding: EdgeInsets.all(AppSpacing.sm),
                 child: Text(
                   'No featured businesses.',
                   style: TextStyle(color: Colors.grey),
@@ -1075,7 +1075,7 @@ class _PayoutReviewCardState extends State<_PayoutReviewCard> {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1407,7 +1407,7 @@ class _AdminWithdrawalsTab extends StatelessWidget {
             return Card(
               margin: const EdgeInsets.only(bottom: 10),
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1584,7 +1584,7 @@ class _AdminVerificationsTab extends StatelessWidget {
                         margin: const EdgeInsets.symmetric(horizontal: 2),
                         decoration: BoxDecoration(
                           color: Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: AppRadius.rSm,
                           image: url.isEmpty
                               ? null
                               : DecorationImage(
@@ -1598,7 +1598,7 @@ class _AdminVerificationsTab extends StatelessWidget {
                   return Card(
                     margin: const EdgeInsets.only(bottom: 10),
                     child: Padding(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(AppSpacing.md),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1662,7 +1662,7 @@ class _AdminVerificationsTab extends StatelessWidget {
                               child: Container(
                                 height: 90,
                                 decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: AppRadius.rSm,
                                   image: DecorationImage(
                                     image: NetworkImage(proof),
                                     fit: BoxFit.cover,
@@ -1723,7 +1723,7 @@ class _VerificationToggle extends StatelessWidget {
         final on =
             (snap.data?.data() as Map<String, dynamic>?)?['required'] == true;
         return Card(
-          margin: const EdgeInsets.all(12),
+          margin: const EdgeInsets.all(AppSpacing.md),
           color: on ? null : const Color(0xFFFFF3CD),
           child: SwitchListTile(
             secondary: Icon(
@@ -3350,10 +3350,10 @@ class _AdminOrdersTabState extends State<_AdminOrdersTab> {
         return Column(
           children: [
             Card(
-              margin: const EdgeInsets.all(12),
+              margin: const EdgeInsets.all(AppSpacing.md),
               color: kPakGreen,
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
@@ -3654,7 +3654,7 @@ class _MasterOrderTile extends StatelessWidget {
           builder: (context, s) {
             if (!s.hasData) {
               return const Padding(
-                padding: EdgeInsets.all(12),
+                padding: EdgeInsets.all(AppSpacing.md),
                 child: LinearProgressIndicator(),
               );
             }
@@ -3755,7 +3755,7 @@ class _PendingCancellationsPanel extends StatelessWidget {
           margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
           color: Colors.red.shade50,
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(AppSpacing.md),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -4133,7 +4133,7 @@ class _PendingRefundsPanel extends StatelessWidget {
           margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
           color: Colors.deepPurple.shade50,
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(AppSpacing.md),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -4386,7 +4386,7 @@ class _PendingReturnsPanel extends StatelessWidget {
           margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
           color: Colors.blueGrey.shade50,
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(AppSpacing.md),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -5198,7 +5198,7 @@ class _BusinessAccountCardState extends State<_BusinessAccountCard> {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -5225,7 +5225,7 @@ class _BusinessAccountCardState extends State<_BusinessAccountCard> {
                   ),
                   decoration: BoxDecoration(
                     color: chipColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: AppRadius.rSm,
                   ),
                   child: Text(
                     chipLabel,
@@ -5656,7 +5656,7 @@ class _PayoutAccountReviewCardState extends State<_PayoutAccountReviewCard> {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -5683,7 +5683,7 @@ class _PayoutAccountReviewCardState extends State<_PayoutAccountReviewCard> {
                   ),
                   decoration: BoxDecoration(
                     color: chipColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: AppRadius.rSm,
                   ),
                   child: Text(
                     chipLabel,
@@ -5825,7 +5825,7 @@ class _AdminAppealsTab extends StatelessWidget {
             return Card(
               margin: const EdgeInsets.only(bottom: 10),
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -6095,7 +6095,7 @@ class _AdminApprovalsTab extends StatelessWidget {
             return Card(
               margin: const EdgeInsets.only(bottom: 10),
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -6461,7 +6461,7 @@ class _AdminStaffTab extends StatelessWidget {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(AppSpacing.md),
           child: Align(
             alignment: AlignmentDirectional.centerStart,
             child: ElevatedButton.icon(
@@ -6664,7 +6664,7 @@ class _AdminDeletionsTab extends StatelessWidget {
                   return Card(
                     margin: const EdgeInsets.only(bottom: 10),
                     child: Padding(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(AppSpacing.md),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -6971,7 +6971,7 @@ class _AdminBroadcastTabState extends State<_AdminBroadcastTab> {
       children: [
         SurfacePanel(
           margin: EdgeInsets.zero,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

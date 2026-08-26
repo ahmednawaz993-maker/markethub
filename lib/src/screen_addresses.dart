@@ -75,9 +75,9 @@ class AddressBookScreen extends StatelessWidget {
                   onTap: selectMode
                       ? () => Navigator.pop(context, a)
                       : () => _edit(context, a),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: AppRadius.rMd,
                   child: Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(AppSpacing.md),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -90,7 +90,7 @@ class AddressBookScreen extends StatelessWidget {
                               ),
                               decoration: BoxDecoration(
                                 color: kPakGreen.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(6),
+                                borderRadius: AppRadius.rSm,
                               ),
                               child: Text(
                                 a.label,
@@ -337,7 +337,7 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
             Wrap(
               spacing: 8,

@@ -732,11 +732,11 @@ class _AuthMethodTab extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.all(4),
+        margin: const EdgeInsets.all(AppSpacing.xs),
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
           color: selected ? kPakGreen : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.rSm,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,

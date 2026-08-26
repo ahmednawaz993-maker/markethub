@@ -36,7 +36,7 @@ class SalesDashboardScreen extends StatelessWidget {
       // gradient (a translucent tint let the navy bleed through).
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.rMd,
         border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Column(
@@ -143,7 +143,7 @@ class SalesDashboardScreen extends StatelessWidget {
           );
 
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
               // Headline earnings.
               Container(
@@ -153,7 +153,7 @@ class SalesDashboardScreen extends StatelessWidget {
                   gradient: const LinearGradient(
                     colors: [kPakGreen, kPakGreenLight],
                   ),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: AppRadius.rLg,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -351,7 +351,7 @@ class _MonthBar extends StatelessWidget {
                     height: 22,
                     decoration: BoxDecoration(
                       color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: AppRadius.rSm,
                     ),
                   ),
                   Container(
@@ -359,7 +359,7 @@ class _MonthBar extends StatelessWidget {
                     width: c.maxWidth * frac,
                     decoration: BoxDecoration(
                       color: kPakGreen,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: AppRadius.rSm,
                     ),
                   ),
                 ],
@@ -435,7 +435,7 @@ class SellerAnalyticsScreen extends StatelessWidget {
               .fold<int>(1, (m, v) => v > m ? v : m);
 
           return ListView(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(AppSpacing.md),
             children: [
               Wrap(
                 spacing: 10,
@@ -458,7 +458,7 @@ class SellerAnalyticsScreen extends StatelessWidget {
                 return Card(
                   margin: const EdgeInsets.only(bottom: 8),
                   child: Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(AppSpacing.md),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -470,7 +470,7 @@ class SellerAnalyticsScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: AppRadius.rXs,
                           child: LinearProgressIndicator(
                             value: (a.views / maxViews).clamp(0.0, 1.0),
                             minHeight: 8,
@@ -543,7 +543,7 @@ Future<void> showLowerPriceSheet(BuildContext context, Listing listing) async {
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -941,12 +941,12 @@ class SellerDashboardScreen extends StatelessWidget {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: AppRadius.rMd,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppRadius.rMd,
           border: Border.all(color: color.withValues(alpha: 0.35)),
         ),
         child: Column(

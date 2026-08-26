@@ -134,7 +134,7 @@ class _OffersList extends StatelessWidget {
             return Card(
               margin: const EdgeInsets.only(bottom: 10),
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -155,7 +155,7 @@ class _OffersList extends StatelessWidget {
                           ),
                           decoration: BoxDecoration(
                             color: color.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: AppRadius.rSm,
                           ),
                           child: Text(
                             label,

@@ -151,7 +151,7 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: AppRadius.rCard,
                   onTap: () {
                     final cb = widget.onTap;
                     if (cb != null) cb();
@@ -160,7 +160,7 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
                   child: Container(
                     decoration: BoxDecoration(
                       color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: AppRadius.rCard,
                       border: Border.all(
                         color: kPakGreen.withValues(alpha: 0.25),
                       ),

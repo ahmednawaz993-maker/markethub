@@ -563,10 +563,10 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
   }) {
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: AppRadius.rSm,
         border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Column(
@@ -595,7 +595,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(AppSpacing.sm),
         child: Column(
           children: [
             SwitchListTile(
@@ -649,7 +649,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                   children: [
                     if (coverUrl != null && coverUrl!.isNotEmpty) ...[
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: AppRadius.rSm,
                         child: Image.network(
                           coverUrl!,
                           width: 64,
@@ -743,7 +743,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                   return Card(
                     color: kGold.withValues(alpha: 0.10),
                     child: Padding(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(AppSpacing.md),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -763,7 +763,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: kPakGreen,
-                                  borderRadius: BorderRadius.circular(20),
+                                  borderRadius: AppRadius.rXl,
                                 ),
                                 child: const Text(
                                   'FREE',
@@ -1137,7 +1137,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
           child: url == null
               ? const Icon(Icons.camera_alt, color: kPakGreen)
               : ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: AppRadius.rSm,
                   child: Image.network(url, fit: BoxFit.cover),
                 ),
         ),
@@ -1169,7 +1169,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
       body: !loaded
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppSpacing.md),
               children: [
                 if (locked)
                   Card(
@@ -1327,7 +1327,7 @@ class TrustSafetyScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Trust & Safety')),
       body: ListView(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.md),
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
@@ -1446,11 +1446,11 @@ class _LegalScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: ListView(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.md),
         children: [
           SurfacePanel(
             margin: EdgeInsets.zero,
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1761,7 +1761,7 @@ class AboutScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('About')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
           const SizedBox(height: 8),
           Center(

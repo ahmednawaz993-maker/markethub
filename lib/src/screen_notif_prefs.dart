@@ -168,7 +168,7 @@ class _NotificationPreferencesScreenState
         children: [
           SurfacePanel(
             margin: EdgeInsets.zero,
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

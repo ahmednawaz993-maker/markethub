@@ -252,7 +252,7 @@ class AdminLiveUsersPill extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: AppRadius.rXl,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

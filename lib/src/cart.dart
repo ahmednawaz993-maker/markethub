@@ -268,7 +268,7 @@ Widget _multiSellerBanner(String text) => Container(
   // the navy gradient rather than dark-on-navy.
   decoration: BoxDecoration(
     color: AppColors.surface,
-    borderRadius: BorderRadius.circular(8),
+    borderRadius: AppRadius.rSm,
     border: Border.all(color: kPakGreen.withValues(alpha: 0.30)),
   ),
   child: Row(
@@ -578,7 +578,7 @@ class _CartScreenState extends State<CartScreen> {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -679,12 +679,12 @@ class _CartScreenState extends State<CartScreen> {
 
   Widget _qtyButton(IconData icon, VoidCallback onTap) => InkWell(
     onTap: onTap,
-    borderRadius: BorderRadius.circular(6),
+    borderRadius: AppRadius.rSm,
     child: Container(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(AppSpacing.xs),
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey.shade400),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: AppRadius.rSm,
       ),
       child: Icon(icon, size: 16),
     ),
@@ -1027,7 +1027,7 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
     final a = _address;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1049,7 +1049,7 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
             ),
             if (_loadingAddress)
               const Padding(
-                padding: EdgeInsets.all(8),
+                padding: EdgeInsets.all(AppSpacing.sm),
                 child: LinearProgressIndicator(),
               )
             else if (a == null)
@@ -1087,7 +1087,7 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
 
   Widget _sellerGroupCard(SellerGroup g) => Card(
     child: Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1135,7 +1135,7 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
 
   Widget _paymentCard() => Card(
     child: Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1191,7 +1191,7 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
 
   Widget _notesCard() => Card(
     child: Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       child: TextField(
         controller: _notes,
         maxLines: 2,

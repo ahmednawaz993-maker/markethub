@@ -254,7 +254,7 @@ class _BuyerRefundPendingCard extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Colors.deepPurple.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.rSm,
           border: Border.all(color: Colors.deepPurple.withValues(alpha: 0.3)),
         ),
         child: Column(
@@ -332,7 +332,7 @@ Future<void> showRefundSheet(
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,

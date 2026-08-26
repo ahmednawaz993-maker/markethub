@@ -235,7 +235,7 @@ Future<void> showDisputeSheet(
       child: StatefulBuilder(
         builder: (sheetCtx, setSheet) => SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -476,7 +476,7 @@ class _OrdersList extends StatelessWidget {
             return Card(
               margin: const EdgeInsets.only(bottom: 10),
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -560,7 +560,7 @@ class _OrdersList extends StatelessWidget {
                           ),
                           decoration: BoxDecoration(
                             color: color.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: AppRadius.rSm,
                           ),
                           child: Text(
                             label,
@@ -664,10 +664,10 @@ class _OrdersList extends StatelessWidget {
                     if (status == 'cod_pending') ...[
                       const SizedBox(height: 8),
                       Container(
-                        padding: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(AppSpacing.sm),
                         decoration: BoxDecoration(
                           color: Colors.indigo.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: AppRadius.rSm,
                         ),
                         child: Row(
                           children: [
@@ -726,10 +726,10 @@ class _OrdersList extends StatelessWidget {
                     if (status == 'in_escrow') ...[
                       const SizedBox(height: 8),
                       Container(
-                        padding: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(AppSpacing.sm),
                         decoration: BoxDecoration(
                           color: kPakGreen.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: AppRadius.rSm,
                         ),
                         child: Row(
                           children: [
@@ -818,7 +818,7 @@ class _CopyableOrderNumber extends StatelessWidget {
           SnackBar(content: Text('Copied $number')),
         );
       },
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: AppRadius.rXs,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 1),
         child: Row(
@@ -864,7 +864,7 @@ class _MultiPackageBanner extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.deepPurple.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: AppRadius.rSm,
         border: Border.all(color: Colors.deepPurple.withValues(alpha: 0.25)),
       ),
       child: Row(
@@ -962,7 +962,7 @@ class _OrderDeliveryPanel extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Colors.grey.withValues(alpha: 0.07),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.rSm,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

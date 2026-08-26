@@ -21,11 +21,11 @@ class FreeDeliveryBanner extends StatelessWidget {
     final accent = qualifies ? kPakGreen : Colors.amber.shade800;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       // Opaque light surface so text is readable over the navy gradient.
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppRadius.rMd,
         border: Border.all(color: accent.withValues(alpha: 0.55)),
       ),
       child: Column(
@@ -58,7 +58,7 @@ class FreeDeliveryBanner extends StatelessWidget {
           if (!qualifies) ...[
             const SizedBox(height: 8),
             ClipRRect(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: AppRadius.rSm,
               child: LinearProgressIndicator(
                 value: progress,
                 minHeight: 6,
@@ -277,7 +277,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               onRetry: _loadAddress,
             )
           : ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppSpacing.lg),
               children: [
                 _itemCard(),
                 const SizedBox(height: 12),
@@ -311,7 +311,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         : listing.galleryImages.first;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.md),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -352,7 +352,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final a = _address;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -383,7 +383,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ),
                     decoration: BoxDecoration(
                       color: kPakGreen.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: AppRadius.rSm,
                     ),
                     child: Text(
                       a.label,
@@ -434,7 +434,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Widget _paymentCard() {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -480,7 +480,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Widget _notesCard() {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -503,7 +503,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Widget _summaryCard() {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -599,7 +599,7 @@ class OrderConfirmationScreen extends StatelessWidget {
         automaticallyImplyLeading: false,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
           const SizedBox(height: 8),
           Icon(Icons.check_circle, color: AppColors.success, size: 64),
@@ -620,7 +620,7 @@ class OrderConfirmationScreen extends StatelessWidget {
           const SizedBox(height: 16),
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppSpacing.md),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -640,7 +640,7 @@ class OrderConfirmationScreen extends StatelessWidget {
           const SizedBox(height: 12),
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppSpacing.md),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -673,10 +673,10 @@ class OrderConfirmationScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: AppRadius.rMd,
               border: Border.all(color: kPakGreen.withValues(alpha: 0.25)),
             ),
             child: Row(

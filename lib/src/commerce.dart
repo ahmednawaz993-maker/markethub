@@ -19,7 +19,7 @@ Future<void> showPromoteSheet(BuildContext context, Listing listing) async {
       final active = listing.isCurrentlyFeatured;
       return SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -43,7 +43,7 @@ Future<void> showPromoteSheet(BuildContext context, Listing listing) async {
                     ),
                     decoration: BoxDecoration(
                       color: kPakGreen,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: AppRadius.rXl,
                     ),
                     child: const Text(
                       'FREE',
@@ -626,7 +626,7 @@ Future<void> showOfferSheet(BuildContext context, Listing listing) async {
           ),
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -918,10 +918,10 @@ class _PaymentAccountInfo extends StatelessWidget {
 
         return Container(
           margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
             color: kPakGreen.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: AppRadius.rMd,
             border: Border.all(color: kPakGreen.withValues(alpha: 0.25)),
           ),
           child: Column(

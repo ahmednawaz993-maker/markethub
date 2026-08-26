@@ -541,7 +541,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     Expanded(
                       child: ListView.builder(
                         reverse: true,
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(AppSpacing.md),
                         itemCount: messages.length,
                         itemBuilder: (context, index) {
                           final data =
@@ -616,7 +616,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                         ),
                                       ),
                                       child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
+                                        borderRadius: AppRadius.rSm,
                                         child: Image.network(
                                           data['imageUrl'].toString(),
                                           width: 180,
@@ -684,7 +684,7 @@ class _ChatScreenState extends State<ChatScreen> {
           if (!widget.adminView)
             SafeArea(
               child: Padding(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(AppSpacing.sm),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [

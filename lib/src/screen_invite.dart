@@ -92,7 +92,7 @@ class InviteFriendsScreen extends StatelessWidget {
       backgroundColor: AppColors.surfaceVariant,
       appBar: AppBar(title: const Text('Invite & Win')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
           _heroCard(),
           const SizedBox(height: 16),
@@ -139,14 +139,14 @@ class InviteFriendsScreen extends StatelessWidget {
   }
 
   Widget _heroCard() => Container(
-    padding: const EdgeInsets.all(20),
+    padding: const EdgeInsets.all(AppSpacing.xl),
     decoration: BoxDecoration(
       gradient: const LinearGradient(
         colors: [kPakGreen, kPakGreenLight],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: AppRadius.rLg,
       boxShadow: [
         BoxShadow(
           color: kPakGreen.withValues(alpha: 0.35),
@@ -172,7 +172,7 @@ class InviteFriendsScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
             color: kGold,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: AppRadius.rXl,
           ),
           child: const Text(
             '5 WINNERS · 14 AUGUST 2026',
@@ -290,7 +290,7 @@ class InviteFriendsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: AppRadius.rSm,
                   child: LinearProgressIndicator(
                     value: progress,
                     minHeight: 10,

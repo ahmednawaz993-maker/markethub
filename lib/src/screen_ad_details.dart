@@ -154,7 +154,7 @@ class _GalleryNavArrow extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(AppSpacing.sm),
           child: Icon(
             icon,
             color: Colors.white.withValues(alpha: enabled ? 1 : 0.4),
@@ -1272,7 +1272,7 @@ class _PriceInsight extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: AppRadius.rSm,
             border: Border.all(color: color.withValues(alpha: 0.3)),
           ),
           child: Row(

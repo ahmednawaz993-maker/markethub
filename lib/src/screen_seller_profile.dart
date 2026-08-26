@@ -241,7 +241,7 @@ class _StoreHeroBar extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
     decoration: BoxDecoration(
       color: bg,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: AppRadius.rXl,
       boxShadow: [
         BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 4),
       ],

@@ -324,7 +324,7 @@ Future<String?> showCityPicker(
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(AppSpacing.md),
                     child: TextField(
                       autofocus: true,
                       textCapitalization: TextCapitalization.words,
@@ -442,7 +442,7 @@ class SoldTag extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 7),
               decoration: BoxDecoration(
                 color: Colors.red.shade700,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: AppRadius.rSm,
               ),
               child: const Text(
                 'SOLD',

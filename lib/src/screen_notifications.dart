@@ -427,7 +427,7 @@ class NotificationsScreen extends StatelessWidget {
                                                   alpha: 0.14,
                                                 ),
                                                 borderRadius:
-                                                    BorderRadius.circular(6),
+                                                    AppRadius.rSm,
                                               ),
                                               child: Text(
                                                 'New',

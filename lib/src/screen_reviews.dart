@@ -151,7 +151,7 @@ class ReviewsScreen extends StatelessWidget {
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(AppSpacing.md),
             itemCount: reviews.length,
             itemBuilder: (context, index) {
               final r = reviews[index].data() as Map<String, dynamic>;

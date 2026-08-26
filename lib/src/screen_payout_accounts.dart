@@ -288,7 +288,7 @@ class PayoutAccountsScreen extends StatelessWidget {
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -316,7 +316,7 @@ class PayoutAccountsScreen extends StatelessWidget {
                             ),
                             decoration: BoxDecoration(
                               color: color.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(6),
+                              borderRadius: AppRadius.rSm,
                             ),
                             child: Text(
                               label,
@@ -506,7 +506,7 @@ class _PayoutAccountFormScreenState extends State<PayoutAccountFormScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
             Wrap(
               spacing: 8,
@@ -586,7 +586,7 @@ class _PayoutAccountFormScreenState extends State<PayoutAccountFormScreen> {
               // Opaque light surface so the safety note is readable over navy.
               decoration: BoxDecoration(
                 color: AppColors.surface,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: AppRadius.rSm,
                 border: Border.all(
                   color: AppColors.info.withValues(alpha: 0.4),
                 ),

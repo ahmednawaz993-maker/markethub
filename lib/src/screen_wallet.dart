@@ -38,15 +38,15 @@ class WalletScreen extends StatelessWidget {
                   0;
               return Container(
                 width: double.infinity,
-                margin: const EdgeInsets.all(12),
-                padding: const EdgeInsets.all(20),
+                margin: const EdgeInsets.all(AppSpacing.md),
+                padding: const EdgeInsets.all(AppSpacing.xl),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [kPakGreen, kPakGreenLight],
                   ),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: AppRadius.rLg,
                 ),
                 child: Column(
                   children: [
@@ -499,7 +499,7 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
         ),
         child: Card(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -513,7 +513,7 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
                   child: Container(
                     decoration: BoxDecoration(
                       color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: AppRadius.rMd,
                       image: imageUrl != null
                           ? DecorationImage(
                               image: NetworkImage(imageUrl!),

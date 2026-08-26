@@ -280,10 +280,10 @@ Widget _cancelBanner({
 }) => Padding(
   padding: const EdgeInsets.only(top: 8),
   child: Container(
-    padding: const EdgeInsets.all(8),
+    padding: const EdgeInsets.all(AppSpacing.sm),
     decoration: BoxDecoration(
       color: color.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: AppRadius.rSm,
     ),
     child: Row(
       children: [
@@ -353,7 +353,7 @@ class _BuyerPendingRequestCard extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Colors.orange.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.rSm,
           border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
         ),
         child: Column(
@@ -426,7 +426,7 @@ class _SellerCancellationCard extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Colors.red.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppRadius.rSm,
           border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
         ),
         child: Column(
@@ -582,7 +582,7 @@ Future<void> showCancellationSheet(
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
