@@ -580,7 +580,7 @@ class _CategoriesHeader extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: SurfacePanel(
         margin: EdgeInsets.zero,
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

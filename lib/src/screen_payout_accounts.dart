@@ -582,7 +582,7 @@ class _PayoutAccountFormScreenState extends State<PayoutAccountFormScreen> {
             ),
             const SizedBox(height: 8),
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(AppSpacing.md),
               // Opaque light surface so the safety note is readable over navy.
               decoration: BoxDecoration(
                 color: AppColors.surface,

@@ -222,7 +222,7 @@ class _ChatScamBanner extends StatelessWidget {
     return Container(
       width: double.infinity,
       color: const Color(0xFFFFF3CD),
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(AppSpacing.md),
       child: Row(
         children: const [
           Icon(Icons.warning_amber_rounded, color: Colors.deepOrange, size: 20),

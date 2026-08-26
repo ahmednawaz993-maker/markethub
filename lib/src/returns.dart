@@ -241,7 +241,7 @@ class _BuyerReturnPendingCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: Colors.blueGrey.withValues(alpha: 0.08),
           borderRadius: AppRadius.rSm,
@@ -317,7 +317,7 @@ class _SellerReturnCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: Colors.blueGrey.withValues(alpha: 0.06),
           borderRadius: AppRadius.rSm,

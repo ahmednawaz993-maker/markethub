@@ -31,7 +31,7 @@ class SalesDashboardScreen extends StatelessWidget {
   Widget _metric(String label, String value, IconData icon, Color color) {
     return Container(
       width: 150,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       // Opaque light tile so the value + label are readable over the navy
       // gradient (a translucent tint let the navy bleed through).
       decoration: BoxDecoration(
@@ -148,7 +148,7 @@ class SalesDashboardScreen extends StatelessWidget {
               // Headline earnings.
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(18),
+                padding: const EdgeInsets.all(AppSpacing.xl),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [kPakGreen, kPakGreenLight],
@@ -943,7 +943,7 @@ class SellerDashboardScreen extends StatelessWidget {
       onTap: onTap,
       borderRadius: AppRadius.rMd,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: AppRadius.rMd,

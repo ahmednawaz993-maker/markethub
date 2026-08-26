@@ -11,6 +11,22 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.54] — 2026-08-26
+
+### Changed
+
+- **Card and panel padding is now consistent app-wide.** Thirty containers sat
+  one step off the spacing scale — 10px and 14px where the app uses 12 and 16 —
+  which is the kind of 2px-at-a-time drift that makes screens feel slightly
+  unaligned without anything looking obviously wrong. Order cards, chat, the
+  admin panel, refunds, returns, cancellations, payouts and support all move
+  onto the scale.
+
+  Thirteen insets stay as they are, on purpose: nine size a glyph inside a
+  circle or square (the verified badge, the favourite button, the fullscreen
+  control) where the ruler is optical, not rhythmic, and four are whitespace
+  around a lone spinner with nothing near them to align to.
+
 ## [1.0.53] — 2026-08-26
 
 ### Changed

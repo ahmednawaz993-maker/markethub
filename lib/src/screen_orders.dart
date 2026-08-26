@@ -861,7 +861,7 @@ class _MultiPackageBanner extends StatelessWidget {
     final allDone = delivered >= packages && packages > 0;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: Colors.deepPurple.withValues(alpha: 0.08),
         borderRadius: AppRadius.rSm,
@@ -959,7 +959,7 @@ class _OrderDeliveryPanel extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: Colors.grey.withValues(alpha: 0.07),
           borderRadius: AppRadius.rSm,

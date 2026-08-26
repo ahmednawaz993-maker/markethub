@@ -1225,7 +1225,7 @@ class _AdminPaymentTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const SingleChildScrollView(
-      padding: EdgeInsets.all(14),
+      padding: EdgeInsets.all(AppSpacing.lg),
       child: _PaymentAccountEditor(),
     );
   }
@@ -1952,7 +1952,7 @@ class _LiveUsersCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Row(
           children: [
             OnlineUsersCount(
@@ -2863,7 +2863,7 @@ class _AdminReportsTab extends StatelessWidget {
             return Card(
               margin: const EdgeInsets.only(bottom: 10),
               child: Padding(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -2997,7 +2997,7 @@ class _AdminPromotionsTab extends StatelessWidget {
             return Card(
               margin: const EdgeInsets.only(bottom: 10),
               child: Padding(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -3149,7 +3149,7 @@ class _AdminTopupsTab extends StatelessWidget {
             return Card(
               margin: const EdgeInsets.only(bottom: 10),
               child: Padding(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -4021,7 +4021,7 @@ class _AdminLuckyDrawTabState extends State<_AdminLuckyDrawTab> {
                   Card(
                     color: kPakGreen,
                     child: Padding(
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.all(AppSpacing.lg),
                       child: Text(
                         '${docs.length} entries · $winners winner(s) marked',
                         textAlign: TextAlign.center,
@@ -4585,7 +4585,7 @@ class _AdminListingsTab extends StatelessWidget {
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: Padding(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -6641,7 +6641,7 @@ class _AdminDeletionsTab extends StatelessWidget {
             Container(
               width: double.infinity,
               color: const Color(0xFFFFF3CD),
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(AppSpacing.md),
               child: const Text(
                 'After deleting a user\'s data here, also remove their login in '
                 'Firebase Console → Authentication to fully delete the account.',

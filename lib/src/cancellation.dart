@@ -350,7 +350,7 @@ class _BuyerPendingRequestCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: Colors.orange.withValues(alpha: 0.08),
           borderRadius: AppRadius.rSm,
@@ -423,7 +423,7 @@ class _SellerCancellationCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: Colors.red.withValues(alpha: 0.06),
           borderRadius: AppRadius.rSm,

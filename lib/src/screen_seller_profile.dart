@@ -422,7 +422,7 @@ class _StoreInfoCard extends StatelessWidget {
         Card(
           margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -492,7 +492,7 @@ class _StoreInfoCard extends StatelessWidget {
           Card(
             margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: Padding(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

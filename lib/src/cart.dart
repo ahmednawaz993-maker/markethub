@@ -263,7 +263,7 @@ class MasterOrder {
 /// A green info strip used when a cart/checkout spans multiple sellers.
 Widget _multiSellerBanner(String text) => Container(
   margin: const EdgeInsets.only(bottom: 10),
-  padding: const EdgeInsets.all(10),
+  padding: const EdgeInsets.all(AppSpacing.md),
   // Opaque light surface (not a translucent tint) so the text is readable over
   // the navy gradient rather than dark-on-navy.
   decoration: BoxDecoration(

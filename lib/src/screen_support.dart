@@ -364,7 +364,7 @@ Future<void> _showNewTicketSheet(BuildContext context) async {
                 const SizedBox(height: 10),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
                     color: kGold.withValues(alpha: 0.12),
                     borderRadius: AppRadius.rSm,
@@ -960,7 +960,7 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                         const SizedBox(width: 4),
                         _uploadingVoice
                             ? const Padding(
-                                padding: EdgeInsets.all(10),
+                                padding: EdgeInsets.all(AppSpacing.md),
                                 child: SizedBox(
                                   width: 22,
                                   height: 22,

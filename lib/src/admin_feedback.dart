@@ -243,7 +243,7 @@ class AdminFeedbackCard extends StatelessWidget {
               const SizedBox(height: 10),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
                   color: kPakGreen.withValues(alpha: 0.08),
                   borderRadius: AppRadius.rMd,
@@ -469,7 +469,7 @@ class _FeedbackClientPanelState extends State<_FeedbackClientPanel> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.surfaceVariant,
         borderRadius: AppRadius.rMd,

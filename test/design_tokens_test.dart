@@ -89,24 +89,53 @@ void main() {
     });
   });
 
-  // Spacing is deliberately NOT asserted clean yet: 43 uniform insets are still
-  // off-scale, and unlike a radius, changing one moves layout and can overflow.
-  // They need a screen-by-screen pass. This pins the number so the count can
-  // only go down.
-  test('uniform-inset drift does not grow', () {
-    final re = RegExp(r'EdgeInsets\.all\(\s*\d');
-    var count = 0;
-    for (final f in _uiSources()) {
-      for (final l in f.readAsLinesSync()) {
-        if (re.hasMatch(l)) count++;
+  // Every uniform inset that is genuinely CONTAINER PADDING — the spacing
+  // rhythm a reader perceives — now uses AppSpacing. Thirteen literals remain
+  // on purpose, because forcing them onto a 4-multiple scale would be applying
+  // the wrong ruler:
+  //
+  //  * 3, 5, 6, 7 (9 sites) — insets between a glyph and the circle or square
+  //    drawn around it: the verified-seller badge, the favourite button, the
+  //    fullscreen control, a spinner. These size a control optically; they are
+  //    not spacing between things, and snapping them changes hit targets to no
+  //    design benefit.
+  //  * 24, 32, 40 (4 sites) — whitespace around a centred spinner or error
+  //    message on an otherwise empty screen. Nothing sits near them to be
+  //    rhythmic with.
+  //
+  // The ceiling may only shrink. If a new raw inset is genuinely one of the two
+  // cases above, lower the count deliberately rather than raising it.
+  test('container padding is fully tokenised, and drift cannot grow', () {
+    final re = RegExp(r'EdgeInsets\.all\(\s*(\d+)');
+    final found = <String>[];
+    for (final f in _uiSources(includeDesignSystem: true)) {
+      final lines = f.readAsLinesSync();
+      for (var i = 0; i < lines.length; i++) {
+        final m = re.firstMatch(lines[i]);
+        if (m != null) {
+          found.add('${f.uri.pathSegments.last}:${i + 1} → ${m.group(1)}px');
+        }
       }
     }
     expect(
-      count,
-      lessThanOrEqualTo(43),
+      found.length,
+      lessThanOrEqualTo(13),
       reason:
-          'New code should use AppSpacing. $count raw EdgeInsets.all remain; '
-          'the agreed ceiling is 43 and it may only shrink.',
+          'New code should use AppSpacing. ${found.length} raw insets found, '
+          'ceiling is 13:\n${found.join('\n')}',
+    );
+
+    // The rhythm values are the ones that must never come back: each sits one
+    // step off the scale, which is exactly how a layout drifts by 2px at a
+    // time until nothing lines up.
+    final rhythm = found.where((s) {
+      final px = int.parse(s.split('→ ').last.replaceAll('px', ''));
+      return px == 10 || px == 14 || px == 18;
+    });
+    expect(
+      rhythm,
+      isEmpty,
+      reason: 'these are container padding — use AppSpacing:\n$rhythm',
     );
   });
 }

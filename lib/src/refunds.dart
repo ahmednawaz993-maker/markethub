@@ -251,7 +251,7 @@ class _BuyerRefundPendingCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: Colors.deepPurple.withValues(alpha: 0.08),
           borderRadius: AppRadius.rSm,
