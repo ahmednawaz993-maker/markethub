@@ -52,6 +52,47 @@ abstract final class AppRadius {
   static final BorderRadius rPill = BorderRadius.circular(pill);
 }
 
+/// Elevation for surfaces that should read as objects rather than as regions of
+/// the page — principally the listing card, which is the most-repeated surface
+/// in the app.
+///
+/// The two themes get depth from opposite mechanisms, which is why this is a
+/// token and not a constant:
+///
+///  * **Light** — a soft two-layer shadow and NO border. The page sits on
+///    #F7F8FA precisely so a white card reads as raised; a hairline on top of
+///    that made a grid of cards read as one mesh of boxes instead of separate
+///    objects.
+///  * **Dark** — no shadow, keep the hairline. A shadow cast on a near-black
+///    ground is invisible, so spending paint on it buys nothing; there, depth
+///    comes from the surface being lighter than the page plus the border.
+///
+/// Tinted toward the app's ink navy rather than pure black, so the shade sits
+/// in the same colour world as everything around it.
+abstract final class AppShadow {
+  /// Resting elevation for a card. Empty in dark mode by design — pair it with
+  /// [cardBorder] so exactly one of the two is doing the work.
+  static List<BoxShadow> get card => _dark
+      ? const <BoxShadow>[]
+      : const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x0F0A1526),
+            blurRadius: 2,
+            offset: Offset(0, 1),
+          ),
+          BoxShadow(
+            color: Color(0x140A1526),
+            blurRadius: 18,
+            offset: Offset(0, 6),
+          ),
+        ];
+
+  /// The hairline that replaces [card] in dark mode, and null in light where
+  /// the shadow already separates the surface from the ground.
+  static BoxBorder? get cardBorder =>
+      _dark ? Border.all(color: AppColors.borderSoft) : null;
+}
+
 /// Shared text styles. Resolved against the live [AppColors] so they follow
 /// light/dark mode without a BuildContext.
 abstract final class AppType {
@@ -287,11 +328,14 @@ class ListingCardSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Matches the real card's elevation so the skeleton does not visibly
+    // change shape when the data arrives.
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: AppRadius.rCard,
-        border: Border.all(color: AppColors.borderSoft),
+        border: AppShadow.cardBorder,
+        boxShadow: AppShadow.card,
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -913,11 +957,16 @@ class _MarketplaceListingCardState extends State<MarketplaceListingCard> {
         l.createdAt != null &&
         DateTime.now().difference(l.createdAt!.toDate()).inHours < 24;
 
+    // Geometry is untouched — same radius, same bounded height, so the
+    // overflow-proof layout documented above still holds. Only the way the
+    // card separates from the page changes: shadow in light, hairline in
+    // dark. See [AppShadow].
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: AppRadius.rCard,
-        border: Border.all(color: AppColors.borderSoft),
+        border: AppShadow.cardBorder,
+        boxShadow: AppShadow.card,
       ),
       clipBehavior: Clip.antiAlias,
       child: Material(

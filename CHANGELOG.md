@@ -11,6 +11,24 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.52] — 2026-08-26
+
+### Changed
+
+- **Listing cards now lift off the page.** The hairline border is replaced by a
+  soft shadow, so on a busy grid the cards read as separate objects you can tap
+  rather than as one mesh of boxes. Geometry is untouched — same corner radius,
+  same height — so nothing reflows and the card keeps its guarantee that it can
+  never overflow.
+
+  Dark mode deliberately keeps the hairline and spends nothing on a shadow: a
+  shade cast on a near-black ground is invisible, and there the separation
+  already comes from the card surface being lighter than the page. Exactly one
+  of the two mechanisms is active in either theme, and a test pins that.
+
+  The loading skeleton was updated to match, so a card no longer visibly
+  changes shape when its data arrives.
+
 ## [1.0.51] — 2026-08-26
 
 ### Fixed
