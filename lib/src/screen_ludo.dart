@@ -240,38 +240,28 @@ int? ludoAutoStartIn(LudoRoom room) {
 /// often the one who wandered off, and a table that only their device can start
 /// is exactly the table that never starts. The transaction makes the race
 /// harmless — the second client to arrive sees status != waiting and stops.
+/// Fills the empty seats with computers and starts the game.
+///
+/// Seats are added ONE AT A TIME and the start is a separate write, because
+/// that is the only shape firestore.rules accepts. A single write that seated
+/// three computers and flipped status at once matches none of the update
+/// clauses — it was silently denied for every player except the host, which is
+/// precisely the player who has usually walked away. Cheap to get wrong and
+/// invisible when you do: the transaction just fails and the table sits there.
 Future<void> autoStartLudoRoom(String roomId) async {
-  await FirebaseFirestore.instance.runTransaction((tx) async {
-    final ref = _ludoCol().doc(roomId);
-    final snap = await tx.get(ref);
-    if (!snap.exists) return;
-    final room = LudoRoom.fromDoc(snap);
-    if (room.status != LudoRoomStatus.waiting) return;
-    // Someone must actually be here.
-    if (!room.seats.values.any((v) => !v.startsWith('bot:'))) return;
+  final first = await _ludoCol().doc(roomId).get();
+  if (!first.exists) return;
+  final room = LudoRoom.fromDoc(first);
+  if (room.status != LudoRoomStatus.waiting) return;
+  // Someone must actually be here.
+  if (!room.seats.values.any((v) => !v.startsWith('bot:'))) return;
 
-    final seats = {...room.seats};
-    final names = {...room.names};
-    var bots = seats.values.where((v) => v.startsWith('bot:')).length;
-    for (final c in LudoColor.values) {
-      if (seats.length >= kLudoQuickMatchSeats) break;
-      if (seats.containsKey(c.name)) continue;
-      bots++;
-      seats[c.name] = 'bot:$bots';
-      names[c.name] = 'Computer $bots';
-    }
-    final players = [
-      for (final c in LudoColor.values)
-        if (seats.containsKey(c.name)) c,
-    ];
-    tx.update(ref, {
-      'seats': seats,
-      'names': names,
-      'state': LudoGame.newGame(players, mode: room.game.mode).toJson(),
-      'status': LudoRoomStatus.playing.name,
-      'updatedAt': Timestamp.now(),
-    });
-  });
+  for (var i = room.seats.length; i < kLudoQuickMatchSeats; i++) {
+    // addLudoBot adds exactly one seat and touches nothing else, which is what
+    // the isJoining() rule permits.
+    if (await addLudoBot(roomId) == null) break;
+  }
+  await startLudoRoom(roomId);
 }
 
 /// The first build whose client asks the SERVER to roll the dice.
@@ -610,6 +600,9 @@ class LudoGameScreen extends StatefulWidget {
 class _LudoGameScreenState extends State<LudoGameScreen> {
   final _chat = TextEditingController();
 
+  /// Cached so a reaction does not trigger a profile read per tap.
+  String _displayName = 'Player';
+
   /// Only true while a network call is in flight. Everything else about the
   /// game — including the pending dice — comes from the synced state, so
   /// nothing can be lost by a rebuild.
@@ -632,9 +625,24 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
   @override
   void initState() {
     super.initState();
+    _loadDisplayName();
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
+  }
+
+  Future<void> _loadDisplayName() async {
+    final user = FirebaseAuth.instance.currentUser;
+    var name = user?.email?.split('@').first ?? 'Player';
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user?.uid)
+          .get();
+      final n = (doc.data()?['name'] ?? '').toString().trim();
+      if (n.isNotEmpty) name = n;
+    } catch (_) {}
+    if (mounted) setState(() => _displayName = name);
   }
 
   @override
@@ -801,15 +809,35 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
             children: [
               _players(room, me),
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: LudoBoard(
-                    game: room.game,
-                    moves: moves,
-                    onMove: (m) => _play(room, m),
-                  ),
+                // Reactions float OVER the board rather than taking layout
+                // space, so an emoji storm never shifts the squares a player is
+                // aiming at mid-tap.
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        child: LudoBoard(
+                          game: room.game,
+                          moves: moves,
+                          onMove: (m) => _play(room, m),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: AppSpacing.md,
+                      bottom: AppSpacing.sm,
+                      child: LudoReactionOverlay(roomId: widget.roomId),
+                    ),
+                  ],
                 ),
               ),
+              if (room.status == LudoRoomStatus.playing)
+                LudoReactionBar(
+                  roomId: widget.roomId,
+                  room: room,
+                  myName: _displayName,
+                ),
               _controls(room, me, myTurn, dice, moves),
             ],
           ),

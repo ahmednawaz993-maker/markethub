@@ -11,6 +11,15 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.73] — 2026-08-28
+
+- Ludo: emoji reactions and gifts. Tap an emoji to throw it at the table, or
+  send a rose, trophy, mithai or bomb to another player. Reactions float over
+  the board for a few seconds and delete themselves.
+- Fixed: the auto-start added in 1.0.71 only worked for the player who created
+  the table. Anyone who JOINED a game was silently denied by the security rules
+  — exactly the case it was meant to fix. Any seated player can now start.
+
 ## [1.0.72] — 2026-08-28
 
 - New Ludo gameplay: **Arrow**. Four one-way shortcuts around the board — land

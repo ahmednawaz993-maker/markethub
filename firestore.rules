@@ -974,8 +974,22 @@ service cloud.firestore {
       // The last clause is what stops a modified client moving out of turn or
       // moving for someone else. It cannot stop that client lying about its own
       // dice roll — that needs a server-side roll, which is not built yet.
+      // Any SEATED player may start a waiting table, not just the host.
+      // The host is usually the one who left, and a table only their device
+      // can start is the table that sits at one seat for ever. Deliberately
+      // narrow: waiting -> playing, and nothing but status/updatedAt may
+      // change, so this cannot be used to rewrite seats or the game state.
+      function isSeatedStart() {
+        return resource.data.status == 'waiting'
+               && request.resource.data.status == 'playing'
+               && request.auth.uid in resource.data.seats.values()
+               && request.resource.data.diff(resource.data)
+                    .affectedKeys().hasOnly(['status', 'updatedAt']);
+      }
+
       allow update: if isSignedIn() && (
                       isJoining()
+                      || isSeatedStart()
                       || (resource.data.hostId == request.auth.uid
                           && request.resource.data.diff(resource.data)
                                .affectedKeys().hasOnly(['status', 'updatedAt']))
@@ -991,6 +1005,24 @@ service cloud.firestore {
       // is losing.
       allow delete: if isSignedIn()
                     && (resource.data.hostId == request.auth.uid || isAdmin());
+
+      // Emoji and gifts. Ephemeral by design: a sender deletes its own
+      // document once it has been seen, so nothing accumulates.
+      match /reactions/{reactionId} {
+        allow read: if isSignedIn();
+        // Only somebody actually sitting at this table may send, and only as
+        // themselves. Without the seat check any signed-in user who can read a
+        // room could spray emoji into a game they are not playing.
+        allow create: if isSignedIn()
+                      && request.resource.data.userId == request.auth.uid
+                      && request.auth.uid in
+                           get(/databases/$(database)/documents/ludoRooms/$(roomId))
+                             .data.seats.values();
+        // A reaction is a thing that happened; it is never edited.
+        allow update: if false;
+        allow delete: if isSignedIn()
+                      && (resource.data.userId == request.auth.uid || isAdmin());
+      }
 
       // A doorbell, not a record: writing one asks the server to roll, and the
       // trigger deletes it. Only the player whose turn it is may ring it, and

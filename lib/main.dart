@@ -99,6 +99,7 @@ part 'src/ludo_board.dart';
 part 'src/ludo_dice.dart';
 part 'src/game_sound.dart';
 part 'src/ludo_invite.dart';
+part 'src/ludo_reactions.dart';
 part 'src/screen_ludo.dart';
 part 'src/screen_admin_categories.dart';
 part 'src/screen_notifications.dart';
