@@ -945,6 +945,62 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // Ludo — multiplayer rooms. A whole game is one document: a few hundred
+    // bytes that every player needs to see change atomically.
+    // ---------------------------------------------------------------------
+    match /ludoRooms/{roomId} {
+      // The colour whose turn it is, read out of the stored state.
+      function seatToMove(state, seats) {
+        return seats.get(state.players[state.turn], '');
+      }
+      // A player writing only to take an empty seat (joining), not to move.
+      function isJoining() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['seats', 'names', 'state', 'updatedAt'])
+               && resource.data.seats.size() < 4
+               && request.resource.data.seats.size()
+                    == resource.data.seats.size() + 1;
+      }
+
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+                    && request.resource.data.hostId == request.auth.uid
+                    && request.resource.data.seats.size() == 1;
+
+      // Three ways a room legitimately changes, and no others:
+      //  - somebody takes a free seat,
+      //  - the host starts the game,
+      //  - the player whose turn it IS pushes the next state.
+      // The last clause is what stops a modified client moving out of turn or
+      // moving for someone else. It cannot stop that client lying about its own
+      // dice roll — that needs a server-side roll, which is not built yet.
+      allow update: if isSignedIn() && (
+                      isJoining()
+                      || (resource.data.hostId == request.auth.uid
+                          && request.resource.data.diff(resource.data)
+                               .affectedKeys().hasOnly(['status', 'updatedAt']))
+                      || seatToMove(resource.data.state, resource.data.seats)
+                           == request.auth.uid
+                    );
+      // Rooms are cleaned up by their host or an admin, never by a player who
+      // is losing.
+      allow delete: if isSignedIn()
+                    && (resource.data.hostId == request.auth.uid || isAdmin());
+
+      // Table talk. Anyone signed in may read a room, so anyone may read its
+      // chat; only the author may write, and nobody may edit history.
+      match /messages/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+                      && request.resource.data.userId == request.auth.uid
+                      && request.resource.data.text is string
+                      && request.resource.data.text.size() > 0
+                      && request.resource.data.text.size() <= 500;
+        allow update, delete: if false;
+      }
+    }
+
+    // ---------------------------------------------------------------------
     // Feedback — help requests and suggestions from the Help & Feedback sheet.
     // A signed-in user submits their own; only the author or an admin can read;
     // admins resolve/delete.

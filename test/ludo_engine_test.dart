@@ -167,19 +167,19 @@ void main() {
   group('the home stretch', () {
     test('home must be reached exactly; overshooting is not a move', () {
       final g = _withPositions({
-        LudoColor.red: [54, kLudoInYard, kLudoInYard, kLudoInYard],
+        LudoColor.red: [53, kLudoInYard, kLudoInYard, kLudoInYard],
         LudoColor.green: [kLudoInYard, kLudoInYard, kLudoInYard, kLudoInYard],
       });
-      // 54 + 3 = 57 exactly.
+      // 53 + 3 = 56 exactly.
       expect(g.legalMoves(3).where((m) => m.tokenIndex == 0), hasLength(1));
-      // 54 + 4 = 58 overshoots.
+      // 53 + 4 = 57 overshoots.
       expect(g.legalMoves(4).where((m) => m.tokenIndex == 0), isEmpty);
       expect(g.legalMoves(6).where((m) => m.tokenIndex == 0), isEmpty);
     });
 
     test('getting a token home earns another turn', () {
       final g = _withPositions({
-        LudoColor.red: [54, kLudoInYard, kLudoInYard, kLudoInYard],
+        LudoColor.red: [53, kLudoInYard, kLudoInYard, kLudoInYard],
         LudoColor.green: [kLudoInYard, kLudoInYard, kLudoInYard, kLudoInYard],
       });
       final r = g.roll(3);
@@ -189,7 +189,7 @@ void main() {
 
     test('all four home wins, and the seat is skipped afterwards', () {
       final g = _withPositions({
-        LudoColor.red: [kLudoHome, kLudoHome, kLudoHome, 54],
+        LudoColor.red: [kLudoHome, kLudoHome, kLudoHome, 53],
         LudoColor.green: [0, kLudoInYard, kLudoInYard, kLudoInYard],
         LudoColor.yellow: [0, kLudoInYard, kLudoInYard, kLudoInYard],
       });
@@ -267,7 +267,7 @@ void main() {
     // lane with no capture and no blocking.
     test('own tokens may share the home column', () {
       final g = _withPositions({
-        LudoColor.red: [51, 49, kLudoInYard, kLudoInYard],
+        LudoColor.red: [52, 50, kLudoInYard, kLudoInYard],
         LudoColor.green: [kLudoInYard, kLudoInYard, kLudoInYard, kLudoInYard],
       });
       expect(g.legalMoves(2).where((m) => m.tokenIndex == 1), hasLength(1));

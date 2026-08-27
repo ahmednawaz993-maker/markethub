@@ -51,9 +51,13 @@ const int kLudoRingLength = 52;
 /// Progress value meaning "in the yard, not yet on the board".
 const int kLudoInYard = -1;
 
-/// Progress 0..50 is the ring, 51..56 the home column, 57 is home.
+/// Progress 0..50 is the ring, 51..55 the five private home squares, and 56 is
+/// home itself (the centre). 51 ring cells rather than 52: a token turns into
+/// its own column one square short of completing the circuit, which is why it
+/// never lands back on its own start.
 const int kLudoLastRingStep = 50;
-const int kLudoHome = 57;
+const int kLudoHomeColumnLength = 5;
+const int kLudoHome = 56;
 
 /// One token's position, expressed as progress along its OWN path.
 ///

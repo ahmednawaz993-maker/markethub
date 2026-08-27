@@ -138,10 +138,11 @@ void main() {
   // on purpose, because forcing them onto a 4-multiple scale would be applying
   // the wrong ruler:
   //
-  //  * 3, 5, 6, 7 (9 sites) — insets between a glyph and the circle or square
-  //    drawn around it: the verified-seller badge, the favourite button, the
-  //    fullscreen control, a spinner. These size a control optically; they are
-  //    not spacing between things, and snapping them changes hit targets to no
+  //  * 2, 3, 5, 6, 7 (10 sites) — insets between a glyph and the circle or
+  //    square drawn around it: the verified-seller badge, the favourite button,
+  //    the fullscreen control, a spinner, and the gap that sizes a Ludo token
+  //    inside its board square. These size a control optically; they are not
+  //    spacing between things, and snapping them changes hit targets to no
   //    design benefit.
   //  * 24, 32, 40 (4 sites) — whitespace around a centred spinner or error
   //    message on an otherwise empty screen. Nothing sits near them to be
@@ -163,10 +164,10 @@ void main() {
     }
     expect(
       found.length,
-      lessThanOrEqualTo(13),
+      lessThanOrEqualTo(14),
       reason:
           'New code should use AppSpacing. ${found.length} raw insets found, '
-          'ceiling is 13:\n${found.join('\n')}',
+          'ceiling is 14:\n${found.join('\n')}',
     );
 
     // The rhythm values are the ones that must never come back: each sits one

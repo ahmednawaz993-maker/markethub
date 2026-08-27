@@ -88,6 +88,8 @@ part 'src/admin_feedback.dart';
 part 'src/prayer_times.dart';
 part 'src/screen_islamic.dart';
 part 'src/ludo_engine.dart';
+part 'src/ludo_board.dart';
+part 'src/screen_ludo.dart';
 part 'src/screen_admin_categories.dart';
 part 'src/screen_notifications.dart';
 part 'src/screen_chat.dart';

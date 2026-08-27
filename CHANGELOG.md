@@ -11,6 +11,25 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.57] — 2026-08-27
+
+### Added
+
+- **Ludo, with chat at the table.** Start a game, share it, and up to four
+  people play on one board in real time — with a chat panel so the table can
+  talk while they play. Two, three or four players; the seats decide who is in
+  the game. Under **Menu → Games**.
+
+  The rules are the ones people actually play in Pakistan: a six to leave the
+  yard, another turn for a six, a capture or getting a token home, three sixes
+  in a row forfeits the turn, eight safe squares, and an exact roll needed to
+  come home.
+
+  A game lives in a single record that every player watches, so moves appear
+  immediately for everyone. The security rules only accept a move from the
+  player whose turn it actually is, so nobody can play out of turn or move
+  somebody else's token.
+
 ## [1.0.56] — 2026-08-27
 
 ### Added

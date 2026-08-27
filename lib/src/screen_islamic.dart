@@ -47,6 +47,25 @@ class IslamicSectionTiles extends StatelessWidget {
   );
 }
 
+/// Games. Separate from the marketplace on purpose — it is a reason to open
+/// the app on a day nobody is buying anything.
+class GamesSectionTiles extends StatelessWidget {
+  const GamesSectionTiles({super.key});
+
+  @override
+  Widget build(BuildContext context) => _MenuGroup(
+    title: 'Games',
+    items: [
+      _MenuItem(
+        icon: Icons.casino,
+        label: 'Ludo',
+        subtitle: 'Play with friends, with chat at the table',
+        builder: () => const LudoLobbyScreen(),
+      ),
+    ],
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Prayer timings
 // ---------------------------------------------------------------------------
