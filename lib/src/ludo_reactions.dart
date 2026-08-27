@@ -208,7 +208,7 @@ class _LudoReactionBarState extends State<LudoReactionBar> {
                         onPressed: () => Navigator.pop(ctx, (g, t.name)),
                         icon: Text(
                           g.emoji,
-                          style: const TextStyle(fontSize: 22),
+                          style: const TextStyle(fontSize: 20),
                         ),
                       ),
                   ],
