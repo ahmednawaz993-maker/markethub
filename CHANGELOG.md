@@ -11,6 +11,12 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.68] — 2026-08-27
+
+- The Facebook button had no mark on it. Icons.facebook is not in the Material
+  icon font this app ships, so it rendered as nothing at all on the live site.
+  The "f" is drawn as a path now, which depends on no font and no icon set.
+
 ## [1.0.67] — 2026-08-27
 
 - Facebook sign-in. "Continue with Facebook" on the login screen, alongside

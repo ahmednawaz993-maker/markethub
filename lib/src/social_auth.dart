@@ -266,7 +266,7 @@ class FacebookSignInButton extends StatelessWidget {
               color: Colors.white,
             ),
           )
-        : const Icon(Icons.facebook, size: 22),
+        : const _FacebookGlyph(size: 20),
     label: Text(
       label,
       style: AppType.body.copyWith(
@@ -275,4 +275,82 @@ class FacebookSignInButton extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// The Facebook "f", drawn as a path.
+///
+/// Two earlier attempts failed on the live site and both failures were only
+/// visible in a screenshot of the real thing, never in a test:
+///
+///  * Text('f') in Georgia — Android does not have Georgia, so it would have
+///    silently fallen back to some other face on most of these devices.
+///  * Icons.facebook — the codepoint is not in the Material icon font this app
+///    ships, so the button rendered with no mark on it at all.
+///
+/// A path depends on no font and no icon set, so it renders identically on
+/// Android, iOS and the web, and it scales with the button.
+class _FacebookGlyph extends StatelessWidget {
+  const _FacebookGlyph({required this.size});
+  final double size;
+
+  @override
+  Widget build(BuildContext context) =>
+      CustomPaint(size: Size.square(size), painter: _FacebookGlyphPainter());
+}
+
+class _FacebookGlyphPainter extends CustomPainter {
+  /// The letter in a unit box, traced anticlockwise from the foot of the stem:
+  /// up the stem, out and back along the crossbar, up into the ascender, over
+  /// the hook, and back down the far side.
+  static const List<Offset> _outline = [
+    Offset(0.42, 1.00),
+    Offset(0.42, 0.56),
+    Offset(0.26, 0.56),
+    Offset(0.26, 0.40),
+    Offset(0.42, 0.40),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height;
+    Offset p(double x, double y) => Offset(x * w, y * h);
+
+    final path = Path()..moveTo(_outline.first.dx * w, _outline.first.dy * h);
+    for (final o in _outline.skip(1)) {
+      path.lineTo(o.dx * w, o.dy * h);
+    }
+    path
+      // The ascender rises out of the crossbar and hooks right over the top.
+      ..lineTo(0.42 * w, 0.30 * h)
+      ..cubicTo(
+        0.42 * w,
+        0.06 * h,
+        0.52 * w,
+        0.00 * h,
+        0.74 * w,
+        0.00 * h,
+      )
+      ..lineTo(p(0.80, 0.0).dx, p(0.80, 0.0).dy)
+      ..lineTo(p(0.80, 0.17).dx, p(0.80, 0.17).dy)
+      ..lineTo(p(0.72, 0.17).dx, p(0.72, 0.17).dy)
+      // ...then curves back down into the bowl of the stem.
+      ..cubicTo(
+        0.62 * w,
+        0.17 * h,
+        0.60 * w,
+        0.22 * h,
+        0.60 * w,
+        0.32 * h,
+      )
+      ..lineTo(p(0.60, 0.40).dx, p(0.60, 0.40).dy)
+      ..lineTo(p(0.80, 0.40).dx, p(0.80, 0.40).dy)
+      ..lineTo(p(0.78, 0.56).dx, p(0.78, 0.56).dy)
+      ..lineTo(p(0.60, 0.56).dx, p(0.60, 0.56).dy)
+      ..lineTo(p(0.60, 1.00).dx, p(0.60, 1.00).dy)
+      ..close();
+    canvas.drawPath(path, Paint()..color = Colors.white);
+  }
+
+  @override
+  bool shouldRepaint(_FacebookGlyphPainter old) => false;
 }
