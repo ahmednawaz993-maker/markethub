@@ -18,6 +18,9 @@ class _AuthScreenState extends State<AuthScreen> {
 
   bool isLogin = true;
   bool isLoading = false;
+  // Separate from isLoading so the spinner appears in the Facebook button
+  // rather than on the email form, which is what the user actually tapped.
+  bool isFacebookLoading = false;
   String? errorMessage;
 
   // Phone / OTP login state.
@@ -448,6 +451,34 @@ class _AuthScreenState extends State<AuthScreen> {
     resetController.dispose();
   }
 
+  Future<void> continueWithFacebook() async {
+    setState(() {
+      isLoading = true;
+      isFacebookLoading = true;
+      errorMessage = null;
+    });
+    try {
+      final cred = await signInWithFacebook();
+      if (cred.additionalUserInfo?.isNewUser == true) {
+        trackSignUp(method: 'facebook');
+      }
+      // AuthGate listens to authStateChanges and navigates automatically.
+    } catch (e) {
+      if (!mounted) return;
+      // An empty message means the user closed the Facebook window themselves.
+      // That is not an error and showing one for it is just noise.
+      final msg = friendlyFacebookError(e);
+      setState(() => errorMessage = msg.isEmpty ? null : msg);
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+          isFacebookLoading = false;
+        });
+      }
+    }
+  }
+
   Future<void> continueAsGuest() async {
     setState(() {
       isLoading = true;
@@ -699,6 +730,11 @@ class _AuthScreenState extends State<AuthScreen> {
                       child: const Text('Change number'),
                     ),
                   const Divider(height: 32),
+                  FacebookSignInButton(
+                    busy: isFacebookLoading,
+                    onPressed: isLoading ? null : continueWithFacebook,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
                   OutlinedButton.icon(
                     onPressed: isLoading ? null : continueAsGuest,
                     icon: const Icon(Icons.person_outline),

@@ -812,10 +812,16 @@ class _HomeScreenState extends State<HomeScreen> {
       // Public profile document: no contact PII. Every signed-in user can read
       // this collection (seller pages, Stores rails), and rules cannot filter
       // fields on read.
+      // facebookId is Facebook's app-scoped id — unique to this app and useless
+      // for looking the person up anywhere else. It lives on the public doc
+      // because friend matching is a whereIn query across users, which a
+      // private subcollection cannot serve.
+      final facebookId = facebookIdOf(user);
       await ref.set({
         'isAnonymous': user.isAnonymous,
         'verified': user.emailVerified,
         'createdAt': Timestamp.now(),
+        'facebookId': ?facebookId,
       });
       await savePrivateContact(user.uid, {
         'email': user.email ?? '',

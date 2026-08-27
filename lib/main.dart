@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+
+import 'package:http/http.dart' as http;
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' show PlatformDispatcher;
@@ -65,6 +67,7 @@ part 'src/screen_payout_accounts.dart';
 part 'src/widgets.dart';
 part 'src/presence.dart';
 part 'src/app.dart';
+part 'src/social_auth.dart';
 part 'src/screen_auth.dart';
 part 'src/screen_home.dart';
 part 'src/screen_stores.dart';

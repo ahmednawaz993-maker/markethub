@@ -151,11 +151,29 @@ class LudoInviteSheet extends StatefulWidget {
 class _LudoInviteSheetState extends State<LudoInviteSheet> {
   final Set<String> _invited = {};
   String _myName = 'A friend';
+  List<FacebookFriend> _fbFriends = const [];
+  bool _fbLoading = false;
 
   @override
   void initState() {
     super.initState();
     _loadName();
+    _loadFacebookFriends();
+  }
+
+  /// Only runs for a player who signed in with Facebook this session — the
+  /// access token is held in memory and never persisted, so there is nothing
+  /// to look friends up with otherwise.
+  Future<void> _loadFacebookFriends() async {
+    if (facebookAccessToken == null) return;
+    setState(() => _fbLoading = true);
+    final friends = await facebookFriendsOnPakBazar();
+    if (mounted) {
+      setState(() {
+        _fbFriends = friends;
+        _fbLoading = false;
+      });
+    }
   }
 
   Future<void> _loadName() async {
@@ -172,6 +190,22 @@ class _LudoInviteSheetState extends State<LudoInviteSheet> {
   }
 
   String get _link => ludoInviteUrl(widget.room.id);
+
+  /// Marks optimistically and rolls back on failure, so a tap always responds
+  /// but never lies about having sent something.
+  Future<void> _invite(String uid) async {
+    setState(() => _invited.add(uid));
+    try {
+      await inviteFriendToLudo(
+        friendUid: uid,
+        roomId: widget.room.id,
+        fromName: _myName,
+        mode: widget.room.game.mode,
+      );
+    } catch (_) {
+      if (mounted) setState(() => _invited.remove(uid));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -227,6 +261,56 @@ class _LudoInviteSheetState extends State<LudoInviteSheet> {
               ],
             ),
           ),
+          if (facebookAccessToken != null) ...[
+            const Divider(height: AppSpacing.xl),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Text('Facebook friends here', style: AppType.label),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            if (_fbLoading)
+              const Padding(
+                padding: EdgeInsets.all(AppSpacing.md),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              )
+            else if (_fbFriends.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  0,
+                  AppSpacing.lg,
+                  AppSpacing.md,
+                ),
+                // Said plainly, because the alternative is a player concluding
+                // the feature is broken. Facebook only ever discloses friends
+                // who use this same app — it has not returned a full friend
+                // list to anyone since 2014.
+                child: Text(
+                  'None of your Facebook friends are on PakBazar yet. Facebook '
+                  'only shows friends who already use this app, so share the '
+                  'link above to reach the rest.',
+                  style: AppType.secondary,
+                ),
+              )
+            else
+              for (final f in _fbFriends)
+                _InviteRow(
+                  name: f.name,
+                  avatarColor: FacebookSignInButton.brandBlue,
+                  playing: widget.room.seats.containsValue(f.uid),
+                  sent: _invited.contains(f.uid),
+                  onInvite: () => _invite(f.uid),
+                ),
+          ],
           const Divider(height: AppSpacing.xl),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
@@ -276,44 +360,12 @@ class _LudoInviteSheetState extends State<LudoInviteSheet> {
                     final fid = docs[i].id;
                     final name =
                         (d['name'] ?? d['sellerName'] ?? 'Player').toString();
-                    final already = widget.room.seats.containsValue(fid);
-                    final sent = _invited.contains(fid);
-                    return ListTile(
-                      dense: true,
-                      leading: CircleAvatar(
-                        radius: 16,
-                        backgroundColor: kPakGreen.withValues(alpha: 0.12),
-                        child: Text(
-                          name.isEmpty ? '?' : name[0].toUpperCase(),
-                          style: const TextStyle(
-                            color: kPakGreen,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      title: Text(name),
-                      trailing: already
-                          ? Text('Playing', style: AppType.caption)
-                          : TextButton(
-                              onPressed: sent
-                                  ? null
-                                  : () async {
-                                      setState(() => _invited.add(fid));
-                                      try {
-                                        await inviteFriendToLudo(
-                                          friendUid: fid,
-                                          roomId: widget.room.id,
-                                          fromName: _myName,
-                                          mode: widget.room.game.mode,
-                                        );
-                                      } catch (_) {
-                                        if (mounted) {
-                                          setState(() => _invited.remove(fid));
-                                        }
-                                      }
-                                    },
-                              child: Text(sent ? 'Invited' : 'Invite'),
-                            ),
+                    return _InviteRow(
+                      name: name,
+                      avatarColor: kPakGreen,
+                      playing: widget.room.seats.containsValue(fid),
+                      sent: _invited.contains(fid),
+                      onInvite: () => _invite(fid),
                     );
                   },
                 );
@@ -324,4 +376,44 @@ class _LudoInviteSheetState extends State<LudoInviteSheet> {
       ),
     );
   }
+}
+
+/// One invitable person: avatar, name, and a button that becomes a state.
+///
+/// Shared by both lists so a Facebook friend and a followed seller look and
+/// behave identically — the source of the name should not change the row.
+class _InviteRow extends StatelessWidget {
+  const _InviteRow({
+    required this.name,
+    required this.avatarColor,
+    required this.playing,
+    required this.sent,
+    required this.onInvite,
+  });
+
+  final String name;
+  final Color avatarColor;
+  final bool playing;
+  final bool sent;
+  final VoidCallback onInvite;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    dense: true,
+    leading: CircleAvatar(
+      radius: 16,
+      backgroundColor: avatarColor.withValues(alpha: 0.12),
+      child: Text(
+        name.isEmpty ? '?' : name[0].toUpperCase(),
+        style: TextStyle(color: avatarColor, fontWeight: FontWeight.w700),
+      ),
+    ),
+    title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+    trailing: playing
+        ? Text('Playing', style: AppType.caption)
+        : TextButton(
+            onPressed: sent ? null : onInvite,
+            child: Text(sent ? 'Invited' : 'Invite'),
+          ),
+  );
 }

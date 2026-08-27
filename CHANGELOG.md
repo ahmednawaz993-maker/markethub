@@ -11,6 +11,16 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.67] — 2026-08-27
+
+- Facebook sign-in. "Continue with Facebook" on the login screen, alongside
+  email, phone and guest. A guest who signs in is upgraded in place rather than
+  replaced, so favourites, cart and drafts survive.
+- Facebook friends who also use PakBazar can now be invited straight into a Ludo
+  game. Matching is done on Facebook's app-scoped id, recorded on the profile at
+  sign-in. Facebook only ever discloses friends who already use this same app,
+  and the empty state says so rather than implying the feature is broken.
+
 ## [1.0.66] — 2026-08-27
 
 - Ludo board redesigned. Yards, start squares and home columns are painted with
