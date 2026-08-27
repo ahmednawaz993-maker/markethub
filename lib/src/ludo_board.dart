@@ -118,84 +118,140 @@ class LudoBoardPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final u = size.width / 15.0; // one cell
     final fill = Paint()..style = PaintingStyle.fill;
-    final stroke = Paint()
+    final hairline = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = line;
+      ..strokeWidth = 0.9;
 
-    Rect cellRect(int row, int col) =>
-        Rect.fromLTWH(col * u, row * u, u, u);
+    // The ground is tinted a shade off the cell colour. Without this the empty
+    // track squares are surface-on-surface and the path simply disappears —
+    // which is exactly what the first render of this board looked like. Tint
+    // toward black or white by luminance rather than toward [line], which in
+    // the light theme is itself nearly the surface colour.
+    final dark = surface.computeLuminance() < 0.5;
+    final ground = Color.lerp(surface, dark ? Colors.white : Colors.black, 0.10)!;
+    final tileEdge = Color.lerp(surface, dark ? Colors.white : Colors.black, 0.22)!;
 
-    // Ground.
-    fill.color = surface;
-    canvas.drawRect(Offset.zero & size, fill);
+    Rect cellRect(int row, int col) => Rect.fromLTWH(col * u, row * u, u, u);
 
-    // Yards: a big rounded block of colour with a pale inner well.
+    // Ground. Rounded, so the board reads as an object sitting on the page
+    // rather than a pattern printed across it.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(u * 0.45)),
+      fill..color = ground,
+    );
+
+    // Yards. A flat block of colour is what makes a hand-drawn board look
+    // printed; two stops of the same hue give it a light source. The four
+    // token sockets are drawn as wells so an empty yard still reads as seats.
     for (final c in LudoColor.values) {
       final o = ludoYardOrigin(c);
-      fill.color = ludoColorOf(c);
+      final base = ludoColorOf(c);
+      final rect = Rect.fromLTWH(o.col * u, o.row * u, u * 6, u * 6);
       canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(o.col * u, o.row * u, u * 6, u * 6),
-          Radius.circular(u * 0.6),
-        ),
-        fill,
+        RRect.fromRectAndRadius(rect, Radius.circular(u * 0.6)),
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color.lerp(base, Colors.white, 0.22)!,
+              Color.lerp(base, Colors.black, 0.12)!,
+            ],
+          ).createShader(rect),
       );
-      fill.color = surface;
+      final well = Rect.fromLTWH(
+        (o.col + 1) * u,
+        (o.row + 1) * u,
+        u * 4,
+        u * 4,
+      );
       canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH((o.col + 1) * u, (o.row + 1) * u, u * 4, u * 4),
-          Radius.circular(u * 0.4),
-        ),
-        fill,
+        RRect.fromRectAndRadius(well, Radius.circular(u * 0.45)),
+        fill..color = surface,
       );
+      for (final slot in kLudoYardSlots) {
+        canvas.drawCircle(
+          Offset((o.col + slot.col + 0.5) * u, (o.row + slot.row + 0.5) * u),
+          u * 0.33,
+          fill..color = base.withValues(alpha: 0.16),
+        );
+      }
     }
 
-    // Ring.
+    // Ring. Each square is inset a hair and rounded, so the track reads as a
+    // row of tiles rather than a grid of lines.
     for (var i = 0; i < kLudoRing.length; i++) {
       final cell = kLudoRing[i];
-      final r = cellRect(cell.row, cell.col);
+      final r = cellRect(cell.row, cell.col).deflate(u * 0.04);
+      final rr = RRect.fromRectAndRadius(r, Radius.circular(u * 0.15));
       // A colour's start square is painted in that colour so players can see
       // where they join; the other safe squares get a star instead.
       final owner = LudoColor.values
           .where((c) => c.startCell == i)
           .cast<LudoColor?>()
           .firstWhere((c) => true, orElse: () => null);
-      fill.color = owner != null
-          ? ludoColorOf(owner).withValues(alpha: 0.85)
-          : surface;
-      canvas.drawRect(r, fill);
-      canvas.drawRect(r, stroke);
-      if (owner == null && kLudoSafeCells.contains(i)) {
-        _star(canvas, r.center, u * 0.30, line.withValues(alpha: 0.55));
+      if (owner != null) {
+        final base = ludoColorOf(owner);
+        canvas.drawRRect(
+          rr,
+          Paint()
+            ..shader = LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color.lerp(base, Colors.white, 0.18)!, base],
+            ).createShader(r),
+        );
+      } else {
+        canvas.drawRRect(rr, fill..color = surface);
+        canvas.drawRRect(rr, hairline..color = tileEdge);
+        if (kLudoSafeCells.contains(i)) {
+            _star(canvas, r.center, u * 0.30, tileEdge);
+        }
       }
     }
 
-    // Home columns.
+    // Home columns. The colour deepens toward the centre, so the run home
+    // reads as a direction of travel instead of five identical squares.
     for (final c in LudoColor.values) {
-      fill.color = ludoColorOf(c).withValues(alpha: 0.75);
-      for (final cell in ludoHomeColumn(c)) {
-        final r = cellRect(cell.row, cell.col);
-        canvas.drawRect(r, fill);
-        canvas.drawRect(r, stroke);
+      final cells = ludoHomeColumn(c);
+      final base = ludoColorOf(c);
+      for (var i = 0; i < cells.length; i++) {
+        final r = cellRect(cells[i].row, cells[i].col).deflate(u * 0.04);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(r, Radius.circular(u * 0.15)),
+          fill
+            ..color = Color.lerp(
+              Color.lerp(base, Colors.white, 0.34)!,
+              base,
+              i / (cells.length - 1),
+            )!,
+        );
       }
     }
 
-    // Centre: four triangles meeting in the middle, one per colour.
+    // Centre: four triangles meeting in the middle, one per colour, clipped
+    // into a rounded well with a disc in the middle so finished tokens land on
+    // something instead of floating over the seam where the triangles meet.
     final centre = Offset(size.width / 2, size.height / 2);
     final tl = Offset(6 * u, 6 * u);
     final tr = Offset(9 * u, 6 * u);
     final br = Offset(9 * u, 9 * u);
     final bl = Offset(6 * u, 9 * u);
+    canvas.save();
+    canvas.clipRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromPoints(tl, br),
+        Radius.circular(u * 0.3),
+      ),
+    );
     void tri(Offset a, Offset b, LudoColor c) {
-      fill.color = ludoColorOf(c);
       canvas.drawPath(
         Path()
           ..moveTo(a.dx, a.dy)
           ..lineTo(b.dx, b.dy)
           ..lineTo(centre.dx, centre.dy)
           ..close(),
-        fill,
+        fill..color = ludoColorOf(c),
       );
     }
 
@@ -203,7 +259,17 @@ class LudoBoardPainter extends CustomPainter {
     tri(tl, tr, LudoColor.green); // green from the top
     tri(tr, br, LudoColor.yellow); // yellow from the right
     tri(br, bl, LudoColor.blue); // blue from the bottom
-    canvas.drawRect(Rect.fromPoints(tl, br), stroke);
+    canvas.restore();
+    canvas.drawCircle(centre, u * 0.58, fill..color = surface);
+    canvas.drawCircle(
+      centre,
+      u * 0.58,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = tileEdge,
+    );
+    _star(canvas, centre, u * 0.36, tileEdge);
   }
 
   void _star(Canvas canvas, Offset c, double r, Color color) {
@@ -500,21 +566,52 @@ class _Token extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           decoration: BoxDecoration(
-            color: c,
             shape: BoxShape.circle,
-            border: Border.all(
-              color: playable ? Colors.white : Colors.white70,
-              width: playable ? 2.5 : 1.5,
+            // A radial gradient lit from the upper left is the whole difference
+            // between a coloured dot and a counter you could pick up.
+            gradient: RadialGradient(
+              center: const Alignment(-0.4, -0.5),
+              radius: 0.95,
+              colors: [
+                Color.lerp(c, Colors.white, 0.5)!,
+                c,
+                Color.lerp(c, Colors.black, 0.3)!,
+              ],
+              stops: const [0.0, 0.55, 1.0],
             ),
-            boxShadow: playable
-                ? [
-                    BoxShadow(
-                      color: c.withValues(alpha: 0.7),
-                      blurRadius: 8,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                : const [],
+            border: Border.all(
+              color: playable
+                  ? Colors.white
+                  : Colors.white.withValues(alpha: 0.75),
+              width: playable ? 2.4 : 1.4,
+            ),
+            boxShadow: [
+              // Every piece casts a small shadow, so it sits ON the board.
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.28),
+                blurRadius: 3,
+                offset: const Offset(0, 1.5),
+              ),
+              // A playable piece also glows in its own colour.
+              if (playable)
+                BoxShadow(
+                  color: c.withValues(alpha: 0.65),
+                  blurRadius: 10,
+                  spreadRadius: 1.5,
+                ),
+            ],
+          ),
+          // Specular highlight.
+          child: FractionallySizedBox(
+            widthFactor: 0.3,
+            heightFactor: 0.3,
+            alignment: const Alignment(-0.45, -0.55),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.55),
+              ),
+            ),
           ),
         ),
       ),

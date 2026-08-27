@@ -11,6 +11,19 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.66] — 2026-08-27
+
+- Ludo board redesigned. Yards, start squares and home columns are painted with
+  gradients rather than flat blocks, the track squares are rounded tiles on a
+  tinted ground, and the centre is a clipped well with a disc for finished
+  tokens. Tokens are drawn as real playing pieces — a radial gradient lit from
+  the upper left, a specular highlight and a drop shadow — so a piece sits on
+  the board instead of being a coloured dot printed on it.
+- Fixed a contrast bug found by looking at the render, not by a test: the empty
+  track squares were surface-on-surface, so the path a token walks was
+  effectively invisible. The ground is now tinted by luminance, which works in
+  both themes.
+
 ## [1.0.65] — 2026-08-27
 
 ### Added
