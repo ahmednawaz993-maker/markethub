@@ -434,6 +434,9 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
   /// move fires once and not on every rebuild of the same snapshot.
   String? _autoPlayed;
 
+  /// Releases the dice if a roll request is never answered.
+  Timer? _rollWatchdog;
+
   /// Drives the turn countdown. The server takes an unplayed turn after
   /// [kLudoTurnSeconds]; showing that ticking down is the difference between
   /// "the game is helping" and "the board is moving on its own".
@@ -449,6 +452,7 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
 
   @override
   void dispose() {
+    _rollWatchdog?.cancel();
     _tick?.cancel();
     _chat.dispose();
     super.dispose();
@@ -463,39 +467,40 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
   /// refuses any client write that sets a dice — so a modified app cannot claim
   /// a six. This method only reads back what the server decided and works out
   /// which tokens that allows the player to touch.
-  /// Asks the server to roll.
+  /// Asks the server to roll, by writing a one-field request document.
   ///
-  /// Nothing about the result is remembered on this device. The server parks
-  /// the dice on the shared game state and every player — including this one —
-  /// reads it back from there. That is not tidiness, it is the fix for a
-  /// deadlock: when the pending roll lived only in this widget's memory, losing
-  /// it (backgrounding the app, navigating away, any rebuild) left the player
-  /// with no tokens to tap AND a server that refused a new roll because one was
-  /// already pending. The game stuck permanently, for everyone.
+  /// NOT a callable. The callable works on Android and iOS but its reply cannot
+  /// be decoded by dart2js — any number in the response throws
+  /// "Int64 accessor not supported by dart2js" on the web build, even when the
+  /// client discards the result. A document write has no reply to decode and
+  /// behaves identically on every platform.
+  ///
+  /// Nothing about the outcome is stored here either. The server parks the dice
+  /// on the shared game state and every player reads it from there, which is
+  /// also what stops a lost local copy deadlocking the turn.
   Future<void> _roll() async {
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      // Deliberately NOT call<Map<String, dynamic>>: the platform channel hands
-      // back Map<Object?, Object?>, and the generic cast throws at runtime.
-      await FirebaseFunctions.instance.httpsCallable('ludoRoll').call({
-        'roomId': widget.roomId,
+      await _ludoCol()
+          .doc(widget.roomId)
+          .collection('rollRequests')
+          .add({'userId': _uid, 'at': Timestamp.now()});
+      // The dice keeps tumbling until the snapshot brings the result; see the
+      // reset in build(). A watchdog covers the case where the answer never
+      // comes — a request the server declined leaves no trace, and a die that
+      // spins forever is a worse failure than one that simply stops.
+      _rollWatchdog?.cancel();
+      _rollWatchdog = Timer(const Duration(seconds: 10), () {
+        if (mounted && _busy) setState(() => _busy = false);
       });
-      // The snapshot carries the result; there is nothing to store here.
-    } on FirebaseFunctionsException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message ?? 'Could not roll.')),
-        );
-      }
     } catch (e) {
       if (mounted) {
+        setState(() => _busy = false);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Could not roll: $e')));
       }
-    } finally {
-      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -553,6 +558,16 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
         final moves = (myTurn && dice != null)
             ? room.game.legalMoves(dice)
             : const <LudoMove>[];
+
+        // The roll is answered through the document, so the tumble ends when
+        // the dice appears or the turn moves on. A request that is refused
+        // silently (not your turn any more) still releases the dice, rather
+        // than spinning forever.
+        if (_busy && (dice != null || !myTurn)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _busy) setState(() => _busy = false);
+          });
+        }
 
         // Ludo Star plays the move for you when there is only one — with a
         // single option there is no decision to make, and asking for a tap just

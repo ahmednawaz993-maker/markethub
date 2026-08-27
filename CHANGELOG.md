@@ -11,6 +11,15 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.63] — 2026-08-27
+
+### Fixed
+
+- **The Ludo dice now works on the website.** Rolling failed with an
+  "Int64 accessor not supported" error: the way the app asked the server to
+  roll cannot be used from a browser. It now asks in a way that works
+  identically on the website, Android and iOS.
+
 ## [1.0.62] — 2026-08-27
 
 ### Fixed

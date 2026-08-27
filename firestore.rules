@@ -992,6 +992,21 @@ service cloud.firestore {
       allow delete: if isSignedIn()
                     && (resource.data.hostId == request.auth.uid || isAdmin());
 
+      // A doorbell, not a record: writing one asks the server to roll, and the
+      // trigger deletes it. Only the player whose turn it is may ring it, and
+      // only for themselves — the same check the roll itself makes, applied
+      // one step earlier so a spammed request never reaches a function.
+      match /rollRequests/{requestId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+                      && request.resource.data.userId == request.auth.uid
+                      && seatToMove(
+                           get(/databases/$(database)/documents/ludoRooms/$(roomId)).data.state,
+                           get(/databases/$(database)/documents/ludoRooms/$(roomId)).data.seats
+                         ) == request.auth.uid;
+        allow update, delete: if false; // the trigger clears them
+      }
+
       // Table talk. Anyone signed in may read a room, so anyone may read its
       // chat; only the author may write, and nobody may edit history.
       match /messages/{messageId} {

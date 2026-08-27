@@ -4445,13 +4445,12 @@ exports.ludoRoll = onCall(async (request) => {
       state: outcome.state,
       updatedAt: Timestamp.now(),
     });
-    // The client still computes its own legal moves for the board highlight;
-    // returning them here keeps the two honest about disagreeing.
-    return {
-      dice,
-      reason: outcome.reason,
-      moves: outcome.moves.length,
-    };
+    // Deliberately returns NOTHING. Returning the dice as a number made
+    // cloud_functions_web throw "Int64 accessor not supported by dart2js"
+    // while decoding the reply — even for a client that discarded it. The
+    // result reaches every player through the document instead, which is where
+    // it has to go anyway.
+    return null;
   });
 });
 
@@ -4576,3 +4575,53 @@ exports.ludoSweepStuckGames = onSchedule("every 1 minutes", async () => {
     }
   }
 });
+
+/**
+ * Rolls in response to a request document.
+ *
+ * The callable above works on Android and iOS but its reply cannot be decoded
+ * by dart2js — a number in the response throws "Int64 accessor not supported"
+ * on web. Rather than tune the payload and hope, the client now asks for a roll
+ * by writing a tiny document, and the answer arrives through the game state it
+ * is already watching. One transport, every platform, no reply to decode.
+ *
+ * The callable stays deployed for app versions already in the wild.
+ */
+exports.ludoRollRequested = onDocumentCreated(
+  "ludoRooms/{roomId}/rollRequests/{reqId}",
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const req = snap.data() || {};
+    const uid = req.userId;
+    const db = getFirestore();
+    const ref = db.collection("ludoRooms").doc(event.params.roomId);
+
+    try {
+      await db.runTransaction(async (tx) => {
+        const roomSnap = await tx.get(ref);
+        if (!roomSnap.exists) return;
+        const room = roomSnap.data() || {};
+        if (room.status !== "playing") return;
+        const state = room.state;
+        // The same three guards as the callable. Rules already check the turn,
+        // but a trigger runs with admin rights so it re-checks for itself.
+        if (!ludo.isSeatToMove(state, room.seats, uid)) return;
+        if (ludo.hasPendingRoll(state)) return;
+
+        const dice = crypto.randomInt(1, 7);
+        const outcome = ludo.applyRoll(state, dice);
+        tx.update(ref, {
+          state: outcome.state,
+          updatedAt: Timestamp.now(),
+        });
+      });
+    } catch (err) {
+      console.error("ludoRollRequested", event.params.roomId, err);
+    } finally {
+      // The request is a doorbell, not a record. Leaving it would let the same
+      // request be replayed and would grow the room without bound.
+      await snap.ref.delete().catch(() => {});
+    }
+  }
+);
