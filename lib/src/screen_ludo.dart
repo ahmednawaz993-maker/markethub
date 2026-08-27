@@ -173,10 +173,104 @@ Future<LudoColor?> addLudoBot(String roomId) async {
     tx.update(ref, {
       'seats': seats,
       'names': names,
-      'state': LudoGame.newGame(players).toJson(),
+      // Keep the room's mode. Without this, adding a computer silently reset a
+      // Quick or Master table to Classic rules — the same trap joinLudoRoom
+      // already guards against, missed here.
+      'state': LudoGame.newGame(players, mode: room.game.mode).toJson(),
       'updatedAt': Timestamp.now(),
     });
     return free;
+  });
+}
+
+/// Seats a quick match aims for. Four is what every other Ludo app deals you.
+const int kLudoQuickMatchSeats = 4;
+
+/// How long a table holds open for real people before computers fill it.
+///
+/// The number that matters most in this file. Before this existed you created a
+/// room and waited for a stranger who never came — the live data was full of
+/// rooms sitting at one seat, forever. Nobody waits twelve seconds and nobody
+/// waits for ever; this is the difference between "a Ludo game" and "a lobby".
+const int kLudoAutoStartSeconds = 12;
+
+/// Drops the player straight into a game: joins an open table, or opens one.
+///
+/// Deliberately filters mode on the client rather than in the query. An
+/// equality filter combined with the orderBy would need a composite index, and
+/// the lobby already reads this collection the same way — the room count here
+/// is tens, not thousands.
+Future<String> quickMatchLudo({
+  required String displayName,
+  LudoMode mode = LudoMode.classic,
+}) async {
+  try {
+    final snap = await _ludoCol()
+        .orderBy('createdAt', descending: true)
+        .limit(30)
+        .get();
+    for (final doc in snap.docs) {
+      final room = LudoRoom.fromDoc(doc);
+      if (room.status != LudoRoomStatus.waiting) continue;
+      if (room.isFull || room.game.mode != mode) continue;
+      // Never match into a table of nothing but computers — that is a solo
+      // game wearing a multiplayer hat.
+      if (!room.seats.values.any((v) => !v.startsWith('bot:'))) continue;
+      final taken = await joinLudoRoom(doc.id, displayName);
+      if (taken != null) return doc.id;
+    }
+  } catch (_) {
+    // A failed search must still end in a game.
+  }
+  return createLudoRoom(displayName: displayName, mode: mode);
+}
+
+/// Seconds until computers fill the table, or null when it is not waiting.
+int? ludoAutoStartIn(LudoRoom room) {
+  if (room.status != LudoRoomStatus.waiting) return null;
+  final at = room.updatedAt?.toDate();
+  if (at == null) return null;
+  final left = kLudoAutoStartSeconds - DateTime.now().difference(at).inSeconds;
+  return left.clamp(0, kLudoAutoStartSeconds);
+}
+
+/// Fills the empty seats with computers and starts the game.
+///
+/// Run by whichever seated client notices first, not by the host: the host is
+/// often the one who wandered off, and a table that only their device can start
+/// is exactly the table that never starts. The transaction makes the race
+/// harmless — the second client to arrive sees status != waiting and stops.
+Future<void> autoStartLudoRoom(String roomId) async {
+  await FirebaseFirestore.instance.runTransaction((tx) async {
+    final ref = _ludoCol().doc(roomId);
+    final snap = await tx.get(ref);
+    if (!snap.exists) return;
+    final room = LudoRoom.fromDoc(snap);
+    if (room.status != LudoRoomStatus.waiting) return;
+    // Someone must actually be here.
+    if (!room.seats.values.any((v) => !v.startsWith('bot:'))) return;
+
+    final seats = {...room.seats};
+    final names = {...room.names};
+    var bots = seats.values.where((v) => v.startsWith('bot:')).length;
+    for (final c in LudoColor.values) {
+      if (seats.length >= kLudoQuickMatchSeats) break;
+      if (seats.containsKey(c.name)) continue;
+      bots++;
+      seats[c.name] = 'bot:$bots';
+      names[c.name] = 'Computer $bots';
+    }
+    final players = [
+      for (final c in LudoColor.values)
+        if (seats.containsKey(c.name)) c,
+    ];
+    tx.update(ref, {
+      'seats': seats,
+      'names': names,
+      'state': LudoGame.newGame(players, mode: room.game.mode).toJson(),
+      'status': LudoRoomStatus.playing.name,
+      'updatedAt': Timestamp.now(),
+    });
   });
 }
 
@@ -251,8 +345,17 @@ Future<void> sendLudoMessage(String roomId, String text) async {
 // Lobby
 // ---------------------------------------------------------------------------
 
-class LudoLobbyScreen extends StatelessWidget {
+class LudoLobbyScreen extends StatefulWidget {
   const LudoLobbyScreen({super.key});
+
+  @override
+  State<LudoLobbyScreen> createState() => _LudoLobbyScreenState();
+}
+
+// Stateful only so the matchmaking button can show that it is working. A tap
+// that appears to do nothing while a query runs is why people tap twice.
+class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
+  bool _matching = false;
 
   @override
   Widget build(BuildContext context) {
@@ -270,11 +373,32 @@ class LudoLobbyScreen extends StatelessWidget {
       );
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('Ludo')),
+      appBar: AppBar(
+        title: const Text('Ludo'),
+        actions: [
+          TextButton.icon(
+            onPressed: _matching ? null : () => _create(context),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('New game'),
+          ),
+        ],
+      ),
+      // "Play now" is the primary action, and it is one tap. Choosing a mode,
+      // waiting for a stranger and pressing Start were three decisions asked of
+      // someone who wanted to play Ludo.
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _create(context),
-        icon: const Icon(Icons.add),
-        label: const Text('New game'),
+        onPressed: _matching ? null : () => _playNow(context),
+        icon: _matching
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.play_arrow),
+        label: Text(_matching ? 'Finding a game…' : 'Play now'),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _ludoCol()
@@ -298,7 +422,9 @@ class LudoLobbyScreen extends StatelessWidget {
             return const EmptyState(
               icon: Icons.casino_outlined,
               title: 'No games waiting',
-              subtitle: 'Start one and invite a friend to join.',
+              subtitle:
+                  'Tap Play now — you will be dealt in straight away, against '
+                  'whoever joins or against the computer.',
             );
           }
           return ListView.builder(
@@ -381,6 +507,26 @@ class LudoLobbyScreen extends StatelessWidget {
       if (n.isNotEmpty) return n;
     } catch (_) {}
     return user?.email?.split('@').first ?? 'Player';
+  }
+
+  /// One tap to a game: join an open table, or open one and let it fill.
+  Future<void> _playNow(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    setState(() => _matching = true);
+    try {
+      final id = await quickMatchLudo(displayName: await _name());
+      if (!mounted) return;
+      navigator.push(
+        MaterialPageRoute(builder: (_) => LudoGameScreen(roomId: id)),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not find a game: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _matching = false);
+    }
   }
 
   Future<void> _create(BuildContext context) async {
@@ -479,6 +625,8 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
   /// [kLudoTurnSeconds]; showing that ticking down is the difference between
   /// "the game is helping" and "the board is moving on its own".
   Timer? _tick;
+  // Guards the auto-start so a 1Hz rebuild cannot fire a transaction per tick.
+  bool _autoStarting = false;
 
   @override
   void initState() {
@@ -731,7 +879,17 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
       );
     }
     if (room.status == LudoRoomStatus.waiting) {
-      final isHost = room.hostId == _uid;
+      final seated = room.colorOf(_uid) != null;
+      final countdown = ludoAutoStartIn(room);
+      // The table starts itself. Any seated client may do it, because the host
+      // is often the one who left, and a game only their device can start is
+      // the game that sits at one seat for ever.
+      if (seated && countdown == 0 && !_autoStarting) {
+        _autoStarting = true;
+        autoStartLudoRoom(widget.roomId).whenComplete(() {
+          if (mounted) _autoStarting = false;
+        });
+      }
       return Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
@@ -742,8 +900,17 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
               textAlign: TextAlign.center,
               style: AppType.secondary,
             ),
+            const SizedBox(height: AppSpacing.xs),
+            if (countdown != null)
+              Text(
+                countdown > 0
+                    ? 'Computers join in ${countdown}s'
+                    : 'Starting…',
+                textAlign: TextAlign.center,
+                style: AppType.caption,
+              ),
             const SizedBox(height: AppSpacing.sm),
-            if (isHost) ...[
+            if (seated) ...[
               Wrap(
                 spacing: AppSpacing.sm,
                 alignment: WrapAlignment.center,
@@ -767,20 +934,19 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
                     label: const Text('Add computer'),
                   ),
                   ElevatedButton.icon(
-                    onPressed: room.seats.length >= 2
-                        ? () => startLudoRoom(widget.roomId)
-                        : null,
+                    // Always available: with fewer than two seats this fills
+                    // the rest with computers rather than staying disabled,
+                    // which is what left players stuck at a dead button.
+                    onPressed: () => room.seats.length >= 2
+                        ? startLudoRoom(widget.roomId)
+                        : autoStartLudoRoom(widget.roomId),
                     icon: const Icon(Icons.play_arrow),
-                    label: Text(
-                      room.seats.length >= 2
-                          ? 'Start game'
-                          : 'Add a player or a computer',
-                    ),
+                    label: const Text('Start now'),
                   ),
                 ],
               ),
             ] else
-              Text('Waiting for the host to start.', style: AppType.caption),
+              Text('Joining…', style: AppType.caption),
           ],
         ),
       );

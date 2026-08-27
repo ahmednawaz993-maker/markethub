@@ -11,6 +11,17 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.71] — 2026-08-28
+
+- Ludo: "Play now". One tap joins an open table or opens one, and if no real
+  player arrives within 12 seconds the computers sit down and the game starts.
+  Previously you created a room, added a computer yourself and pressed Start —
+  and a second player just saw "Waiting for the host to start", indefinitely.
+- Any seated player can start the table, not only the host, so a game no longer
+  depends on the one person who wandered off.
+- Fixed: adding a computer to a Quick or Master table silently reset it to
+  Classic rules.
+
 ## [1.0.70] — 2026-08-28
 
 - Ad pages are now server-rendered, so Google (and WhatsApp/Facebook link

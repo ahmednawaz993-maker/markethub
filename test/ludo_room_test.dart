@@ -7,6 +7,7 @@ import 'package:markethub/main.dart';
 // to play another's turn.
 
 void main() {
+  _matchmakingTests();
   Map<String, dynamic> raw({
     Map<String, String> seats = const {'red': 'u1', 'green': 'u2'},
     String status = 'playing',
@@ -187,6 +188,96 @@ void main() {
         isNull,
         reason: 'a cleared dice is what lets the next roll be requested',
       );
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Getting into a game.
+//
+// The complaint behind these tests was "make ludo proper playable same like
+// other ludo apps", and the live data said exactly what was wrong: room after
+// room sitting at status=waiting with one seat. You created a table, then had
+// to add a computer yourself and press Start; a second player saw only
+// "Waiting for the host to start", for ever. No other Ludo app asks any of
+// that. These pin the countdown that now starts the table by itself.
+// ---------------------------------------------------------------------------
+
+LudoRoom _waiting({
+  required int secondsAgo,
+  Map<String, String> seats = const {'red': 'u1'},
+  LudoRoomStatus status = LudoRoomStatus.waiting,
+}) => LudoRoom.fromMap('r1', {
+  'hostId': 'u1',
+  'seats': seats,
+  'names': {for (final k in seats.keys) k: k},
+  'status': status.name,
+  'updatedAt': Timestamp.fromDate(
+    DateTime.now().subtract(Duration(seconds: secondsAgo)),
+  ),
+});
+
+void _matchmakingTests() {
+  group('auto-start countdown', () {
+    test('a fresh table gets the full wait for a human', () {
+      expect(ludoAutoStartIn(_waiting(secondsAgo: 0)), kLudoAutoStartSeconds);
+    });
+
+    test('it counts down', () {
+      final left = ludoAutoStartIn(_waiting(secondsAgo: 5));
+      expect(left, lessThan(kLudoAutoStartSeconds));
+      expect(left, greaterThan(0));
+    });
+
+    test('it reaches zero, which is what triggers the start', () {
+      expect(ludoAutoStartIn(_waiting(secondsAgo: 60)), 0);
+      // Never negative: the widget compares against 0 exactly.
+      expect(ludoAutoStartIn(_waiting(secondsAgo: 100000)), 0);
+    });
+
+    test('a game already running has no countdown', () {
+      expect(
+        ludoAutoStartIn(_waiting(secondsAgo: 60, status: LudoRoomStatus.playing)),
+        isNull,
+      );
+      expect(
+        ludoAutoStartIn(
+          _waiting(secondsAgo: 60, status: LudoRoomStatus.finished),
+        ),
+        isNull,
+      );
+    });
+
+    test('a room with no timestamp does not start itself', () {
+      // Otherwise a document written without updatedAt would start instantly.
+      final room = LudoRoom.fromMap('r1', {
+        'seats': {'red': 'u1'},
+        'status': 'waiting',
+      });
+      expect(ludoAutoStartIn(room), isNull);
+    });
+
+    test('a new arrival resets the wait', () {
+      // joinLudoRoom bumps updatedAt, so the table holds open again rather than
+      // filling with computers the instant a second person sits down.
+      final stale = ludoAutoStartIn(_waiting(secondsAgo: 11));
+      final justJoined = ludoAutoStartIn(
+        _waiting(secondsAgo: 0, seats: const {'red': 'u1', 'green': 'u2'}),
+      );
+      expect(stale, lessThan(justJoined!));
+    });
+  });
+
+  group('quick match targets', () {
+    test('a full table is four seats', () {
+      expect(kLudoQuickMatchSeats, 4);
+    });
+
+    test('the wait is short enough that nobody abandons it', () {
+      // The whole point. Long enough for a real player to arrive, short enough
+      // that a person who opened Ludo is playing Ludo.
+      expect(kLudoAutoStartSeconds, lessThanOrEqualTo(20));
+      expect(kLudoAutoStartSeconds, greaterThanOrEqualTo(5));
     });
   });
 }
