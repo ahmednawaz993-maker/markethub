@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' show PlatformDispatcher;
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,6 +9,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show
+        rootBundle,
         Clipboard,
         ClipboardData,
         HapticFeedback,
@@ -83,6 +85,8 @@ part 'src/screen_offers.dart';
 part 'src/screen_admin.dart';
 part 'src/admin_orders.dart';
 part 'src/admin_feedback.dart';
+part 'src/prayer_times.dart';
+part 'src/screen_islamic.dart';
 part 'src/screen_admin_categories.dart';
 part 'src/screen_notifications.dart';
 part 'src/screen_chat.dart';

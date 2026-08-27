@@ -2045,6 +2045,11 @@ class ProfileScreen extends StatelessWidget {
             ],
           ),
 
+          // Namaz timings and the Quran. Not marketplace features, but the
+          // reason a lot of people will keep the app installed — and both work
+          // with no signal, which is the point.
+          const IslamicSectionTiles(),
+
           _MenuGroup(
             title: 'Buying',
             items: [

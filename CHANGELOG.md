@@ -11,6 +11,28 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.56] — 2026-08-27
+
+### Added
+
+- **Prayer timings.** Namaz times for 40 Pakistani cities, with the next prayer
+  and a countdown to it. Calculated on the phone from the sun's position using
+  the University of Islamic Sciences, Karachi method (Fajr and Isha at 18°),
+  which is the convention Pakistani mosques publish against. Asr can be set to
+  Hanafi or Shafi'i — the two differ by up to an hour, so it is a choice rather
+  than a buried default.
+
+  It needs no internet at all, which is the point: a prayer schedule that
+  requires a signal is useless exactly when people reach for it.
+
+- **The Quran with Urdu translation.** All 114 surahs and 6,236 ayahs, bundled
+  inside the app so it works offline. Arabic in Uthmani script with the Urdu
+  translation of Maulana Muhammad Junagarhi — the plain rendering used in the
+  Saudi-printed Urdu mushaf and the one most widely read in Pakistan. Search by
+  surah name or number, copy any ayah, and the app remembers where you were.
+
+  Both are under **Menu → Namaz & Quran**.
+
 ## [1.0.55] — 2026-08-26
 
 ### Changed
