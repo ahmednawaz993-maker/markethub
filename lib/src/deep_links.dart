@@ -48,13 +48,56 @@ String? listingIdFromRoute(String raw) {
   return id.isEmpty ? null : id;
 }
 
+/// The Ludo room id in an invite link, or null.
+///
+/// Shares the parser above rather than repeating it: the awkward cases — a full
+/// URL vs a bare path, the pakbazar:// scheme putting the first segment in the
+/// HOST, trailing slashes, query strings — are identical and were already
+/// solved once.
+///
+///   https://pakbazar24.com/ludo/{roomId}
+///   pakbazar://ludo/{roomId}
+String? ludoRoomIdFromRoute(String raw) => _segmentAfter(raw, 'ludo');
+
+String? _segmentAfter(String raw, String prefix) {
+  if (raw.isEmpty || raw == '/') return null;
+  Uri uri;
+  try {
+    uri = Uri.parse(raw);
+  } catch (_) {
+    return null;
+  }
+  var segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+  if (uri.scheme == 'pakbazar' && uri.host.isNotEmpty) {
+    segments = [uri.host, ...segments];
+  }
+  if (segments.length < 2 || segments.first != prefix) return null;
+  final id = segments[1].trim();
+  return id.isEmpty ? null : id;
+}
+
+/// A shareable invite to one game. Sent through whatever the player already
+/// uses — WhatsApp, Facebook, SMS — rather than requiring anyone to be on a
+/// particular social network.
+String ludoInviteUrl(String roomId) => 'https://pakbazar24.com/ludo/$roomId';
+
 /// Resolves an incoming route to a screen.
 ///
 /// Returns null for anything unrecognised so MaterialApp falls back to `home`,
 /// which is the right behaviour for a stale or malformed link: the user lands
 /// in the app rather than on an error.
 Route<dynamic>? generateAppRoute(RouteSettings settings) {
-  final id = listingIdFromRoute(settings.name ?? '/');
+  final raw = settings.name ?? '/';
+
+  final roomId = ludoRoomIdFromRoute(raw);
+  if (roomId != null) {
+    return MaterialPageRoute<void>(
+      settings: settings,
+      builder: (_) => LudoInviteScreen(roomId: roomId),
+    );
+  }
+
+  final id = listingIdFromRoute(raw);
   if (id == null) return null;
   return MaterialPageRoute<void>(
     settings: settings,

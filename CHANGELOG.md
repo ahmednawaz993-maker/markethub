@@ -11,6 +11,15 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.65] — 2026-08-27
+
+### Added
+
+- **Invite people to a Ludo game.** Every game now has a share link. Send it in
+  WhatsApp, Facebook, a group chat or by SMS — whoever opens it lands straight
+  in your game and takes a seat. You can also invite anyone you follow on
+  PakBazar with one tap; they get a notification with the same link.
+
 ## [1.0.64] — 2026-08-27
 
 ### Added

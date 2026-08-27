@@ -631,6 +631,15 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
                   : 'Ludo · ${room.game.mode.label}',
             ),
             actions: [
+              IconButton(
+                tooltip: 'Invite players',
+                icon: const Icon(Icons.person_add_alt),
+                onPressed: () => showModalBottomSheet<void>(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (_) => LudoInviteSheet(room: room),
+                ),
+              ),
               const GameSoundButton(),
               IconButton(
                 tooltip: 'Chat',
@@ -739,6 +748,17 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
                 spacing: AppSpacing.sm,
                 alignment: WrapAlignment.center,
                 children: [
+                  OutlinedButton.icon(
+                    onPressed: room.isFull
+                        ? null
+                        : () => showModalBottomSheet<void>(
+                            context: context,
+                            isScrollControlled: true,
+                            builder: (_) => LudoInviteSheet(room: room),
+                          ),
+                    icon: const Icon(Icons.person_add_alt, size: 18),
+                    label: const Text('Invite'),
+                  ),
                   OutlinedButton.icon(
                     onPressed: room.isFull
                         ? null
