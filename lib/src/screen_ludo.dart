@@ -172,6 +172,39 @@ Future<LudoColor?> addLudoBot(String roomId) async {
   });
 }
 
+/// The first build whose client asks the SERVER to roll the dice.
+///
+/// Builds before this rolled on the device and wrote the number into the game
+/// state themselves. firestore.rules now rejects any client-written dice — that
+/// is what makes the roll uncheatable — so on an older build the roll is
+/// silently denied, the dice appears dead, and the stuck-game sweeper quietly
+/// plays the turn instead. Rather than leave those players staring at a board
+/// that moves by itself, Ludo tells them to update.
+///
+/// appBuildNumber is 0 until the platform reports it, and 0 must NOT be treated
+/// as "too old" — that would lock everyone out on a slow cold start.
+const int kLudoMinBuild = 64;
+
+bool ludoNeedsUpdate() =>
+    appBuildNumber > 0 && appBuildNumber < kLudoMinBuild;
+
+/// How long a player has before the server plays their turn for them. Must
+/// match LUDO_TURN_SECONDS in functions/index.js — if the client counts down
+/// faster than the server acts, players see a timer hit zero and nothing
+/// happen, which is worse than no timer at all.
+const int kLudoTurnSeconds = 45;
+
+/// Seconds left before the current turn is taken automatically, or null when
+/// there is nothing to count.
+int? ludoSecondsLeft(LudoRoom room) {
+  final at = room.updatedAt;
+  if (at == null || room.status != LudoRoomStatus.playing) return null;
+  if (room.game.winners.isNotEmpty) return null;
+  final gone = DateTime.now().difference(at.toDate()).inSeconds;
+  final left = kLudoTurnSeconds - gone;
+  return left.clamp(0, kLudoTurnSeconds);
+}
+
 /// True for a seat played by the server rather than a person.
 bool isLudoBotSeat(LudoRoom room, LudoColor c) =>
     (room.seats[c.name] ?? '').startsWith('bot:');
@@ -216,6 +249,18 @@ class LudoLobbyScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (ludoNeedsUpdate()) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Ludo')),
+        body: const EmptyState(
+          icon: Icons.system_update,
+          title: 'Update to play Ludo',
+          subtitle:
+              'This version of the app cannot roll the dice. Update PakBazar '
+              'from the Play Store and the game will work.',
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(title: const Text('Ludo')),
       floatingActionButton: FloatingActionButton.extended(
@@ -389,8 +434,22 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
   /// move fires once and not on every rebuild of the same snapshot.
   String? _autoPlayed;
 
+  /// Drives the turn countdown. The server takes an unplayed turn after
+  /// [kLudoTurnSeconds]; showing that ticking down is the difference between
+  /// "the game is helping" and "the board is moving on its own".
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
   @override
   void dispose() {
+    _tick?.cancel();
     _chat.dispose();
     super.dispose();
   }
@@ -666,10 +725,40 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
           Expanded(
             child: myTurn
                 ? (dice == null
-                      ? ElevatedButton.icon(
-                          onPressed: _busy ? null : _roll,
-                          icon: const Icon(Icons.casino),
-                          label: const Text('Roll'),
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: _busy ? null : _roll,
+                              icon: const Icon(Icons.casino),
+                              label: const Text('Roll'),
+                            ),
+                            Builder(
+                              builder: (context) {
+                                final left = ludoSecondsLeft(room);
+                                if (left == null || left > 20) {
+                                  return const SizedBox.shrink();
+                                }
+                                // Only shown once it matters, so it reads as a
+                                // warning rather than constant pressure.
+                                return Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: AppSpacing.xs,
+                                  ),
+                                  child: Text(
+                                    'Rolling for you in ${left}s',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: left <= 10
+                                          ? AppColors.error
+                                          : AppColors.textMuted,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         )
                       : Text(
                           moves.isEmpty
@@ -690,12 +779,23 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
                       ),
                       // Nobody can freeze the board by walking away any more,
                       // and saying so stops the other players just leaving too.
-                      Text(
-                        isLudoBotSeat(room, room.game.currentPlayer)
-                            ? 'The computer is thinking.'
-                            : 'If they do not play, their turn is taken '
-                                  'automatically.',
-                        style: AppType.caption,
+                      Builder(
+                        builder: (context) {
+                          final left = ludoSecondsLeft(room);
+                          if (isLudoBotSeat(room, room.game.currentPlayer)) {
+                            return Text(
+                              'The computer is thinking.',
+                              style: AppType.caption,
+                            );
+                          }
+                          return Text(
+                            left == null
+                                ? 'Waiting…'
+                                : 'Their turn is played automatically in '
+                                      '${left}s',
+                            style: AppType.caption,
+                          );
+                        },
                       ),
                     ],
                   ),

@@ -11,6 +11,21 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.62] — 2026-08-27
+
+### Fixed
+
+- **Older app versions could not roll the Ludo dice at all.** The dice moved to
+  the server so nobody can fake a six, but apps installed before that update
+  still tried to roll on the phone — and the server refused, silently. The
+  board then played the turn by itself after 45 seconds, which looked like the
+  dice was dead and the game was moving on its own. Those versions now say so
+  and ask you to update, instead of leaving you with a board that plays itself.
+- **You can now see how long is left on a turn.** A turn is played
+  automatically if nobody acts, and that used to happen with no warning. The
+  countdown appears on your own turn once it is close, and on someone else's
+  turn while you wait.
+
 ## [1.0.61] — 2026-08-27
 
 ### Fixed

@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markethub/main.dart';
 
@@ -60,6 +61,82 @@ void main() {
     expect(r.seats, isEmpty);
     expect(r.colorOf('u1'), isNull);
     expect(r.game.players, isNotEmpty);
+  });
+
+  group('the turn countdown', () {
+    // The client's countdown MUST NOT run faster than the server acts, or a
+    // player watches it hit zero and nothing happens — worse than no timer.
+    test('matches the server deadline exactly', () {
+      expect(
+        kLudoTurnSeconds,
+        45,
+        reason: 'must equal LUDO_TURN_SECONDS in functions/index.js',
+      );
+    });
+
+    LudoRoom roomUpdated(Duration ago, {String status = 'playing'}) =>
+        LudoRoom.fromMap('r', {
+          'seats': {'red': 'u1', 'green': 'u2'},
+          'status': status,
+          'state': LudoGame.newGame(const [
+            LudoColor.red,
+            LudoColor.green,
+          ]).toJson(),
+          'updatedAt': Timestamp.fromDate(DateTime.now().subtract(ago)),
+        });
+
+    test('counts down and stops at zero rather than going negative', () {
+      expect(
+        ludoSecondsLeft(roomUpdated(const Duration(seconds: 5))),
+        closeTo(40, 1),
+      );
+      expect(ludoSecondsLeft(roomUpdated(const Duration(minutes: 5))), 0);
+    });
+
+    test('is silent when there is nothing to count', () {
+      expect(
+        ludoSecondsLeft(roomUpdated(Duration.zero, status: 'waiting')),
+        isNull,
+        reason: 'nobody is on the clock before the game starts',
+      );
+      // A room mid-write, before updatedAt lands: no clock to show yet.
+      final noStamp = LudoRoom.fromMap('r', {
+        'status': 'playing',
+        'seats': {'red': 'u1', 'green': 'u2'},
+        'state': LudoGame.newGame(const [
+          LudoColor.red,
+          LudoColor.green,
+        ]).toJson(),
+      });
+      expect(ludoSecondsLeft(noStamp), isNull);
+    });
+  });
+
+  group('the version gate', () {
+    final original = appBuildNumber;
+    tearDown(() => appBuildNumber = original);
+
+    // Builds before kLudoMinBuild roll on the device, and the rules now reject
+    // a client-written dice — so on those builds the dice is silently dead and
+    // the server quietly plays the turn instead. They are told to update.
+    test('an old build is asked to update', () {
+      appBuildNumber = kLudoMinBuild - 1;
+      expect(ludoNeedsUpdate(), isTrue);
+    });
+
+    test('the current build plays', () {
+      appBuildNumber = kLudoMinBuild;
+      expect(ludoNeedsUpdate(), isFalse);
+      appBuildNumber = kLudoMinBuild + 10;
+      expect(ludoNeedsUpdate(), isFalse);
+    });
+
+    // 0 means "not reported yet" on a cold start. Treating it as ancient would
+    // lock every player out of Ludo for the first moments of every launch.
+    test('an unknown build is never treated as too old', () {
+      appBuildNumber = 0;
+      expect(ludoNeedsUpdate(), isFalse);
+    });
   });
 
   // THE DEADLOCK REGRESSION.
