@@ -11,6 +11,17 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.58] — 2026-08-27
+
+### Security
+
+- **The Ludo dice is now rolled by the server, not the phone.** Previously the
+  app generated its own number, so a modified copy of the app could simply
+  claim a six every turn. The roll now happens on PakBazar's servers with a
+  cryptographic random number, and the rules refuse any dice value written by a
+  player's device. Rolling again before playing your last roll is refused too,
+  so nobody can keep rolling until a six turns up.
+
 ## [1.0.57] — 2026-08-27
 
 ### Added

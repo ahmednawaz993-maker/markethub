@@ -12,8 +12,10 @@ const {
   onDocumentWritten,
 } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { onRequest } = require("firebase-functions/v2/https");
+const { onRequest, onCall, HttpsError } =
+  require("firebase-functions/v2/https");
 const crypto = require("crypto");
+const ludo = require("./ludo_logic");
 const { initializeApp } = require("firebase-admin/app");
 const {
   getFirestore,
@@ -4394,3 +4396,61 @@ exports.payfastIpn = onRequest(async (req, res) => {
     }
   }
 );
+
+// ---------------------------------------------------------------------------
+// Ludo — server-side dice.
+//
+// The dice used to be generated on the phone, so a modified client could simply
+// claim a six. It is now generated here with crypto.randomInt (not Math.random,
+// which is predictable from prior output) and written by the Admin SDK, and
+// firestore.rules forbids any client from writing a non-null dice value. A
+// player can consume a roll; nobody can invent one.
+//
+// The whole thing runs in a transaction: the turn check, the pending-roll check
+// and the write have to be one atomic step, or two taps in the same instant
+// could both pass the check and roll twice.
+// ---------------------------------------------------------------------------
+exports.ludoRoll = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign in to play.");
+  const roomId = request.data && request.data.roomId;
+  if (!roomId || typeof roomId !== "string") {
+    throw new HttpsError("invalid-argument", "roomId is required.");
+  }
+
+  const db = getFirestore();
+  const ref = db.collection("ludoRooms").doc(roomId);
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "That game is over.");
+    const room = snap.data() || {};
+    if (room.status !== "playing") {
+      throw new HttpsError("failed-precondition", "The game has not started.");
+    }
+    const state = room.state;
+    if (!ludo.isSeatToMove(state, room.seats, uid)) {
+      throw new HttpsError("permission-denied", "It is not your turn.");
+    }
+    // Rolling again before playing the last roll would let a player fish for a
+    // six. The client clears `dice` when it applies a move.
+    if (ludo.hasPendingRoll(state)) {
+      throw new HttpsError("failed-precondition", "Play your roll first.");
+    }
+
+    const dice = crypto.randomInt(1, 7); // uniform 1..6, unpredictable
+    const outcome = ludo.applyRoll(state, dice);
+
+    tx.update(ref, {
+      state: outcome.state,
+      updatedAt: Timestamp.now(),
+    });
+    // The client still computes its own legal moves for the board highlight;
+    // returning them here keeps the two honest about disagreeing.
+    return {
+      dice,
+      reason: outcome.reason,
+      moves: outcome.moves.length,
+    };
+  });
+});

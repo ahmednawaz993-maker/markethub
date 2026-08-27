@@ -979,8 +979,13 @@ service cloud.firestore {
                       || (resource.data.hostId == request.auth.uid
                           && request.resource.data.diff(resource.data)
                                .affectedKeys().hasOnly(['status', 'updatedAt']))
-                      || seatToMove(resource.data.state, resource.data.seats)
-                           == request.auth.uid
+                      || (seatToMove(resource.data.state, resource.data.seats)
+                            == request.auth.uid
+                          // A client may only ever CONSUME a roll, never write
+                          // one. The dice is produced by the ludoRoll callable
+                          // via the Admin SDK, which bypasses these rules — so
+                          // a modified client cannot claim a six.
+                          && request.resource.data.state.dice == null)
                     );
       // Rooms are cleaned up by their host or an admin, never by a player who
       // is losing.

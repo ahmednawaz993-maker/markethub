@@ -341,7 +341,6 @@ class LudoGameScreen extends StatefulWidget {
 
 class _LudoGameScreenState extends State<LudoGameScreen> {
   final _chat = TextEditingController();
-  final _rng = math.Random();
 
   /// Moves offered by the roll this device just made. Cleared on every state
   /// change from the server so a stale roll can never be played twice.
@@ -357,23 +356,34 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
 
   String get _uid => FirebaseAuth.instance.currentUser?.uid ?? '';
 
+  /// Asks the server for a dice value.
+  ///
+  /// The device does NOT generate the number. `ludoRoll` produces it with a
+  /// cryptographic RNG and writes the new state itself, and firestore.rules
+  /// refuses any client write that sets a dice — so a modified app cannot claim
+  /// a six. This method only reads back what the server decided and works out
+  /// which tokens that allows the player to touch.
   Future<void> _roll(LudoRoom room) async {
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      final dice = 1 + _rng.nextInt(6);
-      final result = room.game.roll(dice);
+      final res = await FirebaseFunctions.instance
+          .httpsCallable('ludoRoll')
+          .call<Map<String, dynamic>>({'roomId': widget.roomId});
+      final dice = (res.data['dice'] as num?)?.toInt();
+      if (!mounted || dice == null) return;
+      // Recompute the legal moves locally against the state we already hold.
+      // The server also computed them; if the two ever disagree the board
+      // simply offers nothing and the next snapshot corrects it.
       setState(() {
         _shownDice = dice;
-        _pending = result.moves;
+        _pending = room.game.roll(dice).moves;
       });
-      // A roll with no playable move is a complete turn on its own — push it so
-      // the next player is not left waiting on a device that has nothing to do.
-      if (result.moves.isEmpty) {
-        await pushLudoState(widget.roomId, result.game);
-        if (mounted) setState(() => _pending = const []);
-      } else {
-        await pushLudoState(widget.roomId, result.game);
+    } on FirebaseFunctionsException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message ?? 'Could not roll.')),
+        );
       }
     } catch (e) {
       if (mounted) {

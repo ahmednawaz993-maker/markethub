@@ -1,0 +1,233 @@
+"use strict";
+
+// Unit tests for the server-side Ludo roll. No Firebase required.
+//   Run:  cd functions && node ludo_logic.test.js
+// Exits non-zero if any assertion fails.
+//
+// This file exists to catch DRIFT. ludo_logic.js is a second implementation of
+// part of lib/src/ludo_engine.dart, and two copies of a rule drift silently —
+// so these mirror the cases in test/ludo_engine_test.dart deliberately. If a
+// rule changes in Dart and not here, the server and the phone will disagree
+// about whether a roll was playable, and the game will stall mid-turn.
+
+const assert = require("assert");
+const {
+  IN_YARD,
+  HOME,
+  ringCell,
+  legalMoves,
+  applyRoll,
+  isSeatToMove,
+  hasPendingRoll,
+} = require("./ludo_logic");
+
+let pass = 0;
+function t(name, fn) {
+  try {
+    fn();
+    pass++;
+    console.log(`  PASS  ${name}`);
+  } catch (e) {
+    console.log(`  FAIL  ${name}\n        ${e.message}`);
+    process.exitCode = 1;
+  }
+}
+
+const ALL = ["red", "green", "yellow", "blue"];
+function stateWith(positions, extra = {}) {
+  return {
+    players: Object.keys(positions),
+    positions,
+    turn: 0,
+    sixes: 0,
+    winners: [],
+    dice: null,
+    ...extra,
+  };
+}
+function fresh(players = ALL) {
+  const positions = {};
+  for (const p of players) positions[p] = [IN_YARD, IN_YARD, IN_YARD, IN_YARD];
+  return stateWith(positions);
+}
+
+console.log("ludo_logic");
+
+// -- geometry, matching the Dart ringCell tests -----------------------------
+
+t("progress maps onto the shared ring, wrapping at 52", () => {
+  assert.strictEqual(ringCell("red", 0), 0);
+  assert.strictEqual(ringCell("yellow", 0), 26);
+  assert.strictEqual(ringCell("yellow", 30), 4);
+  assert.strictEqual(ringCell("blue", 50), 37);
+  assert.strictEqual(ringCell("red", IN_YARD), null);
+  assert.strictEqual(ringCell("red", 51), null, "home column is off the ring");
+  assert.strictEqual(ringCell("red", HOME), null);
+});
+
+// -- leaving the yard --------------------------------------------------------
+
+t("only a six opens the yard", () => {
+  const s = fresh();
+  for (let d = 1; d <= 5; d++) {
+    assert.strictEqual(legalMoves(s, d).length, 0, `rolled ${d}`);
+  }
+  assert.strictEqual(legalMoves(s, 6).length, 4);
+});
+
+t("a six places the token on the start square, not six past it", () => {
+  assert.strictEqual(legalMoves(fresh(), 6)[0].to, 0);
+});
+
+t("a non-six with everything in the yard passes the turn", () => {
+  const r = applyRoll(fresh(), 3);
+  assert.strictEqual(r.moves.length, 0);
+  assert.strictEqual(r.state.players[r.state.turn], "green");
+  assert.strictEqual(r.state.dice, null);
+});
+
+t("a six with no legal move keeps the turn", () => {
+  const s = stateWith({
+    red: [HOME, HOME, HOME, 55],
+    green: [IN_YARD, IN_YARD, IN_YARD, IN_YARD],
+  });
+  const r = applyRoll(s, 6); // 55 + 6 overshoots
+  assert.strictEqual(r.moves.length, 0);
+  assert.strictEqual(r.state.players[r.state.turn], "red");
+});
+
+// -- capturing ---------------------------------------------------------------
+
+t("landing on an opponent on an unsafe square captures it", () => {
+  const s = stateWith({
+    red: [4, IN_YARD, IN_YARD, IN_YARD],
+    green: [46, IN_YARD, IN_YARD, IN_YARD], // green 46 == cell 7
+  });
+  assert.strictEqual(ringCell("green", 46), 7);
+  const m = legalMoves(s, 3).find((x) => x.captures.length > 0);
+  assert.ok(m, "expected a capturing move");
+  assert.strictEqual(m.captures[0].colour, "green");
+});
+
+t("nobody is captured on a safe square", () => {
+  const s = stateWith({
+    red: [4, IN_YARD, IN_YARD, IN_YARD],
+    green: [47, IN_YARD, IN_YARD, IN_YARD], // cell 8, a star
+  });
+  assert.strictEqual(ringCell("green", 47), 8);
+  const m = legalMoves(s, 4).find((x) => x.tokenIndex === 0);
+  assert.strictEqual(m.captures.length, 0);
+});
+
+t("a token in its home column cannot be captured", () => {
+  const s = stateWith({
+    red: [4, IN_YARD, IN_YARD, IN_YARD],
+    green: [53, IN_YARD, IN_YARD, IN_YARD],
+  });
+  for (let d = 1; d <= 6; d++) {
+    for (const m of legalMoves(s, d)) {
+      assert.strictEqual(m.captures.length, 0, `rolled ${d}`);
+    }
+  }
+});
+
+// -- the home stretch --------------------------------------------------------
+
+t("home must be reached exactly", () => {
+  const s = stateWith({
+    red: [53, IN_YARD, IN_YARD, IN_YARD],
+    green: [IN_YARD, IN_YARD, IN_YARD, IN_YARD],
+  });
+  assert.strictEqual(legalMoves(s, 3).filter((m) => m.tokenIndex === 0).length, 1);
+  assert.strictEqual(legalMoves(s, 4).filter((m) => m.tokenIndex === 0).length, 0);
+  assert.strictEqual(legalMoves(s, 6).filter((m) => m.tokenIndex === 0).length, 0);
+});
+
+t("a token cannot land on one of its own", () => {
+  const s = stateWith({
+    red: [4, 6, IN_YARD, IN_YARD],
+    green: [IN_YARD, IN_YARD, IN_YARD, IN_YARD],
+  });
+  assert.strictEqual(legalMoves(s, 2).filter((m) => m.tokenIndex === 0).length, 0);
+  assert.strictEqual(legalMoves(s, 2).filter((m) => m.tokenIndex === 1).length, 1);
+});
+
+// -- the six rule ------------------------------------------------------------
+
+t("three sixes running forfeits the turn and moves nothing", () => {
+  const s = fresh();
+  s.sixes = 2;
+  const before = JSON.stringify(s.positions);
+  const r = applyRoll(s, 6);
+  assert.strictEqual(r.reason, "three_sixes");
+  assert.strictEqual(r.moves.length, 0);
+  assert.strictEqual(r.state.players[r.state.turn], "green");
+  assert.strictEqual(r.state.sixes, 0);
+  assert.strictEqual(JSON.stringify(r.state.positions), before);
+});
+
+t("a playable roll parks the dice on the document", () => {
+  const r = applyRoll(fresh(), 6);
+  assert.strictEqual(r.reason, "playable");
+  assert.strictEqual(r.state.dice, 6);
+  assert.strictEqual(r.state.sixes, 1);
+});
+
+t("a non-six resets the six counter", () => {
+  const s = fresh();
+  s.sixes = 1;
+  s.positions.red[0] = 4;
+  assert.strictEqual(applyRoll(s, 2).state.sixes, 0);
+});
+
+// -- the guards the callable relies on --------------------------------------
+
+t("only the seat to move may roll", () => {
+  const s = fresh();
+  const seats = { red: "u1", green: "u2" };
+  assert.strictEqual(isSeatToMove(s, seats, "u1"), true);
+  assert.strictEqual(isSeatToMove(s, seats, "u2"), false, "not green's turn");
+  assert.strictEqual(isSeatToMove(s, seats, "stranger"), false);
+  assert.strictEqual(isSeatToMove(s, seats, undefined), false);
+});
+
+t("a malformed state never authorises a roll", () => {
+  assert.strictEqual(isSeatToMove(null, {}, "u1"), false);
+  assert.strictEqual(isSeatToMove({}, {}, "u1"), false);
+  assert.strictEqual(isSeatToMove({ players: [] }, {}, "u1"), false);
+});
+
+// Without this a player could roll over and over until a six turned up.
+t("a pending roll blocks a second roll", () => {
+  assert.strictEqual(hasPendingRoll({ dice: 4 }), true);
+  assert.strictEqual(hasPendingRoll({ dice: null }), false);
+  assert.strictEqual(hasPendingRoll({}), false);
+});
+
+// -- the property that matters most -----------------------------------------
+
+t("random play always advances; no state rolls forever", () => {
+  let seed = 987654321;
+  const dice = () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return 1 + ((seed >> 16) % 6);
+  };
+  let s = fresh();
+  let rolls = 0;
+  let handovers = 0;
+  const first = s.turn;
+  while (rolls < 5000 && handovers < 50) {
+    rolls++;
+    const r = applyRoll(s, dice());
+    if (r.state.turn !== s.turn) handovers++;
+    s = r.state;
+    if (r.moves.length > 0) {
+      // Consume the roll the way a client would, so the dice never sticks.
+      s = { ...s, dice: null };
+    }
+  }
+  assert.ok(handovers > 0, "the turn never moved on");
+  assert.notStrictEqual(rolls, 5000, `stuck after ${rolls} rolls from ${first}`);
+});
+
+console.log(`\n${pass} passed`);
