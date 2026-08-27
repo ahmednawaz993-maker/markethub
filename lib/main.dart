@@ -90,6 +90,7 @@ part 'src/prayer_times.dart';
 part 'src/screen_islamic.dart';
 part 'src/ludo_engine.dart';
 part 'src/ludo_board.dart';
+part 'src/ludo_dice.dart';
 part 'src/screen_ludo.dart';
 part 'src/screen_admin_categories.dart';
 part 'src/screen_notifications.dart';

@@ -224,7 +224,14 @@ class LudoBoardPainter extends CustomPainter {
 }
 
 /// The board plus its tokens. Tapping a token that has a legal move plays it.
-class LudoBoard extends StatelessWidget {
+/// The board plus its tokens. Tapping a token that has a legal move plays it.
+///
+/// It animates any position change it is HANDED rather than being told to move.
+/// That matters because moves arrive from three places — this player, an
+/// opponent's device, and the server playing a bot or an abandoned turn — and
+/// only the board knows what actually changed. Diffing the incoming state means
+/// all three animate identically with no coordination between them.
+class LudoBoard extends StatefulWidget {
   const LudoBoard({
     super.key,
     required this.game,
@@ -243,67 +250,206 @@ class LudoBoard extends StatelessWidget {
   final LudoColor? highlightColor;
 
   @override
+  State<LudoBoard> createState() => _LudoBoardState();
+}
+
+/// One token in flight.
+class _Flight {
+  const _Flight({
+    required this.color,
+    required this.tokenIndex,
+    required this.from,
+    required this.to,
+  });
+
+  final LudoColor color;
+  final int tokenIndex;
+  final int from;
+  final int to;
+
+  /// A token advancing walks the board square by square. A captured one flies
+  /// straight back to its yard, because there is no path to retrace.
+  bool get isWalk => from >= 0 && to > from;
+  int get steps => isWalk ? to - from : 1;
+}
+
+class _LudoBoardState extends State<LudoBoard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this);
+
+  /// Where the tokens are currently DRAWN, which lags the game state while a
+  /// move plays out.
+  Map<LudoColor, List<int>> _shown = {};
+  List<_Flight> _flights = const [];
+
+  /// Timed per square, not per move — a six should visibly take longer than a
+  /// one, the way it does on a real board.
+  static const Duration _perStep = Duration(milliseconds: 105);
+  static const Duration _hop = Duration(milliseconds: 280);
+
+  @override
+  void initState() {
+    super.initState();
+    _shown = _copy(widget.game.positions);
+    _c.addStatusListener((s) {
+      if (s == AnimationStatus.completed && mounted) {
+        setState(() {
+          _shown = _copy(widget.game.positions);
+          _flights = const [];
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  static Map<LudoColor, List<int>> _copy(Map<LudoColor, List<int>> m) => {
+    for (final e in m.entries) e.key: List<int>.from(e.value),
+  };
+
+  @override
+  void didUpdateWidget(LudoBoard old) {
+    super.didUpdateWidget(old);
+    final next = widget.game.positions;
+    final flights = <_Flight>[];
+    for (final color in widget.game.players) {
+      final now = next[color];
+      final was = _shown[color];
+      if (now == null || was == null || was.length != now.length) continue;
+      for (var i = 0; i < now.length; i++) {
+        if (was[i] != now[i]) {
+          flights.add(
+            _Flight(color: color, tokenIndex: i, from: was[i], to: now[i]),
+          );
+        }
+      }
+    }
+    if (flights.isEmpty) {
+      // Nothing moved, but the seats may have changed while waiting to start.
+      if (_flights.isEmpty) _shown = _copy(next);
+      return;
+    }
+    // The longest walk sets the pace, so a capture and the move that caused it
+    // land together instead of stuttering.
+    final steps = flights
+        .map((f) => f.isWalk ? f.steps : 0)
+        .fold<int>(0, math.max);
+    _c.duration = steps > 0 ? _perStep * steps : _hop;
+    setState(() => _flights = flights);
+    _c.forward(from: 0);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final playable = {for (final m in moves) '${m.color.name}:${m.tokenIndex}': m};
+    final playable = {
+      for (final m in widget.moves) '${m.color.name}:${m.tokenIndex}': m,
+    };
+    final flying = {
+      for (final f in _flights) '${f.color.name}:${f.tokenIndex}': f,
+    };
+
     return AspectRatio(
       aspectRatio: 1,
       child: LayoutBuilder(
         builder: (context, c) {
           final u = c.maxWidth / 15.0;
-          final tokens = <Widget>[];
+          return AnimatedBuilder(
+            animation: _c,
+            builder: (context, _) {
+              final tokens = <Widget>[];
+              // Finished tokens are stacked in the centre so a player can see
+              // how many they have brought home at a glance.
+              final homeTally = <LudoColor, int>{};
 
-          // Finished tokens are stacked in the centre so a player can see how
-          // many they have brought home at a glance.
-          final homeTally = <LudoColor, int>{};
+              for (final color in widget.game.players) {
+                final list = _shown[color] ?? widget.game.positions[color]!;
+                for (var i = 0; i < list.length; i++) {
+                  final key = '${color.name}:$i';
+                  final flight = flying[key];
+                  final move = playable[key];
 
-          for (final color in game.players) {
-            final list = game.positions[color]!;
-            for (var i = 0; i < list.length; i++) {
-              final progress = list[i];
-              final cell = ludoCellFor(color, progress, i);
-              final move = playable['${color.name}:$i'];
-              double left, top;
-              if (cell == null) {
-                final n = homeTally.update(
-                  color,
-                  (v) => v + 1,
-                  ifAbsent: () => 0,
-                );
-                final base = _centreSlot(color, u);
-                left = base.dx + n * u * 0.18;
-                top = base.dy;
-              } else {
-                left = cell.col * u;
-                top = cell.row * u;
+                  Offset at(int p) {
+                    final cell = ludoCellFor(color, p, i);
+                    if (cell != null) {
+                      return Offset(cell.col * u, cell.row * u);
+                    }
+                    final n = homeTally[color] ?? 0;
+                    final base = _centreSlot(color, u);
+                    return Offset(base.dx + n * u * 0.18, base.dy);
+                  }
+
+                  Offset pos;
+                  if (flight == null) {
+                    final p = list[i];
+                    if (ludoCellFor(color, p, i) == null) {
+                      homeTally.update(color, (v) => v + 1, ifAbsent: () => 0);
+                    }
+                    pos = at(p);
+                  } else if (flight.isWalk) {
+                    // Square by square, easing between the two cells the token
+                    // is between right now.
+                    final travelled = _c.value * flight.steps;
+                    final done = travelled.floor().clamp(0, flight.steps - 1);
+                    final frac = (travelled - done).clamp(0.0, 1.0);
+                    pos = Offset.lerp(
+                      at(flight.from + done),
+                      at(flight.from + done + 1),
+                      frac,
+                    )!;
+                  } else {
+                    // Captured, or stepping out of the yard: one smooth hop.
+                    pos = Offset.lerp(
+                      at(flight.from),
+                      at(flight.to),
+                      Curves.easeInOutCubic.transform(_c.value),
+                    )!;
+                  }
+
+                  // A small lift mid-flight reads as the piece being picked up
+                  // and put down, rather than sliding along the board.
+                  final lift = flight == null
+                      ? 0.0
+                      : math.sin(_c.value * math.pi) * u * 0.18;
+
+                  tokens.add(
+                    Positioned(
+                      left: pos.dx,
+                      top: pos.dy - lift,
+                      width: u,
+                      height: u,
+                      child: _Token(
+                        color: color,
+                        // A token in flight is not tappable — a second tap
+                        // mid-animation would play a move against a board the
+                        // player can no longer see.
+                        playable: move != null && flight == null,
+                        onTap: move == null || flight != null
+                            ? null
+                            : () => widget.onMove?.call(move),
+                      ),
+                    ),
+                  );
+                }
               }
-              tokens.add(
-                Positioned(
-                  left: left,
-                  top: top,
-                  width: u,
-                  height: u,
-                  child: _Token(
-                    color: color,
-                    playable: move != null,
-                    onTap: move == null ? null : () => onMove?.call(move),
-                  ),
-                ),
-              );
-            }
-          }
 
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: LudoBoardPainter(
-                    surface: AppColors.surface,
-                    line: AppColors.borderSoft,
+              return Stack(
+                children: [
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: LudoBoardPainter(
+                        surface: AppColors.surface,
+                        line: AppColors.borderSoft,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              ...tokens,
-            ],
+                  ...tokens,
+                ],
+              );
+            },
           );
         },
       ),

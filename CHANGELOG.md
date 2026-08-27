@@ -11,6 +11,20 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.60] — 2026-08-27
+
+### Changed
+
+- **Ludo pieces now move across the board instead of jumping.** A token walks
+  square by square, so a six visibly takes longer than a one, and it lifts
+  slightly as it travels the way a piece does when you pick it up. A captured
+  token flies back to its yard. Every move animates the same way — your own,
+  your opponent's, and the computer's.
+- **The dice tumbles before it settles.** It rolls for exactly as long as the
+  game is waiting on the result, so on a slow connection it keeps turning
+  rather than sitting frozen. The face is drawn with real pips rather than a
+  number. Tap the dice to roll.
+
 ## [1.0.59] — 2026-08-27
 
 ### Fixed

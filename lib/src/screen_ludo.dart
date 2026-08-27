@@ -628,19 +628,12 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Row(
         children: [
-          Container(
-            width: 52,
-            height: 52,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: AppRadius.rMd,
-              border: Border.all(color: AppColors.borderSoft),
-            ),
-            child: Text(
-              _shownDice?.toString() ?? '–',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
-            ),
+          // Tapping the die rolls, which is what a player reaches for first.
+          LudoDice(
+            value: _shownDice,
+            rolling: _busy,
+            enabled: myTurn && _pending.isEmpty,
+            onTap: () => _roll(room),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
