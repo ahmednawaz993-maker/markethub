@@ -77,6 +77,18 @@ extension type const LudoTokenPos(int progress) {
 }
 
 /// A legal move: move [tokenIndex] of [color] to [to].
+/// One-way shortcuts for [LudoMode.arrow]: ring cell of the tail -> the head
+/// it carries a token to.
+///
+/// Four of them, one per quadrant and evenly spaced (every 13th cell), each a
+/// jump of seven. Three constraints decided the numbers, and all three are
+/// pinned by tests:
+///   * no tail or head is a SAFE square, so a shortcut never doubles as
+///     protection and a capture on a head is still possible;
+///   * no head is another tail, so arrows cannot chain into a longer ride;
+///   * every jump is forward, so an arrow can never send a token backwards.
+const Map<int, int> kLudoArrows = {4: 11, 17: 24, 30: 37, 43: 50};
+
 class LudoMove {
   const LudoMove({
     required this.color,
@@ -84,6 +96,7 @@ class LudoMove {
     required this.from,
     required this.to,
     required this.captures,
+    this.viaArrow = false,
   });
 
   final LudoColor color;
@@ -94,13 +107,18 @@ class LudoMove {
   /// Opponent tokens sent back to the yard, as (colour, token index).
   final List<({LudoColor color, int tokenIndex})> captures;
 
+  /// True when the token landed on an arrow tail and was carried to its head.
+  /// [to] is already the head, so the board animates to where it ends up.
+  final bool viaArrow;
+
   bool get isEntry => from.inYard;
   bool get reachesHome => to.isHome;
 
   @override
   String toString() =>
       '${color.name}#$tokenIndex ${from.progress}->${to.progress}'
-      '${captures.isEmpty ? '' : ' x${captures.length}'}';
+      '${captures.isEmpty ? '' : ' x${captures.length}'}'
+      '${viaArrow ? ' >>' : ''}';
 }
 
 /// How a table is playing. All three use the same board and the same movement
@@ -122,14 +140,33 @@ enum LudoMode {
     4,
     true,
     'Four tokens, and you must capture an opponent before you can go home.',
+  ),
+
+  /// Four tokens, plus four one-way shortcuts around the ring. Landing on an
+  /// arrow's tail carries the token to its head and earns another roll.
+  arrow(
+    'Arrow',
+    4,
+    false,
+    'Shortcuts on the board. Land on an arrow and ride it, then roll again.',
+    arrows: true,
   );
 
-  const LudoMode(this.label, this.tokens, this.captureToEnterHome, this.blurb);
+  const LudoMode(
+    this.label,
+    this.tokens,
+    this.captureToEnterHome,
+    this.blurb, {
+    this.arrows = false,
+  });
 
   final String label;
   final int tokens;
   final bool captureToEnterHome;
   final String blurb;
+
+  /// Whether [kLudoArrows] is live for this variant.
+  final bool arrows;
 }
 
 /// A complete game state. Immutable; every transition returns a new one.
@@ -237,7 +274,13 @@ class LudoGame {
         }
       }
 
-      final to = LudoTokenPos(toProgress);
+      // Arrow: resolved HERE rather than when the move is applied, so `to` is
+      // already the head. Everything downstream — the own-token check, the
+      // capture check and the board animation — then works on where the token
+      // actually ends up, not where it touched down.
+      final jumped = arrowJump(color, toProgress);
+      final finalProgress = jumped ?? toProgress;
+      final to = LudoTokenPos(finalProgress);
 
       // A token cannot land on one of its own — that would stack two tokens on
       // a square and make captures ambiguous.
@@ -258,10 +301,28 @@ class LudoGame {
           from: from,
           to: to,
           captures: _capturesAt(color, destRing),
+          viaArrow: jumped != null,
         ),
       );
     }
     return moves;
+  }
+
+  /// The progress an arrow carries a token on to, or null if none applies.
+  ///
+  /// Refuses any jump that would carry a token past its own turn-off into the
+  /// home column ([kLudoLastRingStep]). Home has to be reached by an exact
+  /// roll, and a shortcut that skipped that would let a token stroll in.
+  int? arrowJump(LudoColor color, int progress) {
+    if (!mode.arrows) return null;
+    if (progress < 0 || progress > kLudoLastRingStep) return null;
+    final ring = LudoTokenPos(progress).ringCell(color);
+    if (ring == null) return null;
+    final head = kLudoArrows[ring];
+    if (head == null) return null;
+    final jumped = progress + ((head - ring + kLudoRingLength) % kLudoRingLength);
+    if (jumped > kLudoLastRingStep) return null;
+    return jumped;
   }
 
   /// Opponents standing on [ringCell] that this move would send home.
@@ -310,7 +371,8 @@ class LudoGame {
     final earnedAnother =
         (rolledSix && consecutiveSixes < 3) ||
         move.captures.isNotEmpty ||
-        move.reachesHome;
+        move.reachesHome ||
+        move.viaArrow;
 
     return LudoGame(
       players: players,

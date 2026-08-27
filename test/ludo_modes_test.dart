@@ -10,6 +10,7 @@ import 'package:markethub/main.dart';
 // server will not accept, so ludo_logic.test.js asserts the same cases.
 
 void main() {
+  _arrowTests();
   const two = [LudoColor.red, LudoColor.green];
 
   group('token counts', () {
@@ -161,6 +162,156 @@ void main() {
     test('a document with no mode reads as Classic', () {
       final legacy = LudoGame.newGame(two).toJson()..remove('mode');
       expect(LudoGame.fromJson(legacy).mode, LudoMode.classic);
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Arrow: four one-way shortcuts round the ring. Landing on a tail carries the
+// token to the head and earns another roll.
+//
+// The arrow TABLE is tested as hard as the behaviour, because bad numbers here
+// would not crash anything — they would just make the game subtly wrong. An
+// arrow onto a safe square would create protection that should not exist; a
+// head that is also a tail would chain into a ride nobody designed; a backwards
+// jump would look like a bug to every player who saw it.
+// ---------------------------------------------------------------------------
+
+void _arrowTests() {
+  group('the arrow table', () {
+    test('is four evenly spaced, forward-only jumps', () {
+      expect(kLudoArrows.length, 4);
+      for (final e in kLudoArrows.entries) {
+        final forward = (e.value - e.key + kLudoRingLength) % kLudoRingLength;
+        expect(forward, 7, reason: 'arrow ${e.key}->${e.value} is not +7');
+      }
+    });
+
+    test('never starts or ends on a safe square', () {
+      for (final e in kLudoArrows.entries) {
+        expect(kLudoSafeCells.contains(e.key), isFalse, reason: 'tail ${e.key}');
+        expect(
+          kLudoSafeCells.contains(e.value),
+          isFalse,
+          reason: 'head ${e.value}',
+        );
+      }
+    });
+
+    test('no head is another tail, so arrows cannot chain', () {
+      for (final head in kLudoArrows.values) {
+        expect(kLudoArrows.containsKey(head), isFalse, reason: 'chain at $head');
+      }
+    });
+
+    test('every cell is within the ring', () {
+      for (final e in kLudoArrows.entries) {
+        expect(e.key, inInclusiveRange(0, kLudoRingLength - 1));
+        expect(e.value, inInclusiveRange(0, kLudoRingLength - 1));
+      }
+    });
+  });
+
+  group('riding an arrow', () {
+    LudoGame arrowGame() =>
+        LudoGame.newGame(const [LudoColor.red, LudoColor.green],
+            mode: LudoMode.arrow);
+
+    test('only applies in Arrow mode', () {
+      // Red's start cell is 0, so progress 4 sits on ring cell 4 — a tail.
+      final classic = LudoGame.newGame(const [
+        LudoColor.red,
+        LudoColor.green,
+      ]);
+      expect(classic.arrowJump(LudoColor.red, 4), isNull);
+      expect(arrowGame().arrowJump(LudoColor.red, 4), 11);
+    });
+
+    test('carries the token to the head', () {
+      final g = arrowGame();
+      expect(g.arrowJump(LudoColor.red, 4), 11);
+      expect(g.arrowJump(LudoColor.red, 17), 24);
+      expect(g.arrowJump(LudoColor.red, 30), 37);
+    });
+
+    test('does nothing on a cell that is not a tail', () {
+      final g = arrowGame();
+      expect(g.arrowJump(LudoColor.red, 5), isNull);
+      expect(g.arrowJump(LudoColor.red, 0), isNull);
+    });
+
+    test('never carries a token into the home column', () {
+      // Red at 43 is a tail whose head is 50 — allowed, it stays on the ring.
+      expect(arrowGame().arrowJump(LudoColor.red, 43), 50);
+      // Anything the jump would push past the turn-off is refused outright,
+      // because home has to be reached by an exact roll.
+      for (var p = 0; p <= kLudoLastRingStep; p++) {
+        final j = arrowGame().arrowJump(LudoColor.red, p);
+        if (j != null) {
+          expect(j, lessThanOrEqualTo(kLudoLastRingStep));
+          expect(j, greaterThan(p), reason: 'arrow went backwards from $p');
+        }
+      }
+    });
+
+    test('works for every colour, not just red', () {
+      // Each colour enters the ring at a different cell, so the progress that
+      // lands on a tail differs — the jump must still be +7 for all of them.
+      for (final c in LudoColor.values) {
+        var found = 0;
+        for (var p = 0; p <= kLudoLastRingStep; p++) {
+          final j = arrowGame().arrowJump(c, p);
+          if (j != null) {
+            expect(j - p, 7, reason: '${c.name} from $p');
+            found++;
+          }
+        }
+        expect(found, greaterThan(0), reason: '${c.name} has no arrows at all');
+      }
+    });
+
+    test('a move that rides an arrow reports it, and earns another roll', () {
+      // Red token 0 at progress 1; a 3 lands it on 4, which is a tail.
+      var g = arrowGame();
+      g = LudoGame(
+        players: g.players,
+        positions: {
+          LudoColor.red: [1, kLudoInYard, kLudoInYard, kLudoInYard],
+          LudoColor.green: [kLudoInYard, kLudoInYard, kLudoInYard, kLudoInYard],
+        },
+        turn: 0,
+        consecutiveSixes: 0,
+        winners: const [],
+        lastDice: 3,
+        mode: LudoMode.arrow,
+      );
+      final move = g.legalMoves(3).firstWhere((m) => m.tokenIndex == 0);
+      expect(move.viaArrow, isTrue);
+      expect(move.to.progress, 11, reason: 'should end on the arrow head');
+
+      final after = g.applyMove(move);
+      expect(after.positions[LudoColor.red]![0], 11);
+      // A 3 is not a six and captured nothing, so only the arrow can be
+      // granting the extra roll.
+      expect(after.currentPlayer, LudoColor.red);
+    });
+
+    test('the same move in Classic stops on the tail and passes the turn', () {
+      var g = LudoGame(
+        players: const [LudoColor.red, LudoColor.green],
+        positions: {
+          LudoColor.red: [1, kLudoInYard, kLudoInYard, kLudoInYard],
+          LudoColor.green: [kLudoInYard, kLudoInYard, kLudoInYard, kLudoInYard],
+        },
+        turn: 0,
+        consecutiveSixes: 0,
+        winners: const [],
+        lastDice: 3,
+      );
+      final move = g.legalMoves(3).firstWhere((m) => m.tokenIndex == 0);
+      expect(move.viaArrow, isFalse);
+      expect(move.to.progress, 4);
+      expect(g.applyMove(move).currentPlayer, LudoColor.green);
     });
   });
 }

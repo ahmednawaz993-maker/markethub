@@ -11,6 +11,12 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.72] — 2026-08-28
+
+- New Ludo gameplay: **Arrow**. Four one-way shortcuts around the board — land
+  on an arrow and it carries your token to the head, and you roll again. Games
+  run about 17% shorter than Classic.
+
 ## [1.0.71] — 2026-08-28
 
 - Ludo: "Play now". One tap joins an open table or opens one, and if no real

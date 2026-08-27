@@ -549,6 +549,7 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
                     LudoMode.classic => Icons.grid_view,
                     LudoMode.quick => Icons.bolt,
                     LudoMode.master => Icons.military_tech,
+                    LudoMode.arrow => Icons.double_arrow,
                   },
                   color: kPakGreen,
                 ),

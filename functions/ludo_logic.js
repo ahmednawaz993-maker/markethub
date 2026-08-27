@@ -22,11 +22,34 @@ const RING_LENGTH = 52;
 const SAFE_CELLS = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
 const START_CELL = { red: 0, green: 13, yellow: 26, blue: 39 };
 const COLOURS = ["red", "green", "yellow", "blue"];
+// Arrow mode's one-way shortcuts, tail ring cell -> head. MUST match
+// kLudoArrows in lib/src/ludo_engine.dart; ludo_logic.test.js asserts the exact
+// table, because a silent difference here would offer the player a jump the
+// server does not make.
+const ARROWS = { 4: 11, 17: 24, 30: 37, 43: 50 };
 
 /** Shared-ring cell for a colour's progress, or null when off the ring. */
 function ringCell(colour, progress) {
   if (progress < 0 || progress > LAST_RING_STEP) return null;
   return (START_CELL[colour] + progress) % RING_LENGTH;
+}
+
+/**
+ * Where an arrow carries a token, or null. Mirrors LudoGame.arrowJump.
+ *
+ * Refuses a jump that would carry the token past its own turn-off, because home
+ * must still be reached by an exact roll.
+ */
+function arrowJump(state, colour, progress) {
+  if (state.mode !== "arrow") return null;
+  if (progress < 0 || progress > LAST_RING_STEP) return null;
+  const ring = ringCell(colour, progress);
+  if (ring === null) return null;
+  const head = ARROWS[ring];
+  if (head === undefined) return null;
+  const jumped = progress + ((head - ring + RING_LENGTH) % RING_LENGTH);
+  if (jumped > LAST_RING_STEP) return null;
+  return jumped;
 }
 
 /**
@@ -62,6 +85,12 @@ function legalMoves(state, dice) {
       }
     }
 
+    // Resolved before anything downstream looks at the destination, so the
+    // own-token check and the capture check both run on the arrow's HEAD.
+    const jumped = arrowJump(state, colour, to);
+    const viaArrow = jumped !== null;
+    if (viaArrow) to = jumped;
+
     const destRing = ringCell(colour, to);
     if (destRing !== null) {
       // A token may not land on one of its own.
@@ -84,7 +113,7 @@ function legalMoves(state, dice) {
         }
       }
     }
-    moves.push({ tokenIndex: i, from, to, captures });
+    moves.push({ tokenIndex: i, from, to, captures, viaArrow });
   }
   return moves;
 }
@@ -189,7 +218,8 @@ function applyMove(state, move) {
   const another =
     (rolledSix && (state.sixes || 0) < 3) ||
     move.captures.length > 0 ||
-    move.to === HOME;
+    move.to === HOME ||
+    move.viaArrow === true;
 
   const next = { ...state, positions, winners, captured, dice: null };
   next.turn = another ? state.turn : nextSeat({ ...state, winners });
@@ -232,6 +262,8 @@ function isTurnStale(state, updatedAtMillis, nowMillis, seconds) {
 }
 
 module.exports = {
+  ARROWS,
+  arrowJump,
   IN_YARD,
   LAST_RING_STEP,
   HOME,
