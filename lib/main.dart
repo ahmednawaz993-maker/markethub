@@ -90,6 +90,7 @@ part 'src/screen_islamic.dart';
 part 'src/ludo_engine.dart';
 part 'src/ludo_board.dart';
 part 'src/ludo_dice.dart';
+part 'src/game_sound.dart';
 part 'src/screen_ludo.dart';
 part 'src/screen_admin_categories.dart';
 part 'src/screen_notifications.dart';
@@ -167,6 +168,7 @@ Future<void> main() async {
       loadMonetizationFlag(),
       loadLuckyDrawFlag(),
       loadRecentSearches(),
+      loadGameSoundPref(),
       recordAppSession(),
     ]).catchError((_) => <void>[]),
   );

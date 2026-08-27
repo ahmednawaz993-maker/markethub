@@ -49,6 +49,17 @@ function legalMoves(state, dice) {
     } else {
       to = from + dice;
       if (to > HOME) continue; // home must be exact
+      // Master: the home column stays shut until this colour has sent an
+      // opponent back to the yard. Mirrors LudoGame.legalMoves — if the server
+      // and the phone disagree here, a player is offered a move the server
+      // will not accept.
+      if (
+        state.mode === "master" &&
+        to > LAST_RING_STEP &&
+        !(state.captured || []).includes(colour)
+      ) {
+        continue;
+      }
     }
 
     const destRing = ringCell(colour, to);
@@ -165,6 +176,13 @@ function applyMove(state, move) {
     winners.push(colour);
   }
 
+  // A capture unlocks the home column in Master, so it has to be recorded on
+  // the state the same way the Dart engine records it.
+  const captured = (state.captured || []).slice();
+  if (move.captures.length > 0 && !captured.includes(colour)) {
+    captured.push(colour);
+  }
+
   // A six, a capture, or getting a token home each earn another roll — but a
   // third six running never does.
   const rolledSix = state.dice === 6;
@@ -173,7 +191,7 @@ function applyMove(state, move) {
     move.captures.length > 0 ||
     move.to === HOME;
 
-  const next = { ...state, positions, winners, dice: null };
+  const next = { ...state, positions, winners, captured, dice: null };
   next.turn = another ? state.turn : nextSeat({ ...state, winners });
   next.sixes = another && rolledSix ? state.sixes : 0;
   return next;

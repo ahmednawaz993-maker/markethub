@@ -337,4 +337,80 @@ t("auto-playing an abandoned turn always advances the game", () => {
   assert.ok((s.winners || []).length > 0, "no winner after " + turns + " turns");
 });
 
+// -- game modes, mirrored from test/ludo_modes_test.dart --------------------
+//
+// The server rolls and plays the bots, so it decides whether a roll was
+// playable at all. If it disagrees with the phone about the Master lock, a
+// player is offered a move the server refuses and the turn stalls.
+
+t("Master locks the home column until the colour has captured", () => {
+  const base = {
+    players: ["red", "green"],
+    positions: { red: [48, IN_YARD, IN_YARD, IN_YARD], green: [10, IN_YARD, IN_YARD, IN_YARD] },
+    turn: 0,
+    sixes: 0,
+    winners: [],
+    dice: null,
+    mode: "master",
+    captured: [],
+  };
+  const shut = legalMoves(base, 5).filter((m) => m.to > 50);
+  assert.strictEqual(shut.length, 0, "the column must be shut");
+
+  const open = legalMoves({ ...base, captured: ["red"] }, 5).filter(
+    (m) => m.to > 50
+  );
+  assert.strictEqual(open.length, 1, "a capture opens it");
+});
+
+t("a locked token can still travel the ring", () => {
+  const s = {
+    players: ["red", "green"],
+    positions: { red: [30, IN_YARD, IN_YARD, IN_YARD], green: [10, IN_YARD, IN_YARD, IN_YARD] },
+    turn: 0, sixes: 0, winners: [], dice: null, mode: "master", captured: [],
+  };
+  assert.ok(legalMoves(s, 4).length > 0, "it is locked, not frozen");
+});
+
+t("Classic never locks the home column", () => {
+  const s = {
+    players: ["red", "green"],
+    positions: { red: [48, IN_YARD, IN_YARD, IN_YARD], green: [10, IN_YARD, IN_YARD, IN_YARD] },
+    turn: 0, sixes: 0, winners: [], dice: null, mode: "classic", captured: [],
+  };
+  assert.strictEqual(legalMoves(s, 5).filter((m) => m.to > 50).length, 1);
+});
+
+// A document written before modes existed has no `mode` field at all. It must
+// behave as Classic rather than accidentally locking every player out of home.
+t("a state with no mode behaves as Classic", () => {
+  const s = {
+    players: ["red", "green"],
+    positions: { red: [48, IN_YARD, IN_YARD, IN_YARD], green: [10, IN_YARD, IN_YARD, IN_YARD] },
+    turn: 0, sixes: 0, winners: [], dice: null,
+  };
+  assert.strictEqual(legalMoves(s, 5).filter((m) => m.to > 50).length, 1);
+});
+
+t("applyMove records the Master unlock", () => {
+  const s = {
+    players: ["red", "green"],
+    positions: { red: [4, IN_YARD, IN_YARD, IN_YARD], green: [46, IN_YARD, IN_YARD, IN_YARD] },
+    turn: 0, sixes: 0, winners: [], dice: 3, mode: "master", captured: [],
+  };
+  const cap = legalMoves(s, 3).find((m) => m.captures.length > 0);
+  assert.ok(cap, "expected a capture");
+  assert.deepStrictEqual(applyMove(s, cap).captured, ["red"]);
+});
+
+t("Quick wins on two tokens because that is all a player has", () => {
+  const s = {
+    players: ["red", "green"],
+    positions: { red: [HOME, 53], green: [0, IN_YARD] },
+    turn: 0, sixes: 0, winners: [], dice: 3, mode: "quick", captured: [],
+  };
+  const home = legalMoves(s, 3).find((m) => m.to === HOME);
+  assert.deepStrictEqual(applyMove(s, home).winners, ["red"]);
+});
+
 console.log(`\n${pass} passed`);

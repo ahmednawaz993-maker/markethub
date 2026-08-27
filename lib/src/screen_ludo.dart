@@ -86,9 +86,15 @@ CollectionReference<Map<String, dynamic>> _ludoCol() =>
     FirebaseFirestore.instance.collection(_kLudoRooms);
 
 /// Creates a room with the host seated as Red.
-Future<String> createLudoRoom({required String displayName}) async {
+Future<String> createLudoRoom({
+  required String displayName,
+  LudoMode mode = LudoMode.classic,
+}) async {
   final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-  final game = LudoGame.newGame(const [LudoColor.red, LudoColor.green]);
+  final game = LudoGame.newGame(const [
+    LudoColor.red,
+    LudoColor.green,
+  ], mode: mode);
   final doc = await _ludoCol().add({
     'hostId': uid,
     'seats': {LudoColor.red.name: uid},
@@ -131,7 +137,9 @@ Future<LudoColor?> joinLudoRoom(String roomId, String displayName) async {
     tx.update(ref, {
       'seats': seats,
       'names': names,
-      'state': LudoGame.newGame(players).toJson(),
+      // Keep the room's mode: rebuilding as classic would silently change the
+      // rules under a table that chose Quick or Master.
+      'state': LudoGame.newGame(players, mode: room.game.mode).toJson(),
       'updatedAt': Timestamp.now(),
     });
     return free;
@@ -378,8 +386,38 @@ class LudoLobbyScreen extends StatelessWidget {
   Future<void> _create(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
+    final mode = await showModalBottomSheet<LudoMode>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Text('Choose a game', style: AppType.sectionTitle),
+            ),
+            for (final m in LudoMode.values)
+              ListTile(
+                leading: Icon(
+                  switch (m) {
+                    LudoMode.classic => Icons.grid_view,
+                    LudoMode.quick => Icons.bolt,
+                    LudoMode.master => Icons.military_tech,
+                  },
+                  color: kPakGreen,
+                ),
+                title: Text(m.label),
+                subtitle: Text(m.blurb, style: AppType.caption),
+                onTap: () => Navigator.pop(ctx, m),
+              ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+    if (mode == null) return;
     try {
-      final id = await createLudoRoom(displayName: await _name());
+      final id = await createLudoRoom(displayName: await _name(), mode: mode);
       navigator.push(
         MaterialPageRoute(builder: (_) => LudoGameScreen(roomId: id)),
       );
@@ -480,6 +518,7 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
   /// also what stops a lost local copy deadlocking the turn.
   Future<void> _roll() async {
     if (_busy) return;
+    GameSoundPlayer.instance.play(GameSound.dice);
     setState(() => _busy = true);
     try {
       await _ludoCol()
@@ -589,9 +628,10 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
             title: Text(
               room.status == LudoRoomStatus.waiting
                   ? 'Waiting for players'
-                  : 'Ludo',
+                  : 'Ludo · ${room.game.mode.label}',
             ),
             actions: [
+              const GameSoundButton(),
               IconButton(
                 tooltip: 'Chat',
                 icon: const Icon(Icons.chat_bubble_outline),

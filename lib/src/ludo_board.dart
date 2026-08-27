@@ -333,6 +333,23 @@ class _LudoBoardState extends State<LudoBoard>
       if (_flights.isEmpty) _shown = _copy(next);
       return;
     }
+    // Cues are fired from the SAME diff that drives the animation, so an
+    // opponent's move and the computer's sound exactly like your own — there is
+    // no separate path to keep in step.
+    final walked = flights
+        .where((f) => f.isWalk)
+        .fold<int>(0, (n, f) => math.max(n, f.steps));
+    if (flights.any((f) => f.to == kLudoInYard)) {
+      GameSoundPlayer.instance.play(GameSound.capture);
+    } else if (flights.any((f) => f.to == kLudoHome)) {
+      GameSoundPlayer.instance.play(GameSound.home);
+    } else if (walked > 0) {
+      GameSoundPlayer.instance.walk(walked);
+    }
+    if (widget.game.winners.length > old.game.winners.length) {
+      GameSoundPlayer.instance.play(GameSound.win);
+    }
+
     // The longest walk sets the pace, so a capture and the move that caused it
     // land together instead of stuttering.
     final steps = flights

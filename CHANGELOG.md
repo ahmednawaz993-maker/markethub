@@ -11,6 +11,21 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.64] — 2026-08-27
+
+### Added
+
+- **Three ways to play Ludo.** Pick one when you start a game:
+  - **Classic** — four tokens each, bring all four home. The full game.
+  - **Quick** — two tokens each. A genuinely shorter game, not a timer that
+    cuts play off and awards it on points.
+  - **Master** — four tokens, but you must send an opponent home before any of
+    your tokens can enter your home column. It stops anyone racing round
+    untouched.
+- **Sound.** The dice rattles, tokens tick as they walk, a capture thuds, and
+  there is a short fanfare when someone wins. Sound is **off until you turn it
+  on** with the speaker button — the app never starts making noise on its own.
+
 ## [1.0.63] — 2026-08-27
 
 ### Fixed

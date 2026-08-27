@@ -103,6 +103,35 @@ class LudoMove {
       '${captures.isEmpty ? '' : ' x${captures.length}'}';
 }
 
+/// How a table is playing. All three use the same board and the same movement
+/// rules; they differ in how long a game lasts and what it takes to finish.
+enum LudoMode {
+  /// The full game: four tokens each, all four must come home.
+  classic('Classic', 4, false, 'Four tokens each. Bring all four home.'),
+
+  /// Two tokens each. Roughly half the length, same rules otherwise — the
+  /// honest way to make a game short, rather than a timer that cuts it off
+  /// mid-play and declares a winner on points.
+  quick('Quick', 2, false, 'Two tokens each — a much shorter game.'),
+
+  /// Four tokens, and you must send an opponent home before ANY of your tokens
+  /// may enter your home column. A long-standing variant: it stops a player
+  /// racing round untouched and forces at least one confrontation.
+  master(
+    'Master',
+    4,
+    true,
+    'Four tokens, and you must capture an opponent before you can go home.',
+  );
+
+  const LudoMode(this.label, this.tokens, this.captureToEnterHome, this.blurb);
+
+  final String label;
+  final int tokens;
+  final bool captureToEnterHome;
+  final String blurb;
+}
+
 /// A complete game state. Immutable; every transition returns a new one.
 class LudoGame {
   const LudoGame({
@@ -112,12 +141,21 @@ class LudoGame {
     required this.consecutiveSixes,
     required this.winners,
     required this.lastDice,
+    this.mode = LudoMode.classic,
+    this.hasCaptured = const {},
   });
+
+  /// The variant being played.
+  final LudoMode mode;
+
+  /// Colours that have sent an opponent home at least once. Only consulted in
+  /// [LudoMode.master], where it unlocks the home column.
+  final Set<LudoColor> hasCaptured;
 
   /// Seats in play, in turn order. Two, three or four.
   final List<LudoColor> players;
 
-  /// Progress of each colour's four tokens.
+  /// Progress of each colour's tokens — four, or two in Quick.
   final Map<LudoColor, List<int>> positions;
 
   /// Index into [players].
@@ -126,7 +164,7 @@ class LudoGame {
   /// Sixes rolled in a row by the current player; three forfeits the turn.
   final int consecutiveSixes;
 
-  /// Colours that have got all four tokens home, in finishing order.
+  /// Colours that have got every token home, in finishing order.
   final List<LudoColor> winners;
 
   /// The dice value awaiting a move, or null when a roll is due.
@@ -136,17 +174,23 @@ class LudoGame {
 
   bool get isOver => winners.length >= players.length - 1;
 
-  static LudoGame newGame(List<LudoColor> players) {
+  static LudoGame newGame(
+    List<LudoColor> players, {
+    LudoMode mode = LudoMode.classic,
+  }) {
     assert(players.length >= 2 && players.length <= 4);
     return LudoGame(
       players: List.unmodifiable(players),
       positions: {
-        for (final c in players) c: List.filled(4, kLudoInYard, growable: false),
+        for (final c in players)
+          c: List.filled(mode.tokens, kLudoInYard, growable: false),
       },
       turn: 0,
       consecutiveSixes: 0,
       winners: const [],
       lastDice: null,
+      mode: mode,
+      hasCaptured: const {},
     );
   }
 
@@ -179,6 +223,18 @@ class LudoGame {
         toProgress = from.progress + dice;
         // Home must be reached exactly. Overshooting is simply not a move.
         if (toProgress > kLudoHome) continue;
+        // Master: the home column stays shut until this colour has sent an
+        // opponent back to the yard. The token can still travel the ring — it
+        // just cannot turn in, which is the whole point of the variant.
+        //
+        // Mirrored in functions/ludo_logic.js, because the server rolls and
+        // plays the bots. If the two disagree, a player is offered a move the
+        // server will refuse.
+        if (mode.captureToEnterHome &&
+            toProgress > kLudoLastRingStep &&
+            !hasCaptured.contains(color)) {
+          continue;
+        }
       }
 
       final to = LudoTokenPos(toProgress);
@@ -240,6 +296,9 @@ class LudoGame {
     }
 
     final newWinners = List<LudoColor>.from(winners);
+    final captured = move.captures.isEmpty
+        ? hasCaptured
+        : {...hasCaptured, move.color};
     if (next[move.color]!.every((p) => p == kLudoHome) &&
         !newWinners.contains(move.color)) {
       newWinners.add(move.color);
@@ -256,12 +315,12 @@ class LudoGame {
     return LudoGame(
       players: players,
       positions: next,
-      turn: earnedAnother
-          ? turn
-          : _nextSeat(turn, newWinners),
+      turn: earnedAnother ? turn : _nextSeat(turn, newWinners),
       consecutiveSixes: earnedAnother && rolledSix ? consecutiveSixes : 0,
       winners: newWinners,
       lastDice: null,
+      mode: mode,
+      hasCaptured: captured,
     );
   }
 
@@ -282,6 +341,8 @@ class LudoGame {
           consecutiveSixes: 0,
           winners: winners,
           lastDice: null,
+          mode: mode,
+          hasCaptured: hasCaptured,
         ),
         moves: const [],
       );
@@ -294,6 +355,8 @@ class LudoGame {
       consecutiveSixes: sixes,
       winners: winners,
       lastDice: dice,
+      mode: mode,
+      hasCaptured: hasCaptured,
     );
     final moves = rolled.legalMoves(dice);
     if (moves.isNotEmpty) return (game: rolled, moves: moves);
@@ -308,6 +371,8 @@ class LudoGame {
         consecutiveSixes: dice == 6 ? sixes : 0,
         winners: winners,
         lastDice: null,
+        mode: mode,
+        hasCaptured: hasCaptured,
       ),
       moves: const [],
     );
@@ -334,6 +399,8 @@ class LudoGame {
     'sixes': consecutiveSixes,
     'winners': [for (final c in winners) c.name],
     'dice': lastDice,
+    'mode': mode.name,
+    'captured': [for (final c in hasCaptured) c.name],
   };
 
   static LudoGame fromJson(Map<String, dynamic> j) {
@@ -354,6 +421,14 @@ class LudoGame {
       consecutiveSixes: (j['sixes'] as num?)?.toInt() ?? 0,
       winners: [for (final s in (j['winners'] as List? ?? const [])) parse('$s')],
       lastDice: (j['dice'] as num?)?.toInt(),
+      // Older documents predate modes; they are classic games.
+      mode: LudoMode.values.firstWhere(
+        (m) => m.name == j['mode'],
+        orElse: () => LudoMode.classic,
+      ),
+      hasCaptured: {
+        for (final s in (j['captured'] as List? ?? const [])) parse('$s'),
+      },
     );
   }
 }
