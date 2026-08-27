@@ -28,7 +28,15 @@ class LudoRoom {
     required this.status,
     required this.game,
     required this.updatedAt,
+    this.teamsWanted = false,
   });
+
+  /// Whether this table was opened as 2v2.
+  ///
+  /// Held on the room, not in the game state, because a game only BECOMES a
+  /// team game once four seats are filled — and the intent has to survive every
+  /// rebuild between opening the table and that fourth player arriving.
+  final bool teamsWanted;
 
   final String id;
   final String hostId;
@@ -78,6 +86,7 @@ class LudoRoom {
           ? LudoGame.newGame(const [LudoColor.red, LudoColor.green])
           : LudoGame.fromJson(rawGame),
       updatedAt: d['updatedAt'] as Timestamp?,
+      teamsWanted: d['teamsWanted'] == true,
     );
   }
 }
@@ -89,18 +98,23 @@ CollectionReference<Map<String, dynamic>> _ludoCol() =>
 Future<String> createLudoRoom({
   required String displayName,
   LudoMode mode = LudoMode.classic,
+  bool teams = false,
 }) async {
   final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+  // Seeded with two seats; newGame only turns teams on once four are filled,
+  // so the flag has to survive every rebuild below until then. It is carried on
+  // the document as `teamsWanted` because the game state cannot hold it yet.
   final game = LudoGame.newGame(const [
     LudoColor.red,
     LudoColor.green,
-  ], mode: mode);
+  ], mode: mode, teams: teams);
   final doc = await _ludoCol().add({
     'hostId': uid,
     'seats': {LudoColor.red.name: uid},
     'names': {LudoColor.red.name: displayName},
     'status': LudoRoomStatus.waiting.name,
     'state': game.toJson(),
+    'teamsWanted': teams,
     'createdAt': Timestamp.now(),
     'updatedAt': Timestamp.now(),
   });
@@ -139,7 +153,11 @@ Future<LudoColor?> joinLudoRoom(String roomId, String displayName) async {
       'names': names,
       // Keep the room's mode: rebuilding as classic would silently change the
       // rules under a table that chose Quick or Master.
-      'state': LudoGame.newGame(players, mode: room.game.mode).toJson(),
+      'state': LudoGame.newGame(
+        players,
+        mode: room.game.mode,
+        teams: room.teamsWanted,
+      ).toJson(),
       'updatedAt': Timestamp.now(),
     });
     return free;
@@ -173,10 +191,15 @@ Future<LudoColor?> addLudoBot(String roomId) async {
     tx.update(ref, {
       'seats': seats,
       'names': names,
-      // Keep the room's mode. Without this, adding a computer silently reset a
-      // Quick or Master table to Classic rules — the same trap joinLudoRoom
-      // already guards against, missed here.
-      'state': LudoGame.newGame(players, mode: room.game.mode).toJson(),
+      // Keep the room's mode AND its team setting. Without this, adding a
+      // computer silently reset a Quick or Master table to Classic rules — the
+      // same trap joinLudoRoom already guards against, missed here once
+      // already, and teams would go the same way.
+      'state': LudoGame.newGame(
+        players,
+        mode: room.game.mode,
+        teams: room.teamsWanted,
+      ).toJson(),
       'updatedAt': Timestamp.now(),
     });
     return free;
@@ -203,6 +226,7 @@ const int kLudoAutoStartSeconds = 12;
 Future<String> quickMatchLudo({
   required String displayName,
   LudoMode mode = LudoMode.classic,
+  bool teams = false,
 }) async {
   try {
     final snap = await _ludoCol()
@@ -213,6 +237,9 @@ Future<String> quickMatchLudo({
       final room = LudoRoom.fromDoc(doc);
       if (room.status != LudoRoomStatus.waiting) continue;
       if (room.isFull || room.game.mode != mode) continue;
+      // A team table is a different game; joining one by accident would drop a
+      // player into 2v2 they never chose.
+      if (room.teamsWanted != teams) continue;
       // Never match into a table of nothing but computers — that is a solo
       // game wearing a multiplayer hat.
       if (!room.seats.values.any((v) => !v.startsWith('bot:'))) continue;
@@ -222,7 +249,7 @@ Future<String> quickMatchLudo({
   } catch (_) {
     // A failed search must still end in a game.
   }
-  return createLudoRoom(displayName: displayName, mode: mode);
+  return createLudoRoom(displayName: displayName, mode: mode, teams: teams);
 }
 
 /// Seconds until computers fill the table, or null when it is not waiting.
@@ -291,7 +318,7 @@ const int kLudoTurnSeconds = 45;
 int? ludoSecondsLeft(LudoRoom room) {
   final at = room.updatedAt;
   if (at == null || room.status != LudoRoomStatus.playing) return null;
-  if (room.game.winners.isNotEmpty) return null;
+  if (room.game.isDecided) return null;
   final gone = DateTime.now().difference(at.toDate()).inSeconds;
   final left = kLudoTurnSeconds - gone;
   return left.clamp(0, kLudoTurnSeconds);
@@ -313,7 +340,10 @@ Future<void> startLudoRoom(String roomId) async {
 Future<void> pushLudoState(String roomId, LudoGame game) async {
   await _ludoCol().doc(roomId).update({
     'state': game.toJson(),
-    'status': game.winners.isNotEmpty
+    // isDecided, not winners.isNotEmpty: in a 2v2 the first partner coming
+    // home is half a result, and closing the room there would end the game
+    // while the other side could still win it.
+    'status': game.isDecided
         ? LudoRoomStatus.finished.name
         : LudoRoomStatus.playing.name,
     'updatedAt': Timestamp.now(),
@@ -522,6 +552,9 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
   Future<void> _create(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
+    // Two axes, asked as two questions: WHICH game, then how many sides. That
+    // is the same shape Yalla Ludo uses, and it beats a flat list of eight
+    // combinations.
     final mode = await showModalBottomSheet<LudoMode>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -553,8 +586,48 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
       ),
     );
     if (mode == null) return;
+    if (!context.mounted) return;
+    final teams = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Text('How many sides?', style: AppType.sectionTitle),
+            ),
+            ListTile(
+              leading: const Icon(Icons.person_outline, color: kPakGreen),
+              title: const Text('Everyone for themselves'),
+              subtitle: Text(
+                'Two to four players, one winner.',
+                style: AppType.caption,
+              ),
+              onTap: () => Navigator.pop(ctx, false),
+            ),
+            ListTile(
+              leading: const Icon(Icons.groups_outlined, color: kPakGreen),
+              title: const Text('Team — 2 v 2'),
+              subtitle: Text(
+                'Partners sit opposite, never capture each other, and win '
+                'together when all eight tokens are home. Needs four players.',
+                style: AppType.caption,
+              ),
+              onTap: () => Navigator.pop(ctx, true),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+    if (teams == null) return;
     try {
-      final id = await createLudoRoom(displayName: await _name(), mode: mode);
+      final id = await createLudoRoom(
+        displayName: await _name(),
+        mode: mode,
+        teams: teams,
+      );
       navigator.push(
         MaterialPageRoute(builder: (_) => LudoGameScreen(roomId: id)),
       );
@@ -896,12 +969,23 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
     int? dice,
     List<LudoMove> moves,
   ) {
-    if (room.game.winners.isNotEmpty) {
+    if (room.game.isDecided) {
       final w = room.game.winners.first;
+      // In a team game the result belongs to the SIDE, so a player whose
+      // partner came home first has still won — telling them someone else won
+      // would be simply wrong.
+      final side = room.game.winningSide;
+      final iWon = me != null && side.contains(me);
+      final sideNames = [
+        for (final c in side)
+          if (room.names[c.name] != null) room.names[c.name]!,
+      ].join(' & ');
       return Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Text(
-          w == me ? 'You won 🎉' : '${room.names[w.name] ?? w.label} won',
+          room.game.teams
+              ? (iWon ? 'Your team won 🎉' : '$sideNames won')
+              : (w == me ? 'You won 🎉' : '${room.names[w.name] ?? w.label} won'),
           textAlign: TextAlign.center,
           style: AppType.sectionTitle,
         ),

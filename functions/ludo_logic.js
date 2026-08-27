@@ -27,6 +27,15 @@ const COLOURS = ["red", "green", "yellow", "blue"];
 // table, because a silent difference here would offer the player a jump the
 // server does not make.
 const ARROWS = { 4: 11, 17: 24, 30: 37, 43: 50 };
+// 2v2 pairing. Partners sit OPPOSITE, so the turn order alternates sides
+// instead of giving one team two moves in a row. MUST match kLudoPartners in
+// lib/src/ludo_engine.dart.
+const PARTNERS = { red: "yellow", yellow: "red", green: "blue", blue: "green" };
+
+/** True when two colours are on the same side. A colour is its own ally. */
+function areAllies(state, a, b) {
+  return a === b || (state.teams === true && PARTNERS[a] === b);
+}
 
 /** Shared-ring cell for a colour's progress, or null when off the ring. */
 function ringCell(colour, progress) {
@@ -104,7 +113,8 @@ function legalMoves(state, dice) {
     const captures = [];
     if (destRing !== null && !SAFE_CELLS.has(destRing)) {
       for (const other of state.players) {
-        if (other === colour) continue;
+        // Never capture yourself, and in a team game never your partner.
+        if (areAllies(state, colour, other)) continue;
         const theirs = state.positions[other] || [];
         for (let k = 0; k < theirs.length; k++) {
           if (ringCell(other, theirs[k]) === destRing) {
@@ -116,6 +126,35 @@ function legalMoves(state, dice) {
     moves.push({ tokenIndex: i, from, to, captures, viaArrow });
   }
   return moves;
+}
+
+/**
+ * True when one whole SIDE is home. Mirrors LudoGame.isOver for team games.
+ *
+ * The server needs this so the stuck-game sweeper and the bot turn stop playing
+ * a table that is already decided.
+ */
+function teamHasWon(state) {
+  if (state.teams !== true) return false;
+  const w = state.winners || [];
+  for (const c of state.players) {
+    const p = PARTNERS[c];
+    if (p && w.includes(c) && w.includes(p)) return true;
+  }
+  return false;
+}
+
+/**
+ * Whether the result is settled and the table should stop. Mirrors
+ * LudoGame.isDecided.
+ *
+ * A solo table ends when somebody comes home first. A TEAM table must not: one
+ * partner finishing is half a result, and stopping there would end the game
+ * while the other side could still win it.
+ */
+function isDecided(state) {
+  if (state.teams === true) return teamHasWon(state);
+  return (state.winners || []).length > 0;
 }
 
 /** The next seat that has not already finished. */
@@ -264,6 +303,10 @@ function isTurnStale(state, updatedAtMillis, nowMillis, seconds) {
 module.exports = {
   ARROWS,
   arrowJump,
+  PARTNERS,
+  areAllies,
+  teamHasWon,
+  isDecided,
   IN_YARD,
   LAST_RING_STEP,
   HOME,

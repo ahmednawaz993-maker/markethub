@@ -76,7 +76,19 @@ extension type const LudoTokenPos(int progress) {
       onRing ? (c.startCell + progress) % kLudoRingLength : null;
 }
 
-/// A legal move: move [tokenIndex] of [color] to [to].
+/// Who partners whom in a team game.
+///
+/// Partners sit OPPOSITE each other, which is the only pairing that works: the
+/// turn order runs red, green, yellow, blue round the board, so opposite
+/// partners alternate with their opponents instead of taking two turns back to
+/// back. Adjacent pairings would hand each team a double move.
+const Map<LudoColor, LudoColor> kLudoPartners = {
+  LudoColor.red: LudoColor.yellow,
+  LudoColor.yellow: LudoColor.red,
+  LudoColor.green: LudoColor.blue,
+  LudoColor.blue: LudoColor.green,
+};
+
 /// One-way shortcuts for [LudoMode.arrow]: ring cell of the tail -> the head
 /// it carries a token to.
 ///
@@ -89,6 +101,7 @@ extension type const LudoTokenPos(int progress) {
 ///   * every jump is forward, so an arrow can never send a token backwards.
 const Map<int, int> kLudoArrows = {4: 11, 17: 24, 30: 37, 43: 50};
 
+/// A legal move: move [tokenIndex] of [color] to [to].
 class LudoMove {
   const LudoMove({
     required this.color,
@@ -180,7 +193,16 @@ class LudoGame {
     required this.lastDice,
     this.mode = LudoMode.classic,
     this.hasCaptured = const {},
+    this.teams = false,
   });
+
+  /// Whether this table is playing 2v2.
+  ///
+  /// A separate flag rather than another [LudoMode] value, because it is a
+  /// different axis: a team game is still Classic, Master, Quick or Arrow. Yalla
+  /// Ludo models it the same way — a mode grid crossed with 2&4 players or
+  /// Team, not a single list of five.
+  final bool teams;
 
   /// The variant being played.
   final LudoMode mode;
@@ -209,13 +231,51 @@ class LudoGame {
 
   LudoColor get currentPlayer => players[turn];
 
-  bool get isOver => winners.length >= players.length - 1;
+  /// The partner of [c] in this game, or null in a solo game.
+  LudoColor? partnerOf(LudoColor c) =>
+      teams ? kLudoPartners[c] : null;
+
+  /// True when [a] and [b] are on the same side. A colour is its own ally, so
+  /// the existing "cannot land on your own token" checks keep working.
+  bool areAllies(LudoColor a, LudoColor b) =>
+      a == b || (teams && kLudoPartners[a] == b);
+
+  /// The colours that have won, as a set — both partners in a team game.
+  Set<LudoColor> get winningSide {
+    if (winners.isEmpty) return const {};
+    if (!teams) return {winners.first};
+    final w = winners.first;
+    return {w, ?kLudoPartners[w]};
+  }
+
+  /// Whether the result is settled and the table should stop.
+  ///
+  /// A solo table ends the moment someone comes home first — that is how this
+  /// app has always played it, and the win banner says so. A TEAM table must
+  /// not: one partner finishing is half a result, and ending there would rob
+  /// the other side of a game they could still win.
+  bool get isDecided => teams ? isOver : winners.isNotEmpty;
+
+  /// In a team game the race ends when one SIDE is completely home; otherwise
+  /// when only one player is still going.
+  bool get isOver {
+    if (!teams) return winners.length >= players.length - 1;
+    for (final c in players) {
+      final p = kLudoPartners[c];
+      if (p != null && winners.contains(c) && winners.contains(p)) return true;
+    }
+    return false;
+  }
 
   static LudoGame newGame(
     List<LudoColor> players, {
     LudoMode mode = LudoMode.classic,
+    bool teams = false,
   }) {
     assert(players.length >= 2 && players.length <= 4);
+    // 2v2 needs four seats. A team game with three players would leave one side
+    // a player short, so the flag simply does not apply until the table fills.
+    final teamed = teams && players.length == 4;
     return LudoGame(
       players: List.unmodifiable(players),
       positions: {
@@ -228,6 +288,7 @@ class LudoGame {
       lastDice: null,
       mode: mode,
       hasCaptured: const {},
+      teams: teamed,
     );
   }
 
@@ -334,7 +395,10 @@ class LudoGame {
     if (ringCell == null || kLudoSafeCells.contains(ringCell)) return const [];
     final out = <({LudoColor color, int tokenIndex})>[];
     for (final other in players) {
-      if (other == mover) continue;
+      // A colour never captures itself, and in a team game never its partner.
+      // Without this a player would send their own side home, which is the
+      // single most confusing thing a team mode can do.
+      if (areAllies(mover, other)) continue;
       final theirs = positions[other]!;
       for (var i = 0; i < theirs.length; i++) {
         if (LudoTokenPos(theirs[i]).ringCell(other) == ringCell) {
@@ -383,6 +447,7 @@ class LudoGame {
       lastDice: null,
       mode: mode,
       hasCaptured: captured,
+      teams: teams,
     );
   }
 
@@ -405,6 +470,7 @@ class LudoGame {
           lastDice: null,
           mode: mode,
           hasCaptured: hasCaptured,
+          teams: teams,
         ),
         moves: const [],
       );
@@ -419,6 +485,7 @@ class LudoGame {
       lastDice: dice,
       mode: mode,
       hasCaptured: hasCaptured,
+      teams: teams,
     );
     final moves = rolled.legalMoves(dice);
     if (moves.isNotEmpty) return (game: rolled, moves: moves);
@@ -435,6 +502,7 @@ class LudoGame {
         lastDice: null,
         mode: mode,
         hasCaptured: hasCaptured,
+        teams: teams,
       ),
       moves: const [],
     );
@@ -463,6 +531,7 @@ class LudoGame {
     'dice': lastDice,
     'mode': mode.name,
     'captured': [for (final c in hasCaptured) c.name],
+    'teams': teams,
   };
 
   static LudoGame fromJson(Map<String, dynamic> j) {
@@ -491,6 +560,8 @@ class LudoGame {
       hasCaptured: {
         for (final s in (j['captured'] as List? ?? const [])) parse('$s'),
       },
+      // Older documents predate teams; they are solo games.
+      teams: j['teams'] == true,
     );
   }
 }

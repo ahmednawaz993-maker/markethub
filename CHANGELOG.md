@@ -11,6 +11,15 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.74] — 2026-08-28
+
+- Ludo: **Team 2v2**. Partners sit opposite, never capture each other, and win
+  together when all eight of their tokens are home. Works with any gameplay —
+  Classic, Quick, Master or Arrow — and needs four players.
+- Fixed: a room was marked finished as soon as any one player came home. In a
+  2v2 that would have ended the game when a single partner finished, while the
+  other side could still win it.
+
 ## [1.0.73] — 2026-08-28
 
 - Ludo: emoji reactions and gifts. Tap an emoji to throw it at the table, or

@@ -4501,7 +4501,7 @@ exports.ludoBotTurn = onDocumentWritten("ludoRooms/{roomId}", async (event) => {
   if (!after || after.status !== "playing") return;
   const state = after.state;
   if (!state || !Array.isArray(state.players)) return;
-  if ((state.winners || []).length > 0) return;
+  if (ludo.isDecided(state)) return;
 
   const colour = state.players[state.turn];
   if (!ludoSeatIsBot(after.seats, colour)) return;
@@ -4521,7 +4521,7 @@ exports.ludoBotTurn = onDocumentWritten("ludoRooms/{roomId}", async (event) => {
     const fresh = room.state;
     // Re-check inside the transaction: a human may have moved meanwhile.
     if (!fresh || room.status !== "playing") return;
-    if ((fresh.winners || []).length > 0) return;
+    if (ludo.isDecided(fresh)) return;
     const c = fresh.players[fresh.turn];
     if (!ludoSeatIsBot(room.seats, c)) return;
     if (ludo.hasPendingRoll(fresh)) return;
@@ -4529,7 +4529,7 @@ exports.ludoBotTurn = onDocumentWritten("ludoRooms/{roomId}", async (event) => {
     const next = ludoPlayOneTurn(fresh);
     tx.update(ref, {
       state: next,
-      status: (next.winners || []).length > 0 ? "finished" : "playing",
+      status: ludo.isDecided(next) ? "finished" : "playing",
       updatedAt: Timestamp.now(),
     });
   });
@@ -4559,14 +4559,14 @@ exports.ludoSweepStuckGames = onSchedule("every 1 minutes", async () => {
     const room = doc.data() || {};
     const state = room.state;
     if (!state || !Array.isArray(state.players)) continue;
-    if ((state.winners || []).length > 0) continue;
+    if (ludo.isDecided(state)) continue;
     try {
       // Play the absent player's turn for them rather than skipping it, so a
       // disconnected player is not simply punished out of the game.
       const next = ludoPlayOneTurn(state);
       await doc.ref.update({
         state: next,
-        status: (next.winners || []).length > 0 ? "finished" : "playing",
+        status: ludo.isDecided(next) ? "finished" : "playing",
         updatedAt: Timestamp.now(),
         autoPlayedAt: Timestamp.now(),
       });
