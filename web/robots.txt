@@ -1,0 +1,8 @@
+# PakBazar. Ad pages are server-rendered by the adPage function, so there is
+# real HTML for a crawler to read; the sitemap is the only way to discover
+# them, because the app's navigation is painted into a canvas and contains no
+# links.
+User-agent: *
+Allow: /
+
+Sitemap: https://pakbazar24.com/sitemap.xml

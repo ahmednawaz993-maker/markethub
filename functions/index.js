@@ -4625,3 +4625,10 @@ exports.ludoRollRequested = onDocumentCreated(
     }
   }
 );
+
+// Server-rendered ad pages + sitemap. Kept in its own module because it is the
+// only part of the backend that renders HTML, and it must never share code
+// paths with anything that can read a phone number.
+const seo = require("./seo");
+exports.adPage = seo.adPage;
+exports.sitemapXml = seo.sitemapXml;

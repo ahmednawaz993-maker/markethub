@@ -11,6 +11,17 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.70] — 2026-08-28
+
+- Ad pages are now server-rendered, so Google (and WhatsApp/Facebook link
+  previews) can finally read a listing: real title, price, city, description,
+  images, Open Graph tags and Product schema. Previously every /ad/ URL returned
+  the same 2,616-byte shell, because the app paints into a canvas.
+- Added /sitemap.xml (166 URLs) and robots.txt — nothing on the site links to an
+  ad, so without a sitemap Google had no way to discover any of them.
+- The renderer publishes an allowlist of fields. Seller phone numbers, exact
+  coordinates and street addresses are never included.
+
 ## [1.0.69] — 2026-08-27
 
 - Shared links now open what was shared. Flutter web defaults to reading the
