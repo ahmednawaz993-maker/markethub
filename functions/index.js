@@ -4454,3 +4454,125 @@ exports.ludoRoll = onCall(async (request) => {
     };
   });
 });
+
+// ---------------------------------------------------------------------------
+// Ludo — bot seats and abandoned games.
+//
+// Two problems that made the game not really playable:
+//
+//  1. A player who closed the app mid-turn froze the board FOREVER for everyone
+//     else. Nothing in the client could fix that: the abandoned device is the
+//     only one the rules let write, and it is gone.
+//  2. There was no way to play alone.
+//
+// Both are the same job — something has to take a turn on behalf of a seat that
+// is not going to take it itself — so they share one code path.
+// ---------------------------------------------------------------------------
+
+const LUDO_TURN_SECONDS = 45; // how long a player has before the turn is taken
+const LUDO_BOT_PREFIX = "bot:";
+
+function ludoSeatIsBot(seats, colour) {
+  return String((seats || {})[colour] || "").startsWith(LUDO_BOT_PREFIX);
+}
+
+/**
+ * Plays one turn for `colour`: rolls, and plays the best move if there is one.
+ * Returns the new state, or null when there was nothing to do.
+ */
+function ludoPlayOneTurn(state) {
+  const colour = state.players[state.turn];
+  const dice = crypto.randomInt(1, 7);
+  const rolled = ludo.applyRoll(state, dice);
+  if (rolled.moves.length === 0) return rolled.state; // turn already handed on
+  const move = ludo.chooseBotMove(colour, rolled.moves);
+  return ludo.applyMove(rolled.state, move);
+}
+
+/**
+ * Takes the turn whenever the seat to move belongs to a bot.
+ *
+ * Triggered on the room document rather than scheduled, so a bot answers within
+ * a second or two of its turn arriving. Guarded against recursion: it only acts
+ * when the CURRENT seat is a bot, and each write advances the turn or the dice,
+ * so the chain terminates.
+ */
+exports.ludoBotTurn = onDocumentWritten("ludoRooms/{roomId}", async (event) => {
+  const after = event.data && event.data.after && event.data.after.data();
+  if (!after || after.status !== "playing") return;
+  const state = after.state;
+  if (!state || !Array.isArray(state.players)) return;
+  if ((state.winners || []).length > 0) return;
+
+  const colour = state.players[state.turn];
+  if (!ludoSeatIsBot(after.seats, colour)) return;
+  // A pending dice means a human is mid-turn; bots never leave one parked.
+  if (ludo.hasPendingRoll(state)) return;
+
+  const db = getFirestore();
+  const ref = db.collection("ludoRooms").doc(event.params.roomId);
+  // A short pause so the board does not jump — a bot that moves instantly reads
+  // as a glitch rather than an opponent.
+  await new Promise((r) => setTimeout(r, 900));
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    const room = snap.data() || {};
+    const fresh = room.state;
+    // Re-check inside the transaction: a human may have moved meanwhile.
+    if (!fresh || room.status !== "playing") return;
+    if ((fresh.winners || []).length > 0) return;
+    const c = fresh.players[fresh.turn];
+    if (!ludoSeatIsBot(room.seats, c)) return;
+    if (ludo.hasPendingRoll(fresh)) return;
+
+    const next = ludoPlayOneTurn(fresh);
+    tx.update(ref, {
+      state: next,
+      status: (next.winners || []).length > 0 ? "finished" : "playing",
+      updatedAt: Timestamp.now(),
+    });
+  });
+});
+
+/**
+ * Sweeps games whose player has walked away.
+ *
+ * Runs every minute. Any game still "playing" whose last change is older than
+ * LUDO_TURN_SECONDS has its turn taken automatically, so the board never
+ * freezes because somebody closed the app. This is the only mechanism that can
+ * do it — the rules only let the absent player write, and they are gone.
+ */
+exports.ludoSweepStuckGames = onSchedule("every 1 minutes", async () => {
+  const db = getFirestore();
+  const cutoff = Timestamp.fromMillis(
+    Date.now() - LUDO_TURN_SECONDS * 1000
+  );
+  const stuck = await db
+    .collection("ludoRooms")
+    .where("status", "==", "playing")
+    .where("updatedAt", "<", cutoff)
+    .limit(50)
+    .get();
+
+  for (const doc of stuck.docs) {
+    const room = doc.data() || {};
+    const state = room.state;
+    if (!state || !Array.isArray(state.players)) continue;
+    if ((state.winners || []).length > 0) continue;
+    try {
+      // Play the absent player's turn for them rather than skipping it, so a
+      // disconnected player is not simply punished out of the game.
+      const next = ludoPlayOneTurn(state);
+      await doc.ref.update({
+        state: next,
+        status: (next.winners || []).length > 0 ? "finished" : "playing",
+        updatedAt: Timestamp.now(),
+        autoPlayedAt: Timestamp.now(),
+      });
+    } catch (err) {
+      console.error("ludoSweepStuckGames", doc.id, err);
+    }
+  }
+});

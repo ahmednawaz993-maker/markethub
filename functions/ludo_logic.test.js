@@ -17,6 +17,9 @@ const {
   ringCell,
   legalMoves,
   applyRoll,
+  applyMove,
+  chooseBotMove,
+  isTurnStale,
   isSeatToMove,
   hasPendingRoll,
 } = require("./ludo_logic");
@@ -228,6 +231,110 @@ t("random play always advances; no state rolls forever", () => {
   }
   assert.ok(handovers > 0, "the turn never moved on");
   assert.notStrictEqual(rolls, 5000, `stuck after ${rolls} rolls from ${first}`);
+});
+
+// -- applyMove, needed for bots and for abandoned games ---------------------
+
+t("applying a move advances the token and hands the turn on", () => {
+  const s = stateWith(
+    {
+      red: [4, IN_YARD, IN_YARD, IN_YARD],
+      green: [IN_YARD, IN_YARD, IN_YARD, IN_YARD],
+    },
+    { dice: 2 }
+  );
+  const m = legalMoves(s, 2).find((x) => x.tokenIndex === 0);
+  const next = applyMove(s, m);
+  assert.strictEqual(next.positions.red[0], 6);
+  assert.strictEqual(next.players[next.turn], "green");
+  assert.strictEqual(next.dice, null);
+});
+
+t("a capture sends the victim home and keeps the turn", () => {
+  const s = stateWith(
+    {
+      red: [4, IN_YARD, IN_YARD, IN_YARD],
+      green: [46, IN_YARD, IN_YARD, IN_YARD],
+    },
+    { dice: 3 }
+  );
+  const m = legalMoves(s, 3).find((x) => x.captures.length > 0);
+  const next = applyMove(s, m);
+  assert.strictEqual(next.positions.green[0], IN_YARD);
+  assert.strictEqual(next.players[next.turn], "red", "capture earns a turn");
+});
+
+t("bringing the last token home records a winner", () => {
+  const s = stateWith(
+    {
+      red: [HOME, HOME, HOME, 53],
+      green: [0, IN_YARD, IN_YARD, IN_YARD],
+    },
+    { dice: 3 }
+  );
+  const m = legalMoves(s, 3).find((x) => x.to === HOME);
+  assert.deepStrictEqual(applyMove(s, m).winners, ["red"]);
+});
+
+// -- the bot -----------------------------------------------------------------
+
+t("the bot prefers a capture over a longer advance", () => {
+  const moves = [
+    { tokenIndex: 0, from: 4, to: 10, captures: [] },
+    {
+      tokenIndex: 1,
+      from: 2,
+      to: 5,
+      captures: [{ colour: "green", tokenIndex: 0 }],
+    },
+  ];
+  assert.strictEqual(chooseBotMove("red", moves).tokenIndex, 1);
+});
+
+t("the bot prefers going home over leaving the yard", () => {
+  const moves = [
+    { tokenIndex: 0, from: IN_YARD, to: 0, captures: [] },
+    { tokenIndex: 1, from: 53, to: HOME, captures: [] },
+  ];
+  assert.strictEqual(chooseBotMove("red", moves).tokenIndex, 1);
+});
+
+t("the bot always returns one of the offered moves, never null", () => {
+  const moves = [{ tokenIndex: 2, from: 1, to: 3, captures: [] }];
+  assert.strictEqual(chooseBotMove("red", moves).tokenIndex, 2);
+  assert.strictEqual(chooseBotMove("red", []), null);
+  assert.strictEqual(chooseBotMove("red", null), null);
+});
+
+// -- abandoned games ---------------------------------------------------------
+
+// The failure this fixes: a player closes the app mid-turn and the board is
+// frozen forever, because the rules only let the absent player write.
+t("a turn goes stale only after the deadline", () => {
+  const now = 1000000;
+  assert.strictEqual(isTurnStale({}, now - 10000, now, 45), false);
+  assert.strictEqual(isTurnStale({}, now - 60000, now, 45), true);
+  assert.strictEqual(isTurnStale({}, null, now, 45), false, "unknown is not stale");
+  assert.strictEqual(isTurnStale({}, undefined, now, 45), false);
+});
+
+t("auto-playing an abandoned turn always advances the game", () => {
+  let seed = 24680;
+  const roll = () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return 1 + ((seed >> 16) % 6);
+  };
+  let s = fresh();
+  let turns = 0;
+  while ((s.winners || []).length === 0 && turns < 20000) {
+    turns++;
+    const r = applyRoll(s, roll());
+    s =
+      r.moves.length === 0
+        ? r.state
+        : applyMove(r.state, chooseBotMove(s.players[s.turn], r.moves));
+  }
+  assert.ok((s.winners || []).length > 0, "no winner after " + turns + " turns");
 });
 
 console.log(`\n${pass} passed`);

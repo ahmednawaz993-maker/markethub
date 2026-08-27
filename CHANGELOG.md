@@ -11,6 +11,21 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.59] — 2026-08-27
+
+### Fixed
+
+- **A Ludo game no longer freezes when somebody leaves.** If a player closed
+  the app mid-turn, the board stopped for everyone else permanently — nothing
+  on the remaining players' phones could move it on. Their turn is now played
+  automatically after 45 seconds, so a game always finishes.
+
+### Added
+
+- **Play Ludo against the computer.** Add one to three computer players to any
+  game, so you can play on your own or fill an empty seat. They take a capture
+  when one is there, bring tokens home, and open the yard on a six.
+
 ## [1.0.58] — 2026-08-27
 
 ### Security

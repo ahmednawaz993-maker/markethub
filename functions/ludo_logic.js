@@ -145,6 +145,74 @@ function hasPendingRoll(state) {
   return state && state.dice !== null && state.dice !== undefined;
 }
 
+
+/**
+ * Applies a move and hands the turn on. Mirrors LudoGame.applyMove.
+ *
+ * Needed on the server for two things the client cannot be trusted with or is
+ * not present for: playing a bot's turn, and advancing a game whose player has
+ * walked away.
+ */
+function applyMove(state, move) {
+  const colour = state.players[state.turn];
+  const positions = {};
+  for (const c of state.players) positions[c] = (state.positions[c] || []).slice();
+  positions[colour][move.tokenIndex] = move.to;
+  for (const cap of move.captures) positions[cap.colour][cap.tokenIndex] = IN_YARD;
+
+  const winners = (state.winners || []).slice();
+  if (positions[colour].every((p) => p === HOME) && !winners.includes(colour)) {
+    winners.push(colour);
+  }
+
+  // A six, a capture, or getting a token home each earn another roll — but a
+  // third six running never does.
+  const rolledSix = state.dice === 6;
+  const another =
+    (rolledSix && (state.sixes || 0) < 3) ||
+    move.captures.length > 0 ||
+    move.to === HOME;
+
+  const next = { ...state, positions, winners, dice: null };
+  next.turn = another ? state.turn : nextSeat({ ...state, winners });
+  next.sixes = another && rolledSix ? state.sixes : 0;
+  return next;
+}
+
+/**
+ * Picks a move for a bot, or for a player who has abandoned the game.
+ *
+ * Deliberately a simple ranking rather than a search: Ludo is mostly dice, a
+ * deep search would win too often to be fun, and a bot that plays the obvious
+ * move is what a human expects to see. Order: take a capture, bring a token
+ * home, leave the yard, reach safety, otherwise push the leading token on.
+ */
+function chooseBotMove(colour, moves) {
+  if (!moves || moves.length === 0) return null;
+  let best = null;
+  let bestScore = -Infinity;
+  for (const m of moves) {
+    let score = 0;
+    score += m.captures.length * 100;
+    if (m.to === HOME) score += 80;
+    if (m.from === IN_YARD) score += 50;
+    const dest = ringCell(colour, m.to);
+    if (dest !== null && SAFE_CELLS.has(dest)) score += 20;
+    score += m.to / 2;
+    if (score > bestScore) {
+      bestScore = score;
+      best = m;
+    }
+  }
+  return best;
+}
+
+/** True when the player to move has had longer than `seconds` to act. */
+function isTurnStale(state, updatedAtMillis, nowMillis, seconds) {
+  if (!updatedAtMillis) return false;
+  return nowMillis - updatedAtMillis > seconds * 1000;
+}
+
 module.exports = {
   IN_YARD,
   LAST_RING_STEP,
@@ -159,4 +227,7 @@ module.exports = {
   applyRoll,
   isSeatToMove,
   hasPendingRoll,
+  applyMove,
+  chooseBotMove,
+  isTurnStale,
 };

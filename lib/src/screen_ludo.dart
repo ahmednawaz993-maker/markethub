@@ -138,6 +138,44 @@ Future<LudoColor?> joinLudoRoom(String roomId, String displayName) async {
   });
 }
 
+/// Seats a computer player in the first free colour.
+///
+/// The uid is a `bot:` sentinel that no real account can ever hold, which is
+/// what lets the server recognise the seat and play it — and stops any human
+/// device claiming that seat's turn, since firestore.rules matches on uid.
+Future<LudoColor?> addLudoBot(String roomId) async {
+  return FirebaseFirestore.instance.runTransaction((tx) async {
+    final ref = _ludoCol().doc(roomId);
+    final snap = await tx.get(ref);
+    if (!snap.exists) return null;
+    final room = LudoRoom.fromDoc(snap);
+    if (room.isFull || room.status != LudoRoomStatus.waiting) return null;
+
+    final free = LudoColor.values.firstWhere(
+      (c) => !room.seats.containsKey(c.name),
+      orElse: () => LudoColor.red,
+    );
+    final n = room.seats.values.where((v) => v.startsWith('bot:')).length + 1;
+    final seats = {...room.seats, free.name: 'bot:$n'};
+    final names = {...room.names, free.name: 'Computer $n'};
+    final players = [
+      for (final c in LudoColor.values)
+        if (seats.containsKey(c.name)) c,
+    ];
+    tx.update(ref, {
+      'seats': seats,
+      'names': names,
+      'state': LudoGame.newGame(players).toJson(),
+      'updatedAt': Timestamp.now(),
+    });
+    return free;
+  });
+}
+
+/// True for a seat played by the server rather than a person.
+bool isLudoBotSeat(LudoRoom room, LudoColor c) =>
+    (room.seats[c.name] ?? '').startsWith('bot:');
+
 /// Starts the game. Host only; needs at least two seats.
 Future<void> startLudoRoom(String roomId) async {
   await _ludoCol().doc(roomId).update({
@@ -514,7 +552,9 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    c == me ? 'You' : (room.names[c.name] ?? c.label),
+                    c == me
+                        ? 'You'
+                        : (room.names[c.name] ?? c.label),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppType.caption,
@@ -553,19 +593,32 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
               style: AppType.secondary,
             ),
             const SizedBox(height: AppSpacing.sm),
-            if (isHost)
-              ElevatedButton.icon(
-                onPressed: room.seats.length >= 2
-                    ? () => startLudoRoom(widget.roomId)
-                    : null,
-                icon: const Icon(Icons.play_arrow),
-                label: Text(
-                  room.seats.length >= 2
-                      ? 'Start game'
-                      : 'Waiting for one more',
-                ),
-              )
-            else
+            if (isHost) ...[
+              Wrap(
+                spacing: AppSpacing.sm,
+                alignment: WrapAlignment.center,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: room.isFull
+                        ? null
+                        : () => addLudoBot(widget.roomId),
+                    icon: const Icon(Icons.smart_toy_outlined, size: 18),
+                    label: const Text('Add computer'),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: room.seats.length >= 2
+                        ? () => startLudoRoom(widget.roomId)
+                        : null,
+                    icon: const Icon(Icons.play_arrow),
+                    label: Text(
+                      room.seats.length >= 2
+                          ? 'Start game'
+                          : 'Add a player or a computer',
+                    ),
+                  ),
+                ],
+              ),
+            ] else
               Text('Waiting for the host to start.', style: AppType.caption),
           ],
         ),
@@ -602,13 +655,28 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
                           'Tap a highlighted token to move.',
                           style: AppType.secondary,
                         ))
-                : Text(
-                      me == null
-                          ? 'Watching — every seat is taken.'
-                          : 'Waiting for '
-                                '${room.names[room.game.currentPlayer.name] ?? room.game.currentPlayer.label}…',
-                      style: AppType.secondary,
-                    ),
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        me == null
+                            ? 'Watching — every seat is taken.'
+                            : 'Waiting for '
+                                  '${room.names[room.game.currentPlayer.name] ?? room.game.currentPlayer.label}…',
+                        style: AppType.secondary,
+                      ),
+                      // Nobody can freeze the board by walking away any more,
+                      // and saying so stops the other players just leaving too.
+                      Text(
+                        isLudoBotSeat(room, room.game.currentPlayer)
+                            ? 'The computer is thinking.'
+                            : 'If they do not play, their turn is taken '
+                                  'automatically.',
+                        style: AppType.caption,
+                      ),
+                    ],
+                  ),
           ),
         ],
       ),
