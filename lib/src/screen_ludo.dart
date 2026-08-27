@@ -380,11 +380,14 @@ class LudoGameScreen extends StatefulWidget {
 class _LudoGameScreenState extends State<LudoGameScreen> {
   final _chat = TextEditingController();
 
-  /// Moves offered by the roll this device just made. Cleared on every state
-  /// change from the server so a stale roll can never be played twice.
-  List<LudoMove> _pending = const [];
-  int? _shownDice;
+  /// Only true while a network call is in flight. Everything else about the
+  /// game — including the pending dice — comes from the synced state, so
+  /// nothing can be lost by a rebuild.
   bool _busy = false;
+
+  /// The state signature this device has already auto-played, so the forced
+  /// move fires once and not on every rebuild of the same snapshot.
+  String? _autoPlayed;
 
   @override
   void dispose() {
@@ -401,22 +404,25 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
   /// refuses any client write that sets a dice — so a modified app cannot claim
   /// a six. This method only reads back what the server decided and works out
   /// which tokens that allows the player to touch.
-  Future<void> _roll(LudoRoom room) async {
+  /// Asks the server to roll.
+  ///
+  /// Nothing about the result is remembered on this device. The server parks
+  /// the dice on the shared game state and every player — including this one —
+  /// reads it back from there. That is not tidiness, it is the fix for a
+  /// deadlock: when the pending roll lived only in this widget's memory, losing
+  /// it (backgrounding the app, navigating away, any rebuild) left the player
+  /// with no tokens to tap AND a server that refused a new roll because one was
+  /// already pending. The game stuck permanently, for everyone.
+  Future<void> _roll() async {
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      final res = await FirebaseFunctions.instance
-          .httpsCallable('ludoRoll')
-          .call<Map<String, dynamic>>({'roomId': widget.roomId});
-      final dice = (res.data['dice'] as num?)?.toInt();
-      if (!mounted || dice == null) return;
-      // Recompute the legal moves locally against the state we already hold.
-      // The server also computed them; if the two ever disagree the board
-      // simply offers nothing and the next snapshot corrects it.
-      setState(() {
-        _shownDice = dice;
-        _pending = room.game.roll(dice).moves;
+      // Deliberately NOT call<Map<String, dynamic>>: the platform channel hands
+      // back Map<Object?, Object?>, and the generic cast throws at runtime.
+      await FirebaseFunctions.instance.httpsCallable('ludoRoll').call({
+        'roomId': widget.roomId,
       });
+      // The snapshot carries the result; there is nothing to store here.
     } on FirebaseFunctionsException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -439,12 +445,8 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
     setState(() => _busy = true);
     try {
       await pushLudoState(widget.roomId, room.game.applyMove(move));
-      if (mounted) {
-        setState(() {
-          _pending = const [];
-          _shownDice = null;
-        });
-      }
+      // applyMove clears the dice, so the next snapshot ends the turn or offers
+      // the next roll. Nothing to reset here.
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -485,9 +487,28 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
             room.game.currentPlayer == me &&
             room.game.winners.isEmpty;
 
-        // The pending moves belong to the state this device rolled against. If
-        // the server has moved on, they are stale.
-        final moves = myTurn ? _pending : const <LudoMove>[];
+        // The dice lives on the shared state, so it survives a rebuild and
+        // every player sees the same number — the way it works on a real board,
+        // and the way Ludo Star shows the roll to the whole table.
+        final dice = room.game.lastDice;
+        final moves = (myTurn && dice != null)
+            ? room.game.legalMoves(dice)
+            : const <LudoMove>[];
+
+        // Ludo Star plays the move for you when there is only one — with a
+        // single option there is no decision to make, and asking for a tap just
+        // slows the table down. The signature guard makes it fire once per
+        // roll rather than on every rebuild of the same snapshot.
+        if (myTurn && dice != null && moves.length == 1 && !_busy) {
+          final sig = '${room.game.turn}:$dice:${room.game.toJson()['positions']}';
+          if (_autoPlayed != sig) {
+            _autoPlayed = sig;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              // Re-check: the snapshot may have moved on while the frame drew.
+              if (mounted && !_busy) _play(room, moves.first);
+            });
+          }
+        }
 
         return Scaffold(
           appBar: AppBar(
@@ -517,7 +538,7 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
                   ),
                 ),
               ),
-              _controls(room, me, myTurn),
+              _controls(room, me, myTurn, dice, moves),
             ],
           ),
         );
@@ -568,7 +589,13 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
     ),
   );
 
-  Widget _controls(LudoRoom room, LudoColor? me, bool myTurn) {
+  Widget _controls(
+    LudoRoom room,
+    LudoColor? me,
+    bool myTurn,
+    int? dice,
+    List<LudoMove> moves,
+  ) {
     if (room.game.winners.isNotEmpty) {
       final w = room.game.winners.first;
       return Padding(
@@ -630,22 +657,24 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
         children: [
           // Tapping the die rolls, which is what a player reaches for first.
           LudoDice(
-            value: _shownDice,
+            value: dice,
             rolling: _busy,
-            enabled: myTurn && _pending.isEmpty,
-            onTap: () => _roll(room),
+            enabled: myTurn && dice == null,
+            onTap: _roll,
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: myTurn
-                ? (_pending.isEmpty
+                ? (dice == null
                       ? ElevatedButton.icon(
-                          onPressed: _busy ? null : () => _roll(room),
+                          onPressed: _busy ? null : _roll,
                           icon: const Icon(Icons.casino),
                           label: const Text('Roll'),
                         )
                       : Text(
-                          'Tap a highlighted token to move.',
+                          moves.isEmpty
+                              ? 'No move with that roll — passing…'
+                              : 'Tap a highlighted token to move.',
                           style: AppType.secondary,
                         ))
                 : Column(

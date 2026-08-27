@@ -11,6 +11,25 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.61] — 2026-08-27
+
+### Fixed
+
+- **The Ludo dice could stop working entirely.** If you left the game screen,
+  switched apps, or the screen simply redrew after rolling, the board stopped
+  offering tokens to move — and rolling again was refused because a roll was
+  already waiting. The game was stuck for everyone at the table with no way
+  out. The roll now lives with the game itself, so it survives leaving and
+  coming back.
+- **Everyone at the table now sees the dice.** Previously only the player who
+  rolled could see what they got.
+
+### Changed
+
+- **A forced move plays itself.** When your roll leaves only one possible move,
+  the app plays it instead of making you tap — there is no decision to make,
+  and waiting for the tap only slows the table down.
+
 ## [1.0.60] — 2026-08-27
 
 ### Changed
