@@ -2,6 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+// Web reads its route from the URL path only if we ask it to; on mobile this
+// resolves to a no-op stub, because flutter_web_plugins does not exist there.
+import 'url_strategy_stub.dart'
+    if (dart.library.js_interop) 'url_strategy_web.dart';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' show PlatformDispatcher;
@@ -103,6 +107,11 @@ part 'src/screen_support.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Must run before runApp: MaterialApp reads the initial route once, at build,
+  // from platformDispatcher.defaultRouteName. Set the strategy after that and
+  // the first URL — the shared link that brought the visitor here — is lost.
+  configureUrlStrategy();
 
   // The app now sits on a clean white marketplace surface, so the system bars
   // use DARK icons over a light background. (Screens with a dark hero, e.g. the

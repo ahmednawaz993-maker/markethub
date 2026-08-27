@@ -128,13 +128,32 @@ class _ListingDeepLinkScreenState extends State<ListingDeepLinkScreen> {
     _future = _load();
   }
 
+  /// True when the ad could not be read because nobody is signed in.
+  ///
+  /// Listings are readable only by signed-in users, so a shared link opened by
+  /// someone without an account fails with permission-denied — NOT a network
+  /// error. Telling them to "check your connection" sends them to fix something
+  /// that is not broken, which is the worst possible answer for the one visitor
+  /// a shared link exists to bring in.
+  bool _needsSignIn = false;
+
   Future<Listing?> _load() async {
-    final snap = await FirebaseFirestore.instance
-        .collection('listings')
-        .doc(widget.listingId)
-        .get();
-    if (!snap.exists) return null;
-    return Listing.fromDoc(snap);
+    _needsSignIn = false;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('listings')
+          .doc(widget.listingId)
+          .get();
+      if (!snap.exists) return null;
+      return Listing.fromDoc(snap);
+    } on FirebaseException catch (e) {
+      final signedOut = FirebaseAuth.instance.currentUser == null;
+      if (e.code == 'permission-denied' && signedOut) {
+        _needsSignIn = true;
+        return null;
+      }
+      rethrow;
+    }
   }
 
   void _goHome() {
@@ -162,6 +181,24 @@ class _ListingDeepLinkScreenState extends State<ListingDeepLinkScreen> {
               message: 'We could not open this ad. Check your connection and '
                   'try again.',
               onRetry: () => setState(() => _future = _load()),
+            ),
+          );
+        }
+
+        // Signed out. The link is fine and the ad may well be fine — they just
+        // cannot be shown it yet. Sending them to the login screen keeps the
+        // link's promise instead of blaming their connection.
+        if (_needsSignIn) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('PakBazar')),
+            body: EmptyStateWidget(
+              icon: Icons.lock_outline,
+              title: 'Sign in to view this ad',
+              subtitle:
+                  'PakBazar shows ads to signed-in users. Sign in or create a '
+                  'free account, then open this link again.',
+              actionLabel: 'Sign in',
+              onAction: _goHome,
             ),
           );
         }

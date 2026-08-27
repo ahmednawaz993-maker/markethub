@@ -11,6 +11,15 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.69] — 2026-08-27
+
+- Shared links now open what was shared. Flutter web defaults to reading the
+  route from the URL fragment and ignoring the path, so every ad link and Ludo
+  invite the app generates (pakbazar24.com/ad/... and /ludo/...) landed on the
+  login page instead. The web build now uses the path URL strategy.
+- Opening an ad link while signed out said "check your connection". It was a
+  permission denial, not a network problem; it now offers to sign in.
+
 ## [1.0.68] — 2026-08-27
 
 - The Facebook button had no mark on it. Icons.facebook is not in the Material
