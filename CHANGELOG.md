@@ -11,6 +11,15 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.75] — 2026-08-28
+
+- Ludo coins, daily rewards and chests. Claim a reward each day (a longer streak
+  pays more), earn coins for playing and more for winning, and a chest every
+  third win.
+- Coins are play money and stay completely separate from your PakBazar wallet:
+  they cannot be bought, transferred or withdrawn, they never appear on a wallet
+  screen, and the rewards sheet says so outright.
+
 ## [1.0.74] — 2026-08-28
 
 - Ludo: **Team 2v2**. Partners sit opposite, never capture each other, and win

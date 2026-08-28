@@ -948,6 +948,36 @@ service cloud.firestore {
     // Ludo — multiplayer rooms. A whole game is one document: a few hundred
     // bytes that every player needs to see change atomically.
     // ---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
+    // Ludo coins — PLAY MONEY, and deliberately nowhere near the wallet.
+    //
+    // This project holds real funds (walletBalance, escrow, withdrawals). Coins
+    // are a separate progression currency with no path to money: they cannot be
+    // bought, transferred between players, or cashed out. Keeping them in their
+    // own document under users/{uid}/game rather than as another field on the
+    // profile is what makes that separation structural instead of a convention.
+    //
+    // NOTHING here is client-writable. Every balance change is made by a Cloud
+    // Function through the Admin SDK, which bypasses these rules. A player who
+    // could write their own balance would.
+    // ---------------------------------------------------------------------
+    match /users/{userId}/game/{docId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if false;
+    }
+
+    // The doorbell for claiming a daily reward or opening a chest. The client
+    // may only ASK; what it is worth is decided server-side. `type` is pinned to
+    // the known actions so a request cannot smuggle in an unhandled branch.
+    match /users/{userId}/gameRequests/{requestId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn()
+                    && request.auth.uid == userId
+                    && request.resource.data.type in ['daily', 'chest'];
+      // The trigger clears them; a client must not be able to replay one.
+      allow update, delete: if false;
+    }
+
     match /ludoRooms/{roomId} {
       // The colour whose turn it is, read out of the stored state.
       function seatToMove(state, seats) {

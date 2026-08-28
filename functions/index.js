@@ -4632,3 +4632,168 @@ exports.ludoRollRequested = onDocumentCreated(
 const seo = require("./seo");
 exports.adPage = seo.adPage;
 exports.sitemapXml = seo.sitemapXml;
+
+// ---------------------------------------------------------------------------
+// Ludo coins.
+//
+// PLAY MONEY, kept structurally apart from the real thing. This app holds
+// actual funds — walletBalance, escrow on live orders, withdrawals — and a
+// second currency beside that is a hazard, so coins live under
+// users/{uid}/game/profile and never touch the wallet. There is no path from
+// coins to money: they cannot be bought, transferred or cashed out.
+//
+// The balance is written ONLY here, with the Admin SDK. firestore.rules makes
+// the profile read-only to its owner, because a player who could write their
+// own balance would.
+// ---------------------------------------------------------------------------
+const economy = require("./game_economy");
+
+const gameProfileRef = (uid) =>
+  getFirestore().collection("users").doc(uid).collection("game").doc("profile");
+
+/**
+ * Requests are a doorbell, not a record: the client writes one, this reads it,
+ * acts, and deletes it.
+ *
+ * A callable would be the obvious shape, but cloud_functions_web throws
+ * decoding a numeric reply under dart2js ("Int64 accessor not supported"), which
+ * is what broke the dice roll — so the whole app talks to the server this way
+ * now and carries no cloud_functions dependency.
+ */
+exports.gameRequestCreated = onDocumentCreated(
+  "users/{uid}/gameRequests/{requestId}",
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const uid = event.params.uid;
+    const type = snap.data().type;
+    const db = getFirestore();
+    const ref = gameProfileRef(uid);
+
+    try {
+      await db.runTransaction(async (tx) => {
+        const doc = await tx.get(ref);
+        const p = doc.exists ? doc.data() : {};
+        const coins = Number(p.coins) || economy.STARTING_COINS;
+
+        if (type === "daily") {
+          const r = economy.resolveDaily(p, Date.now());
+          if (!r.canClaim) return;
+          tx.set(
+            ref,
+            {
+              coins: coins + r.coins,
+              streak: r.streak,
+              lastDailyAt: Date.now(),
+              lastAward: { kind: "daily", coins: r.coins, streak: r.streak },
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+          return;
+        }
+
+        if (type === "chest") {
+          const chests = Number(p.chests) || 0;
+          if (chests < 1) return;
+          // Randomness on the server. A client-supplied roll would simply be
+          // replayed until it produced the rarest tier.
+          const won = economy.rollChest(Math.random());
+          tx.set(
+            ref,
+            {
+              coins: coins + won,
+              chests: chests - 1,
+              lastAward: { kind: "chest", coins: won },
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+          return;
+        }
+      });
+    } catch (err) {
+      console.error("gameRequestCreated failed", uid, type, err);
+    } finally {
+      // Always clear the doorbell. Leaving it would let the trigger re-fire on
+      // any later write and pay the same reward twice.
+      await snap.ref.delete().catch(() => {});
+    }
+  }
+);
+
+/**
+ * Pays out when a Ludo room finishes.
+ *
+ * Runs on the room rather than trusting a client to report its own result, and
+ * writes an `awardedAt` marker so a later write to the same document cannot pay
+ * the table a second time.
+ */
+exports.ludoAwardCoins = onDocumentWritten("ludoRooms/{roomId}", async (event) => {
+  const after = event.data?.after?.data();
+  const before = event.data?.before?.data();
+  if (!after || after.status !== "finished") return;
+  if (before && before.status === "finished") return; // already handled
+  if (after.coinsAwardedAt) return;
+
+  const state = after.state || {};
+  const seats = after.seats || {};
+  const winners = state.winners || [];
+  if (winners.length === 0) return;
+
+  const humanPlayers = Object.values(seats).filter(
+    (v) => typeof v === "string" && !v.startsWith(LUDO_BOT_PREFIX)
+  ).length;
+
+  // In a team game the whole winning SIDE is paid, not just whoever came home
+  // first — the same rule the win banner shows the players.
+  const winningColours = new Set();
+  if (state.teams === true) {
+    const w = winners[0];
+    winningColours.add(w);
+    if (ludo.PARTNERS[w]) winningColours.add(ludo.PARTNERS[w]);
+  } else {
+    winningColours.add(winners[0]);
+  }
+
+  const db = getFirestore();
+  const writes = [];
+  for (const [colour, uid] of Object.entries(seats)) {
+    if (typeof uid !== "string" || uid.startsWith(LUDO_BOT_PREFIX)) continue;
+    const won = winningColours.has(colour);
+    const coins = economy.winReward({
+      won,
+      humanPlayers,
+      mode: state.mode,
+    });
+    writes.push(
+      db.runTransaction(async (tx) => {
+        const ref = gameProfileRef(uid);
+        const doc = await tx.get(ref);
+        const p = doc.exists ? doc.data() : {};
+        const wins = (Number(p.gamesWon) || 0) + (won ? 1 : 0);
+        // A chest every WINS_PER_CHEST wins, granted at the moment the counter
+        // crosses the boundary.
+        const earnedChest =
+          won && wins % economy.WINS_PER_CHEST === 0 ? 1 : 0;
+        tx.set(
+          ref,
+          {
+            coins: (Number(p.coins) || economy.STARTING_COINS) + coins,
+            gamesPlayed: (Number(p.gamesPlayed) || 0) + 1,
+            gamesWon: wins,
+            chests: (Number(p.chests) || 0) + earnedChest,
+            lastAward: { kind: won ? "win" : "played", coins },
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      })
+    );
+  }
+
+  await Promise.allSettled(writes);
+  await event.data.after.ref
+    .set({ coinsAwardedAt: Timestamp.now() }, { merge: true })
+    .catch(() => {});
+});

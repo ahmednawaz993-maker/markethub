@@ -396,6 +396,29 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
       appBar: AppBar(
         title: const Text('Ludo'),
         actions: [
+          // Coins appear HERE and nowhere else in the app — never on the wallet
+          // screen, never beside a price.
+          StreamBuilder<GameProfile>(
+            stream: gameProfileStream(),
+            builder: (context, snap) {
+              final profile = snap.data ?? const GameProfile();
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                child: Badge(
+                  isLabelVisible:
+                      profile.canClaimDaily || profile.chests > 0,
+                  child: CoinPill(
+                    coins: profile.coins,
+                    onTap: () => showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) => CoinRewardsSheet(profile: profile),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
           TextButton.icon(
             onPressed: _matching ? null : () => _create(context),
             icon: const Icon(Icons.add, size: 18),
