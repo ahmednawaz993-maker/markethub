@@ -25,7 +25,7 @@ LudoGame teamGame({
   positions:
       positions ??
       {
-        for (final c in LudoColor.values)
+        for (final c in LudoBoardSpec.four.colours)
           c: [kLudoInYard, kLudoInYard, kLudoInYard, kLudoInYard],
       },
   turn: turn,
@@ -36,7 +36,7 @@ LudoGame teamGame({
 );
 
 Map<LudoColor, List<int>> yard() => {
-  for (final c in LudoColor.values)
+  for (final c in LudoBoardSpec.four.colours)
     c: [kLudoInYard, kLudoInYard, kLudoInYard, kLudoInYard],
 };
 
@@ -51,7 +51,7 @@ void main() {
     });
 
     test('is symmetric and total', () {
-      for (final c in LudoColor.values) {
+      for (final c in LudoBoardSpec.four.colours) {
         final p = kLudoPartners[c]!;
         expect(p, isNot(c), reason: '${c.name} partners itself');
         expect(kLudoPartners[p], c, reason: '${c.name} pairing is one-way');
@@ -72,7 +72,7 @@ void main() {
     });
 
     test('in a solo game nobody is an ally but yourself', () {
-      final solo = LudoGame.newGame(LudoColor.values);
+      final solo = LudoGame.newGame(LudoBoardSpec.four.colours);
       expect(solo.areAllies(LudoColor.red, LudoColor.yellow), isFalse);
       expect(solo.partnerOf(LudoColor.red), isNull);
     });
@@ -117,7 +117,7 @@ void main() {
       // Proves the exemption comes from the team flag and not from the board
       // geometry — the positions here are identical to the first test.
       final solo = LudoGame(
-        players: LudoColor.values,
+        players: LudoBoardSpec.four.colours,
         positions: {
           ...yard(),
           LudoColor.red: [1, kLudoInYard, kLudoInYard, kLudoInYard],
@@ -170,22 +170,22 @@ void main() {
         teams: true,
       );
       expect(two.teams, isFalse, reason: '2v2 with two players is not 2v2');
-      expect(LudoGame.newGame(LudoColor.values, teams: true).teams, isTrue);
+      expect(LudoGame.newGame(LudoBoardSpec.four.colours, teams: true).teams, isTrue);
     });
   });
 
   group('the flag survives every transition', () {
     test('it round-trips through JSON', () {
-      final g = LudoGame.newGame(LudoColor.values, teams: true);
+      final g = LudoGame.newGame(LudoBoardSpec.four.colours, teams: true);
       expect(LudoGame.fromJson(g.toJson()).teams, isTrue);
       expect(
-        LudoGame.fromJson(LudoGame.newGame(LudoColor.values).toJson()).teams,
+        LudoGame.fromJson(LudoGame.newGame(LudoBoardSpec.four.colours).toJson()).teams,
         isFalse,
       );
     });
 
     test('an old document with no teams key reads as a solo game', () {
-      final json = LudoGame.newGame(LudoColor.values).toJson()..remove('teams');
+      final json = LudoGame.newGame(LudoBoardSpec.four.colours).toJson()..remove('teams');
       expect(LudoGame.fromJson(json).teams, isFalse);
     });
 

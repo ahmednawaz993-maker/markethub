@@ -11,6 +11,14 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.85] — 2026-08-28
+
+- Six-player Ludo, on a hexagonal board with a longer track and six home
+  columns. Pick 5 or 6 players in Pass and play and the board changes to suit.
+  Two new seats join the four: purple and orange.
+- Online games stay four-player for now; six seats need the room and its
+  security rules widened, which is a separate change.
+
 ## [1.0.84] — 2026-08-28
 
 - Pass and play. Two to four people on one phone, no internet and no sign-in

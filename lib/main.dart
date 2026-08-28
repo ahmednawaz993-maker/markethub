@@ -103,6 +103,7 @@ part 'src/screen_islamic.dart';
 part 'src/ludo_engine.dart';
 part 'src/ludo_themes.dart';
 part 'src/ludo_board.dart';
+part 'src/ludo_hex_board.dart';
 part 'src/ludo_dice.dart';
 part 'src/game_sound.dart';
 part 'src/game_coins.dart';

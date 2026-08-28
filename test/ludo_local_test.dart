@@ -28,6 +28,7 @@ void tallView(WidgetTester tester) {
 }
 
 void main() {
+  _sixPlayerTests();
   group('setting up a local game', () {
     testWidgets('offers 2, 3 and 4 players and every gameplay', (tester) async {
       tallView(tester);
@@ -198,6 +199,68 @@ void main() {
               'the same device, so a reward here is farmable',
         );
       }
+    });
+  });
+}
+
+void _sixPlayerTests() {
+  group('six players locally', () {
+    testWidgets('the setup offers 5 and 6, and says the board changes', (
+      tester,
+    ) async {
+      tallView(tester);
+      await tester.pumpWidget(wrap(const LudoLocalSetupScreen()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('5'), findsWidgets);
+      expect(find.text('6'), findsWidgets);
+      // Four or fewer is the classic board...
+      expect(find.textContaining('classic board'), findsOneWidget);
+
+      await tester.tap(find.text('6'));
+      await tester.pumpAndSettle();
+      // ...and six moves to the hexagon, which the screen says out loud so a
+      // player is not surprised by a board they have never seen.
+      expect(find.textContaining('hexagonal board'), findsOneWidget);
+      expect(find.byType(TextField), findsNWidgets(6));
+    });
+
+    testWidgets('a six-player game draws the hexagon, not the cross', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1000, 2000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        wrap(
+          LudoLocalGameScreen(
+            game: LudoGame.newGame(LudoBoardSpec.six.colours),
+            names: const {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // The classic painter throws for purple and orange rather than guessing
+      // their geometry, so drawing the wrong board here would not be subtle.
+      expect(find.byType(LudoHexBoard), findsOneWidget);
+      expect(find.byType(LudoBoard), findsNothing);
+    });
+
+    testWidgets('a four-player game still draws the cross', (tester) async {
+      tester.view.physicalSize = const Size(1000, 2000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        wrap(
+          LudoLocalGameScreen(
+            game: LudoGame.newGame(LudoBoardSpec.four.colours),
+            names: const {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(LudoBoard), findsOneWidget);
+      expect(find.byType(LudoHexBoard), findsNothing);
     });
   });
 }

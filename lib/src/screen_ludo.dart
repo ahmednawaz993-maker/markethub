@@ -62,7 +62,7 @@ class LudoRoom {
   final Timestamp? updatedAt;
 
   List<LudoColor> get seatedColors => [
-    for (final c in LudoColor.values)
+    for (final c in LudoBoardSpec.four.colours)
       if (seats.containsKey(c.name)) c,
   ];
 
@@ -159,7 +159,7 @@ Future<LudoColor?> joinLudoRoom(String roomId, String displayName) async {
     if (existing != null) return existing;
     if (room.isFull || room.status != LudoRoomStatus.waiting) return null;
 
-    final free = LudoColor.values.firstWhere(
+    final free = LudoBoardSpec.four.colours.firstWhere(
       (c) => !room.seats.containsKey(c.name),
       orElse: () => LudoColor.red,
     );
@@ -168,7 +168,7 @@ Future<LudoColor?> joinLudoRoom(String roomId, String displayName) async {
     // The seated colours ARE the players, in board order, so a two-player game
     // sits opposite and a three-player game does not leave a phantom seat.
     final players = [
-      for (final c in LudoColor.values)
+      for (final c in LudoBoardSpec.four.colours)
         if (seats.containsKey(c.name)) c,
     ];
     tx.update(ref, {
@@ -200,7 +200,7 @@ Future<LudoColor?> addLudoBot(String roomId) async {
     final room = LudoRoom.fromDoc(snap);
     if (room.isFull || room.status != LudoRoomStatus.waiting) return null;
 
-    final free = LudoColor.values.firstWhere(
+    final free = LudoBoardSpec.four.colours.firstWhere(
       (c) => !room.seats.containsKey(c.name),
       orElse: () => LudoColor.red,
     );
@@ -208,7 +208,7 @@ Future<LudoColor?> addLudoBot(String roomId) async {
     final seats = {...room.seats, free.name: 'bot:$n'};
     final names = {...room.names, free.name: 'Computer $n'};
     final players = [
-      for (final c in LudoColor.values)
+      for (final c in LudoBoardSpec.four.colours)
         if (seats.containsKey(c.name)) c,
     ];
     tx.update(ref, {
@@ -595,7 +595,7 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
                     Wrap(
                       spacing: 3,
                       children: [
-                        for (final c in LudoColor.values)
+                        for (final c in LudoBoardSpec.four.colours)
                           Container(
                             width: 12,
                             height: 12,

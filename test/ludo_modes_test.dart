@@ -257,7 +257,7 @@ void _arrowTests() {
     test('works for every colour, not just red', () {
       // Each colour enters the ring at a different cell, so the progress that
       // lands on a tail differs — the jump must still be +7 for all of them.
-      for (final c in LudoColor.values) {
+      for (final c in LudoBoardSpec.four.colours) {
         var found = 0;
         for (var p = 0; p <= kLudoLastRingStep; p++) {
           final j = arrowGame().arrowJump(c, p);

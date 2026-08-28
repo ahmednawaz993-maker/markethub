@@ -50,7 +50,7 @@ void main() {
 
     // The four stars should sit symmetrically, one per arm.
     test('the safe squares are the four starts plus four stars', () {
-      final starts = {for (final c in LudoColor.values) c.startCell};
+      final starts = {for (final c in LudoBoardSpec.four.colours) c.startCell};
       final stars = kLudoSafeCells.difference(starts);
       expect(stars, {8, 21, 34, 47});
       for (final s in stars) {
@@ -62,7 +62,7 @@ void main() {
   group('home columns and yards', () {
     test('each colour has five private cells, none of them on the ring', () {
       final ring = {for (final c in kLudoRing) '${c.row},${c.col}'};
-      for (final colour in LudoColor.values) {
+      for (final colour in LudoBoardSpec.four.colours) {
         final col = ludoHomeColumn(colour);
         expect(col.length, kLudoHomeColumnLength, reason: colour.name);
         for (final cell in col) {
@@ -87,7 +87,7 @@ void main() {
     // see: a token leaving the yard must appear NEXT to it, not across the
     // board. Each colour's start square has to touch its own corner.
     test('each colour starts beside its own yard', () {
-      for (final c in LudoColor.values) {
+      for (final c in LudoBoardSpec.four.colours) {
         final start = kLudoRing[c.startCell];
         final o = ludoYardOrigin(c);
         final touchesRows =
@@ -104,11 +104,11 @@ void main() {
 
     test('the four yards are distinct 6x6 corners', () {
       final origins = {
-        for (final c in LudoColor.values)
+        for (final c in LudoBoardSpec.four.colours)
           '${ludoYardOrigin(c).row},${ludoYardOrigin(c).col}',
       };
       expect(origins.length, 4);
-      for (final c in LudoColor.values) {
+      for (final c in LudoBoardSpec.four.colours) {
         final o = ludoYardOrigin(c);
         expect(o.row, anyOf(0, 9));
         expect(o.col, anyOf(0, 9));
@@ -118,7 +118,7 @@ void main() {
 
   group('ludoCellFor', () {
     test('yard tokens sit in their own corner, four to a yard', () {
-      for (final c in LudoColor.values) {
+      for (final c in LudoBoardSpec.four.colours) {
         final seen = <String>{};
         for (var i = 0; i < 4; i++) {
           final cell = ludoCellFor(c, kLudoInYard, i)!;
@@ -131,7 +131,7 @@ void main() {
     });
 
     test('progress 0 is the colour\'s start square', () {
-      for (final c in LudoColor.values) {
+      for (final c in LudoBoardSpec.four.colours) {
         expect(ludoCellFor(c, 0, 0), kLudoRing[c.startCell]);
       }
     });
@@ -139,14 +139,14 @@ void main() {
     test('the last ring step is one short of a full loop', () {
       // Progress 50 must NOT be back on the start square — a token turns into
       // its home column before completing the circuit.
-      for (final c in LudoColor.values) {
+      for (final c in LudoBoardSpec.four.colours) {
         final cell = ludoCellFor(c, kLudoLastRingStep, 0);
         expect(cell, isNot(kLudoRing[c.startCell]));
       }
     });
 
     test('home-column progress walks the private column in order', () {
-      for (final c in LudoColor.values) {
+      for (final c in LudoBoardSpec.four.colours) {
         final col = ludoHomeColumn(c);
         for (var i = 0; i < kLudoHomeColumnLength; i++) {
           expect(ludoCellFor(c, kLudoLastRingStep + 1 + i, 0), col[i]);
@@ -166,7 +166,7 @@ void main() {
       addTearDown(tester.view.reset);
 
       final game = LudoGame(
-        players: LudoColor.values,
+        players: LudoBoardSpec.four.colours,
         positions: {
           LudoColor.red: [0, 12, 52, kLudoHome],
           LudoColor.green: [kLudoInYard, 7, 30, 45],

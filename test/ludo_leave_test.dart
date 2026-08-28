@@ -126,7 +126,7 @@ void main() {
       // A theme that changed them would make the board prettier and the game
       // unreadable, so the palette carries no seat colours at all.
       for (final t in LudoTheme.all) {
-        for (final c in LudoColor.values) {
+        for (final c in LudoBoardSpec.four.colours) {
           expect(t.surface, isNot(ludoColorOf(c)));
         }
       }

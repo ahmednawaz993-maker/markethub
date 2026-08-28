@@ -23,41 +23,105 @@ part of '../main.dart';
 //  * A token must reach home on an EXACT roll; overshooting is not a legal
 //    move, which is what makes the endgame tense.
 
-/// The four seats. Order matters: play proceeds around the board in this order.
+/// The seats. Order matters: play proceeds around the board in this order.
+///
+/// The first four are the classic board. Purple and orange exist only on the
+/// six-player hexagon — a four-player game never seats them, and every switch
+/// over this enum has to say what it does with them anyway, which is the
+/// compiler making sure the six-seat board was thought about everywhere.
 enum LudoColor {
   red('Red'),
   green('Green'),
   yellow('Yellow'),
-  blue('Blue');
+  blue('Blue'),
+  purple('Purple'),
+  orange('Orange');
 
   const LudoColor(this.label);
   final String label;
-
-  /// Where this colour joins the shared 52-square ring.
-  int get startCell => switch (this) {
-    LudoColor.red => 0,
-    LudoColor.green => 13,
-    LudoColor.yellow => 26,
-    LudoColor.blue => 39,
-  };
 }
-
-/// Squares nobody can be captured on: the four starts and the four stars.
-const Set<int> kLudoSafeCells = {0, 8, 13, 21, 26, 34, 39, 47};
-
-/// Length of the shared ring.
-const int kLudoRingLength = 52;
 
 /// Progress value meaning "in the yard, not yet on the board".
 const int kLudoInYard = -1;
 
-/// Progress 0..50 is the ring, 51..55 the five private home squares, and 56 is
-/// home itself (the centre). 51 ring cells rather than 52: a token turns into
-/// its own column one square short of completing the circuit, which is why it
-/// never lands back on its own start.
-const int kLudoLastRingStep = 50;
+/// How many private squares a colour runs down before home. Same on both
+/// boards; it is what makes the endgame feel identical.
 const int kLudoHomeColumnLength = 5;
+
+/// The geometry of a board.
+///
+/// Everything here is DERIVED from the seat count and ring length rather than
+/// listed, and that is the point: the four-player values it produces are
+/// exactly the constants this game shipped with for months (ring 52, starts at
+/// 0/13/26/39, safe squares {0,8,13,21,26,34,39,47}, last ring step 50, home
+/// 56). A test asserts that equality, so the six-player board could be added
+/// without any chance of quietly moving the four-player one.
+class LudoBoardSpec {
+  const LudoBoardSpec({required this.seats, required this.ringLength});
+
+  final int seats;
+  final int ringLength;
+
+  /// The classic cross: four seats, thirteen cells apart.
+  static const four = LudoBoardSpec(seats: 4, ringLength: 52);
+
+  /// The hexagon: six seats, twelve cells apart.
+  static const six = LudoBoardSpec(seats: 6, ringLength: 72);
+
+  static LudoBoardSpec forSeats(int n) => n > 4 ? six : four;
+
+  /// Cells between one colour's start and the next.
+  int get spacing => ringLength ~/ seats;
+
+  /// The last ring square before a token turns into its own column. Two short
+  /// of a full circuit, so a token never lands back on its own start.
+  int get lastRingStep => ringLength - 2;
+
+  /// The centre.
+  int get home => lastRingStep + kLudoHomeColumnLength + 1;
+
+  /// The colours this board seats, in turn order.
+  List<LudoColor> get colours => LudoColor.values.take(seats).toList();
+
+  /// Where a colour joins the shared ring.
+  int startCellOf(LudoColor c) => (c.index * spacing) % ringLength;
+
+  /// Squares nobody can be captured on: every colour's start, plus a star five
+  /// cells short of the NEXT colour's start — the square you most want to reach
+  /// before running into somebody else's home stretch.
+  Set<int> get safeCells => {
+    for (var i = 0; i < seats; i++) ...[
+      i * spacing,
+      i * spacing + spacing - 5,
+    ],
+  };
+
+  /// Arrow-mode shortcuts, tail -> head. One per arm, each a jump of seven,
+  /// two cells past each colour's start. On the four-player board this
+  /// reproduces {2: 9, 15: 22, 28: 35, 41: 48} exactly.
+  Map<int, int> get arrows => {
+    for (var i = 0; i < seats; i++)
+      i * spacing + 2: (i * spacing + 9) % ringLength,
+  };
+}
+
+/// Reading a colour's start on the CLASSIC board.
+///
+/// Convenience for the four-player painter and the tests written against it.
+/// The engine never uses this — it asks its own spec — because a six-player
+/// game that read four-player geometry would compute silently wrong squares
+/// rather than failing.
+extension LudoColorClassicBoard on LudoColor {
+  int get startCell => LudoBoardSpec.four.startCellOf(this);
+}
+
+/// The classic board's values, kept as names because most of the game and all
+/// of its older tests speak in them.
+const int kLudoRingLength = 52;
+const int kLudoLastRingStep = 50;
 const int kLudoHome = 56;
+final Set<int> kLudoSafeCells = LudoBoardSpec.four.safeCells;
+final Map<int, int> kLudoArrows = LudoBoardSpec.four.arrows;
 
 /// One token's position, expressed as progress along its OWN path.
 ///
@@ -72,8 +136,18 @@ extension type const LudoTokenPos(int progress) {
 
   /// The shared-ring cell this token occupies, or null when it is in the yard,
   /// its home column, or finished — none of which can be captured or block.
-  int? ringCell(LudoColor c) =>
-      onRing ? (c.startCell + progress) % kLudoRingLength : null;
+  ///
+  /// Takes the board, because the same progress is a different square on the
+  /// hexagon. It defaults to the classic board only for the four-player painter
+  /// and its tests; the engine always passes its own spec.
+  int? ringCell(LudoColor c, [LudoBoardSpec spec = LudoBoardSpec.four]) =>
+      progress >= 0 && progress <= spec.lastRingStep
+      ? (spec.startCellOf(c) + progress) % spec.ringLength
+      : null;
+
+  bool onRingOf(LudoBoardSpec spec) =>
+      progress >= 0 && progress <= spec.lastRingStep;
+  bool isHomeOf(LudoBoardSpec spec) => progress == spec.home;
 }
 
 /// Who partners whom in a team game.
@@ -88,22 +162,6 @@ const Map<LudoColor, LudoColor> kLudoPartners = {
   LudoColor.green: LudoColor.blue,
   LudoColor.blue: LudoColor.green,
 };
-
-/// One-way shortcuts for [LudoMode.arrow]: ring cell of the tail -> the head
-/// it carries a token to.
-///
-/// Four of them, one per quadrant and evenly spaced (every 13th cell), each a
-/// jump of seven. Three constraints decided the numbers, and all three are
-/// pinned by tests:
-///   * no tail or head is a SAFE square, so a shortcut never doubles as
-///     protection and a capture on a head is still possible;
-///   * no head is another tail, so arrows cannot chain into a longer ride;
-///   * every jump is forward, so an arrow can never send a token backwards.
-///
-/// They also sit on STRAIGHT runs rather than the four corners where the track
-/// turns. On a corner the direction of travel is diagonal, so the marker drawn
-/// on the board pointed across the grid and read as a rendering fault.
-const Map<int, int> kLudoArrows = {2: 9, 15: 22, 28: 35, 41: 48};
 
 /// A legal move: move [tokenIndex] of [color] to [to].
 class LudoMove {
@@ -200,16 +258,20 @@ enum LudoMode {
 /// fun, and the obvious move is what a person expects to see played.
 /// Order: take a capture, bring a token home, leave the yard, reach safety,
 /// otherwise push the leading token on.
-LudoMove? chooseLudoMove(LudoColor color, List<LudoMove> moves) {
+LudoMove? chooseLudoMove(
+  LudoColor color,
+  List<LudoMove> moves, [
+  LudoBoardSpec spec = LudoBoardSpec.four,
+]) {
   if (moves.isEmpty) return null;
   LudoMove? best;
   var bestScore = double.negativeInfinity;
   for (final m in moves) {
     var score = m.captures.length * 100.0;
-    if (m.to.isHome) score += 80;
+    if (m.to.isHomeOf(spec)) score += 80;
     if (m.from.inYard) score += 50;
-    final dest = m.to.ringCell(color);
-    if (dest != null && kLudoSafeCells.contains(dest)) score += 20;
+    final dest = m.to.ringCell(color, spec);
+    if (dest != null && spec.safeCells.contains(dest)) score += 20;
     score += m.to.progress / 2;
     if (score > bestScore) {
       bestScore = score;
@@ -232,6 +294,13 @@ class LudoGame {
     this.hasCaptured = const {},
     this.teams = false,
   });
+
+  /// The board this game is played on, decided by how many are seated.
+  ///
+  /// Derived rather than stored: the seat count already says which board it is,
+  /// and a stored spec could drift out of step with the players list on an old
+  /// document.
+  LudoBoardSpec get spec => LudoBoardSpec.forSeats(players.length);
 
   /// Whether this table is playing 2v2.
   ///
@@ -309,7 +378,7 @@ class LudoGame {
     LudoMode mode = LudoMode.classic,
     bool teams = false,
   }) {
-    assert(players.length >= 2 && players.length <= 4);
+    assert(players.length >= 2 && players.length <= 6);
     // 2v2 needs four seats. A team game with three players would leave one side
     // a player short, so the flag simply does not apply until the table fills.
     final teamed = teams && players.length == 4;
@@ -331,7 +400,7 @@ class LudoGame {
 
   /// Tokens of [color] that have reached home.
   int homeCount(LudoColor color) =>
-      positions[color]!.where((p) => p == kLudoHome).length;
+      positions[color]!.where((p) => p == spec.home).length;
 
   /// Every move [currentPlayer] may legally make with [dice].
   ///
@@ -346,7 +415,7 @@ class LudoGame {
 
     for (var i = 0; i < mine.length; i++) {
       final from = LudoTokenPos(mine[i]);
-      if (from.isHome) continue;
+      if (from.isHomeOf(spec)) continue;
 
       final int toProgress;
       if (from.inYard) {
@@ -357,7 +426,7 @@ class LudoGame {
       } else {
         toProgress = from.progress + dice;
         // Home must be reached exactly. Overshooting is simply not a move.
-        if (toProgress > kLudoHome) continue;
+        if (toProgress > spec.home) continue;
         // Master: the home column stays shut until this colour has sent an
         // opponent back to the yard. The token can still travel the ring — it
         // just cannot turn in, which is the whole point of the variant.
@@ -366,7 +435,7 @@ class LudoGame {
         // plays the bots. If the two disagree, a player is offered a move the
         // server will refuse.
         if (mode.captureToEnterHome &&
-            toProgress > kLudoLastRingStep &&
+            toProgress > spec.lastRingStep &&
             !hasCaptured.contains(color)) {
           continue;
         }
@@ -382,12 +451,12 @@ class LudoGame {
 
       // A token cannot land on one of its own — that would stack two tokens on
       // a square and make captures ambiguous.
-      final destRing = to.ringCell(color);
+      final destRing = to.ringCell(color, spec);
       if (destRing != null) {
         final ownCollision = mine.asMap().entries.any(
           (e) =>
               e.key != i &&
-              LudoTokenPos(e.value).ringCell(color) == destRing,
+              LudoTokenPos(e.value).ringCell(color, spec) == destRing,
         );
         if (ownCollision) continue;
       }
@@ -413,13 +482,14 @@ class LudoGame {
   /// roll, and a shortcut that skipped that would let a token stroll in.
   int? arrowJump(LudoColor color, int progress) {
     if (!mode.arrows) return null;
-    if (progress < 0 || progress > kLudoLastRingStep) return null;
-    final ring = LudoTokenPos(progress).ringCell(color);
+    if (progress < 0 || progress > spec.lastRingStep) return null;
+    final ring = LudoTokenPos(progress).ringCell(color, spec);
     if (ring == null) return null;
-    final head = kLudoArrows[ring];
+    final head = spec.arrows[ring];
     if (head == null) return null;
-    final jumped = progress + ((head - ring + kLudoRingLength) % kLudoRingLength);
-    if (jumped > kLudoLastRingStep) return null;
+    final jumped =
+        progress + ((head - ring + spec.ringLength) % spec.ringLength);
+    if (jumped > spec.lastRingStep) return null;
     return jumped;
   }
 
@@ -429,7 +499,7 @@ class LudoGame {
     LudoColor mover,
     int? ringCell,
   ) {
-    if (ringCell == null || kLudoSafeCells.contains(ringCell)) return const [];
+    if (ringCell == null || spec.safeCells.contains(ringCell)) return const [];
     final out = <({LudoColor color, int tokenIndex})>[];
     for (final other in players) {
       // A colour never captures itself, and in a team game never its partner.
@@ -438,7 +508,7 @@ class LudoGame {
       if (areAllies(mover, other)) continue;
       final theirs = positions[other]!;
       for (var i = 0; i < theirs.length; i++) {
-        if (LudoTokenPos(theirs[i]).ringCell(other) == ringCell) {
+        if (LudoTokenPos(theirs[i]).ringCell(other, spec) == ringCell) {
           out.add((color: other, tokenIndex: i));
         }
       }
@@ -461,7 +531,7 @@ class LudoGame {
     final captured = move.captures.isEmpty
         ? hasCaptured
         : {...hasCaptured, move.color};
-    if (next[move.color]!.every((p) => p == kLudoHome) &&
+    if (next[move.color]!.every((p) => p == spec.home) &&
         !newWinners.contains(move.color)) {
       newWinners.add(move.color);
     }
@@ -472,7 +542,7 @@ class LudoGame {
     final earnedAnother =
         (rolledSix && consecutiveSixes < 3) ||
         move.captures.isNotEmpty ||
-        move.reachesHome ||
+        move.to.progress == spec.home ||
         move.viaArrow;
 
     return LudoGame(

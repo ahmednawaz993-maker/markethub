@@ -1,6 +1,6 @@
 part of '../main.dart';
 
-// Pass-and-play: two to four people sharing one phone.
+// Pass-and-play: two to SIX people sharing one phone.
 //
 // The whole game lives in this widget. No room, no Firestore, no signalling,
 // no sign-in — which is the point. A huge amount of Ludo is played by people in
@@ -36,6 +36,10 @@ class _LudoLocalSetupScreenState extends State<LudoLocalSetupScreen> {
   final Map<LudoColor, TextEditingController> _names = {
     for (final c in LudoColor.values) c: TextEditingController(),
   };
+
+  /// Five or six players move to the hexagon, which is a different board with
+  /// a longer ring — so the choice of player count IS the choice of board.
+  LudoBoardSpec get _spec => LudoBoardSpec.forSeats(_players);
 
   @override
   void dispose() {
@@ -84,9 +88,20 @@ class _LudoLocalSetupScreenState extends State<LudoLocalSetupScreen> {
             ButtonSegment(value: 2, label: Text('2')),
             ButtonSegment(value: 3, label: Text('3')),
             ButtonSegment(value: 4, label: Text('4')),
+            ButtonSegment(value: 5, label: Text('5')),
+            ButtonSegment(value: 6, label: Text('6')),
           ],
           selected: {_players},
+          showSelectedIcon: false,
           onSelectionChanged: (v) => setState(() => _players = v.first),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          _spec.seats == 6
+              ? 'Five or six players use the hexagonal board — a longer track '
+                    'and six home columns.'
+              : 'Two to four players use the classic board.',
+          style: AppType.caption,
         ),
         const SizedBox(height: AppSpacing.xl),
         Text('Game', style: AppType.label),
@@ -279,11 +294,20 @@ class _LudoLocalGameScreenState extends State<LudoLocalGameScreen> {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(AppSpacing.md),
-                child: LudoBoard(
-                  game: _game,
-                  moves: _moves,
-                  onMove: _play,
-                ),
+                // Six seats need the hexagon; anything smaller is the cross.
+                // Both take the same game and the same move list, because the
+                // rules are identical and only the drawing differs.
+                child: _game.spec.seats == 6
+                    ? LudoHexBoard(
+                        game: _game,
+                        moves: _moves,
+                        onMove: _play,
+                      )
+                    : LudoBoard(
+                        game: _game,
+                        moves: _moves,
+                        onMove: _play,
+                      ),
               ),
             ),
             if (!decided)

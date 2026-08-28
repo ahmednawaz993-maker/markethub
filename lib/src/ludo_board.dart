@@ -61,6 +61,10 @@ List<LudoCell> ludoHomeColumn(LudoColor c) => switch (c) {
   LudoColor.green => [for (var i = 1; i <= 5; i++) (row: i, col: 7)],
   LudoColor.yellow => [for (var i = 13; i >= 9; i--) (row: 7, col: i)],
   LudoColor.blue => [for (var i = 13; i >= 9; i--) (row: i, col: 7)],
+  // See ludoYardOrigin: the six-player board is drawn elsewhere.
+  LudoColor.purple || LudoColor.orange => throw UnsupportedError(
+    'purple and orange are six-player seats; use the hexagonal board',
+  ),
 };
 
 /// The 6x6 corner a colour's un-entered tokens wait in.
@@ -74,6 +78,12 @@ List<LudoCell> ludoHomeColumn(LudoColor c) => switch (c) {
   LudoColor.green => (row: 0, col: 9),
   LudoColor.yellow => (row: 9, col: 9),
   LudoColor.blue => (row: 9, col: 0),
+  // The hexagon has no 15x15 corners; ludoHexYardCentre places its yards.
+  // Reaching here would mean a six-player game was being drawn by the classic
+  // painter, which is a bug rather than a layout to guess at.
+  LudoColor.purple || LudoColor.orange => throw UnsupportedError(
+    'purple and orange are six-player seats; use the hexagonal board',
+  ),
 };
 
 /// Where the four waiting tokens sit inside a yard, as offsets from its corner.
@@ -105,6 +115,12 @@ Color ludoColorOf(LudoColor c) => switch (c) {
   LudoColor.green => const Color(0xFF157F3B),
   LudoColor.yellow => const Color(0xFFE8A33D),
   LudoColor.blue => const Color(0xFF1B6CA8),
+  // Six-player only. Chosen to stay distinguishable from the four above and
+  // from each other, including for the most common colour blindness — purple
+  // against green and orange against red are the pairs that matter, so these
+  // are separated in lightness as well as hue.
+  LudoColor.purple => const Color(0xFF6C3FA8),
+  LudoColor.orange => const Color(0xFFE2622B),
 };
 
 /// Paints the static board: yards, ring, home columns, centre and stars.
@@ -164,7 +180,10 @@ class LudoBoardPainter extends CustomPainter {
     // Yards. A flat block of colour is what makes a hand-drawn board look
     // printed; two stops of the same hue give it a light source. The four
     // token sockets are drawn as wells so an empty yard still reads as seats.
-    for (final c in LudoColor.values) {
+    // The classic colours only. LudoColor now also carries the two six-player
+    // seats, and this painter draws the 15x15 cross — asking it for purple's
+    // yard is a bug, which is why ludoYardOrigin throws rather than guessing.
+    for (final c in LudoBoardSpec.four.colours) {
       final o = ludoYardOrigin(c);
       final base = ludoColorOf(c);
       final rect = Rect.fromLTWH(o.col * u, o.row * u, u * 6, u * 6);
@@ -207,7 +226,7 @@ class LudoBoardPainter extends CustomPainter {
       final rr = RRect.fromRectAndRadius(r, Radius.circular(u * 0.15));
       // A colour's start square is painted in that colour so players can see
       // where they join; the other safe squares get a star instead.
-      final owner = LudoColor.values
+      final owner = LudoBoardSpec.four.colours
           .where((c) => c.startCell == i)
           .cast<LudoColor?>()
           .firstWhere((c) => true, orElse: () => null);
@@ -238,7 +257,7 @@ class LudoBoardPainter extends CustomPainter {
 
     // Home columns. The colour deepens toward the centre, so the run home
     // reads as a direction of travel instead of five identical squares.
-    for (final c in LudoColor.values) {
+    for (final c in LudoBoardSpec.four.colours) {
       final cells = ludoHomeColumn(c);
       final base = ludoColorOf(c);
       for (var i = 0; i < cells.length; i++) {
@@ -647,6 +666,9 @@ class _LudoBoardState extends State<LudoBoard>
     LudoColor.green => Offset(7.0 * u, 6.05 * u),
     LudoColor.yellow => Offset(7.6 * u, 7.0 * u),
     LudoColor.blue => Offset(7.0 * u, 7.6 * u),
+    LudoColor.purple || LudoColor.orange => throw UnsupportedError(
+      'purple and orange are six-player seats; use the hexagonal board',
+    ),
   };
 }
 
