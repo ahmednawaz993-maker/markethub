@@ -150,6 +150,11 @@ class _ListingDeepLinkScreenState extends State<ListingDeepLinkScreen> {
       final signedOut = FirebaseAuth.instance.currentUser == null;
       if (e.code == 'permission-denied' && signedOut) {
         _needsSignIn = true;
+        // Remember the ad BEFORE sending them to sign in. This is the front
+        // door for anybody arriving from a shared link or from Google, and
+        // telling a first-time visitor to go and fetch the link again is the
+        // worst possible greeting.
+        await rememberPendingAd(widget.listingId);
         return null;
       }
       rethrow;
@@ -196,7 +201,7 @@ class _ListingDeepLinkScreenState extends State<ListingDeepLinkScreen> {
               title: 'Sign in to view this ad',
               subtitle:
                   'PakBazar shows ads to signed-in users. Sign in or create a '
-                  'free account, then open this link again.',
+                  'free account — we will bring you straight back to this ad.',
               actionLabel: 'Sign in',
               onAction: _goHome,
             ),

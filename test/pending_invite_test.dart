@@ -1,9 +1,11 @@
-// An invite that survives sign-in.
+// A shared link that survives sign-in.
 //
-// The gap this closes: a Ludo link opened by somebody with no account used to
-// say "sign in, then open the link again", which asks an invited player to go
-// back and find the message a second time. Most will not, and the invite is the
-// whole way a table fills.
+// The gap this closes: a link opened by somebody with no account used to say
+// "sign in, then open the link again", which asks a person to go back and find
+// the message a second time. Most will not. It applies to ad links as much as
+// game invites — arguably more, since an ad link is what Google indexes and
+// what a seller shares, so it is the front door for people who have never used
+// PakBazar at all.
 //
 // The storage needs a device, so what is tested here is the expiry rule — which
 // is where the two bad outcomes live. Too short and a person who stopped to
@@ -11,6 +13,7 @@
 // week hijacks today's launch, dropping somebody into a game that finished days
 // ago.
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markethub/main.dart';
 
@@ -67,6 +70,37 @@ void main() {
     test('zero and negative timestamps are expired', () {
       expect(pendingInviteIsFresh(0, now), isFalse);
       expect(pendingInviteIsFresh(-1, now), isFalse);
+    });
+  });
+
+  group('a stored value resolves to the right destination', () {
+    test('an ad route and a game route are kept as they are', () {
+      expect(pendingRouteOf('/ad/abc123'), '/ad/abc123');
+      expect(pendingRouteOf('/ludo/room789'), '/ludo/room789');
+    });
+
+    test('a bare id from an older build is still a Ludo room', () {
+      // 1.0.79 stored the room id alone. Those values are sitting on devices
+      // that have not updated yet, and dropping them would break the invite
+      // flow for exactly the people mid-upgrade.
+      expect(pendingRouteOf('room789'), '/ludo/room789');
+    });
+
+    test('every stored form resolves to a real screen', () {
+      // generateAppRoute is what actually opens it, so a value that does not
+      // resolve there would be silently discarded.
+      for (final stored in ['/ad/abc', '/ludo/xyz', 'legacyRoomId']) {
+        final route = pendingRouteOf(stored);
+        expect(
+          generateAppRoute(RouteSettings(name: route)),
+          isNotNull,
+          reason: '$stored resolved to a route nothing handles',
+        );
+      }
+    });
+
+    test('a route this build does not understand is dropped, not crashed on', () {
+      expect(generateAppRoute(const RouteSettings(name: '/whatever/x')), isNull);
     });
   });
 

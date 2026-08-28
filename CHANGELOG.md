@@ -11,6 +11,13 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.81] — 2026-08-28
+
+- An ad link now brings you back to that ad after you sign in, the same way a
+  Ludo invite already did. Previously it told you to open the link again — which
+  is the worst thing to say to somebody arriving from Google or from a seller's
+  shared link, since that is their first impression of PakBazar.
+
 ## [1.0.80] — 2026-08-28
 
 - Coin tables. Open a game at 100, 500, 2,000 or 10,000 coins — everyone pays in
