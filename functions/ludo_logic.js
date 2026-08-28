@@ -16,17 +16,61 @@
 // need to decide stays in Dart only.
 
 const IN_YARD = -1;
-const LAST_RING_STEP = 50;
-const HOME = 56;
-const RING_LENGTH = 52;
-const SAFE_CELLS = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
-const START_CELL = { red: 0, green: 13, yellow: 26, blue: 39 };
-const COLOURS = ["red", "green", "yellow", "blue"];
-// Arrow mode's one-way shortcuts, tail ring cell -> head. MUST match
-// kLudoArrows in lib/src/ludo_engine.dart; ludo_logic.test.js asserts the exact
-// table, because a silent difference here would offer the player a jump the
-// server does not make.
-const ARROWS = { 2: 9, 15: 22, 28: 35, 41: 48 };
+const HOME_COLUMN_LENGTH = 5;
+
+// Every colour there can be, in turn order. The first four are the classic
+// cross; purple and orange exist only on the six-player hexagon.
+const COLOURS = ["red", "green", "yellow", "blue", "purple", "orange"];
+
+/**
+ * The geometry of a board, DERIVED from the seat count. Mirrors LudoBoardSpec
+ * in lib/src/ludo_engine.dart, and the four-seat values it produces are exactly
+ * the constants this file used to hard-code: ring 52, starts 0/13/26/39, safe
+ * {0,8,13,21,26,34,39,47}, last ring step 50, home 56, arrows
+ * {2:9,15:22,28:35,41:48}. ludo_logic.test.js asserts all of that, because a
+ * silent difference here would have the server and the phone disagreeing about
+ * where a token is.
+ */
+function specFor(seats) {
+  const n = seats > 4 ? 6 : 4;
+  const ringLength = n === 6 ? 72 : 52;
+  const spacing = ringLength / n;
+  const lastRingStep = ringLength - 2;
+  const safeCells = new Set();
+  const arrows = {};
+  for (let i = 0; i < n; i++) {
+    safeCells.add(i * spacing);
+    safeCells.add(i * spacing + spacing - 5);
+    arrows[i * spacing + 2] = (i * spacing + 9) % ringLength;
+  }
+  return {
+    seats: n,
+    ringLength,
+    spacing,
+    lastRingStep,
+    home: lastRingStep + HOME_COLUMN_LENGTH + 1,
+    safeCells,
+    arrows,
+    colours: COLOURS.slice(0, n),
+    startCell: (colour) => COLOURS.indexOf(colour) * spacing,
+  };
+}
+
+/** The board a state is being played on, from how many are seated. */
+function specOf(state) {
+  return specFor((state && state.players ? state.players.length : 4));
+}
+
+// The classic board, for anything that still speaks in bare constants.
+const FOUR = specFor(4);
+const LAST_RING_STEP = FOUR.lastRingStep;
+const HOME = FOUR.home;
+const RING_LENGTH = FOUR.ringLength;
+const SAFE_CELLS = FOUR.safeCells;
+const START_CELL = Object.fromEntries(
+  FOUR.colours.map((c) => [c, FOUR.startCell(c)])
+);
+const ARROWS = FOUR.arrows;
 // 2v2 pairing. Partners sit OPPOSITE, so the turn order alternates sides
 // instead of giving one team two moves in a row. MUST match kLudoPartners in
 // lib/src/ludo_engine.dart.
@@ -38,9 +82,9 @@ function areAllies(state, a, b) {
 }
 
 /** Shared-ring cell for a colour's progress, or null when off the ring. */
-function ringCell(colour, progress) {
-  if (progress < 0 || progress > LAST_RING_STEP) return null;
-  return (START_CELL[colour] + progress) % RING_LENGTH;
+function ringCell(colour, progress, spec = FOUR) {
+  if (progress < 0 || progress > spec.lastRingStep) return null;
+  return (spec.startCell(colour) + progress) % spec.ringLength;
 }
 
 /**
@@ -51,13 +95,15 @@ function ringCell(colour, progress) {
  */
 function arrowJump(state, colour, progress) {
   if (state.mode !== "arrow") return null;
-  if (progress < 0 || progress > LAST_RING_STEP) return null;
-  const ring = ringCell(colour, progress);
+  const spec = specOf(state);
+  if (progress < 0 || progress > spec.lastRingStep) return null;
+  const ring = ringCell(colour, progress, spec);
   if (ring === null) return null;
-  const head = ARROWS[ring];
+  const head = spec.arrows[ring];
   if (head === undefined) return null;
-  const jumped = progress + ((head - ring + RING_LENGTH) % RING_LENGTH);
-  if (jumped > LAST_RING_STEP) return null;
+  const jumped =
+    progress + ((head - ring + spec.ringLength) % spec.ringLength);
+  if (jumped > spec.lastRingStep) return null;
   return jumped;
 }
 
@@ -66,13 +112,14 @@ function arrowJump(state, colour, progress) {
  * Mirrors LudoGame.legalMoves. Returns [{tokenIndex, from, to, captures}].
  */
 function legalMoves(state, dice) {
+  const spec = specOf(state);
   const colour = state.players[state.turn];
   const mine = state.positions[colour] || [];
   const moves = [];
 
   for (let i = 0; i < mine.length; i++) {
     const from = mine[i];
-    if (from === HOME) continue;
+    if (from === spec.home) continue;
 
     let to;
     if (from === IN_YARD) {
@@ -80,14 +127,14 @@ function legalMoves(state, dice) {
       to = 0; // lands ON the start square, not six past it
     } else {
       to = from + dice;
-      if (to > HOME) continue; // home must be exact
+      if (to > spec.home) continue; // home must be exact
       // Master: the home column stays shut until this colour has sent an
       // opponent back to the yard. Mirrors LudoGame.legalMoves — if the server
       // and the phone disagree here, a player is offered a move the server
       // will not accept.
       if (
         state.mode === "master" &&
-        to > LAST_RING_STEP &&
+        to > spec.lastRingStep &&
         !(state.captured || []).includes(colour)
       ) {
         continue;
@@ -100,24 +147,24 @@ function legalMoves(state, dice) {
     const viaArrow = jumped !== null;
     if (viaArrow) to = jumped;
 
-    const destRing = ringCell(colour, to);
+    const destRing = ringCell(colour, to, spec);
     if (destRing !== null) {
       // A token may not land on one of its own.
       let blocked = false;
       for (let j = 0; j < mine.length; j++) {
-        if (j !== i && ringCell(colour, mine[j]) === destRing) blocked = true;
+        if (j !== i && ringCell(colour, mine[j], spec) === destRing) blocked = true;
       }
       if (blocked) continue;
     }
 
     const captures = [];
-    if (destRing !== null && !SAFE_CELLS.has(destRing)) {
+    if (destRing !== null && !spec.safeCells.has(destRing)) {
       for (const other of state.players) {
         // Never capture yourself, and in a team game never your partner.
         if (areAllies(state, colour, other)) continue;
         const theirs = state.positions[other] || [];
         for (let k = 0; k < theirs.length; k++) {
-          if (ringCell(other, theirs[k]) === destRing) {
+          if (ringCell(other, theirs[k], spec) === destRing) {
             captures.push({ colour: other, tokenIndex: k });
           }
         }
@@ -285,7 +332,7 @@ function applyMove(state, move) {
   for (const cap of move.captures) positions[cap.colour][cap.tokenIndex] = IN_YARD;
 
   const winners = (state.winners || []).slice();
-  if (positions[colour].every((p) => p === HOME) && !winners.includes(colour)) {
+  if (positions[colour].every((p) => p === specOf(state).home) && !winners.includes(colour)) {
     winners.push(colour);
   }
 
@@ -302,7 +349,7 @@ function applyMove(state, move) {
   const another =
     (rolledSix && (state.sixes || 0) < 3) ||
     move.captures.length > 0 ||
-    move.to === HOME ||
+    move.to === specOf(state).home ||
     move.viaArrow === true;
 
   const next = { ...state, positions, winners, captured, dice: null };
@@ -319,17 +366,17 @@ function applyMove(state, move) {
  * move is what a human expects to see. Order: take a capture, bring a token
  * home, leave the yard, reach safety, otherwise push the leading token on.
  */
-function chooseBotMove(colour, moves) {
+function chooseBotMove(colour, moves, spec = FOUR) {
   if (!moves || moves.length === 0) return null;
   let best = null;
   let bestScore = -Infinity;
   for (const m of moves) {
     let score = 0;
     score += m.captures.length * 100;
-    if (m.to === HOME) score += 80;
+    if (m.to === spec.home) score += 80;
     if (m.from === IN_YARD) score += 50;
-    const dest = ringCell(colour, m.to);
-    if (dest !== null && SAFE_CELLS.has(dest)) score += 20;
+    const dest = ringCell(colour, m.to, spec);
+    if (dest !== null && spec.safeCells.has(dest)) score += 20;
     score += m.to / 2;
     if (score > bestScore) {
       bestScore = score;
@@ -346,6 +393,8 @@ function isTurnStale(state, updatedAtMillis, nowMillis, seconds) {
 }
 
 module.exports = {
+  specFor,
+  specOf,
   LUDO_FINISHED_RETENTION_MS,
   LUDO_ABANDONED_MS,
   ludoRoomExpiry,

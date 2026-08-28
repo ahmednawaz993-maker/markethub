@@ -11,6 +11,15 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.86] — 2026-08-28
+
+- Six-player games online. Creating a table now asks for four players or six,
+  and a six-seat table plays on the hexagonal board with purple and orange
+  joining the four. Quick match keeps the two apart, so you are never seated at
+  a board you did not pick.
+- Existing four-player rooms are unaffected — a room without a table size is
+  still a four-seater.
+
 ## [1.0.85] — 2026-08-28
 
 - Six-player Ludo, on a hexagonal board with a longer track and six home

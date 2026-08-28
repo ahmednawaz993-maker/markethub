@@ -998,10 +998,26 @@ service cloud.firestore {
       function isJoining() {
         return request.resource.data.diff(resource.data).affectedKeys()
                  .hasOnly(['seats', 'names', 'state', 'updatedAt'])
-               && resource.data.seats.size() < 4
+               // The table's OWN size, not a fixed four: a six-player hexagon
+               // seats six, and older rooms have no seatCap at all.
+               && resource.data.seats.size() < seatCap()
                && request.resource.data.seats.size()
                     == resource.data.seats.size() + 1
                && canAffordStake();
+      }
+
+      // How many seats this table has. Rooms created before six-player games
+      // existed carry no seatCap and are four-seaters.
+      function seatCap() {
+        return resource.data.get('seatCap', 4);
+      }
+
+      // Fixed when the table is opened, like the stake. Growing a table
+      // mid-game would let somebody add seats to a board that is already being
+      // played on; shrinking it would strand whoever is sitting in them.
+      function seatCapUnchanged() {
+        return request.resource.data.get('seatCap', 4)
+               == resource.data.get('seatCap', 4);
       }
 
       // This player's coin balance. A profile document only exists once the
@@ -1053,7 +1069,10 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
                     && request.resource.data.hostId == request.auth.uid
-                    && request.resource.data.seats.size() == 1;
+                    && request.resource.data.seats.size() == 1
+                    // Only the two boards that exist. Anything else would let a
+                    // client invent a table size the game cannot draw or play.
+                    && request.resource.data.get('seatCap', 4) in [4, 6];
 
       // Three ways a room legitimately changes, and no others:
       //  - somebody takes a free seat,
@@ -1075,7 +1094,10 @@ service cloud.firestore {
                     .affectedKeys().hasOnly(['status', 'updatedAt']);
       }
 
-      allow update: if isSignedIn() && stakeUnchanged() && (
+      allow update: if isSignedIn()
+                    && stakeUnchanged()
+                    && seatCapUnchanged()
+                    && (
                       isJoining()
                       || isLeaving()
                       || isSeatedStart()

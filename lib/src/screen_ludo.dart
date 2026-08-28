@@ -32,7 +32,16 @@ class LudoRoom {
     this.stake = 0,
     this.pot = 0,
     this.abandonedBy = const [],
+    this.seatCap = 4,
   });
+
+  /// How many seats this table has: four on the cross, six on the hexagon.
+  ///
+  /// Stored on the room rather than read from the game state, because the state
+  /// only knows how many are ALREADY seated — a six-player table with two
+  /// people in it would otherwise look like a four-player one and stop letting
+  /// anybody else in.
+  final int seatCap;
 
   /// Coins it costs to sit at this table. Zero for a free game.
   final int stake;
@@ -62,7 +71,7 @@ class LudoRoom {
   final Timestamp? updatedAt;
 
   List<LudoColor> get seatedColors => [
-    for (final c in LudoBoardSpec.four.colours)
+    for (final c in spec.colours)
       if (seats.containsKey(c.name)) c,
   ];
 
@@ -75,7 +84,10 @@ class LudoRoom {
     return null;
   }
 
-  bool get isFull => seats.length >= 4;
+  /// The board this table plays on.
+  LudoBoardSpec get spec => LudoBoardSpec.forSeats(seatCap);
+
+  bool get isFull => seats.length >= seatCap;
 
   static LudoRoom fromDoc(DocumentSnapshot doc) =>
       fromMap(doc.id, (doc.data() as Map<String, dynamic>?) ?? const {});
@@ -105,6 +117,8 @@ class LudoRoom {
       abandonedBy: [
         for (final v in (d['abandonedBy'] as List? ?? const [])) '$v',
       ],
+      // Older rooms predate six-player tables and are all four-seaters.
+      seatCap: (d['seatCap'] as num?)?.toInt() ?? 4,
     );
   }
 }
@@ -118,8 +132,10 @@ Future<String> createLudoRoom({
   LudoMode mode = LudoMode.classic,
   bool teams = false,
   int stake = 0,
+  int seats = 4,
 }) async {
   final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+  final spec = LudoBoardSpec.forSeats(seats);
   // Seeded with two seats; newGame only turns teams on once four are filled,
   // so the flag has to survive every rebuild below until then. It is carried on
   // the document as `teamsWanted` because the game state cannot hold it yet.
@@ -138,6 +154,9 @@ Future<String> createLudoRoom({
     // Fixed at creation. firestore.rules refuses any later change, because
     // raising it mid-game would empty everyone else's balance at start.
     'stake': stake,
+    // Fixed at creation like the stake: firestore.rules refuses any later
+    // change, so a table cannot grow or shrink under the people sitting at it.
+    'seatCap': spec.seats,
     'createdAt': Timestamp.now(),
     'updatedAt': Timestamp.now(),
   });
@@ -159,7 +178,7 @@ Future<LudoColor?> joinLudoRoom(String roomId, String displayName) async {
     if (existing != null) return existing;
     if (room.isFull || room.status != LudoRoomStatus.waiting) return null;
 
-    final free = LudoBoardSpec.four.colours.firstWhere(
+    final free = room.spec.colours.firstWhere(
       (c) => !room.seats.containsKey(c.name),
       orElse: () => LudoColor.red,
     );
@@ -168,7 +187,7 @@ Future<LudoColor?> joinLudoRoom(String roomId, String displayName) async {
     // The seated colours ARE the players, in board order, so a two-player game
     // sits opposite and a three-player game does not leave a phantom seat.
     final players = [
-      for (final c in LudoBoardSpec.four.colours)
+      for (final c in room.spec.colours)
         if (seats.containsKey(c.name)) c,
     ];
     tx.update(ref, {
@@ -200,7 +219,7 @@ Future<LudoColor?> addLudoBot(String roomId) async {
     final room = LudoRoom.fromDoc(snap);
     if (room.isFull || room.status != LudoRoomStatus.waiting) return null;
 
-    final free = LudoBoardSpec.four.colours.firstWhere(
+    final free = room.spec.colours.firstWhere(
       (c) => !room.seats.containsKey(c.name),
       orElse: () => LudoColor.red,
     );
@@ -208,7 +227,7 @@ Future<LudoColor?> addLudoBot(String roomId) async {
     final seats = {...room.seats, free.name: 'bot:$n'};
     final names = {...room.names, free.name: 'Computer $n'};
     final players = [
-      for (final c in LudoBoardSpec.four.colours)
+      for (final c in room.spec.colours)
         if (seats.containsKey(c.name)) c,
     ];
     tx.update(ref, {
@@ -251,6 +270,7 @@ Future<String> quickMatchLudo({
   LudoMode mode = LudoMode.classic,
   bool teams = false,
   int stake = 0,
+  int seats = 4,
 }) async {
   try {
     final snap = await _ludoCol()
@@ -266,6 +286,8 @@ Future<String> quickMatchLudo({
       if (room.teamsWanted != teams) continue;
       // Never seat somebody at a stake they did not pick.
       if (room.stake != stake) continue;
+      // A six-player hexagon is a different game from a four-player cross.
+      if (room.seatCap != LudoBoardSpec.forSeats(seats).seats) continue;
       // Never match into a table of nothing but computers — that is a solo
       // game wearing a multiplayer hat.
       if (!room.seats.values.any((v) => !v.startsWith('bot:'))) continue;
@@ -280,6 +302,7 @@ Future<String> quickMatchLudo({
     mode: mode,
     teams: teams,
     stake: stake,
+    seats: seats,
   );
 }
 
@@ -314,7 +337,8 @@ Future<void> autoStartLudoRoom(String roomId) async {
   // Someone must actually be here.
   if (!room.seats.values.any((v) => !v.startsWith('bot:'))) return;
 
-  for (var i = room.seats.length; i < kLudoQuickMatchSeats; i++) {
+  // Fill to the table's own size, not a fixed four.
+  for (var i = room.seats.length; i < room.seatCap; i++) {
     // addLudoBot adds exactly one seat and touches nothing else, which is what
     // the isJoining() rule permits.
     if (await addLudoBot(roomId) == null) break;
@@ -750,6 +774,46 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
     );
     if (teams == null) return;
     if (!context.mounted) return;
+    // Four or six. Asked after the sides question because 2v2 only exists on
+    // the four-player board, so choosing Team already answers this.
+    final seats = teams
+        ? 4
+        : await showModalBottomSheet<int>(
+            context: context,
+            builder: (ctx) => SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    child: Text('Table size', style: AppType.sectionTitle),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.grid_view, color: kPakGreen),
+                    title: const Text('Four players'),
+                    subtitle: Text(
+                      'The classic board.',
+                      style: AppType.caption,
+                    ),
+                    onTap: () => Navigator.pop(ctx, 4),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.hexagon_outlined,
+                        color: kPakGreen),
+                    title: const Text('Six players'),
+                    subtitle: Text(
+                      'A hexagonal board — longer track, six home columns.',
+                      style: AppType.caption,
+                    ),
+                    onTap: () => Navigator.pop(ctx, 6),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                ],
+              ),
+            ),
+          );
+    if (seats == null) return;
+    if (!context.mounted) return;
     final stake = await showModalBottomSheet<int>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -782,7 +846,8 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
                 subtitle: Text(
                   tier == 0
                       ? 'No entry cost, no pot.'
-                      : 'Pot of up to ${formatCoins(tier * 4)} with four players.',
+                      : 'Pot of up to ${formatCoins(tier * seats)} with a '
+                            'full table.',
                   style: AppType.caption,
                 ),
                 onTap: () => Navigator.pop(ctx, tier),
@@ -799,6 +864,7 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
         mode: mode,
         teams: teams,
         stake: stake,
+        seats: seats,
       );
       navigator.push(
         MaterialPageRoute(builder: (_) => LudoGameScreen(roomId: id)),
@@ -1215,11 +1281,19 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
                     Positioned.fill(
                       child: SingleChildScrollView(
                         padding: const EdgeInsets.all(AppSpacing.md),
-                        child: LudoBoard(
-                          game: room.game,
-                          moves: moves,
-                          onMove: (m) => _play(room, m),
-                        ),
+                        // Six seats draw the hexagon. Same game, same moves —
+                        // only the geometry differs.
+                        child: room.seatCap == 6
+                            ? LudoHexBoard(
+                                game: room.game,
+                                moves: moves,
+                                onMove: (m) => _play(room, m),
+                              )
+                            : LudoBoard(
+                                game: room.game,
+                                moves: moves,
+                                onMove: (m) => _play(room, m),
+                              ),
                       ),
                     ),
                     Positioned(
@@ -1342,8 +1416,8 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
         child: Column(
           children: [
             Text(
-              '${room.seats.length} of 4 seated. Share this game with a friend '
-              'to fill the board.',
+              '${room.seats.length} of ${room.seatCap} seated. Share this '
+              'game with a friend to fill the board.',
               textAlign: TextAlign.center,
               style: AppType.secondary,
             ),
