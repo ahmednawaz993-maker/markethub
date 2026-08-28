@@ -4797,3 +4797,56 @@ exports.ludoAwardCoins = onDocumentWritten("ludoRooms/{roomId}", async (event) =
     .set({ coinsAwardedAt: Timestamp.now() }, { merge: true })
     .catch(() => {});
 });
+
+/**
+ * Deletes rooms that have stopped being useful.
+ *
+ * Nothing has ever deleted a Ludo room, so every game ever played is still in
+ * the collection along with its chat, its emoji, its roll requests and its
+ * voice signalling. That is fine at 26 rooms and is not fine later — and the
+ * lobby query reads this collection.
+ *
+ * recursiveDelete because Firestore does NOT cascade: deleting the room
+ * document alone would orphan every subcollection under it, leaving data that
+ * nothing can reach and nothing will ever clean up.
+ *
+ * Deliberately conservative. It never touches a room that is playing, never
+ * touches one with no timestamp, and is capped per run — a sweep that deletes
+ * the wrong thing cannot be undone.
+ */
+const LUDO_SWEEP_LIMIT = 200;
+
+exports.ludoSweepOldRooms = onSchedule("every 24 hours", async () => {
+  const db = getFirestore();
+  const now = Date.now();
+  let deleted = 0;
+  const byReason = {};
+
+  for (const status of ["finished", "waiting"]) {
+    const snap = await db
+      .collection("ludoRooms")
+      .where("status", "==", status)
+      .limit(LUDO_SWEEP_LIMIT)
+      .get();
+
+    for (const doc of snap.docs) {
+      if (deleted >= LUDO_SWEEP_LIMIT) break;
+      const { expired, reason } = ludo.ludoRoomExpiry(doc.data() || {}, now);
+      if (!expired) continue;
+      try {
+        await db.recursiveDelete(doc.ref);
+        deleted++;
+        byReason[reason] = (byReason[reason] || 0) + 1;
+      } catch (err) {
+        // One bad room must not stop the sweep.
+        console.error("ludoSweepOldRooms", doc.id, err);
+      }
+    }
+  }
+
+  // Logged even when zero, so the absence of deletions is distinguishable from
+  // the job not having run.
+  console.log(
+    `ludoSweepOldRooms deleted ${deleted} room(s) ${JSON.stringify(byReason)}`
+  );
+});

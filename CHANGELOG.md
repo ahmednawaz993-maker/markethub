@@ -11,6 +11,13 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## Unreleased (backend only)
+
+- Ludo rooms are now cleaned up. Finished games are kept for 3 days, tables
+  nobody ever started for 24 hours, and then both are deleted along with their
+  chat, emoji, roll requests and voice signalling. A game in play is never
+  touched, whatever state it is in.
+
 ## [1.0.77] — 2026-08-28
 
 - Voice chat is now web-only, and the app is 11.5 MB smaller because of it.

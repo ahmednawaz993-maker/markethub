@@ -157,6 +157,51 @@ function isDecided(state) {
   return (state.winners || []).length > 0;
 }
 
+// How long a room survives after it stops being useful. Nothing deletes rooms
+// today, so they accumulate for ever — every game ever played is still sitting
+// in the collection along with its chat, its reactions and its voice
+// signalling.
+const LUDO_FINISHED_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
+// A table nobody ever started. Deliberately much longer than the 12-second
+// auto-start: this is for rooms whose players closed the app, not for one that
+// is a few seconds from filling.
+const LUDO_ABANDONED_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Whether a room can be deleted, and why. Pure, because the alternative is
+ * testing a delete by running it.
+ *
+ * Returns { expired, reason }. A room is NEVER expired while it is playing —
+ * however long a turn has taken, that is the stuck-game sweeper's business, and
+ * deleting a live game out from under four people is unrecoverable.
+ */
+function ludoRoomExpiry(room, nowMs) {
+  const status = room && room.status;
+  const updated = room && room.updatedAt
+    ? (typeof room.updatedAt.toMillis === "function"
+        ? room.updatedAt.toMillis()
+        : Number(room.updatedAt))
+    : null;
+  // No timestamp means we cannot know how old it is, so leave it alone. Better
+  // a stray document than a deleted game.
+  if (!Number.isFinite(updated)) return { expired: false, reason: "no_timestamp" };
+  const age = nowMs - updated;
+  if (age < 0) return { expired: false, reason: "future" };
+
+  if (status === "finished") {
+    return age > LUDO_FINISHED_RETENTION_MS
+      ? { expired: true, reason: "finished" }
+      : { expired: false, reason: "recent" };
+  }
+  if (status === "waiting") {
+    return age > LUDO_ABANDONED_MS
+      ? { expired: true, reason: "abandoned" }
+      : { expired: false, reason: "waiting" };
+  }
+  // playing, or anything unrecognised.
+  return { expired: false, reason: "in_play" };
+}
+
 /** The next seat that has not already finished. */
 function nextSeat(state) {
   const done = state.winners || [];
@@ -301,6 +346,9 @@ function isTurnStale(state, updatedAtMillis, nowMillis, seconds) {
 }
 
 module.exports = {
+  LUDO_FINISHED_RETENTION_MS,
+  LUDO_ABANDONED_MS,
+  ludoRoomExpiry,
   ARROWS,
   arrowJump,
   PARTNERS,
