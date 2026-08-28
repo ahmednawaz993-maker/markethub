@@ -424,13 +424,13 @@ const L = require("./ludo_logic");
 // phone shows a jump the server does not make, and the game desyncs mid-turn.
 
 t("the arrow table matches kLudoArrows in ludo_engine.dart exactly", () => {
-  assert.deepStrictEqual(L.ARROWS, { 4: 11, 17: 24, 30: 37, 43: 50 });
+  assert.deepStrictEqual(L.ARROWS, { 2: 9, 15: 22, 28: 35, 41: 48 });
 });
 
 t("arrows only apply in arrow mode", () => {
   const base = { mode: "classic" };
-  assert.strictEqual(L.arrowJump(base, "red", 4), null);
-  assert.strictEqual(L.arrowJump({ mode: "arrow" }, "red", 4), 11);
+  assert.strictEqual(L.arrowJump(base, "red", 2), null);
+  assert.strictEqual(L.arrowJump({ mode: "arrow" }, "red", 2), 9);
 });
 
 t("an arrow never carries a token past its turn-off", () => {
@@ -453,17 +453,17 @@ t("a move onto a tail ends on the head and earns another roll", () => {
     sixes: 0,
     winners: [],
     captured: [],
-    dice: 3,
+    dice: 1,
     mode: "arrow",
   };
-  const moves = L.legalMoves(state, 3);
+  const moves = L.legalMoves(state, 1);
   const m = moves.find((x) => x.tokenIndex === 0);
   assert.ok(m, "no move for the token on the ring");
-  assert.strictEqual(m.to, 11, "did not land on the arrow head");
+  assert.strictEqual(m.to, 9, "did not land on the arrow head");
   assert.strictEqual(m.viaArrow, true);
 
   const after = L.applyMove(state, m);
-  assert.strictEqual(after.positions.red[0], 11);
+  assert.strictEqual(after.positions.red[0], 9);
   // Not a six and no capture, so the extra roll can only come from the arrow.
   assert.strictEqual(after.players[after.turn], "red");
 });
@@ -476,27 +476,27 @@ t("the same move in classic stops on the tail and passes the turn", () => {
     sixes: 0,
     winners: [],
     captured: [],
-    dice: 3,
+    dice: 1,
     mode: "classic",
   };
-  const m = L.legalMoves(state, 3).find((x) => x.tokenIndex === 0);
-  assert.strictEqual(m.to, 4);
+  const m = L.legalMoves(state, 1).find((x) => x.tokenIndex === 0);
+  assert.strictEqual(m.to, 2);
   assert.ok(!m.viaArrow);
   assert.strictEqual(L.applyMove(state, m).players[L.applyMove(state, m).turn], "green");
 });
 
 t("a capture is resolved at the arrow HEAD, not the tail", () => {
-  // Green sitting on ring cell 11 (the head) must be sent home; a green token
-  // on cell 4 (the tail) must NOT be, because the token only passes over it.
+  // Green sitting on ring cell 9 (the head) must be sent home; a green token
+  // on cell 2 (the tail) must NOT be, because the token only passes over it.
   const state = {
     players: ["red", "green"],
     positions: { red: [1, -1, -1, -1], green: [-1, -1, -1, -1] },
-    turn: 0, sixes: 0, winners: [], captured: [], dice: 3, mode: "arrow",
+    turn: 0, sixes: 0, winners: [], captured: [], dice: 1, mode: "arrow",
   };
-  // green start is 13, so green progress 50 -> ring (13+50)%52 = 11.
-  state.positions.green = [50, -1, -1, -1];
-  const m = L.legalMoves(state, 3).find((x) => x.tokenIndex === 0);
-  assert.strictEqual(m.to, 11);
+  // green start is 13, so green progress 48 -> ring (13+48)%52 = 9.
+  state.positions.green = [48, -1, -1, -1];
+  const m = L.legalMoves(state, 1).find((x) => x.tokenIndex === 0);
+  assert.strictEqual(m.to, 9);
   assert.strictEqual(m.captures.length, 1, "should capture on the head");
   assert.strictEqual(m.captures[0].colour, "green");
 });

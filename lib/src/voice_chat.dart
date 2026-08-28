@@ -27,6 +27,13 @@ part of '../main.dart';
 //    reaches a server we control. Moderation is therefore local: anyone can be
 //    muted by anyone, instantly.
 //
+// VIDEO IS A SEPARATE OPT-IN. Joining voice never turns a camera on: people
+// will talk from anywhere, and be on camera in far fewer places. The two
+// controls are independent, video rides the same peer connection as voice, and
+// the outgoing stream is deliberately small (320x240 at 15fps) because in a
+// four-player mesh every camera is sent three times over what is usually a
+// mobile connection.
+//
 // OFF BY DEFAULT, like game sound. A marketplace app that opens a microphone
 // without being asked is uninstalled, and rightly. Nothing here runs until a
 // player taps to join, and the game is completely playable without it.
@@ -101,11 +108,14 @@ class VoiceSession extends ChangeNotifier {
 
   bool _joined = false;
   bool _micMuted = false;
+  bool _cameraOn = false;
   bool _busy = false;
   String? error;
 
   bool get joined => _joined;
   bool get micMuted => _micMuted;
+  bool get cameraOn => _cameraOn;
+  bool get videoSupported => voiceVideoSupported;
   bool get busy => _busy;
   int get connectedCount =>
       peers.values.where((p) => p.state == VoicePeerState.connected).length;
@@ -215,6 +225,7 @@ class VoiceSession extends ChangeNotifier {
       _applyMute(uid);
       notifyListeners();
     };
+    conn.onRemoteVideo = notifyListeners;
     conn.onStateChange = (state) {
       final peer = peers[uid];
       if (peer == null) return;
@@ -280,6 +291,42 @@ class VoiceSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Turns my camera on or off.
+  ///
+  /// Adding a video track to an existing call needs a fresh offer, because a
+  /// new track means a new m-line in the SDP. Replacing or removing one does
+  /// not — there is already a sender for it — so this only redials when it has
+  /// to, and never interrupts the audio.
+  Future<void> toggleCamera() async {
+    final mic = _mic;
+    if (mic == null || !voiceVideoSupported) return;
+    _busy = true;
+    notifyListeners();
+    try {
+      final on = await mic.setCamera(!_cameraOn);
+      _cameraOn = on;
+      final track = on ? mic.cameraTrack : null;
+      for (final entry in peers.entries) {
+        final conn = entry.value.conn;
+        if (conn == null) continue;
+        final needsOffer = await conn.setLocalVideo(track, mic);
+        // Only the dialling side may renegotiate, for the same reason only one
+        // side opens the call: two simultaneous offers collide.
+        if (needsOffer && voiceShouldInitiate(myUid, entry.key)) {
+          final offer = await conn.createOffer();
+          await conn.setLocalDescription(offer);
+          await _send(entry.key, VoiceSignal.offer, offer);
+        }
+      }
+    } catch (_) {
+      // A camera that will not open must not end the call.
+      _cameraOn = false;
+    } finally {
+      _busy = false;
+      notifyListeners();
+    }
+  }
+
   /// Mutes one other player, for me only.
   void toggleMutePeer(String uid) {
     final peer = peers[uid];
@@ -315,6 +362,7 @@ class VoiceSession extends ChangeNotifier {
     }
     _mic?.stop();
     _mic = null;
+    _cameraOn = false;
     // Best-effort: leave no ghost in the room list if the app is closing.
     await _voiceCol(roomId).doc(myUid).delete().catchError((_) {});
   }
@@ -389,13 +437,35 @@ class VoiceChatBar extends StatelessWidget {
           ),
         );
       }
-      return Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.xs,
-        ),
-        child: Row(
-          children: [
+      final withVideo = [
+        for (final p in session.peers.values)
+          if (p.conn?.hasVideo == true && !p.mutedByMe) p,
+      ];
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Faces only appear when somebody actually turns a camera on, so a
+          // voice-only table loses no board space to empty tiles.
+          if (withVideo.isNotEmpty)
+            SizedBox(
+              height: 84,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                itemCount: withVideo.length,
+                separatorBuilder: (_, _) =>
+                    const SizedBox(width: AppSpacing.sm),
+                itemBuilder: (context, i) =>
+                    _VideoTile(peer: withVideo[i]),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.xs,
+            ),
+            child: Row(
+              children: [
             IconButton(
               tooltip: session.micMuted ? 'Unmute me' : 'Mute me',
               onPressed: session.toggleMic,
@@ -404,6 +474,15 @@ class VoiceChatBar extends StatelessWidget {
                 color: session.micMuted ? AppColors.error : kPakGreen,
               ),
             ),
+            if (session.videoSupported)
+              IconButton(
+                tooltip: session.cameraOn ? 'Turn camera off' : 'Turn camera on',
+                onPressed: session.busy ? null : session.toggleCamera,
+                icon: Icon(
+                  session.cameraOn ? Icons.videocam : Icons.videocam_off,
+                  color: session.cameraOn ? kPakGreen : AppColors.textMuted,
+                ),
+              ),
             Expanded(
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -424,11 +503,63 @@ class VoiceChatBar extends StatelessWidget {
               ),
             ),
             TextButton(onPressed: session.leave, child: const Text('Leave')),
-          ],
-        ),
+              ],
+            ),
+          ),
+        ],
       );
     },
   );
+}
+
+/// One player's camera, with their name over it.
+class _VideoTile extends StatelessWidget {
+  const _VideoTile({required this.peer});
+
+  final VoicePeer peer;
+
+  @override
+  Widget build(BuildContext context) {
+    final type = peer.conn?.videoViewType;
+    if (type == null) return const SizedBox.shrink();
+    return ClipRRect(
+      borderRadius: AppRadius.rMd,
+      child: SizedBox(
+        width: 112,
+        height: 84,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ColoredBox(
+              color: AppColors.surfaceVariant,
+              // The <video> element itself, handed to Flutter as a platform
+              // view — a canvas-rendered app cannot draw a DOM video any other
+              // way.
+              child: HtmlElementView(viewType: type),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.xs,
+                  vertical: 2,
+                ),
+                color: Colors.black.withValues(alpha: 0.45),
+                child: Text(
+                  peer.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.caption.copyWith(color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _PeerChip extends StatelessWidget {

@@ -13,10 +13,15 @@
 
 import 'dart:async';
 import 'dart:js_interop';
+import 'dart:ui_web' as ui_web;
 
 import 'package:web/web.dart' as web;
 
 const bool voiceRtcSupported = true;
+const bool voiceVideoSupported = true;
+
+/// Unique ids for the platform views that show remote video.
+int _viewSeq = 0;
 
 const String kVoiceWebUrl = 'https://pakbazar24.com';
 
@@ -25,6 +30,61 @@ class VoiceMic {
   VoiceMic(this.stream);
 
   final web.MediaStream stream;
+
+  /// The camera, opened separately from the microphone and only on request.
+  /// Nobody expects joining a voice call to switch their camera on.
+  web.MediaStream? _camera;
+
+  bool get hasCamera => _camera != null;
+
+  /// The local camera stream, for the self-preview tile.
+  web.MediaStream? get cameraStream => _camera;
+
+  /// The outgoing camera track, or null when the camera is off.
+  web.MediaStreamTrack? get cameraTrack {
+    final tracks = _camera?.getVideoTracks().toDart;
+    return (tracks == null || tracks.isEmpty) ? null : tracks.first;
+  }
+
+  /// Called when the camera turns on or off, so open connections can add or
+  /// drop the track.
+  void Function(web.MediaStreamTrack? track)? onCameraChanged;
+
+  Future<bool> setCamera(bool on) async {
+    if (!on) {
+      for (final t in _camera?.getVideoTracks().toDart ?? const []) {
+        t.stop();
+      }
+      _camera = null;
+      onCameraChanged?.call(null);
+      return false;
+    }
+    if (_camera != null) return true;
+    try {
+      _camera = await web.window.navigator.mediaDevices
+          .getUserMedia(
+            web.MediaStreamConstraints(
+              // Small and cheap: four people in a mesh each send to three
+              // others, so a full-resolution stream would be sent three times
+              // over a connection that is often mobile.
+              video: {
+                'width': {'ideal': 320},
+                'height': {'ideal': 240},
+                'frameRate': {'ideal': 15},
+              }.jsify()!,
+              audio: false.toJS,
+            ),
+          )
+          .toDart;
+      final tracks = _camera!.getVideoTracks().toDart;
+      onCameraChanged?.call(tracks.isEmpty ? null : tracks.first);
+      return true;
+    } catch (_) {
+      // Refused, or no camera. Voice carries on regardless.
+      _camera = null;
+      return false;
+    }
+  }
 
   /// Disables the TRACK rather than stopping the stream: stopping would release
   /// the device, and unmuting would then re-prompt for permission in some
@@ -40,6 +100,10 @@ class VoiceMic {
     for (final t in stream.getAudioTracks().toDart) {
       t.stop();
     }
+    for (final t in _camera?.getVideoTracks().toDart ?? const []) {
+      t.stop();
+    }
+    _camera = null;
   }
 }
 
@@ -59,8 +123,14 @@ class VoiceConn {
     _pc.ontrack = ((web.RTCTrackEvent e) {
       final streams = e.streams.toDart;
       if (streams.isEmpty) return;
-      _attach(streams.first);
-      onRemoteAudio?.call();
+      final stream = streams.first;
+      if (e.track.kind == 'video') {
+        _attachVideo(stream);
+        onRemoteVideo?.call();
+      } else {
+        _attach(stream);
+        onRemoteAudio?.call();
+      }
     }).toJS;
 
     _pc.onconnectionstatechange = ((web.Event _) {
@@ -76,9 +146,60 @@ class VoiceConn {
   /// sound.
   web.HTMLAudioElement? _audio;
 
+  /// The <video> element for this peer, and the platform-view type that
+  /// exposes it to Flutter. Flutter web paints into a canvas and cannot show a
+  /// DOM video element directly, so it has to be handed over as a platform
+  /// view — that is the only way a real video frame reaches the layout.
+  web.HTMLVideoElement? _video;
+  String? _videoViewType;
+
+  String? get videoViewType => _videoViewType;
+  bool get hasVideo => _video != null;
+
   void Function(Map<String, dynamic> candidate)? onIceCandidate;
   void Function()? onRemoteAudio;
+  void Function()? onRemoteVideo;
   void Function(String state)? onStateChange;
+
+  void _attachVideo(web.MediaStream stream) {
+    if (_video == null) {
+      final el = (web.document.createElement('video') as web.HTMLVideoElement)
+        ..autoplay = true
+        // Muted, because the AUDIO of this peer already plays through its own
+        // element. Leaving it unmuted would double every voice.
+        ..muted = true
+        ..setAttribute('playsinline', 'true')
+        ..style.width = '100%'
+        ..style.height = '100%'
+        ..style.objectFit = 'cover'
+        ..style.borderRadius = '10px';
+      _video = el;
+      final type = 'pb-voice-video-${_viewSeq++}';
+      _videoViewType = type;
+      ui_web.platformViewRegistry.registerViewFactory(type, (int _) => el);
+    }
+    _video!.srcObject = stream;
+    _video!.play().toDart.catchError((Object _) => null);
+  }
+
+  /// Adds or replaces the outgoing camera track without renegotiating from
+  /// scratch. A sender already exists once video has been sent, so replacing
+  /// its track is cheaper and does not interrupt the audio.
+  Future<bool> setLocalVideo(web.MediaStreamTrack? track, VoiceMic mic) async {
+    final senders = _pc.getSenders().toDart;
+    for (final s in senders) {
+      if (s.track?.kind == 'video') {
+        await s.replaceTrack(track).toDart;
+        return false; // no renegotiation needed
+      }
+    }
+    if (track == null) return false;
+    final cam = mic.cameraStream;
+    if (cam == null) return false;
+    _pc.addTrack(track, cam);
+    // A brand new track means a new m-line, so the offer has to be redone.
+    return true;
+  }
 
   void _attach(web.MediaStream stream) {
     final el = _audio ??= (web.document.createElement('audio')
@@ -158,6 +279,10 @@ class VoiceConn {
     _audio?.srcObject = null;
     _audio?.remove();
     _audio = null;
+    _video?.srcObject = null;
+    _video?.remove();
+    _video = null;
+    _videoViewType = null;
     _pc.close();
   }
 }

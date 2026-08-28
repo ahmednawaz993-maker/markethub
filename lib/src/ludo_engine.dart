@@ -99,7 +99,11 @@ const Map<LudoColor, LudoColor> kLudoPartners = {
 ///     protection and a capture on a head is still possible;
 ///   * no head is another tail, so arrows cannot chain into a longer ride;
 ///   * every jump is forward, so an arrow can never send a token backwards.
-const Map<int, int> kLudoArrows = {4: 11, 17: 24, 30: 37, 43: 50};
+///
+/// They also sit on STRAIGHT runs rather than the four corners where the track
+/// turns. On a corner the direction of travel is diagonal, so the marker drawn
+/// on the board pointed across the grid and read as a rendering fault.
+const Map<int, int> kLudoArrows = {2: 9, 15: 22, 28: 35, 41: 48};
 
 /// A legal move: move [tokenIndex] of [color] to [to].
 class LudoMove {

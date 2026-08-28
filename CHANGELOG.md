@@ -11,6 +11,16 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.78] — 2026-08-28
+
+- Video chat in Ludo, alongside voice. Turning your camera on is a separate
+  choice from joining voice, and faces only appear when somebody actually
+  switches one on. Web only, like voice.
+- The board now shows which way each colour travels, and Arrow tables mark their
+  four shortcuts so you can see one before you land on it.
+- The Arrow shortcuts moved off the four corners of the track onto straight
+  runs, so their markers point along the path instead of across it.
+
 ## Unreleased (backend only)
 
 - Ludo rooms are now cleaned up. Finished games are kept for 3 days, tables

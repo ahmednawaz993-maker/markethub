@@ -218,31 +218,31 @@ void _arrowTests() {
             mode: LudoMode.arrow);
 
     test('only applies in Arrow mode', () {
-      // Red's start cell is 0, so progress 4 sits on ring cell 4 — a tail.
+      // Red's start cell is 0, so progress 2 sits on ring cell 2 — a tail.
       final classic = LudoGame.newGame(const [
         LudoColor.red,
         LudoColor.green,
       ]);
-      expect(classic.arrowJump(LudoColor.red, 4), isNull);
-      expect(arrowGame().arrowJump(LudoColor.red, 4), 11);
+      expect(classic.arrowJump(LudoColor.red, 2), isNull);
+      expect(arrowGame().arrowJump(LudoColor.red, 2), 9);
     });
 
     test('carries the token to the head', () {
       final g = arrowGame();
-      expect(g.arrowJump(LudoColor.red, 4), 11);
-      expect(g.arrowJump(LudoColor.red, 17), 24);
-      expect(g.arrowJump(LudoColor.red, 30), 37);
+      expect(g.arrowJump(LudoColor.red, 2), 9);
+      expect(g.arrowJump(LudoColor.red, 15), 22);
+      expect(g.arrowJump(LudoColor.red, 28), 35);
     });
 
     test('does nothing on a cell that is not a tail', () {
       final g = arrowGame();
-      expect(g.arrowJump(LudoColor.red, 5), isNull);
+      expect(g.arrowJump(LudoColor.red, 3), isNull);
       expect(g.arrowJump(LudoColor.red, 0), isNull);
     });
 
     test('never carries a token into the home column', () {
-      // Red at 43 is a tail whose head is 50 — allowed, it stays on the ring.
-      expect(arrowGame().arrowJump(LudoColor.red, 43), 50);
+      // Red at 41 is a tail whose head is 48 — allowed, it stays on the ring.
+      expect(arrowGame().arrowJump(LudoColor.red, 41), 48);
       // Anything the jump would push past the turn-off is refused outright,
       // because home has to be reached by an exact roll.
       for (var p = 0; p <= kLudoLastRingStep; p++) {
@@ -271,7 +271,7 @@ void _arrowTests() {
     });
 
     test('a move that rides an arrow reports it, and earns another roll', () {
-      // Red token 0 at progress 1; a 3 lands it on 4, which is a tail.
+      // Red token 0 at progress 1; a 1 lands it on 2, which is a tail.
       var g = arrowGame();
       g = LudoGame(
         players: g.players,
@@ -282,15 +282,15 @@ void _arrowTests() {
         turn: 0,
         consecutiveSixes: 0,
         winners: const [],
-        lastDice: 3,
+        lastDice: 1,
         mode: LudoMode.arrow,
       );
-      final move = g.legalMoves(3).firstWhere((m) => m.tokenIndex == 0);
+      final move = g.legalMoves(1).firstWhere((m) => m.tokenIndex == 0);
       expect(move.viaArrow, isTrue);
-      expect(move.to.progress, 11, reason: 'should end on the arrow head');
+      expect(move.to.progress, 9, reason: 'should end on the arrow head');
 
       final after = g.applyMove(move);
-      expect(after.positions[LudoColor.red]![0], 11);
+      expect(after.positions[LudoColor.red]![0], 9);
       // A 3 is not a six and captured nothing, so only the arrow can be
       // granting the extra roll.
       expect(after.currentPlayer, LudoColor.red);
@@ -306,11 +306,11 @@ void _arrowTests() {
         turn: 0,
         consecutiveSixes: 0,
         winners: const [],
-        lastDice: 3,
+        lastDice: 1,
       );
-      final move = g.legalMoves(3).firstWhere((m) => m.tokenIndex == 0);
+      final move = g.legalMoves(1).firstWhere((m) => m.tokenIndex == 0);
       expect(move.viaArrow, isFalse);
-      expect(move.to.progress, 4);
+      expect(move.to.progress, 2);
       expect(g.applyMove(move).currentPlayer, LudoColor.green);
     });
   });

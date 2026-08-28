@@ -109,10 +109,17 @@ Color ludoColorOf(LudoColor c) => switch (c) {
 
 /// Paints the static board: yards, ring, home columns, centre and stars.
 class LudoBoardPainter extends CustomPainter {
-  const LudoBoardPainter({required this.surface, required this.line});
+  const LudoBoardPainter({
+    required this.surface,
+    required this.line,
+    this.arrows = false,
+  });
 
   final Color surface;
   final Color line;
+
+  /// Whether to mark the Arrow-mode shortcuts on the board.
+  final bool arrows;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -192,6 +199,7 @@ class LudoBoardPainter extends CustomPainter {
           .firstWhere((c) => true, orElse: () => null);
       if (owner != null) {
         final base = ludoColorOf(owner);
+        // Drawn after the fill, below.
         canvas.drawRRect(
           rr,
           Paint()
@@ -201,6 +209,10 @@ class LudoBoardPainter extends CustomPainter {
               colors: [Color.lerp(base, Colors.white, 0.18)!, base],
             ).createShader(r),
         );
+        // A chevron pointing the way this colour travels. Every physical Ludo
+        // board marks the entry square like this, and without it a new player
+        // has no way to tell which direction is forward from their own yard.
+        _chevron(canvas, r.center, u * 0.22, _travelAngle(i), Colors.white);
       } else {
         canvas.drawRRect(rr, fill..color = surface);
         canvas.drawRRect(rr, hairline..color = tileEdge);
@@ -225,6 +237,34 @@ class LudoBoardPainter extends CustomPainter {
               base,
               i / (cells.length - 1),
             )!,
+        );
+      }
+    }
+
+    // Arrow-mode shortcuts, marked so a player can see them before landing on
+    // one. Only drawn for a table actually playing Arrow — the same board
+    // serves every mode, and a shortcut painted on a Classic board would be a
+    // lie.
+    if (arrows) {
+      for (final entry in kLudoArrows.entries) {
+        final tail = kLudoRing[entry.key];
+        final a = cellRect(tail.row, tail.col).center;
+        // A tinted tile under the chevron, because a shortcut a player cannot
+        // see before landing on it is a surprise rather than a tactic.
+        final tailRect = cellRect(tail.row, tail.col).deflate(u * 0.04);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(tailRect, Radius.circular(u * 0.15)),
+          fill..color = const Color(0xFF6C4AB6).withValues(alpha: 0.18),
+        );
+        // Along the DIRECTION OF TRAVEL, not straight at the destination. A
+        // chevron pointing diagonally across a square grid reads as a mistake;
+        // this one reads as "you get carried forward", which is what happens.
+        _chevron(
+          canvas,
+          a,
+          u * 0.30,
+          _travelAngle(entry.key),
+          const Color(0xFF6C4AB6),
         );
       }
     }
@@ -272,6 +312,38 @@ class LudoBoardPainter extends CustomPainter {
     _star(canvas, centre, u * 0.36, tileEdge);
   }
 
+  /// The direction of travel at ring cell [i], taken from the next cell along
+  /// rather than hardcoded — so the arrows can never disagree with the path.
+  double _travelAngle(int i) {
+    final a = kLudoRing[i];
+    final b = kLudoRing[(i + 1) % kLudoRing.length];
+    return math.atan2(
+      (b.row - a.row).toDouble(),
+      (b.col - a.col).toDouble(),
+    );
+  }
+
+  /// A simple chevron pointing along [angle].
+  void _chevron(Canvas canvas, Offset c, double r, double angle, Color color) {
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = r * 0.36
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = color;
+    Offset at(double d, double spread) => Offset(
+      c.dx + d * math.cos(angle) + spread * math.cos(angle + math.pi / 2),
+      c.dy + d * math.sin(angle) + spread * math.sin(angle + math.pi / 2),
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(at(-r * 0.35, -r * 0.55).dx, at(-r * 0.35, -r * 0.55).dy)
+        ..lineTo(at(r * 0.45, 0).dx, at(r * 0.45, 0).dy)
+        ..lineTo(at(-r * 0.35, r * 0.55).dx, at(-r * 0.35, r * 0.55).dy),
+      p,
+    );
+  }
+
   void _star(Canvas canvas, Offset c, double r, Color color) {
     final path = Path();
     for (var i = 0; i < 10; i++) {
@@ -286,7 +358,7 @@ class LudoBoardPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(LudoBoardPainter old) =>
-      old.surface != surface || old.line != line;
+      old.surface != surface || old.line != line || old.arrows != arrows;
 }
 
 /// The board plus its tokens. Tapping a token that has a legal move plays it.
@@ -526,6 +598,7 @@ class _LudoBoardState extends State<LudoBoard>
                       painter: LudoBoardPainter(
                         surface: AppColors.surface,
                         line: AppColors.borderSoft,
+                        arrows: widget.game.mode.arrows,
                       ),
                     ),
                   ),

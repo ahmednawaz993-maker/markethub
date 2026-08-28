@@ -26,7 +26,7 @@ const COLOURS = ["red", "green", "yellow", "blue"];
 // kLudoArrows in lib/src/ludo_engine.dart; ludo_logic.test.js asserts the exact
 // table, because a silent difference here would offer the player a jump the
 // server does not make.
-const ARROWS = { 4: 11, 17: 24, 30: 37, 43: 50 };
+const ARROWS = { 2: 9, 15: 22, 28: 35, 41: 48 };
 // 2v2 pairing. Partners sit OPPOSITE, so the turn order alternates sides
 // instead of giving one team two moves in a row. MUST match kLudoPartners in
 // lib/src/ludo_engine.dart.
