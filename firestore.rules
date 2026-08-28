@@ -1024,6 +1024,24 @@ service cloud.firestore {
                || coinBalance() >= resource.data.get('stake', 0);
       }
 
+      // A player walking out of a game in progress.
+      //
+      // Their seat is handed to a computer rather than emptied, so the other
+      // three are not left with a collapsed board. The checks below are what
+      // stop this being a way to remove SOMEBODY ELSE: exactly one seat may
+      // change, the writer must have been sitting in it, and they must not be
+      // seated afterwards. There is no shape of this write that touches another
+      // player's seat.
+      function isLeaving() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['seats', 'names', 'abandonedBy', 'updatedAt'])
+               && request.resource.data.seats.size() == resource.data.seats.size()
+               && request.resource.data.seats.diff(resource.data.seats)
+                    .affectedKeys().size() == 1
+               && resource.data.seats.values().hasAny([request.auth.uid])
+               && !request.resource.data.seats.values().hasAny([request.auth.uid]);
+      }
+
       // The stake is fixed when the table is opened. Every client update path
       // must leave it alone: raising it mid-game would let one player empty
       // everybody else's balance when play starts.
@@ -1059,6 +1077,7 @@ service cloud.firestore {
 
       allow update: if isSignedIn() && stakeUnchanged() && (
                       isJoining()
+                      || isLeaving()
                       || isSeatedStart()
                       || (resource.data.hostId == request.auth.uid
                           && request.resource.data.diff(resource.data)

@@ -4804,6 +4804,13 @@ exports.ludoAwardCoins = onDocumentWritten("ludoRooms/{roomId}", async (event) =
     (v) => typeof v === "string" && !v.startsWith(LUDO_BOT_PREFIX)
   ).length;
 
+  // Anyone who walked out is treated as never having been here: no reward, no
+  // share of the pot, no leaderboard row. A game you left is not a game you
+  // played, and paying for it would make quitting a losing position free.
+  const abandoned = new Set(
+    Array.isArray(after.abandonedBy) ? after.abandonedBy : []
+  );
+
   // In a team game the whole winning SIDE is paid, not just whoever came home
   // first — the same rule the win banner shows the players.
   const winningColours = new Set();
@@ -4819,6 +4826,7 @@ exports.ludoAwardCoins = onDocumentWritten("ludoRooms/{roomId}", async (event) =
   const writes = [];
   for (const [colour, uid] of Object.entries(seats)) {
     if (typeof uid !== "string" || uid.startsWith(LUDO_BOT_PREFIX)) continue;
+    if (abandoned.has(uid)) continue;
     const won = winningColours.has(colour);
     const coins = economy.winReward({
       won,
@@ -4857,7 +4865,12 @@ exports.ludoAwardCoins = onDocumentWritten("ludoRooms/{roomId}", async (event) =
   const pot = Number(after.pot) || 0;
   const potWinners = [...winningColours]
     .map((c) => seats[c])
-    .filter((uid) => typeof uid === "string" && !uid.startsWith(LUDO_BOT_PREFIX));
+    .filter(
+      (uid) =>
+        typeof uid === "string" &&
+        !uid.startsWith(LUDO_BOT_PREFIX) &&
+        !abandoned.has(uid)
+    );
   const shares = economy.splitPot(pot, potWinners.length || 1);
   const potFor = {};
   potWinners.forEach((uid, i) => {
@@ -4867,6 +4880,7 @@ exports.ludoAwardCoins = onDocumentWritten("ludoRooms/{roomId}", async (event) =
   const week = economy.weekIdOf(Date.now());
   for (const [colour, uid] of Object.entries(seats)) {
     if (typeof uid !== "string" || uid.startsWith(LUDO_BOT_PREFIX)) continue;
+    if (abandoned.has(uid)) continue;
     const won = winningColours.has(colour);
     const share = potFor[uid] || 0;
     const earned =

@@ -113,10 +113,16 @@ class LudoBoardPainter extends CustomPainter {
     required this.surface,
     required this.line,
     this.arrows = false,
+    this.darkSurface,
   });
 
   final Color surface;
   final Color line;
+
+  /// Whether [surface] should be treated as dark. Supplied by the theme rather
+  /// than inferred, because a mid-tone surface is genuinely ambiguous and
+  /// guessing wrong makes the whole track vanish — which happened here once.
+  final bool? darkSurface;
 
   /// Whether to mark the Arrow-mode shortcuts on the board.
   final bool arrows;
@@ -134,9 +140,17 @@ class LudoBoardPainter extends CustomPainter {
     // which is exactly what the first render of this board looked like. Tint
     // toward black or white by luminance rather than toward [line], which in
     // the light theme is itself nearly the surface colour.
-    final dark = surface.computeLuminance() < 0.5;
-    final ground = Color.lerp(surface, dark ? Colors.white : Colors.black, 0.10)!;
-    final tileEdge = Color.lerp(surface, dark ? Colors.white : Colors.black, 0.22)!;
+    final dark = darkSurface ?? surface.computeLuminance() < 0.5;
+    final ground = Color.lerp(
+      surface,
+      dark ? Colors.white : Colors.black,
+      0.10,
+    )!;
+    final tileEdge = Color.lerp(
+      surface,
+      dark ? Colors.white : Colors.black,
+      0.22,
+    )!;
 
     Rect cellRect(int row, int col) => Rect.fromLTWH(col * u, row * u, u, u);
 
@@ -217,7 +231,7 @@ class LudoBoardPainter extends CustomPainter {
         canvas.drawRRect(rr, fill..color = surface);
         canvas.drawRRect(rr, hairline..color = tileEdge);
         if (kLudoSafeCells.contains(i)) {
-            _star(canvas, r.center, u * 0.30, tileEdge);
+          _star(canvas, r.center, u * 0.30, tileEdge);
         }
       }
     }
@@ -317,10 +331,7 @@ class LudoBoardPainter extends CustomPainter {
   double _travelAngle(int i) {
     final a = kLudoRing[i];
     final b = kLudoRing[(i + 1) % kLudoRing.length];
-    return math.atan2(
-      (b.row - a.row).toDouble(),
-      (b.col - a.col).toDouble(),
-    );
+    return math.atan2((b.row - a.row).toDouble(), (b.col - a.col).toDouble());
   }
 
   /// A simple chevron pointing along [angle].
@@ -349,7 +360,10 @@ class LudoBoardPainter extends CustomPainter {
     for (var i = 0; i < 10; i++) {
       final radius = i.isEven ? r : r * 0.45;
       final a = -math.pi / 2 + i * math.pi / 5;
-      final p = Offset(c.dx + radius * math.cos(a), c.dy + radius * math.sin(a));
+      final p = Offset(
+        c.dx + radius * math.cos(a),
+        c.dy + radius * math.sin(a),
+      );
       i == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
     }
     path.close();
@@ -358,7 +372,10 @@ class LudoBoardPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(LudoBoardPainter old) =>
-      old.surface != surface || old.line != line || old.arrows != arrows;
+      old.surface != surface ||
+      old.line != line ||
+      old.arrows != arrows ||
+      old.darkSurface != darkSurface;
 }
 
 /// The board plus its tokens. Tapping a token that has a legal move plays it.
@@ -507,107 +524,119 @@ class _LudoBoardState extends State<LudoBoard>
       for (final f in _flights) '${f.color.name}:${f.tokenIndex}': f,
     };
 
-    return AspectRatio(
-      aspectRatio: 1,
-      child: LayoutBuilder(
-        builder: (context, c) {
-          final u = c.maxWidth / 15.0;
-          return AnimatedBuilder(
-            animation: _c,
-            builder: (context, _) {
-              final tokens = <Widget>[];
-              // Finished tokens are stacked in the centre so a player can see
-              // how many they have brought home at a glance.
-              final homeTally = <LudoColor, int>{};
+    // Listens rather than reading once, so choosing a board in the picker
+    // repaints the game underneath immediately — which is the whole point of
+    // choosing one while looking at it. Wrapped INSIDE build rather than split
+    // into a helper, because everything above is local to this method.
+    return ValueListenableBuilder<LudoTheme>(
+      valueListenable: ludoTheme,
+      builder: (context, theme, _) => AspectRatio(
+        aspectRatio: 1,
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final u = c.maxWidth / 15.0;
+            return AnimatedBuilder(
+              animation: _c,
+              builder: (context, _) {
+                final tokens = <Widget>[];
+                // Finished tokens are stacked in the centre so a player can see
+                // how many they have brought home at a glance.
+                final homeTally = <LudoColor, int>{};
 
-              for (final color in widget.game.players) {
-                final list = _shown[color] ?? widget.game.positions[color]!;
-                for (var i = 0; i < list.length; i++) {
-                  final key = '${color.name}:$i';
-                  final flight = flying[key];
-                  final move = playable[key];
+                for (final color in widget.game.players) {
+                  final list = _shown[color] ?? widget.game.positions[color]!;
+                  for (var i = 0; i < list.length; i++) {
+                    final key = '${color.name}:$i';
+                    final flight = flying[key];
+                    final move = playable[key];
 
-                  Offset at(int p) {
-                    final cell = ludoCellFor(color, p, i);
-                    if (cell != null) {
-                      return Offset(cell.col * u, cell.row * u);
+                    Offset at(int p) {
+                      final cell = ludoCellFor(color, p, i);
+                      if (cell != null) {
+                        return Offset(cell.col * u, cell.row * u);
+                      }
+                      final n = homeTally[color] ?? 0;
+                      final base = _centreSlot(color, u);
+                      return Offset(base.dx + n * u * 0.18, base.dy);
                     }
-                    final n = homeTally[color] ?? 0;
-                    final base = _centreSlot(color, u);
-                    return Offset(base.dx + n * u * 0.18, base.dy);
-                  }
 
-                  Offset pos;
-                  if (flight == null) {
-                    final p = list[i];
-                    if (ludoCellFor(color, p, i) == null) {
-                      homeTally.update(color, (v) => v + 1, ifAbsent: () => 0);
+                    Offset pos;
+                    if (flight == null) {
+                      final p = list[i];
+                      if (ludoCellFor(color, p, i) == null) {
+                        homeTally.update(
+                          color,
+                          (v) => v + 1,
+                          ifAbsent: () => 0,
+                        );
+                      }
+                      pos = at(p);
+                    } else if (flight.isWalk) {
+                      // Square by square, easing between the two cells the token
+                      // is between right now.
+                      final travelled = _c.value * flight.steps;
+                      final done = travelled.floor().clamp(0, flight.steps - 1);
+                      final frac = (travelled - done).clamp(0.0, 1.0);
+                      pos = Offset.lerp(
+                        at(flight.from + done),
+                        at(flight.from + done + 1),
+                        frac,
+                      )!;
+                    } else {
+                      // Captured, or stepping out of the yard: one smooth hop.
+                      pos = Offset.lerp(
+                        at(flight.from),
+                        at(flight.to),
+                        Curves.easeInOutCubic.transform(_c.value),
+                      )!;
                     }
-                    pos = at(p);
-                  } else if (flight.isWalk) {
-                    // Square by square, easing between the two cells the token
-                    // is between right now.
-                    final travelled = _c.value * flight.steps;
-                    final done = travelled.floor().clamp(0, flight.steps - 1);
-                    final frac = (travelled - done).clamp(0.0, 1.0);
-                    pos = Offset.lerp(
-                      at(flight.from + done),
-                      at(flight.from + done + 1),
-                      frac,
-                    )!;
-                  } else {
-                    // Captured, or stepping out of the yard: one smooth hop.
-                    pos = Offset.lerp(
-                      at(flight.from),
-                      at(flight.to),
-                      Curves.easeInOutCubic.transform(_c.value),
-                    )!;
-                  }
 
-                  // A small lift mid-flight reads as the piece being picked up
-                  // and put down, rather than sliding along the board.
-                  final lift = flight == null
-                      ? 0.0
-                      : math.sin(_c.value * math.pi) * u * 0.18;
+                    // A small lift mid-flight reads as the piece being picked up
+                    // and put down, rather than sliding along the board.
+                    final lift = flight == null
+                        ? 0.0
+                        : math.sin(_c.value * math.pi) * u * 0.18;
 
-                  tokens.add(
-                    Positioned(
-                      left: pos.dx,
-                      top: pos.dy - lift,
-                      width: u,
-                      height: u,
-                      child: _Token(
-                        color: color,
-                        // A token in flight is not tappable — a second tap
-                        // mid-animation would play a move against a board the
-                        // player can no longer see.
-                        playable: move != null && flight == null,
-                        onTap: move == null || flight != null
-                            ? null
-                            : () => widget.onMove?.call(move),
+                    tokens.add(
+                      Positioned(
+                        left: pos.dx,
+                        top: pos.dy - lift,
+                        width: u,
+                        height: u,
+                        child: _Token(
+                          color: color,
+                          // A token in flight is not tappable — a second tap
+                          // mid-animation would play a move against a board the
+                          // player can no longer see.
+                          playable: move != null && flight == null,
+                          onTap: move == null || flight != null
+                              ? null
+                              : () => widget.onMove?.call(move),
+                        ),
                       ),
-                    ),
-                  );
+                    );
+                  }
                 }
-              }
 
-              return Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: LudoBoardPainter(
-                        surface: AppColors.surface,
-                        line: AppColors.borderSoft,
-                        arrows: widget.game.mode.arrows,
+                return Stack(
+                  children: [
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: LudoBoardPainter(
+                          surface: theme.surface,
+                          line: theme.line,
+                          arrows: widget.game.mode.arrows,
+                          darkSurface: theme.dark,
+                        ),
                       ),
                     ),
-                  ),
-                  ...tokens,
-                ],
-              );
-            },
-          );
-        },
+                    ...tokens,
+                  ],
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }

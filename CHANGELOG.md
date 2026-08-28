@@ -11,6 +11,14 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.82] — 2026-08-28
+
+- Leave a game in progress. A computer takes over your tokens so the other
+  players can finish, and the game stops counting for you — no reward, no share
+  of the pot, no leaderboard entry. Any stake you already paid stays in the pot.
+- Four board themes: Classic, Midnight, Sand and Emerald. Pick one from the Ludo
+  lobby or mid-game; your colour never changes, only the board.
+
 ## [1.0.81] — 2026-08-28
 
 - An ad link now brings you back to that ad after you sign in, the same way a

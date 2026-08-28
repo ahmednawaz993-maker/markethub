@@ -31,6 +31,7 @@ class LudoRoom {
     this.teamsWanted = false,
     this.stake = 0,
     this.pot = 0,
+    this.abandonedBy = const [],
   });
 
   /// Coins it costs to sit at this table. Zero for a free game.
@@ -38,6 +39,10 @@ class LudoRoom {
 
   /// Coins collected when play began. Written by the server, never the client.
   final int pot;
+
+  /// Players who walked out mid-game. They keep no reward and take no share of
+  /// the pot — see leaveLudoGame.
+  final List<String> abandonedBy;
 
   /// Whether this table was opened as 2v2.
   ///
@@ -97,6 +102,9 @@ class LudoRoom {
       teamsWanted: d['teamsWanted'] == true,
       stake: (d['stake'] as num?)?.toInt() ?? 0,
       pot: (d['pot'] as num?)?.toInt() ?? 0,
+      abandonedBy: [
+        for (final v in (d['abandonedBy'] as List? ?? const [])) '$v',
+      ],
     );
   }
 }
@@ -358,6 +366,43 @@ Future<void> startLudoRoom(String roomId) async {
   });
 }
 
+/// Whether this player walked out of this game.
+bool ludoHasAbandoned(LudoRoom room, String uid) =>
+    room.abandonedBy.contains(uid);
+
+/// Leaves a game in progress.
+///
+/// The seat is handed to a computer rather than emptied, because three other
+/// people are mid-game and collapsing the board under them would punish the
+/// wrong players. The leaver is recorded in `abandonedBy`, and the server then
+/// treats the game as if they were never there: no win reward, no share of the
+/// pot, and no row on the leaderboard. A game you walked out of is not a game
+/// you played.
+///
+/// Any stake already collected stays in the pot. It was taken when play began
+/// and the remaining players are still competing for it — refunding a leaver
+/// would make quitting free, and quitting a losing position profitable.
+Future<void> leaveLudoGame(String roomId) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+  if (uid.isEmpty) return;
+  await FirebaseFirestore.instance.runTransaction((tx) async {
+    final ref = _ludoCol().doc(roomId);
+    final snap = await tx.get(ref);
+    if (!snap.exists) return;
+    final room = LudoRoom.fromDoc(snap);
+    final colour = room.colorOf(uid);
+    if (colour == null) return;
+
+    final bots = room.seats.values.where((v) => v.startsWith('bot:')).length + 1;
+    tx.update(ref, {
+      'seats': {...room.seats, colour.name: 'bot:$bots'},
+      'names': {...room.names, colour.name: 'Computer $bots'},
+      'abandonedBy': FieldValue.arrayUnion([uid]),
+      'updatedAt': Timestamp.now(),
+    });
+  });
+}
+
 /// Writes a new game state after a roll or a move.
 Future<void> pushLudoState(String roomId, LudoGame game) async {
   await _ludoCol().doc(roomId).update({
@@ -440,6 +485,14 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
                 ),
               );
             },
+          ),
+          IconButton(
+            tooltip: 'Board',
+            onPressed: () => showModalBottomSheet<void>(
+              context: context,
+              builder: (_) => const LudoThemeSheet(),
+            ),
+            icon: const Icon(Icons.palette_outlined),
           ),
           IconButton(
             tooltip: 'This week',
@@ -820,6 +873,40 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
     });
   }
 
+  /// Confirms before walking out. Irreversible, and it can cost a stake — so
+  /// the dialog says exactly what happens rather than asking "are you sure?".
+  Future<void> _confirmLeave(LudoRoom room) async {
+    final navigator = Navigator.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Leave this game?'),
+        content: Text(
+          room.stake > 0
+              ? 'A computer takes over your tokens so the others can finish. '
+                    'This game will not count towards your record, and your '
+                    '${formatCoins(room.stake)} coin stake stays in the pot.'
+              : 'A computer takes over your tokens so the others can finish, '
+                    'and this game will not count towards your record.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep playing'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('Leave'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await leaveLudoGame(widget.roomId);
+    if (mounted) navigator.pop();
+  }
+
   Future<void> _loadDisplayName() async {
     final user = FirebaseAuth.instance.currentUser;
     var name = user?.email?.split('@').first ?? 'Player';
@@ -993,6 +1080,38 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
                 tooltip: 'Chat',
                 icon: const Icon(Icons.chat_bubble_outline),
                 onPressed: () => _openChat(room),
+              ),
+              PopupMenuButton<String>(
+                onSelected: (v) {
+                  if (v == 'board') {
+                    showModalBottomSheet<void>(
+                      context: context,
+                      builder: (_) => const LudoThemeSheet(),
+                    );
+                  } else if (v == 'leave') {
+                    _confirmLeave(room);
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'board',
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.palette_outlined),
+                      title: Text('Change board'),
+                    ),
+                  ),
+                  if (room.colorOf(_uid) != null &&
+                      room.status == LudoRoomStatus.playing)
+                    const PopupMenuItem(
+                      value: 'leave',
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.logout),
+                        title: Text('Leave game'),
+                      ),
+                    ),
+                ],
               ),
             ],
           ),
