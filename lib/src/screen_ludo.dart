@@ -29,7 +29,15 @@ class LudoRoom {
     required this.game,
     required this.updatedAt,
     this.teamsWanted = false,
+    this.stake = 0,
+    this.pot = 0,
   });
+
+  /// Coins it costs to sit at this table. Zero for a free game.
+  final int stake;
+
+  /// Coins collected when play began. Written by the server, never the client.
+  final int pot;
 
   /// Whether this table was opened as 2v2.
   ///
@@ -87,6 +95,8 @@ class LudoRoom {
           : LudoGame.fromJson(rawGame),
       updatedAt: d['updatedAt'] as Timestamp?,
       teamsWanted: d['teamsWanted'] == true,
+      stake: (d['stake'] as num?)?.toInt() ?? 0,
+      pot: (d['pot'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -99,6 +109,7 @@ Future<String> createLudoRoom({
   required String displayName,
   LudoMode mode = LudoMode.classic,
   bool teams = false,
+  int stake = 0,
 }) async {
   final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
   // Seeded with two seats; newGame only turns teams on once four are filled,
@@ -115,6 +126,9 @@ Future<String> createLudoRoom({
     'status': LudoRoomStatus.waiting.name,
     'state': game.toJson(),
     'teamsWanted': teams,
+    // Fixed at creation. firestore.rules refuses any later change, because
+    // raising it mid-game would empty everyone else's balance at start.
+    'stake': stake,
     'createdAt': Timestamp.now(),
     'updatedAt': Timestamp.now(),
   });
@@ -227,6 +241,7 @@ Future<String> quickMatchLudo({
   required String displayName,
   LudoMode mode = LudoMode.classic,
   bool teams = false,
+  int stake = 0,
 }) async {
   try {
     final snap = await _ludoCol()
@@ -240,6 +255,8 @@ Future<String> quickMatchLudo({
       // A team table is a different game; joining one by accident would drop a
       // player into 2v2 they never chose.
       if (room.teamsWanted != teams) continue;
+      // Never seat somebody at a stake they did not pick.
+      if (room.stake != stake) continue;
       // Never match into a table of nothing but computers — that is a solo
       // game wearing a multiplayer hat.
       if (!room.seats.values.any((v) => !v.startsWith('bot:'))) continue;
@@ -249,7 +266,12 @@ Future<String> quickMatchLudo({
   } catch (_) {
     // A failed search must still end in a game.
   }
-  return createLudoRoom(displayName: displayName, mode: mode, teams: teams);
+  return createLudoRoom(
+    displayName: displayName,
+    mode: mode,
+    teams: teams,
+    stake: stake,
+  );
 }
 
 /// Seconds until computers fill the table, or null when it is not waiting.
@@ -418,6 +440,16 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
                 ),
               );
             },
+          ),
+          IconButton(
+            tooltip: 'This week',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const LudoLeaderboardScreen(),
+              ),
+            ),
+            icon: const Icon(Icons.leaderboard_outlined),
           ),
           TextButton.icon(
             onPressed: _matching ? null : () => _create(context),
@@ -645,11 +677,56 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
       ),
     );
     if (teams == null) return;
+    if (!context.mounted) return;
+    final stake = await showModalBottomSheet<int>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Entry stake', style: AppType.sectionTitle),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Everyone pays in when the game starts and the winner takes '
+                    'the pot. Coins only — they are not money and cannot be '
+                    'withdrawn.',
+                    style: AppType.caption,
+                  ),
+                ],
+              ),
+            ),
+            for (final tier in kLudoStakeTiers)
+              ListTile(
+                leading: Icon(
+                  tier == 0 ? Icons.sports_esports : Icons.savings_outlined,
+                  color: kPakGreen,
+                ),
+                title: Text(tier == 0 ? 'Free table' : formatCoins(tier)),
+                subtitle: Text(
+                  tier == 0
+                      ? 'No entry cost, no pot.'
+                      : 'Pot of up to ${formatCoins(tier * 4)} with four players.',
+                  style: AppType.caption,
+                ),
+                onTap: () => Navigator.pop(ctx, tier),
+              ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+    if (stake == null) return;
     try {
       final id = await createLudoRoom(
         displayName: await _name(),
         mode: mode,
         teams: teams,
+        stake: stake,
       );
       navigator.push(
         MaterialPageRoute(builder: (_) => LudoGameScreen(roomId: id)),
@@ -1064,6 +1141,18 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
               style: AppType.secondary,
             ),
             const SizedBox(height: AppSpacing.xs),
+            if (room.stake > 0)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                child: Text(
+                  room.pot > 0
+                      ? 'Pot: ${formatCoins(room.pot)} coins'
+                      : '${formatCoins(room.stake)} coins each — '
+                            'winner takes the pot',
+                  textAlign: TextAlign.center,
+                  style: AppType.label.copyWith(color: kPakGreen),
+                ),
+              ),
             if (countdown != null)
               Text(
                 countdown > 0

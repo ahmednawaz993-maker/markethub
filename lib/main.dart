@@ -109,6 +109,7 @@ part 'src/voice_chat.dart';
 part 'src/pending_invite.dart';
 part 'src/ludo_invite.dart';
 part 'src/ludo_reactions.dart';
+part 'src/leaderboard.dart';
 part 'src/screen_ludo.dart';
 part 'src/screen_admin_categories.dart';
 part 'src/screen_notifications.dart';

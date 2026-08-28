@@ -14,11 +14,17 @@
 //    transferred between players, or cashed out — deliberately, and not merely
 //    because that path is unimplemented.
 //
-// The last point is also why there is no staking or betting here. Coins that
-// can be bought with real money AND won from other players is gambling in
-// substance whatever it is called, which is illegal in Pakistan and against
-// Play's policy. Keeping coins unbuyable and untransferable keeps this a
-// progression system.
+// STAKED TABLES EXIST, AND THAT LAST POINT IS WHY THEY CAN. A table can cost
+// coins to sit at, and the winner takes the pot. That is not gambling, and the
+// reason is precise rather than hopeful: coins cannot be bought with money and
+// cannot be turned back into it, so nothing of value is wagered and nothing of
+// value is won. It is a progression sink, the same shape as spending points.
+//
+// The moment either of those two facts changes — coins purchasable, or coins
+// cashable — staked tables become real-money gambling on a dice game, which is
+// illegal in Pakistan and outside Play's policy, and the app would be removed.
+// So the "no buying, no cashing out" rule above is not a missing feature to be
+// filled in later. It is what makes everything below lawful.
 //
 // AUTHORITY. Nothing here is reachable from a client. The balance is written
 // only by Cloud Functions with the Admin SDK; firestore.rules makes the profile
@@ -32,6 +38,18 @@ const STARTING_COINS = 500;
 
 /** Daily reward by streak day, capped so day 40 is not worth 40x day one. */
 const DAILY_BY_STREAK = [100, 150, 200, 300, 400, 500, 1000];
+
+/**
+ * The stakes a table can be opened at.
+ *
+ * Coins only, and coins cannot be bought or cashed out — so this is a
+ * progression sink, not a wager. That distinction is the whole reason this can
+ * exist at all: real-money stakes on a dice game would be gambling under
+ * Pakistani law and outside Play's policy.
+ *
+ * Zero is first and is the default: most tables should cost nothing to sit at.
+ */
+const STAKE_TIERS = [0, 100, 500, 2000, 10000];
 
 /** Wins needed to earn a chest. */
 const WINS_PER_CHEST = 3;
@@ -128,7 +146,79 @@ function winReward({ won, humanPlayers, mode }) {
   return Math.round(base * humans * modeBonus);
 }
 
+/**
+ * The Pakistan week a moment falls in, as "YYYY-Www".
+ *
+ * Weeks run Monday to Sunday in PKT, matching how a week is spoken about
+ * locally — a leaderboard that rolled over at 5am Monday, as a UTC week would,
+ * would cut off Sunday-night play, which is exactly when people play.
+ */
+function weekIdOf(ms) {
+  const day = pktDayNumber(ms);
+  // Epoch day 0 (1 Jan 1970) was a Thursday, so a Monday is any day where
+  // day % 7 == 4. Step back to this week's Monday.
+  const mondayDay = day - mod7(day - 4);
+  // BOTH the grouping and the label are derived from that same Monday. An
+  // earlier version computed them separately — the group from a Monday anchor,
+  // the number from Jan 1 — and the id therefore changed in the middle of a
+  // week, which silently split one week's leaderboard across two documents.
+  const y = new Date(mondayDay * DAY_MS).getUTCFullYear();
+  const weekNo = weekNumber(mondayDay, y);
+  if (weekNo >= 1) {
+    return `${y}-W${String(weekNo).padStart(2, "0")}`;
+  }
+  // A Monday sitting before its own year's first Monday belongs to the tail of
+  // the previous year.
+  const py = y - 1;
+  return `${py}-W${String(weekNumber(mondayDay, py)).padStart(2, "0")}`;
+}
+
+/** Non-negative remainder. JavaScript's % keeps the sign of the dividend. */
+function mod7(n) {
+  return ((n % 7) + 7) % 7;
+}
+
+/** Which Monday of [year] this one is, counting the first Monday as week 1. */
+function weekNumber(mondayDay, year) {
+  const jan1 = Math.floor(Date.UTC(year, 0, 1) / DAY_MS);
+  const firstMonday = jan1 + mod7(4 - jan1);
+  return Math.floor((mondayDay - firstMonday) / 7) + 1;
+}
+
+/**
+ * Splits a pot between the winners.
+ *
+ * Remainder goes to the FIRST winner rather than being dropped, so the numbers
+ * always add up: a pot of 101 between two partners pays 51 and 50, never 50 and
+ * 50 with a coin quietly destroyed.
+ */
+function splitPot(pot, winnerCount) {
+  const n = Math.max(1, Math.floor(winnerCount) || 1);
+  const total = Math.max(0, Math.floor(Number(pot)) || 0);
+  const each = Math.floor(total / n);
+  const out = new Array(n).fill(each);
+  out[0] += total - each * n;
+  return out;
+}
+
+/**
+ * What each seat actually contributes when a staked table starts.
+ *
+ * Clamped to what the player has. Somebody can join a table they can afford and
+ * then spend the coins elsewhere before it begins; taking them into a negative
+ * balance would be worse than collecting less.
+ */
+function collectStake(stake, balance) {
+  const s = Math.max(0, Math.floor(Number(stake)) || 0);
+  const b = Math.max(0, Math.floor(Number(balance)) || 0);
+  return Math.min(s, b);
+}
+
 module.exports = {
+  STAKE_TIERS,
+  weekIdOf,
+  splitPot,
+  collectStake,
   DAY_MS,
   STARTING_COINS,
   DAILY_BY_STREAK,

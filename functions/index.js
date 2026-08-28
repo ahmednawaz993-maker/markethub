@@ -4723,6 +4723,65 @@ exports.gameRequestCreated = onDocumentCreated(
 );
 
 /**
+ * Collects the entry stake when a staked table starts.
+ *
+ * Coins are only ever written here, so the pot has to be built server-side. The
+ * client picks a stake and the rules stop anyone joining a table they cannot
+ * afford, but the money itself moves at the moment play begins — a table that
+ * never starts must never cost anybody anything.
+ *
+ * `stakeCollectedAt` makes this idempotent. This trigger fires on every write to
+ * the room, and charging the table twice would be unrecoverable.
+ */
+exports.ludoCollectStakes = onDocumentWritten("ludoRooms/{roomId}", async (event) => {
+  const after = event.data?.after?.data();
+  const before = event.data?.before?.data();
+  if (!after || after.status !== "playing") return;
+  if (before && before.status === "playing") return;
+  if (after.stakeCollectedAt) return;
+  const stake = Number(after.stake) || 0;
+  if (stake <= 0) return;
+
+  const db = getFirestore();
+  const seats = after.seats || {};
+  const contributions = {};
+  let pot = 0;
+
+  for (const [colour, uid] of Object.entries(seats)) {
+    if (typeof uid !== "string" || uid.startsWith(LUDO_BOT_PREFIX)) continue;
+    try {
+      const paid = await db.runTransaction(async (tx) => {
+        const ref = gameProfileRef(uid);
+        const doc = await tx.get(ref);
+        const p = doc.exists ? doc.data() : {};
+        const balance = Number(p.coins);
+        const have = Number.isFinite(balance) ? balance : economy.STARTING_COINS;
+        // Clamped: somebody can join a table they can afford and spend the
+        // coins elsewhere before it begins. Collecting less beats a negative
+        // balance.
+        const take = economy.collectStake(stake, have);
+        if (take <= 0) return 0;
+        tx.set(ref, { coins: have - take }, { merge: true });
+        return take;
+      });
+      if (paid > 0) {
+        contributions[colour] = paid;
+        pot += paid;
+      }
+    } catch (err) {
+      console.error("ludoCollectStakes", event.params.roomId, uid, err);
+    }
+  }
+
+  await event.data.after.ref
+    .set(
+      { pot, stakeContributions: contributions, stakeCollectedAt: Timestamp.now() },
+      { merge: true }
+    )
+    .catch(() => {});
+});
+
+/**
  * Pays out when a Ludo room finishes.
  *
  * Runs on the room rather than trusting a client to report its own result, and
@@ -4789,6 +4848,68 @@ exports.ludoAwardCoins = onDocumentWritten("ludoRooms/{roomId}", async (event) =
           { merge: true }
         );
       })
+    );
+  }
+
+  // The pot goes to the winning side, split evenly. splitPot gives the
+  // remainder to the first winner rather than dropping it, so a pot of 101
+  // between two partners pays 51 and 50 and no coin is destroyed.
+  const pot = Number(after.pot) || 0;
+  const potWinners = [...winningColours]
+    .map((c) => seats[c])
+    .filter((uid) => typeof uid === "string" && !uid.startsWith(LUDO_BOT_PREFIX));
+  const shares = economy.splitPot(pot, potWinners.length || 1);
+  const potFor = {};
+  potWinners.forEach((uid, i) => {
+    potFor[uid] = shares[i] || 0;
+  });
+
+  const week = economy.weekIdOf(Date.now());
+  for (const [colour, uid] of Object.entries(seats)) {
+    if (typeof uid !== "string" || uid.startsWith(LUDO_BOT_PREFIX)) continue;
+    const won = winningColours.has(colour);
+    const share = potFor[uid] || 0;
+    const earned =
+      economy.winReward({ won, humanPlayers, mode: state.mode }) + share;
+    writes.push(
+      (async () => {
+        if (share > 0) {
+          await db
+            .runTransaction(async (tx) => {
+              const ref = gameProfileRef(uid);
+              const doc = await tx.get(ref);
+              const p = doc.exists ? doc.data() : {};
+              const have = Number(p.coins);
+              tx.set(
+                ref,
+                {
+                  coins:
+                    (Number.isFinite(have) ? have : economy.STARTING_COINS) +
+                    share,
+                },
+                { merge: true }
+              );
+            })
+            .catch((err) => console.error("pot payout", uid, err));
+        }
+        // Weekly standings. Kept per week rather than all-time so a player who
+        // starts today is not permanently behind somebody who started in
+        // March — an all-time board stops being a competition very quickly.
+        await db
+          .doc(`leaderboards/${week}/players/${uid}`)
+          .set(
+            {
+              userId: uid,
+              name: (after.names || {})[colour] || "Player",
+              coinsWon: FieldValue.increment(earned),
+              wins: FieldValue.increment(won ? 1 : 0),
+              games: FieldValue.increment(1),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          )
+          .catch((err) => console.error("leaderboard", uid, err));
+      })()
     );
   }
 

@@ -978,6 +978,17 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Weekly Ludo standings. Written only by ludoAwardCoins through the Admin
+    // SDK — a player who could edit their own row would.
+    match /leaderboards/{weekId}/players/{userId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+    match /leaderboards/{weekId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
     match /ludoRooms/{roomId} {
       // The colour whose turn it is, read out of the stored state.
       function seatToMove(state, seats) {
@@ -989,7 +1000,36 @@ service cloud.firestore {
                  .hasOnly(['seats', 'names', 'state', 'updatedAt'])
                && resource.data.seats.size() < 4
                && request.resource.data.seats.size()
-                    == resource.data.seats.size() + 1;
+                    == resource.data.seats.size() + 1
+               && canAffordStake();
+      }
+
+      // This player's coin balance. A profile document only exists once the
+      // server has written one, so a player who has never been paid is treated
+      // as holding the starting balance — matching kStartingCoins on the
+      // client. Without that, a brand new account could not sit at any staked
+      // table at all.
+      function coinBalance() {
+        return exists(/databases/$(database)/documents/users/$(request.auth.uid)/game/profile)
+               ? get(/databases/$(database)/documents/users/$(request.auth.uid)/game/profile)
+                   .data.get('coins', 500)
+               : 500;
+      }
+
+      // Enforced HERE and not only in the UI. The stake is collected
+      // server-side when play begins, so without this check a modified client
+      // could sit at a table it cannot pay for and be charged nothing.
+      function canAffordStake() {
+        return resource.data.get('stake', 0) == 0
+               || coinBalance() >= resource.data.get('stake', 0);
+      }
+
+      // The stake is fixed when the table is opened. Every client update path
+      // must leave it alone: raising it mid-game would let one player empty
+      // everybody else's balance when play starts.
+      function stakeUnchanged() {
+        return request.resource.data.get('stake', 0)
+               == resource.data.get('stake', 0);
       }
 
       allow read: if isSignedIn();
@@ -1017,7 +1057,7 @@ service cloud.firestore {
                     .affectedKeys().hasOnly(['status', 'updatedAt']);
       }
 
-      allow update: if isSignedIn() && (
+      allow update: if isSignedIn() && stakeUnchanged() && (
                       isJoining()
                       || isSeatedStart()
                       || (resource.data.hostId == request.auth.uid

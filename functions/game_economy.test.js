@@ -220,3 +220,103 @@ t("chests are earned often enough to matter, rarely enough to mean something", (
 });
 
 console.log(`\n${pass} passed`);
+
+// --- Staked tables and weekly leaderboards ---------------------------------
+
+t("stake tiers start at zero and only go up", () => {
+  // Most tables should cost nothing to sit at, so free is the first option.
+  assert.strictEqual(E.STAKE_TIERS[0], 0);
+  for (let i = 1; i < E.STAKE_TIERS.length; i++) {
+    assert.ok(E.STAKE_TIERS[i] > E.STAKE_TIERS[i - 1], `tier ${i} is not larger`);
+  }
+});
+
+t("the top stake is reachable by a real player", () => {
+  // A tier nobody can afford is decoration. The top tier should be within
+  // reach of someone who has played for a while, not of nobody.
+  const top = E.STAKE_TIERS[E.STAKE_TIERS.length - 1];
+  assert.ok(top <= 20000, `top stake ${top} is out of reach`);
+});
+
+t("a pot always adds up to exactly what went in", () => {
+  // The failure this catches is quiet: integer division that drops a coin on
+  // every split, destroying currency a little at a time.
+  for (const pot of [0, 1, 2, 3, 99, 100, 101, 4001, 123457]) {
+    for (const n of [1, 2, 3, 4]) {
+      const parts = E.splitPot(pot, n);
+      assert.strictEqual(parts.length, n);
+      const sum = parts.reduce((a, b) => a + b, 0);
+      assert.strictEqual(sum, pot, `pot ${pot} split ${n} ways summed to ${sum}`);
+      assert.ok(parts.every((p) => p >= 0 && Number.isInteger(p)));
+    }
+  }
+});
+
+t("a split is as even as it can be", () => {
+  // The remainder goes somewhere, but nobody gets a wildly different share.
+  const parts = E.splitPot(101, 2);
+  assert.deepStrictEqual(parts, [51, 50]);
+  assert.ok(Math.max(...parts) - Math.min(...parts) <= 1);
+});
+
+t("nonsense pots do not produce nonsense payouts", () => {
+  for (const bad of [null, undefined, NaN, -500, "lots"]) {
+    const parts = E.splitPot(bad, 2);
+    assert.ok(parts.every((p) => Number.isInteger(p) && p >= 0), `${bad}`);
+  }
+  assert.deepStrictEqual(E.splitPot(100, 0), [100]);
+});
+
+t("a stake never takes a player negative", () => {
+  // Somebody can join a table they can afford and spend the coins elsewhere
+  // before it starts. Collecting less is better than a negative balance.
+  assert.strictEqual(E.collectStake(500, 200), 200);
+  assert.strictEqual(E.collectStake(500, 0), 0);
+  assert.strictEqual(E.collectStake(500, 900), 500);
+  for (const bad of [null, undefined, NaN, -1, "x"]) {
+    assert.strictEqual(E.collectStake(bad, 100), 0);
+    assert.ok(E.collectStake(100, bad) >= 0);
+  }
+});
+
+t("a week runs Monday to Sunday in Pakistan time", () => {
+  // Sunday night is when people play. A UTC week would roll over at 5am
+  // Monday PKT and cut that off, moving Sunday's games into the wrong week.
+  const sundayLate = Date.UTC(2026, 7, 30, 18, 0); // Sun 23:00 PKT
+  const mondayEarly = Date.UTC(2026, 7, 30, 20, 0); // Mon 01:00 PKT
+  assert.notStrictEqual(
+    E.weekIdOf(sundayLate),
+    E.weekIdOf(mondayEarly),
+    "midnight Monday PKT did not start a new week"
+  );
+  // ...and 01:00 with 06:00 Monday PKT are the SAME week, which a UTC
+  // boundary would split.
+  assert.strictEqual(
+    E.weekIdOf(Date.UTC(2026, 7, 30, 20, 0)),
+    E.weekIdOf(Date.UTC(2026, 7, 31, 1, 0))
+  );
+});
+
+t("every day of one week shares an id, and the next week differs", () => {
+  const monday = Date.UTC(2026, 7, 30, 20, 0); // Mon 01:00 PKT
+  const id = E.weekIdOf(monday);
+  for (let d = 0; d < 7; d++) {
+    assert.strictEqual(
+      E.weekIdOf(monday + d * E.DAY_MS),
+      id,
+      `day ${d} of the week fell outside it`
+    );
+  }
+  assert.notStrictEqual(E.weekIdOf(monday + 7 * E.DAY_MS), id);
+});
+
+t("week ids sort chronologically as plain strings", () => {
+  // They are used as document ids and ordered as text, so a zero-padded week
+  // number is not cosmetic.
+  const start = Date.UTC(2026, 0, 5);
+  const ids = [];
+  for (let w = 0; w < 20; w++) ids.push(E.weekIdOf(start + w * 7 * E.DAY_MS));
+  const sorted = [...ids].sort();
+  assert.deepStrictEqual(ids, sorted, "week ids do not sort in order");
+  for (const id of ids) assert.ok(/^\d{4}-W\d{2}$/.test(id), id);
+});

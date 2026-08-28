@@ -11,6 +11,16 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.80] — 2026-08-28
+
+- Coin tables. Open a game at 100, 500, 2,000 or 10,000 coins — everyone pays in
+  when play starts and the winner takes the pot, split between partners in 2v2.
+  Free tables remain the default.
+- Weekly leaderboard. Coins won, games and wins, resetting every Monday, with
+  your own row highlighted. Reachable from the Ludo lobby.
+- Coins still cannot be bought or withdrawn, which is exactly what keeps a
+  staked table a game and not a wager.
+
 ## [1.0.79] — 2026-08-28
 
 - A Ludo invite link now takes you to that board even if you were not signed in
