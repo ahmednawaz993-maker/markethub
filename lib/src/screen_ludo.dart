@@ -699,6 +699,22 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
   /// Cached so a reaction does not trigger a profile read per tap.
   String _displayName = 'Player';
 
+  /// Created lazily and kept for the life of the screen: rebuilding it would
+  /// tear down every peer connection on each repaint of the board.
+  VoiceSession? _voice;
+
+  VoiceSession? _voiceFor(LudoRoom room) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    // Only players get a microphone. A spectator listening in on a table is a
+    // different feature with different consent.
+    if (uid == null || room.colorOf(uid) == null) return null;
+    return _voice ??= VoiceSession(
+      roomId: widget.roomId,
+      myUid: uid,
+      myName: _displayName,
+    );
+  }
+
   /// Only true while a network call is in flight. Everything else about the
   /// game — including the pending dice — comes from the synced state, so
   /// nothing can be lost by a rebuild.
@@ -745,6 +761,8 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
   void dispose() {
     _rollWatchdog?.cancel();
     _tick?.cancel();
+    // Closes the microphone and every peer connection, and clears presence.
+    _voice?.dispose();
     _chat.dispose();
     super.dispose();
   }
@@ -928,6 +946,15 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
                   ],
                 ),
               ),
+              if (room.status != LudoRoomStatus.finished)
+                Builder(
+                  builder: (context) {
+                    final v = _voiceFor(room);
+                    return v == null
+                        ? const SizedBox.shrink()
+                        : VoiceChatBar(session: v);
+                  },
+                ),
               if (room.status == LudoRoomStatus.playing)
                 LudoReactionBar(
                   roomId: widget.roomId,

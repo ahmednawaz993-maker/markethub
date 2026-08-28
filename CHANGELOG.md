@@ -11,6 +11,14 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.76] — 2026-08-28
+
+- Ludo voice chat. Talk to the other players at your table. Peer to peer, so no
+  audio passes through any server. Off until you tap to join, mute yourself or
+  anyone else at any time, and the game is fully playable without it.
+- Note: some players on strict carrier networks will not be able to connect to
+  everyone. That needs a TURN relay, which is not configured.
+
 ## [1.0.75] — 2026-08-28
 
 - Ludo coins, daily rewards and chests. Claim a reward each day (a longer streak

@@ -1036,6 +1036,42 @@ service cloud.firestore {
       allow delete: if isSignedIn()
                     && (resource.data.hostId == request.auth.uid || isAdmin());
 
+      // Voice chat presence. Who currently has a microphone open at this
+      // table. A player may only announce or withdraw THEMSELVES.
+      match /voice/{participantUid} {
+        allow read: if isSignedIn();
+        allow create, update: if isSignedIn()
+                              && request.auth.uid == participantUid
+                              && request.resource.data.uid == request.auth.uid
+                              && request.auth.uid in
+                                   get(/databases/$(database)/documents/ludoRooms/$(roomId))
+                                     .data.seats.values();
+        allow delete: if isSignedIn() && request.auth.uid == participantUid;
+      }
+
+      // WebRTC signalling: offers, answers and ICE candidates.
+      //
+      // Addressed messages, so READ is restricted to the recipient. These carry
+      // SDP, which describes a peer's network paths and candidate addresses —
+      // there is no reason for a bystander in the room to be able to read them,
+      // and no reason to keep them once consumed.
+      match /voiceSignals/{signalId} {
+        allow read: if isSignedIn()
+                    && (resource.data.to == request.auth.uid
+                        || resource.data.from == request.auth.uid);
+        allow create: if isSignedIn()
+                      && request.resource.data.from == request.auth.uid
+                      && request.auth.uid in
+                           get(/databases/$(database)/documents/ludoRooms/$(roomId))
+                             .data.seats.values();
+        // Negotiation is append-only; a message is never edited.
+        allow update: if false;
+        // The recipient clears its own messages after acting on them.
+        allow delete: if isSignedIn()
+                      && (resource.data.to == request.auth.uid
+                          || resource.data.from == request.auth.uid);
+      }
+
       // Emoji and gifts. Ephemeral by design: a sender deletes its own
       // document once it has been seen, so nothing accumulates.
       match /reactions/{reactionId} {

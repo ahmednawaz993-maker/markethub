@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+// Prefixed: flutter_webrtc exports a lot of top-level names, and an unprefixed
+// import would put them in scope for every part file in this library.
+import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 // Web reads its route from the URL path only if we ask it to; on mobile this
 // resolves to a no-op stub, because flutter_web_plugins does not exist there.
 import 'url_strategy_stub.dart'
@@ -99,6 +102,7 @@ part 'src/ludo_board.dart';
 part 'src/ludo_dice.dart';
 part 'src/game_sound.dart';
 part 'src/game_coins.dart';
+part 'src/voice_chat.dart';
 part 'src/ludo_invite.dart';
 part 'src/ludo_reactions.dart';
 part 'src/screen_ludo.dart';
