@@ -32,6 +32,13 @@ on:
       - ".github/workflows/deploy-firestore.yml"
       - "firestore.rules"
       - "firestore.indexes.json"
+      # Flutter tests and their golden images are not compiled into the AAB
+      # either. A commit that only adds a test or re-records a golden would
+      # otherwise send Google an app byte-identical to the one already in
+      # review — which costs a review cycle and buys nothing. Caught the hard
+      # way: a test-only commit started a build that had to be cancelled by
+      # hand. As above, a commit touching app code AND tests still builds.
+      - "test/**"
   workflow_dispatch: {} # allow manual runs from the Actions tab
 
 # Never let two releases race (they'd fight over the versionCode / Play edit).
