@@ -11,6 +11,13 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.79] — 2026-08-28
+
+- A Ludo invite link now takes you to that board even if you were not signed in
+  when you opened it. Previously it told you to sign in and open the link again,
+  which meant going back to find the message a second time. The room is
+  remembered for two hours and the app takes you straight there after sign-in.
+
 ## [1.0.78] — 2026-08-28
 
 - Video chat in Ludo, alongside voice. Turning your camera on is a separate

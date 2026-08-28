@@ -31,6 +31,10 @@ class _LudoInviteScreenState extends State<LudoInviteScreen> {
   String? _error;
   bool _working = true;
 
+  /// True when the only thing missing is an account, so the button can say
+  /// "Sign in" rather than "Browse games".
+  bool _needsSignIn = false;
+
   @override
   void initState() {
     super.initState();
@@ -40,11 +44,17 @@ class _LudoInviteScreenState extends State<LudoInviteScreen> {
   Future<void> _join() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || user.isAnonymous) {
+      // Remember the board BEFORE sending them to sign in. Telling an invited
+      // player to "open the link again" means asking them to go back and find
+      // the message a second time, and most will not.
+      await rememberPendingLudoInvite(widget.roomId);
+      if (!mounted) return;
       setState(() {
         _working = false;
+        _needsSignIn = true;
         _error =
-            'Sign in to join this game. Your invite still works once you have '
-            'signed in — open the link again.';
+            'Sign in to join this game. We will bring you straight back to '
+            'this board.';
       });
       return;
     }
@@ -102,13 +112,17 @@ class _LudoInviteScreenState extends State<LudoInviteScreen> {
     body: _working
         ? const Center(child: CircularProgressIndicator())
         : EmptyStateWidget(
-            icon: Icons.casino_outlined,
-            title: 'Cannot join',
+            icon: _needsSignIn ? Icons.lock_outline : Icons.casino_outlined,
+            title: _needsSignIn ? 'Sign in to join' : 'Cannot join',
             subtitle: _error ?? 'Something went wrong.',
-            actionLabel: 'Browse games',
-            onAction: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const LudoLobbyScreen()),
+            actionLabel: _needsSignIn ? 'Sign in' : 'Browse games',
+            onAction: () => Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (_) => _needsSignIn
+                    ? const SecurityGate(child: AuthGate())
+                    : const LudoLobbyScreen(),
+              ),
+              (route) => false,
             ),
           ),
   );

@@ -756,6 +756,12 @@ class _HomeScreenState extends State<HomeScreen> {
         .catchError((_) {})
         .then((_) => maybePromptLocation())
         .catchError((_) {});
+    // Somebody who followed a Ludo invite before signing in gets taken to that
+    // board now. After the first frame, so the home screen exists underneath
+    // and leaving the game returns here rather than to nothing.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) resumePendingLudoInvite(context);
+    });
     loadFavorites();
     loadBlocked();
     loadPlatformBlockedUsers().then((_) {

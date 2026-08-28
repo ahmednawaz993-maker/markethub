@@ -106,6 +106,7 @@ part 'src/ludo_dice.dart';
 part 'src/game_sound.dart';
 part 'src/game_coins.dart';
 part 'src/voice_chat.dart';
+part 'src/pending_invite.dart';
 part 'src/ludo_invite.dart';
 part 'src/ludo_reactions.dart';
 part 'src/screen_ludo.dart';
