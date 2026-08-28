@@ -147,15 +147,10 @@ function legalMoves(state, dice) {
     const viaArrow = jumped !== null;
     if (viaArrow) to = jumped;
 
+    // Your own tokens may share a square — see LudoGame.legalMoves for why the
+    // restriction that used to be here was removed. Mirrored exactly, because a
+    // server that refused what the phone offers makes moves fail silently.
     const destRing = ringCell(colour, to, spec);
-    if (destRing !== null) {
-      // A token may not land on one of its own.
-      let blocked = false;
-      for (let j = 0; j < mine.length; j++) {
-        if (j !== i && ringCell(colour, mine[j], spec) === destRing) blocked = true;
-      }
-      if (blocked) continue;
-    }
 
     const captures = [];
     if (destRing !== null && !spec.safeCells.has(destRing)) {
@@ -274,15 +269,21 @@ function nextSeat(state) {
 function applyRoll(state, dice) {
   const sixes = dice === 6 ? (state.sixes || 0) + 1 : 0;
 
+  // `dice` is the die still WAITING to be played and is cleared the moment a
+  // roll turns out to be unplayable. `shown` is the number that came up,
+  // whether or not anything could be done with it, and exists only to be
+  // displayed: without it the die tumbles, the turn passes and the player is
+  // never shown a number at all, which looks exactly like the app swallowing
+  // the roll. Mirrors LudoGame.shownDice.
   if (sixes >= 3) {
     return {
-      state: { ...state, turn: nextSeat(state), sixes: 0, dice: null },
+      state: { ...state, turn: nextSeat(state), sixes: 0, dice: null, shown: 6 },
       moves: [],
       reason: "three_sixes",
     };
   }
 
-  const rolled = { ...state, sixes, dice };
+  const rolled = { ...state, sixes, dice, shown: dice };
   const moves = legalMoves(rolled, dice);
   if (moves.length > 0) return { state: rolled, moves, reason: "playable" };
 
@@ -292,6 +293,7 @@ function applyRoll(state, dice) {
       turn: dice === 6 ? state.turn : nextSeat(state),
       sixes: dice === 6 ? sixes : 0,
       dice: null,
+      shown: dice,
     },
     moves: [],
     reason: dice === 6 ? "six_no_move" : "no_move",

@@ -331,24 +331,68 @@ class LudoHexBoard extends StatelessWidget {
           final centre = Offset(size / 2, size / 2);
           final tokenSize = radius * 0.17;
 
+          // Who is sharing a square — the same treatment as the cross board,
+          // and for the same reasons. Two of your own on one square are
+          // interchangeable, so they are drawn as one piece carrying a count;
+          // different colours sharing a safe square are fanned apart so each
+          // can be seen and tapped.
+          const spec = LudoBoardSpec.six;
+          String? spotOf(LudoColor c, int progress) {
+            if (progress == kLudoInYard || progress >= spec.home) return null;
+            final p = ludoHexTokenPoint(c, progress, 0, 1000);
+            return '${p.dx.round()}:${p.dy.round()}';
+          }
+
+          final sameColour = <String, List<int>>{};
+          final perSpot = <String, List<String>>{};
+          for (final colour in game.players) {
+            final ps = game.positions[colour]!;
+            for (var j = 0; j < ps.length; j++) {
+              final spot = spotOf(colour, ps[j]);
+              if (spot == null) continue;
+              final mine = '$spot:${colour.name}';
+              sameColour.putIfAbsent(mine, () => <int>[]).add(j);
+              if (!perSpot.putIfAbsent(spot, () => <String>[]).contains(mine)) {
+                perSpot[spot]!.add(mine);
+              }
+            }
+          }
+
           final tokens = <Widget>[];
           for (final colour in game.players) {
             final mine = game.positions[colour]!;
             for (var i = 0; i < mine.length; i++) {
-              final pos =
-                  centre + ludoHexTokenPoint(colour, mine[i], i, radius);
+              var pos = centre + ludoHexTokenPoint(colour, mine[i], i, radius);
+              var size = tokenSize;
+              var stacked = 1;
+              final spot = spotOf(colour, mine[i]);
+              if (spot != null) {
+                final group = sameColour['$spot:${colour.name}']!;
+                if (group.first != i) continue; // drawn by the lowest index
+                stacked = group.length;
+
+                final colours = perSpot[spot]!;
+                if (colours.length > 1) {
+                  final n = colours.length;
+                  final k = colours.indexOf('$spot:${colour.name}');
+                  final spread = (k - (n - 1) / 2) * tokenSize * 0.62;
+                  pos += Offset(spread, -spread.abs() * 0.30);
+                  size = tokenSize * (n > 2 ? 0.64 : 0.80);
+                }
+              }
               final move = moves.cast<LudoMove?>().firstWhere(
                 (m) => m!.color == colour && m.tokenIndex == i,
                 orElse: () => null,
               );
               tokens.add(
                 Positioned(
-                  left: pos.dx - tokenSize / 2,
-                  top: pos.dy - tokenSize / 2,
-                  width: tokenSize,
-                  height: tokenSize,
+                  left: pos.dx - size / 2,
+                  top: pos.dy - size / 2,
+                  width: size,
+                  height: size,
                   child: _HexToken(
                     color: colour,
+                    stacked: stacked,
                     playable: move != null,
                     onTap: move == null ? null : () => onMove?.call(move),
                   ),
@@ -379,11 +423,19 @@ class LudoHexBoard extends StatelessWidget {
 }
 
 class _HexToken extends StatelessWidget {
-  const _HexToken({required this.color, required this.playable, this.onTap});
+  const _HexToken({
+    required this.color,
+    required this.playable,
+    this.onTap,
+    this.stacked = 1,
+  });
 
   final LudoColor color;
   final bool playable;
   final VoidCallback? onTap;
+
+  /// How many of this colour stand here. See _Token on the cross board.
+  final int stacked;
 
   @override
   Widget build(BuildContext context) {
@@ -405,7 +457,24 @@ class _HexToken extends StatelessWidget {
           ),
           // Only the glossy piece wears a specular dot; on a flat or ring
           // token it would read as a smudge.
-          child: ludoTokenHasHighlight(skin)
+          child: stacked > 1
+              ? Center(
+                  child: FittedBox(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.xs),
+                      child: Text(
+                        '$stacked',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 40,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              : ludoTokenHasHighlight(skin)
               ? FractionallySizedBox(
                   widthFactor: 0.3,
                   heightFactor: 0.3,

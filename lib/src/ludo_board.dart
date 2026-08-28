@@ -569,8 +569,45 @@ class _LudoBoardState extends State<LudoBoard>
               animation: _c,
               builder: (context, _) {
                 final tokens = <Widget>[];
-                // Finished tokens are stacked in the centre so a player can see
-                // how many they have brought home at a glance.
+
+                // Who is sharing a square with whom.
+                //
+                // A cell can hold more than one piece: opponents have always
+                // been able to sit together on a safe square, and now two of
+                // your OWN may stand anywhere together, which is what lets a
+                // six open the yard while your first token is on the start.
+                // Drawn at the same coordinates they land exactly on top of
+                // each other — the lower piece invisible, and worse,
+                // untappable, so the move it offers cannot be played.
+                //
+                // Two tokens of the SAME colour on the same square are
+                // interchangeable: same colour, same square, therefore the
+                // same legal moves, so it makes no difference which one you
+                // move. They are drawn as one piece carrying a count, which is
+                // both clearer and how every Ludo app shows a double. Pieces
+                // of DIFFERENT colours sharing a safe square are fanned out
+                // instead, because those are genuinely different pieces.
+                final sameColour = <String, List<String>>{};
+                final perCell = <String, List<String>>{};
+                for (final colour in widget.game.players) {
+                  final ps = _shown[colour] ?? widget.game.positions[colour]!;
+                  for (var j = 0; j < ps.length; j++) {
+                    if (flying.containsKey('${colour.name}:$j')) continue;
+                    final cell = ludoCellFor(colour, ps[j], j);
+                    if (cell == null) continue;
+                    final at = '${cell.row}:${cell.col}';
+                    final mine = '$at:${colour.name}';
+                    sameColour
+                        .putIfAbsent(mine, () => <String>[])
+                        .add('${colour.name}:$j');
+                    if (!perCell.putIfAbsent(at, () => <String>[]).contains(mine)) {
+                      perCell[at]!.add(mine);
+                    }
+                  }
+                }
+
+                // Finished tokens are stacked in the centre so a player can
+                // see how many they have brought home at a glance.
                 final homeTally = <LudoColor, int>{};
 
                 for (final color in widget.game.players) {
@@ -627,14 +664,42 @@ class _LudoBoardState extends State<LudoBoard>
                         ? 0.0
                         : math.sin(_c.value * math.pi) * u * 0.18;
 
+                    // One piece per colour per square, carrying how many of
+                    // that colour stand there; colours sharing a square are
+                    // fanned so each can be seen and tapped.
+                    var share = Offset.zero;
+                    var scale = 1.0;
+                    var stacked = 1;
+                    if (flight == null) {
+                      final cell = ludoCellFor(color, list[i], i);
+                      if (cell != null) {
+                        final at = '${cell.row}:${cell.col}';
+                        final mine = '$at:${color.name}';
+                        final ofColour = sameColour[mine]!;
+                        // Drawn once, by the lowest token index standing here.
+                        if (ofColour.first != key) continue;
+                        stacked = ofColour.length;
+
+                        final colours = perCell[at]!;
+                        if (colours.length > 1) {
+                          final n = colours.length;
+                          final k = colours.indexOf(mine);
+                          final spread = (k - (n - 1) / 2) * u * 0.30;
+                          share = Offset(spread, -spread.abs() * 0.30);
+                          scale = n > 2 ? 0.62 : 0.78;
+                        }
+                      }
+                    }
+
                     tokens.add(
                       Positioned(
-                        left: pos.dx,
-                        top: pos.dy - lift,
-                        width: u,
-                        height: u,
+                        left: pos.dx + share.dx + u * (1 - scale) / 2,
+                        top: pos.dy - lift + share.dy + u * (1 - scale) / 2,
+                        width: u * scale,
+                        height: u * scale,
                         child: _Token(
                           color: color,
+                          stacked: stacked,
                           // A token in flight is not tappable — a second tap
                           // mid-animation would play a move against a board the
                           // player can no longer see.
@@ -684,11 +749,21 @@ class _LudoBoardState extends State<LudoBoard>
 }
 
 class _Token extends StatelessWidget {
-  const _Token({required this.color, required this.playable, this.onTap});
+  const _Token({
+    required this.color,
+    required this.playable,
+    this.onTap,
+    this.stacked = 1,
+  });
 
   final LudoColor color;
   final bool playable;
   final VoidCallback? onTap;
+
+  /// How many of this colour stand on this square. Two of your own on one
+  /// square are interchangeable — same colour, same square, same moves — so
+  /// they are one piece wearing a number rather than two pieces overlapping.
+  final int stacked;
 
   @override
   Widget build(BuildContext context) {
@@ -707,9 +782,28 @@ class _Token extends StatelessWidget {
               playable: playable,
               skin: skin,
             ),
-            // Only the glossy piece wears a specular dot; on a flat or ring
-            // token it would read as a smudge.
-            child: ludoTokenHasHighlight(skin)
+            child: stacked > 1
+                // The count replaces the highlight rather than sitting beside
+                // it: at this size the piece has room for one mark.
+                ? Center(
+                    child: FittedBox(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.xs),
+                        child: Text(
+                          '$stacked',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 40,
+                            height: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                // Only the glossy piece wears a specular dot; on a flat or
+                // ring token it would read as a smudge.
+                : ludoTokenHasHighlight(skin)
                 ? FractionallySizedBox(
                     widthFactor: 0.3,
                     heightFactor: 0.3,

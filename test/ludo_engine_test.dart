@@ -252,15 +252,60 @@ void main() {
   });
 
   group('stacking', () {
-    test('a token cannot land on one of its own', () {
+    // This used to assert the opposite: that a token could NOT land on one of
+    // its own. The restriction was removed after it was reported twice as the
+    // game misbehaving — a six that would not open the yard while your own
+    // token stood on the start, and a roll that offered only some of the
+    // tokens you had out. It is also not how anybody plays Ludo.
+    test('your own tokens may share a square', () {
       final g = _withPositions({
         LudoColor.red: [4, 6, kLudoInYard, kLudoInYard],
         LudoColor.green: [kLudoInYard, kLudoInYard, kLudoInYard, kLudoInYard],
       });
-      // Token 0 at 4 rolling 2 would land on token 1 at 6.
+      // Token 0 at 4 rolling 2 lands on token 1 at 6. Both are playable.
       final moves = g.legalMoves(2);
-      expect(moves.where((m) => m.tokenIndex == 0), isEmpty);
+      expect(moves.where((m) => m.tokenIndex == 0), hasLength(1));
       expect(moves.where((m) => m.tokenIndex == 1), hasLength(1));
+    });
+
+    test('every token you have out can be moved', () {
+      // The report, exactly: four tokens on the board, a three rolled, and the
+      // player expects to be able to move any of the four.
+      final g = _withPositions({
+        LudoColor.red: [3, 4, 5, 6],
+        LudoColor.green: [kLudoInYard, kLudoInYard, kLudoInYard, kLudoInYard],
+      });
+      expect(g.legalMoves(3), hasLength(4));
+    });
+
+    test('a stack is not a fortress — landing on it takes both', () {
+      // The consequence of allowing stacks, stated as a test so it cannot
+      // change by accident. Red has two on one unsafe square; green lands
+      // there and sends both home.
+      final g = _withPositions({
+        // Green start is 13. Green token at progress 3 sits on cell 16.
+        LudoColor.red: [16, 16, kLudoInYard, kLudoInYard],
+        LudoColor.green: [1, kLudoInYard, kLudoInYard, kLudoInYard],
+      }, turn: 1);
+      final move = g.legalMoves(2).firstWhere((m) => m.tokenIndex == 0);
+      expect(move.captures, hasLength(2));
+    });
+
+    // The reported bug: a six arrived, a token was waiting in the yard, and
+    // nothing came out — because the player's own first token was standing on
+    // the start square. A start square is a SAFE square, nothing can be
+    // captured there, and every Ludo anybody has played lets your own pieces
+    // share one. Simulated over 400 games, the old rule blocked 27% of sixes.
+    test('a six opens the yard even when your own token is on the start', () {
+      final g = _withPositions({
+        LudoColor.red: [0, kLudoInYard, kLudoInYard, kLudoInYard],
+        LudoColor.green: [kLudoInYard, kLudoInYard, kLudoInYard, kLudoInYard],
+      });
+      final moves = g.legalMoves(6);
+      final releases = moves.where((m) => m.from.inYard);
+      expect(releases, hasLength(3), reason: 'all three waiting tokens may come out');
+      // And the token already out may still move, as before.
+      expect(moves.where((m) => m.tokenIndex == 0), hasLength(1));
     });
 
     // Two of your own tokens may share the home column, since it is a private

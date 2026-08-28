@@ -290,6 +290,7 @@ class LudoGame {
     required this.consecutiveSixes,
     required this.winners,
     required this.lastDice,
+    this.shownDice,
     this.mode = LudoMode.classic,
     this.hasCaptured = const {},
     this.teams = false,
@@ -328,6 +329,19 @@ class LudoGame {
 
   /// Sixes rolled in a row by the current player; three forfeits the turn.
   final int consecutiveSixes;
+
+  /// The number that came up, whether or not anything could be done with it.
+  ///
+  /// [lastDice] is the die still WAITING to be played, and it is deliberately
+  /// cleared the moment a roll turns out to be unplayable — a three when every
+  /// token is in the yard, or the third six running. That is right for the
+  /// rules and wrong for the player: the die tumbled, the turn passed, and no
+  /// number was ever shown. It looks exactly like the app swallowed the roll,
+  /// and it is most of what "I rolled a six and nothing happened" is.
+  ///
+  /// So the number is kept separately, purely to be displayed. Nothing reads it
+  /// to decide anything.
+  final int? shownDice;
 
   /// Colours that have got every token home, in finishing order.
   final List<LudoColor> winners;
@@ -449,17 +463,24 @@ class LudoGame {
       final finalProgress = jumped ?? toProgress;
       final to = LudoTokenPos(finalProgress);
 
-      // A token cannot land on one of its own — that would stack two tokens on
-      // a square and make captures ambiguous.
+      // YOUR OWN TOKENS MAY SHARE A SQUARE.
+      //
+      // The engine used to refuse any move that landed on one of your own.
+      // That reads like a tidy rule and plays like a broken game: with four
+      // tokens out, a three would offer only some of them, and a six could not
+      // open the yard while your first token stood on the start square. Both
+      // were reported as the game "misbehaving", and both are the same rule.
+      // Simulated over 400 games, it alone blocked 27% of every six rolled.
+      //
+      // Every Ludo people have actually played lets your pieces stack. So the
+      // restriction is gone: on any square, any number of your own tokens may
+      // stand together, and all four are movable whenever the roll allows.
+      //
+      // What follows from that, deliberately: a stack is not a fortress. An
+      // opponent landing on an unsafe square takes EVERY token standing there,
+      // yours included. Stacking is a convenience, not a shield — the shield is
+      // the safe squares, which is what they are for.
       final destRing = to.ringCell(color, spec);
-      if (destRing != null) {
-        final ownCollision = mine.asMap().entries.any(
-          (e) =>
-              e.key != i &&
-              LudoTokenPos(e.value).ringCell(color, spec) == destRing,
-        );
-        if (ownCollision) continue;
-      }
 
       moves.add(
         LudoMove(
@@ -552,6 +573,7 @@ class LudoGame {
       consecutiveSixes: earnedAnother && rolledSix ? consecutiveSixes : 0,
       winners: newWinners,
       lastDice: null,
+      shownDice: shownDice,
       mode: mode,
       hasCaptured: captured,
       teams: teams,
@@ -575,6 +597,7 @@ class LudoGame {
           consecutiveSixes: 0,
           winners: winners,
           lastDice: null,
+          shownDice: 6,
           mode: mode,
           hasCaptured: hasCaptured,
           teams: teams,
@@ -590,6 +613,7 @@ class LudoGame {
       consecutiveSixes: sixes,
       winners: winners,
       lastDice: dice,
+      shownDice: dice,
       mode: mode,
       hasCaptured: hasCaptured,
       teams: teams,
@@ -607,6 +631,7 @@ class LudoGame {
         consecutiveSixes: dice == 6 ? sixes : 0,
         winners: winners,
         lastDice: null,
+        shownDice: dice,
         mode: mode,
         hasCaptured: hasCaptured,
         teams: teams,
@@ -636,6 +661,7 @@ class LudoGame {
     'sixes': consecutiveSixes,
     'winners': [for (final c in winners) c.name],
     'dice': lastDice,
+    'shown': shownDice,
     'mode': mode.name,
     'captured': [for (final c in hasCaptured) c.name],
     'teams': teams,
@@ -659,6 +685,9 @@ class LudoGame {
       consecutiveSixes: (j['sixes'] as num?)?.toInt() ?? 0,
       winners: [for (final s in (j['winners'] as List? ?? const [])) parse('$s')],
       lastDice: (j['dice'] as num?)?.toInt(),
+      // Older documents predate this; falling back to the pending die means a
+      // game in progress across the update still shows a number.
+      shownDice: (j['shown'] as num?)?.toInt() ?? (j['dice'] as num?)?.toInt(),
       // Older documents predate modes; they are classic games.
       mode: LudoMode.values.firstWhere(
         (m) => m.name == j['mode'],

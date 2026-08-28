@@ -146,13 +146,40 @@ t("home must be reached exactly", () => {
   assert.strictEqual(legalMoves(s, 6).filter((m) => m.tokenIndex === 0).length, 0);
 });
 
-t("a token cannot land on one of its own", () => {
+t("your own tokens may share a square", () => {
+  // This used to assert the opposite. The restriction was removed because it
+  // made the game misbehave in two reported ways: a six could not open the
+  // yard while your own token stood on the start, and with tokens out a roll
+  // offered only some of them.
   const s = stateWith({
     red: [4, 6, IN_YARD, IN_YARD],
     green: [IN_YARD, IN_YARD, IN_YARD, IN_YARD],
   });
-  assert.strictEqual(legalMoves(s, 2).filter((m) => m.tokenIndex === 0).length, 0);
+  assert.strictEqual(legalMoves(s, 2).filter((m) => m.tokenIndex === 0).length, 1);
   assert.strictEqual(legalMoves(s, 2).filter((m) => m.tokenIndex === 1).length, 1);
+});
+
+t("every token out is a token that can be moved", () => {
+  // The second report, exactly: four tokens on the board, a three rolled, and
+  // the player expects a choice of four.
+  const s = stateWith({
+    red: [3, 4, 5, 6],
+    green: [IN_YARD, IN_YARD, IN_YARD, IN_YARD],
+  });
+  assert.strictEqual(legalMoves(s, 3).length, 4);
+});
+
+t("a six opens the yard even when your own token is on the start", () => {
+  // The reported bug, on the server side: the start square is safe, so your
+  // own pieces may share it. Must match LudoGame.legalMoves exactly — if the
+  // server refuses what the phone offers, the move silently fails.
+  const s = stateWith({
+    red: [0, IN_YARD, IN_YARD, IN_YARD],
+    green: [IN_YARD, IN_YARD, IN_YARD, IN_YARD],
+  });
+  const m = legalMoves(s, 6);
+  assert.strictEqual(m.filter((x) => x.from === IN_YARD).length, 3);
+  assert.strictEqual(m.filter((x) => x.tokenIndex === 0).length, 1);
 });
 
 // -- the six rule ------------------------------------------------------------

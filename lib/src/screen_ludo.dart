@@ -1688,7 +1688,13 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
             children: [
               // Tapping the die rolls, which is what a player reaches for first.
               LudoDice(
-                value: dice,
+                // The number that CAME UP, not only the one still waiting to
+                // be played. They differ whenever a roll turns out to be
+                // unplayable — a three with everything in the yard, the third
+                // six running — and in those cases `dice` is already null, so
+                // the die used to end its tumble showing nothing at all and
+                // the turn passed with the player never seeing their roll.
+                value: dice ?? room.game.shownDice,
                 rolling: _busy,
                 enabled: myTurn && dice == null,
                 onTap: _roll,

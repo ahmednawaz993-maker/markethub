@@ -19,19 +19,20 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    // One token of each colour out on the ring, one part-way home, two still in
-    // the yard — so the picture shows every state a token can be in.
-    final spec = LudoBoardSpec.six;
+    // Deliberately includes a SHARED square: two of each colour stand together
+    // on their own start. That is legal now — your own tokens may stack — and
+    // it is the case a picture has to guard, because two pieces drawn at one
+    // point land exactly on top of each other and the buried one is not only
+    // invisible but untappable, so the move it offers cannot be played.
+    //
+    // Also one token part-way down the home column and one still waiting, so
+    // every state a token can be in appears.
+    const spec = LudoBoardSpec.six;
     final game = LudoGame(
       players: spec.colours,
       positions: {
-        for (var i = 0; i < spec.seats; i++)
-          spec.colours[i]: [
-            spec.startCellOf(spec.colours[i]),
-            spec.lastRingStep + 2,
-            kLudoInYard,
-            kLudoInYard,
-          ],
+        for (final c in spec.colours)
+          c: [0, 0, spec.lastRingStep + 2, kLudoInYard],
       },
       turn: 0,
       consecutiveSixes: 0,
