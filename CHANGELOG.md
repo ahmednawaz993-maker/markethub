@@ -11,6 +11,12 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.87] — 2026-08-28
+
+- Collections. Four dice (Ivory, Gold, Onyx, Jade) and four pieces (Classic,
+  Flat, Ring, Gem) join the four boards, picked from one sheet and mixed
+  freely. Your seat colour never changes — only how things look.
+
 ## [1.0.86] — 2026-08-28
 
 - Six-player games online. Creating a table now asks for four players or six,

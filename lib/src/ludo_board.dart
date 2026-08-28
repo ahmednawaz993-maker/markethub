@@ -682,60 +682,35 @@ class _Token extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = ludoColorOf(color);
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.all(2),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            // A radial gradient lit from the upper left is the whole difference
-            // between a coloured dot and a counter you could pick up.
-            gradient: RadialGradient(
-              center: const Alignment(-0.4, -0.5),
-              radius: 0.95,
-              colors: [
-                Color.lerp(c, Colors.white, 0.5)!,
-                c,
-                Color.lerp(c, Colors.black, 0.3)!,
-              ],
-              stops: const [0.0, 0.55, 1.0],
+    return ValueListenableBuilder<LudoTokenSkin>(
+      valueListenable: ludoTokenSkin,
+      builder: (context, skin, _) => GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.all(2),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            decoration: ludoTokenDecoration(
+              colour: c,
+              playable: playable,
+              skin: skin,
             ),
-            border: Border.all(
-              color: playable
-                  ? Colors.white
-                  : Colors.white.withValues(alpha: 0.75),
-              width: playable ? 2.4 : 1.4,
-            ),
-            boxShadow: [
-              // Every piece casts a small shadow, so it sits ON the board.
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.28),
-                blurRadius: 3,
-                offset: const Offset(0, 1.5),
-              ),
-              // A playable piece also glows in its own colour.
-              if (playable)
-                BoxShadow(
-                  color: c.withValues(alpha: 0.65),
-                  blurRadius: 10,
-                  spreadRadius: 1.5,
-                ),
-            ],
-          ),
-          // Specular highlight.
-          child: FractionallySizedBox(
-            widthFactor: 0.3,
-            heightFactor: 0.3,
-            alignment: const Alignment(-0.45, -0.55),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.55),
-              ),
-            ),
+            // Only the glossy piece wears a specular dot; on a flat or ring
+            // token it would read as a smudge.
+            child: ludoTokenHasHighlight(skin)
+                ? FractionallySizedBox(
+                    widthFactor: 0.3,
+                    heightFactor: 0.3,
+                    alignment: const Alignment(-0.45, -0.55),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.55),
+                      ),
+                    ),
+                  )
+                : null,
           ),
         ),
       ),

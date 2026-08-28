@@ -15,12 +15,18 @@ class LudoDieFace extends StatelessWidget {
     required this.value,
     this.size = 52,
     this.color,
+    this.skin,
   });
 
   /// 1..6, or null before the first roll.
   final int? value;
   final double size;
   final Color? color;
+
+  /// The chosen dice from the collection. Passed explicitly by the picker so a
+  /// preview can show a skin that is not the current one; everywhere else it
+  /// falls back to whatever the player has selected.
+  final LudoDiceSkin? skin;
 
   /// Pip layout per face, in a 3x3 grid indexed 0..8.
   static const Map<int, List<int>> _pips = {
@@ -34,16 +40,31 @@ class LudoDieFace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Listens when no skin was passed in, so changing the collection repaints
+    // the die a player is looking at rather than waiting for the next rebuild.
+    //
+    // It builds the FACE rather than another LudoDieFace: a widget that renders
+    // itself would put two of them in the tree, which is confusing to reason
+    // about and breaks any finder looking for exactly one.
+    final given = skin;
+    if (given != null) return _face(given);
+    return ValueListenableBuilder<LudoDiceSkin>(
+      valueListenable: ludoDiceSkin,
+      builder: (context, s, _) => _face(s),
+    );
+  }
+
+  Widget _face(LudoDiceSkin chosen) {
     final on = _pips[value] ?? const <int>[];
-    final ink = color ?? AppColors.textPrimary;
+    final ink = color ?? chosen.pip;
     return Container(
       width: size,
       height: size,
       padding: EdgeInsets.all(size * 0.16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: chosen.face,
         borderRadius: BorderRadius.circular(size * 0.22),
-        border: Border.all(color: AppColors.borderSoft),
+        border: Border.all(color: chosen.edge),
         boxShadow: AppShadow.card,
       ),
       child: value == null
@@ -52,7 +73,7 @@ class LudoDieFace extends StatelessWidget {
                 '–',
                 style: TextStyle(
                   fontSize: size * 0.4,
-                  color: AppColors.textMuted,
+                  color: chosen.pip.withValues(alpha: 0.45),
                 ),
               ),
             )

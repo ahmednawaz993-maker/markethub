@@ -511,10 +511,10 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
             },
           ),
           IconButton(
-            tooltip: 'Board',
+            tooltip: "Collection",
             onPressed: () => showModalBottomSheet<void>(
               context: context,
-              builder: (_) => const LudoThemeSheet(),
+              builder: (_) => const LudoCollectionSheet(),
             ),
             icon: const Icon(Icons.palette_outlined),
           ),
@@ -1219,7 +1219,7 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
                   } else if (v == 'board') {
                     showModalBottomSheet<void>(
                       context: context,
-                      builder: (_) => const LudoThemeSheet(),
+                      builder: (_) => const LudoCollectionSheet(),
                     );
                   } else if (v == 'leave') {
                     _confirmLeave(room);
@@ -1252,7 +1252,7 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
                     child: ListTile(
                       dense: true,
                       leading: Icon(Icons.palette_outlined),
-                      title: Text('Change board'),
+                      title: Text("Collection"),
                     ),
                   ),
                   if (room.colorOf(_uid) != null &&

@@ -102,6 +102,7 @@ part 'src/prayer_times.dart';
 part 'src/screen_islamic.dart';
 part 'src/ludo_engine.dart';
 part 'src/ludo_themes.dart';
+part 'src/ludo_collections.dart';
 part 'src/ludo_board.dart';
 part 'src/ludo_hex_board.dart';
 part 'src/ludo_dice.dart';
@@ -127,6 +128,7 @@ Future<void> main() async {
   // the first URL — the shared link that brought the visitor here — is lost.
   configureUrlStrategy();
   unawaited(loadLudoTheme());
+  unawaited(loadLudoCollections());
 
   // The app now sits on a clean white marketplace surface, so the system bars
   // use DARK icons over a light background. (Screens with a dark hero, e.g. the

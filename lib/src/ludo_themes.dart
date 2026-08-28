@@ -126,25 +126,37 @@ class LudoThemeSheet extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(
-            height: 116,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              itemCount: LudoTheme.all.length,
-              separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.md),
-              itemBuilder: (context, i) {
-                final t = LudoTheme.all[i];
-                return _ThemeSwatch(
-                  theme: t,
-                  selected: t.id == current.id,
-                  onTap: () => setLudoTheme(t),
-                );
-              },
-            ),
-          ),
+          const LudoThemeStrip(),
           const SizedBox(height: AppSpacing.lg),
         ],
+      ),
+    ),
+  );
+}
+
+/// The row of board choices. Its own widget so the collection sheet and this
+/// one cannot drift apart.
+class LudoThemeStrip extends StatelessWidget {
+  const LudoThemeStrip({super.key});
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 116,
+    child: ValueListenableBuilder<LudoTheme>(
+      valueListenable: ludoTheme,
+      builder: (context, current, _) => ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        itemCount: LudoTheme.all.length,
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.md),
+        itemBuilder: (context, i) {
+          final t = LudoTheme.all[i];
+          return _ThemeSwatch(
+            theme: t,
+            selected: t.id == current.id,
+            onTap: () => setLudoTheme(t),
+          );
+        },
       ),
     ),
   );

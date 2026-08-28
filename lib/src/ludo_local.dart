@@ -271,10 +271,10 @@ class _LudoLocalGameScreenState extends State<LudoLocalGameScreen> {
           ),
           actions: [
             IconButton(
-              tooltip: 'Board',
+              tooltip: "Collection",
               onPressed: () => showModalBottomSheet<void>(
                 context: context,
-                builder: (_) => const LudoThemeSheet(),
+                builder: (_) => const LudoCollectionSheet(),
               ),
               icon: const Icon(Icons.palette_outlined),
             ),

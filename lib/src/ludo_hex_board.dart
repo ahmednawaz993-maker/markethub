@@ -288,7 +288,10 @@ class LudoHexBoardPainter extends CustomPainter {
     for (var i = 0; i < 10; i++) {
       final radius = i.isEven ? r : r * 0.45;
       final a = -math.pi / 2 + i * math.pi / 5;
-      final p = Offset(c.dx + radius * math.cos(a), c.dy + radius * math.sin(a));
+      final p = Offset(
+        c.dx + radius * math.cos(a),
+        c.dy + radius * math.sin(a),
+      );
       i == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
     }
     path.close();
@@ -332,7 +335,8 @@ class LudoHexBoard extends StatelessWidget {
           for (final colour in game.players) {
             final mine = game.positions[colour]!;
             for (var i = 0; i < mine.length; i++) {
-              final pos = centre + ludoHexTokenPoint(colour, mine[i], i, radius);
+              final pos =
+                  centre + ludoHexTokenPoint(colour, mine[i], i, radius);
               final move = moves.cast<LudoMove?>().firstWhere(
                 (m) => m!.color == colour && m.tokenIndex == i,
                 orElse: () => null,
@@ -375,11 +379,7 @@ class LudoHexBoard extends StatelessWidget {
 }
 
 class _HexToken extends StatelessWidget {
-  const _HexToken({
-    required this.color,
-    required this.playable,
-    this.onTap,
-  });
+  const _HexToken({required this.color, required this.playable, this.onTap});
 
   final LudoColor color;
   final bool playable;
@@ -388,39 +388,36 @@ class _HexToken extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = ludoColorOf(color);
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            center: const Alignment(-0.4, -0.5),
-            radius: 0.95,
-            colors: [
-              Color.lerp(c, Colors.white, 0.5)!,
-              c,
-              Color.lerp(c, Colors.black, 0.3)!,
-            ],
-            stops: const [0.0, 0.55, 1.0],
+    return ValueListenableBuilder<LudoTokenSkin>(
+      valueListenable: ludoTokenSkin,
+      builder: (context, skin, _) => GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        // No inset here: hexagon tokens are positioned and sized exactly by
+        // the layout, so padding them would shrink the piece rather than space
+        // it. The cross board pads because its tokens fill a grid cell.
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          decoration: ludoTokenDecoration(
+            colour: c,
+            playable: playable,
+            skin: skin,
           ),
-          border: Border.all(
-            color: playable ? Colors.white : Colors.white.withValues(alpha: 0.7),
-            width: playable ? 2.2 : 1.2,
-          ),
-          boxShadow: [
-            const BoxShadow(
-              color: Color(0x47000000),
-              blurRadius: 3,
-              offset: Offset(0, 1.5),
-            ),
-            if (playable)
-              BoxShadow(
-                color: c.withValues(alpha: 0.65),
-                blurRadius: 9,
-                spreadRadius: 1.5,
-              ),
-          ],
+          // Only the glossy piece wears a specular dot; on a flat or ring
+          // token it would read as a smudge.
+          child: ludoTokenHasHighlight(skin)
+              ? FractionallySizedBox(
+                  widthFactor: 0.3,
+                  heightFactor: 0.3,
+                  alignment: const Alignment(-0.45, -0.55),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.55),
+                    ),
+                  ),
+                )
+              : null,
         ),
       ),
     );
