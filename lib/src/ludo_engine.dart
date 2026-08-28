@@ -186,6 +186,39 @@ enum LudoMode {
   final bool arrows;
 }
 
+/// Picks a move the way the server's bot does.
+///
+/// A DELIBERATE MIRROR of chooseBotMove in functions/ludo_logic.js, scoring
+/// included. It is used for auto-play — the toggle that plays your turns while
+/// you watch — and keeping it identical to the server means a player who turns
+/// auto-play on gets the same decisions the computer would have made for them
+/// on timeout. Two different rankings would mean the board played differently
+/// depending on whether you were connected, which is exactly the kind of
+/// inconsistency nobody can report usefully.
+///
+/// Not a search. Ludo is mostly dice; a deep search would win too often to be
+/// fun, and the obvious move is what a person expects to see played.
+/// Order: take a capture, bring a token home, leave the yard, reach safety,
+/// otherwise push the leading token on.
+LudoMove? chooseLudoMove(LudoColor color, List<LudoMove> moves) {
+  if (moves.isEmpty) return null;
+  LudoMove? best;
+  var bestScore = double.negativeInfinity;
+  for (final m in moves) {
+    var score = m.captures.length * 100.0;
+    if (m.to.isHome) score += 80;
+    if (m.from.inYard) score += 50;
+    final dest = m.to.ringCell(color);
+    if (dest != null && kLudoSafeCells.contains(dest)) score += 20;
+    score += m.to.progress / 2;
+    if (score > bestScore) {
+      bestScore = score;
+      best = m;
+    }
+  }
+  return best;
+}
+
 /// A complete game state. Immutable; every transition returns a new one.
 class LudoGame {
   const LudoGame({

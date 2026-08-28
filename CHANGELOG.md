@@ -11,6 +11,12 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.83] — 2026-08-28
+
+- Auto-play. Turn it on and your turns are rolled and played for you while you
+  watch. A banner across the board says it is running with a Stop button beside
+  it, and it is off again on your next game — it is never remembered.
+
 ## [1.0.82] — 2026-08-28
 
 - Leave a game in progress. A computer takes over your tokens so the other
