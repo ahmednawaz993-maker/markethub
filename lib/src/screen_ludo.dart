@@ -512,19 +512,41 @@ class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
       // "Play now" is the primary action, and it is one tap. Choosing a mode,
       // waiting for a stranger and pressing Start were three decisions asked of
       // someone who wanted to play Ludo.
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _matching ? null : () => _playNow(context),
-        icon: _matching
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : const Icon(Icons.play_arrow),
-        label: Text(_matching ? 'Finding a game…' : 'Play now'),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // A great deal of Ludo is played by people sitting together, and none
+          // of the online machinery helps them. This needs no connection at all.
+          FloatingActionButton.extended(
+            heroTag: 'ludo-local',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const LudoLocalSetupScreen()),
+            ),
+            backgroundColor: AppColors.surfaceVariant,
+            foregroundColor: AppColors.textPrimary,
+            elevation: 1,
+            icon: const Icon(Icons.people_outline, size: 18),
+            label: const Text('Pass and play'),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          FloatingActionButton.extended(
+            heroTag: 'ludo-online',
+            onPressed: _matching ? null : () => _playNow(context),
+            icon: _matching
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.play_arrow),
+            label: Text(_matching ? 'Finding a game…' : 'Play now'),
+          ),
+        ],
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _ludoCol()

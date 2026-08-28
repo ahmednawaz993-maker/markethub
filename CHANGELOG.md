@@ -11,6 +11,13 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.84] — 2026-08-28
+
+- Pass and play. Two to four people on one phone, no internet and no sign-in
+  needed — pick the players, name them if you like, and hand the phone round.
+  All four gameplays work offline. Local games are unranked: they pay no coins
+  and do not appear on the leaderboard.
+
 ## [1.0.83] — 2026-08-28
 
 - Auto-play. Turn it on and your turns are rolled and played for you while you
