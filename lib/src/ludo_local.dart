@@ -194,9 +194,10 @@ class _LudoLocalGameScreenState extends State<LudoLocalGameScreen> {
     if (_rolling || _game.lastDice != null || _game.isDecided) return;
     setState(() => _rolling = true);
     GameSoundPlayer.instance.play(GameSound.dice);
-    // Long enough for the die to tumble; the animation is the feedback that a
-    // roll happened at all.
-    await Future<void>.delayed(const Duration(milliseconds: 550));
+    // Long enough for the die to tumble and settle before anything moves —
+    // and no longer. There is no server to wait for here, so every millisecond
+    // of this is a millisecond the player is watching a decision already made.
+    await Future<void>.delayed(const Duration(milliseconds: 320));
     if (!mounted) return;
     final result = _game.roll(_random.nextInt(6) + 1);
     setState(() {
@@ -207,7 +208,9 @@ class _LudoLocalGameScreenState extends State<LudoLocalGameScreen> {
     // A roll with nothing playable hands the turn on by itself — the engine has
     // already done that — so there is nothing to tap and nothing to explain.
     if (result.moves.length == 1) {
-      await Future<void>.delayed(const Duration(milliseconds: 350));
+      // Lets the die finish settling before the token starts, so the two
+      // animations read as one sequence rather than overlapping.
+      await Future<void>.delayed(const Duration(milliseconds: 160));
       if (mounted) _play(result.moves.first);
     }
   }

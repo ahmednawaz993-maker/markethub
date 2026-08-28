@@ -406,6 +406,19 @@ class LudoBoardPainter extends CustomPainter {
 /// only the board knows what actually changed. Diffing the incoming state means
 /// all three animate identically with no coordination between them.
 class LudoBoard extends StatefulWidget {
+  /// Timed per square, not per move — a six should visibly take longer than a
+  /// one, the way it does on a real board.
+  ///
+  /// Halved after players called the game slow. At 105ms a six took 630ms of
+  /// pure animation on top of a roll that already cost over a second; at 55ms
+  /// it is 330ms and still reads as a token walking rather than teleporting.
+  /// Public so the speed budget can be asserted — an animation that quietly
+  /// grows back is exactly how "it feels slow" returns.
+  static const Duration perStepDuration = Duration(milliseconds: 55);
+
+  /// A capture or a jump out of the yard: one smooth hop, not a walk.
+  static const Duration hopDuration = Duration(milliseconds: 170);
+
   const LudoBoard({
     super.key,
     required this.game,
@@ -456,10 +469,8 @@ class _LudoBoardState extends State<LudoBoard>
   Map<LudoColor, List<int>> _shown = {};
   List<_Flight> _flights = const [];
 
-  /// Timed per square, not per move — a six should visibly take longer than a
-  /// one, the way it does on a real board.
-  static const Duration _perStep = Duration(milliseconds: 105);
-  static const Duration _hop = Duration(milliseconds: 280);
+  static const Duration _perStep = LudoBoard.perStepDuration;
+  static const Duration _hop = LudoBoard.hopDuration;
 
   @override
   void initState() {

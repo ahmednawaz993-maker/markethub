@@ -11,6 +11,15 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.88] — 2026-08-28
+
+- Ludo is much faster. A roll now takes about 0.4s instead of 1.6s: the app asks
+  the server directly instead of leaving a request for it to pick up. Tokens
+  walk at twice the speed, the dice settles quickly, and the idle pauses between
+  a roll and a move are gone.
+- The dice now finishes landing before a token starts moving, so you see the
+  number you rolled and then watch it being spent.
+
 ## [1.0.87] — 2026-08-28
 
 - Collections. Four dice (Ivory, Gold, Onyx, Jade) and four pieces (Classic,

@@ -97,7 +97,11 @@ class GameSoundPlayer {
 
   /// Walks a token: one tick per square, spaced to match the board animation
   /// so the sound lands with each step rather than as a burst.
-  void walk(int squares, {Duration perStep = const Duration(milliseconds: 105)}) {
+  /// Must match _perStep in ludo_board.dart: a tick that lags the token reads
+  /// as an echo rather than a footstep.
+  static const Duration walkStepDefault = Duration(milliseconds: 55);
+
+  void walk(int squares, {Duration perStep = walkStepDefault}) {
     if (!gameSoundOn.value || squares <= 0) return;
     for (var i = 0; i < squares && i < 6; i++) {
       Future.delayed(perStep * i, () => play(GameSound.move));

@@ -8,7 +8,17 @@ part of '../main.dart';
 // settles on whatever came back. It never invents a value, not even for a frame
 // after the real one is known.
 
-/// A dice face drawn as pips, so it reads at any size and needs no asset.
+//// How long the die takes to land once the number is known.
+///
+/// Public because the board waits for it before moving a token: the player
+/// should see the number, then watch it being spent. Two constants drifting
+/// apart is how animations end up overlapping.
+const Duration kLudoDiceSettle = Duration(milliseconds: 130);
+
+/// How fast the faces change while the die is tumbling.
+const Duration kLudoDiceTumbleFrame = Duration(milliseconds: 60);
+
+// A dice face drawn as pips, so it reads at any size and needs no asset.
 class LudoDieFace extends StatelessWidget {
   const LudoDieFace({
     super.key,
@@ -129,7 +139,7 @@ class _LudoDiceState extends State<LudoDice>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 600),
+    duration: const Duration(milliseconds: 360),
   );
   final _rng = math.Random();
   Timer? _shuffle;
@@ -152,7 +162,9 @@ class _LudoDiceState extends State<LudoDice>
     _c.repeat();
     // Faces change on their own timer rather than off the animation value, so
     // the tumble does not visibly sync with the spin and look mechanical.
-    _shuffle = Timer.periodic(const Duration(milliseconds: 80), (_) {
+    // ~60ms a face: fast enough to read as a tumble rather than a slideshow,
+    // and about six faces go by in the time the server takes to answer.
+    _shuffle = Timer.periodic(kLudoDiceTumbleFrame, (_) {
       if (mounted) setState(() => _face = 1 + _rng.nextInt(6));
     });
   }
@@ -162,7 +174,9 @@ class _LudoDiceState extends State<LudoDice>
     _shuffle = null;
     _c.stop();
     // A short settle so the final face arrives with a bounce rather than a cut.
-    _c.duration = const Duration(milliseconds: 260);
+    // Kept brief: this is time the player waits AFTER the answer is already
+    // known, which is the most expensive kind of animation there is.
+    _c.duration = kLudoDiceSettle;
     _c.forward(from: 0);
   }
 

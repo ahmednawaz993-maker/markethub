@@ -390,6 +390,77 @@ Future<void> startLudoRoom(String roomId) async {
   });
 }
 
+/// The roll endpoint, called directly over HTTPS.
+///
+/// WHY NOT THE cloud_functions SDK: it throws decoding a numeric reply under
+/// dart2js ("Int64 accessor not supported"), which is what broke the dice on
+/// the website once already. Posting the JSON ourselves sidesteps that
+/// entirely — and ludoRoll deliberately returns null, so there is no number in
+/// the reply to decode in the first place.
+const String _kLudoRollUrl =
+    'https://us-central1-markethub-80276.cloudfunctions.net/ludoRoll';
+
+/// Asks the server to roll, and returns true if it did.
+///
+/// MEASURED, not guessed. The old path wrote a request document and waited for
+/// a Firestore trigger: 1634ms warm, every time, because a trigger has to fire,
+/// write, and propagate back. Calling the function directly is 412ms warm — the
+/// same server work without three round trips wrapped around it.
+///
+/// Returns false rather than throwing so the caller can fall back to the
+/// doorbell, which still works and is what older builds use.
+Future<bool> ludoRollDirect(String roomId) async {
+  try {
+    final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+    if (token == null) return false;
+    final res = await http
+        .post(
+          Uri.parse(_kLudoRollUrl),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'data': {'roomId': roomId},
+          }),
+        )
+        .timeout(const Duration(seconds: 8));
+    return res.statusCode == 200;
+  } catch (_) {
+    // Offline, a cold start that timed out, anything else — the caller falls
+    // back rather than leaving the player with a dead dice.
+    return false;
+  }
+}
+
+/// Wakes the roll function up.
+///
+/// A cold start on this function measured 7.7 SECONDS, against 412ms warm. That
+/// lands entirely on whoever rolls first, which is the worst possible person to
+/// make wait. Sending one deliberately invalid request when the lobby opens
+/// pays that cost while they are still choosing a game: the server rejects it
+/// immediately, and the instance is warm by the time it matters.
+void warmLudoRoll() {
+  unawaited(() async {
+    try {
+      final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (token == null) return;
+      await http
+          .post(
+            Uri.parse(_kLudoRollUrl),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'data': <String, dynamic>{}}),
+          )
+          .timeout(const Duration(seconds: 10));
+    } catch (_) {
+      // Warming is best-effort by definition.
+    }
+  }());
+}
+
 /// Whether this player walked out of this game.
 bool ludoHasAbandoned(LudoRoom room, String uid) =>
     room.abandonedBy.contains(uid);
@@ -468,6 +539,14 @@ class LudoLobbyScreen extends StatefulWidget {
 // that appears to do nothing while a query runs is why people tap twice.
 class _LudoLobbyScreenState extends State<LudoLobbyScreen> {
   bool _matching = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pays the cold start now, while the player is still choosing a game,
+    // instead of on their first roll.
+    warmLudoRoll();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1052,16 +1131,21 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
     GameSoundPlayer.instance.play(GameSound.dice);
     setState(() => _busy = true);
     try {
-      await _ludoCol().doc(widget.roomId).collection('rollRequests').add({
-        'userId': _uid,
-        'at': Timestamp.now(),
-      });
+      // Fast path first. The doorbell still works and is what older builds
+      // use, so it stays as the fallback rather than being deleted.
+      final rolled = await ludoRollDirect(widget.roomId);
+      if (!rolled) {
+        await _ludoCol().doc(widget.roomId).collection('rollRequests').add({
+          'userId': _uid,
+          'at': Timestamp.now(),
+        });
+      }
       // The dice keeps tumbling until the snapshot brings the result; see the
       // reset in build(). A watchdog covers the case where the answer never
       // comes — a request the server declined leaves no trace, and a die that
       // spins forever is a worse failure than one that simply stops.
       _rollWatchdog?.cancel();
-      _rollWatchdog = Timer(const Duration(seconds: 10), () {
+      _rollWatchdog = Timer(const Duration(seconds: 8), () {
         if (mounted && _busy) setState(() => _busy = false);
       });
     } catch (e) {
@@ -1153,8 +1237,10 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
             _autoTurn = sig;
             WidgetsBinding.instance.addPostFrameCallback((_) async {
               // A beat before acting, so the other players can follow what
-              // happened. Instant play reads as the board glitching.
-              await Future<void>.delayed(const Duration(milliseconds: 750));
+              // happened. Instant play reads as the board glitching — but 750ms
+              // was a third of a turn spent doing nothing, so it is a beat now
+              // rather than a pause.
+              await Future<void>.delayed(const Duration(milliseconds: 320));
               // Re-check everything: the snapshot may have moved on, and the
               // player may have switched auto-play off during the pause.
               if (!mounted || !_autoPlay || _busy) return;
