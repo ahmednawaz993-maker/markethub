@@ -4410,7 +4410,15 @@ exports.payfastIpn = onRequest(async (req, res) => {
 // and the write have to be one atomic step, or two taps in the same instant
 // could both pass the check and roll twice.
 // ---------------------------------------------------------------------------
-exports.ludoRoll = onCall(async (request) => {
+//
+// ONE INSTANCE IS KEPT WARM. A cold start on this function measured 7.6
+// SECONDS against ~390ms warm, and it lands on whoever rolls first — the worst
+// possible person to make wait. The lobby also sends a warming request when it
+// opens, which covers anybody who arrives that way, but a player deep-linked
+// straight into a game skips the lobby entirely. This is the only function in
+// the project that a person waits on with the screen frozen, so it is the only
+// one worth paying to keep resident.
+exports.ludoRoll = onCall({ minInstances: 1, memory: "256MiB" }, async (request) => {
   const uid = request.auth && request.auth.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Sign in to play.");
   const roomId = request.data && request.data.roomId;
