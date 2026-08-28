@@ -6,7 +6,7 @@
   },
   "main": "index.js",
   "scripts": {
-    "test": "node broadcast_logic.test.js && node cancellation_logic.test.js && node escrow_logic.test.js && node multiseller_logic.test.js && node ludo_logic.test.js && node seo.test.js && node ludo_team.test.js && node game_economy.test.js && node ludo_cleanup.test.js && node ludo_six.test.js"
+    "test": "node broadcast_logic.test.js && node cancellation_logic.test.js && node escrow_logic.test.js && node multiseller_logic.test.js && node ludo_logic.test.js && node seo.test.js && node ludo_team.test.js && node game_economy.test.js && node ludo_cleanup.test.js && node ludo_six.test.js && node ludo_dispatch.test.js"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",

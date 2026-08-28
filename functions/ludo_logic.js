@@ -392,6 +392,30 @@ function isTurnStale(state, updatedAtMillis, nowMillis, seconds) {
   return nowMillis - updatedAtMillis > seconds * 1000;
 }
 
+/**
+ * What a write to a room document actually requires doing.
+ *
+ * One Firestore trigger now serves three jobs, and the branch that picks
+ * between them is the part worth testing: get it wrong and a table either
+ * plays for a pot that was never collected or pays out twice. Firestore
+ * mocking would test the plumbing; this tests the decision.
+ *
+ * Returns the jobs to run, in order.
+ */
+function roomActions(before, after) {
+  if (!after) return [];
+  if (after.status === "finished") {
+    // Only on the transition. Paying out is not idempotent by nature — it is
+    // made idempotent by a marker — so it must not be re-entered casually.
+    return before && before.status === "finished" ? [] : ["award"];
+  }
+  if (after.status !== "playing") return [];
+  // Stakes first: a bot must never open a game whose pot is not yet collected.
+  // Run on every playing write, because the collector guards itself on its own
+  // marker and that is what lets a missed collection repair itself.
+  return ["stakes", "bot"];
+}
+
 module.exports = {
   specFor,
   specOf,
@@ -420,4 +444,5 @@ module.exports = {
   applyMove,
   chooseBotMove,
   isTurnStale,
+  roomActions,
 };

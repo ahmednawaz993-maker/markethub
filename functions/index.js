@@ -4410,6 +4410,32 @@ exports.payfastIpn = onRequest(async (req, res) => {
 // and the write have to be one atomic step, or two taps in the same instant
 // could both pass the check and roll twice.
 // ---------------------------------------------------------------------------
+// A ceiling on how much of the project the game may consume.
+//
+// Cloud Run instances come out of one project-wide pool. Without a cap, a busy
+// evening on the Ludo tables can scale the game functions until there is no
+// room left to start an instance of anything else — and "anything else" here
+// means checkout, order acceptance, refunds and the notification sender. The
+// marketplace pays the bills; the game must not be able to take it down.
+//
+// Set generously: this is a blast-radius limit, not a throttle. If the game
+// ever legitimately needs more than this it will be a deliberate decision made
+// while looking at a bill, which is the correct way to make it.
+const LUDO_MAX_INSTANCES = 200;
+
+// How many turns a game may be played by nobody before it is closed.
+//
+// The stuck-game sweep takes an absent player's turn so a board never freezes,
+// which is right — but nothing ever stopped it. A table everybody walked away
+// from keeps playing itself, one turn a minute, for as long as it takes four
+// bots to finish: hours of writes and trigger invocations for a game no human
+// is watching. Four such tables were running when this was written, the oldest
+// for nearly two hours.
+//
+// At twelve turns, roughly ten minutes of nobody, the game is over. It closes
+// with no winner, so nobody is paid for a game they were not present at.
+const LUDO_MAX_AUTO_PLAYS = 12;
+
 //
 // ONE INSTANCE IS KEPT WARM. A cold start on this function measured 7.6
 // SECONDS against ~390ms warm, and it lands on whoever rolls first — the worst
@@ -4418,7 +4444,8 @@ exports.payfastIpn = onRequest(async (req, res) => {
 // straight into a game skips the lobby entirely. This is the only function in
 // the project that a person waits on with the screen frozen, so it is the only
 // one worth paying to keep resident.
-exports.ludoRoll = onCall({ minInstances: 1, memory: "256MiB" }, async (request) => {
+exports.ludoRoll = onCall(
+  { minInstances: 1, maxInstances: LUDO_MAX_INSTANCES, memory: "256MiB" }, async (request) => {
   const uid = request.auth && request.auth.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Sign in to play.");
   const roomId = request.data && request.data.roomId;
@@ -4452,6 +4479,10 @@ exports.ludoRoll = onCall({ minInstances: 1, memory: "256MiB" }, async (request)
     tx.update(ref, {
       state: outcome.state,
       updatedAt: Timestamp.now(),
+      // A human rolled, so the table is not abandoned. Without this reset a
+      // slow player — thinking, or on a bad connection — would accumulate
+      // auto-played turns across a long game and have it closed under them.
+      autoPlays: 0,
     });
     // Deliberately returns NOTHING. Returning the dice as a number made
     // cloud_functions_web throw "Int64 accessor not supported by dart2js"
@@ -4479,6 +4510,7 @@ exports.ludoRoll = onCall({ minInstances: 1, memory: "256MiB" }, async (request)
 const LUDO_TURN_SECONDS = 45; // how long a player has before the turn is taken
 const LUDO_BOT_PREFIX = "bot:";
 
+
 function ludoSeatIsBot(seats, colour) {
   return String((seats || {})[colour] || "").startsWith(LUDO_BOT_PREFIX);
 }
@@ -4504,7 +4536,7 @@ function ludoPlayOneTurn(state) {
  * when the CURRENT seat is a bot, and each write advances the turn or the dice,
  * so the chain terminates.
  */
-exports.ludoBotTurn = onDocumentWritten("ludoRooms/{roomId}", async (event) => {
+async function ludoRunBotTurn(event) {
   const after = event.data && event.data.after && event.data.after.data();
   if (!after || after.status !== "playing") return;
   const state = after.state;
@@ -4541,7 +4573,7 @@ exports.ludoBotTurn = onDocumentWritten("ludoRooms/{roomId}", async (event) => {
       updatedAt: Timestamp.now(),
     });
   });
-});
+}
 
 /**
  * Sweeps games whose player has walked away.
@@ -4571,15 +4603,63 @@ exports.ludoSweepStuckGames = onSchedule("every 1 minutes", async () => {
     try {
       // Play the absent player's turn for them rather than skipping it, so a
       // disconnected player is not simply punished out of the game.
+      const autoPlays = (Number(room.autoPlays) || 0) + 1;
+      if (autoPlays > LUDO_MAX_AUTO_PLAYS) {
+        // Closed with the winners list untouched — empty unless somebody had
+        // genuinely already come home — so the payout finds nothing to pay.
+        await doc.ref.update({
+          status: "finished",
+          abandonedTable: true,
+          updatedAt: Timestamp.now(),
+        });
+        continue;
+      }
       const next = ludoPlayOneTurn(state);
       await doc.ref.update({
         state: next,
         status: ludo.isDecided(next) ? "finished" : "playing",
         updatedAt: Timestamp.now(),
         autoPlayedAt: Timestamp.now(),
+        autoPlays,
       });
     } catch (err) {
       console.error("ludoSweepStuckGames", doc.id, err);
+    }
+  }
+
+  // Second pass: games that finished but were never paid.
+  //
+  // Payout hangs off a Firestore trigger, and a trigger is not a promise. It
+  // can be missed while a function is being redeployed, it can throw halfway,
+  // and it fires exactly once so there is no natural retry. Until now a missed
+  // one meant a player simply never got their coins and nothing would ever
+  // notice — the sort of failure that is invisible to us and infuriating to
+  // them.
+  //
+  // So the sweep reconciles. `coinsAwardedAt` is the marker the payout writes
+  // last, and the payout is written to be safe to run twice, so re-running it
+  // for a room that has no marker is either a repair or a no-op.
+  const settled = await db
+    .collection("ludoRooms")
+    .where("status", "==", "finished")
+    .where("updatedAt", ">", Timestamp.fromMillis(Date.now() - 6 * 3600 * 1000))
+    .limit(50)
+    .get();
+
+  for (const doc of settled.docs) {
+    const room = doc.data() || {};
+    if (room.coinsAwardedAt) continue;
+    if (!(room.state && (room.state.winners || []).length)) continue;
+    console.warn("ludo payout repair", doc.id);
+    try {
+      // Shaped like the trigger event the payout expects. `before` is absent,
+      // which is exactly the "it just finished" case it already handles.
+      await ludoRunAwardCoins({
+        params: { roomId: doc.id },
+        data: { after: { data: () => room, ref: doc.ref } },
+      });
+    } catch (err) {
+      console.error("ludo payout repair", doc.id, err);
     }
   }
 });
@@ -4596,7 +4676,10 @@ exports.ludoSweepStuckGames = onSchedule("every 1 minutes", async () => {
  * The callable stays deployed for app versions already in the wild.
  */
 exports.ludoRollRequested = onDocumentCreated(
-  "ludoRooms/{roomId}/rollRequests/{reqId}",
+  {
+    document: "ludoRooms/{roomId}/rollRequests/{reqId}",
+    maxInstances: LUDO_MAX_INSTANCES,
+  },
   async (event) => {
     const snap = event.data;
     if (!snap) return;
@@ -4622,6 +4705,7 @@ exports.ludoRollRequested = onDocumentCreated(
         tx.update(ref, {
           state: outcome.state,
           updatedAt: Timestamp.now(),
+          autoPlays: 0, // a human rolled — see the callable above
         });
       });
     } catch (err) {
@@ -4741,11 +4825,13 @@ exports.gameRequestCreated = onDocumentCreated(
  * `stakeCollectedAt` makes this idempotent. This trigger fires on every write to
  * the room, and charging the table twice would be unrecoverable.
  */
-exports.ludoCollectStakes = onDocumentWritten("ludoRooms/{roomId}", async (event) => {
+async function ludoRunCollectStakes(event) {
   const after = event.data?.after?.data();
-  const before = event.data?.before?.data();
   if (!after || after.status !== "playing") return;
-  if (before && before.status === "playing") return;
+  // `stakeCollectedAt` is the only guard. It used to ALSO require this write to
+  // be the transition into "playing", which meant a collection missed for any
+  // reason — a redeploy, a thrown error — was missed for good, and the table
+  // played for a pot of nothing. Now any later write to the room repairs it.
   if (after.stakeCollectedAt) return;
   const stake = Number(after.stake) || 0;
   if (stake <= 0) return;
@@ -4787,7 +4873,7 @@ exports.ludoCollectStakes = onDocumentWritten("ludoRooms/{roomId}", async (event
       { merge: true }
     )
     .catch(() => {});
-});
+}
 
 /**
  * Pays out when a Ludo room finishes.
@@ -4796,7 +4882,7 @@ exports.ludoCollectStakes = onDocumentWritten("ludoRooms/{roomId}", async (event
  * writes an `awardedAt` marker so a later write to the same document cannot pay
  * the table a second time.
  */
-exports.ludoAwardCoins = onDocumentWritten("ludoRooms/{roomId}", async (event) => {
+async function ludoRunAwardCoins(event) {
   const after = event.data?.after?.data();
   const before = event.data?.before?.data();
   if (!after || after.status !== "finished") return;
@@ -4939,7 +5025,7 @@ exports.ludoAwardCoins = onDocumentWritten("ludoRooms/{roomId}", async (event) =
   await event.data.after.ref
     .set({ coinsAwardedAt: Timestamp.now() }, { merge: true })
     .catch(() => {});
-});
+}
 
 /**
  * Deletes rooms that have stopped being useful.
@@ -4958,6 +5044,44 @@ exports.ludoAwardCoins = onDocumentWritten("ludoRooms/{roomId}", async (event) =
  * the wrong thing cannot be undone.
  */
 const LUDO_SWEEP_LIMIT = 200;
+
+
+/**
+ * The ONE trigger on a Ludo room.
+ *
+ * There used to be three — a bot mover, a stake collector and a payout — each
+ * declared onDocumentWritten("ludoRooms/{roomId}"). Firestore has no
+ * conditional triggers, so all three fired on EVERY write to EVERY room and
+ * two of them immediately returned. Three invocations to do one job.
+ *
+ * That is a constant factor, and constant factors are exactly what decides
+ * whether a design survives being popular: at a hundred thousand
+ * simultaneous games it is the difference between 250k invocations a second
+ * and 750k. They were always mutually exclusive — one wants a room that is
+ * playing, one wants the moment it STARTS playing, one wants the moment it
+ * finishes — so they merge with no loss.
+ *
+ * Merging also fixes something that was quietly wrong: stake collection and
+ * the bot's first move used to race, because separate triggers on the same
+ * write run in parallel. A bot could open the game before the pot existed.
+ * Here they are ordered.
+ */
+exports.ludoRoomChanged = onDocumentWritten(
+  { document: "ludoRooms/{roomId}", maxInstances: LUDO_MAX_INSTANCES },
+  async (event) => {
+    const after = event.data?.after?.data();
+    if (!after) return;
+    const before = event.data?.before?.data();
+
+    // The branch itself lives in ludo_logic and is unit-tested there; this
+    // just carries it out. Order matters and is the decision's, not ours.
+    for (const job of ludo.roomActions(before, after)) {
+      if (job === "award") await ludoRunAwardCoins(event);
+      else if (job === "stakes") await ludoRunCollectStakes(event);
+      else if (job === "bot") await ludoRunBotTurn(event);
+    }
+  }
+);
 
 exports.ludoSweepOldRooms = onSchedule("every 24 hours", async () => {
   const db = getFirestore();
