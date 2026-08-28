@@ -2,6 +2,13 @@ part of '../main.dart';
 
 // Voice chat for a Ludo table.
 //
+// WEB ONLY. The browser already has WebRTC, so voice costs nothing extra
+// there. The native alternative linked libjingle_peerconnection into the
+// Android build: 11.5 MB compressed on arm64-v8a, about a third of the app's
+// whole native payload, paid by every user including the ones who only buy and
+// sell and will never open Ludo. On mobile the RTC calls resolve to a stub and
+// the UI points players at the website; the game itself is unaffected.
+//
 // PEER TO PEER, no media server. Four players is three connections each — a
 // mesh that small is exactly what WebRTC is for, and it means no Agora or
 // LiveKit bill and no audio passing through any server we run. Firestore is
@@ -67,8 +74,7 @@ class VoicePeer {
 
   final String uid;
   final String name;
-  rtc.RTCPeerConnection? pc;
-  rtc.MediaStream? remoteStream;
+  VoiceConn? conn;
   VoicePeerState state = VoicePeerState.connecting;
 
   /// Muted by ME, locally. The only moderation available when audio never
@@ -89,7 +95,7 @@ class VoiceSession extends ChangeNotifier {
   final String myName;
 
   final Map<String, VoicePeer> peers = {};
-  rtc.MediaStream? _localStream;
+  VoiceMic? _mic;
   StreamSubscription<QuerySnapshot>? _presenceSub;
   StreamSubscription<QuerySnapshot>? _signalSub;
 
@@ -107,21 +113,20 @@ class VoiceSession extends ChangeNotifier {
   /// Opens the microphone and announces presence.
   Future<void> join() async {
     if (_joined || _busy) return;
+    if (!voiceRtcSupported) {
+      // Not an error the player caused, so it reads as a signpost rather than
+      // a failure.
+      error = 'Voice chat works on the PakBazar website. Open this game at '
+          'pakbazar24.com to talk — keeping it off the app saves every user a '
+          '11 MB download.';
+      notifyListeners();
+      return;
+    }
     _busy = true;
     error = null;
     notifyListeners();
     try {
-      // Audio only, with the processing that makes a speakerphone game usable:
-      // without echo cancellation every player hears themselves back through
-      // everyone else.
-      _localStream = await rtc.navigator.mediaDevices.getUserMedia({
-        'audio': {
-          'echoCancellation': true,
-          'noiseSuppression': true,
-          'autoGainControl': true,
-        },
-        'video': false,
-      });
+      _mic = await voiceOpenMic();
       await _voiceCol(roomId).doc(myUid).set({
         'uid': myUid,
         'name': myName,
@@ -197,61 +202,42 @@ class VoiceSession extends ChangeNotifier {
         });
   }
 
-  Future<rtc.RTCPeerConnection> _newConnection(String uid) async {
-    final pc = await rtc.createPeerConnection({
-      'iceServers': kVoiceIceServers,
-      'sdpSemantics': 'unified-plan',
-    });
-    final local = _localStream;
-    if (local != null) {
-      for (final track in local.getAudioTracks()) {
-        await pc.addTrack(track, local);
-      }
-    }
-    pc.onIceCandidate = (c) {
-      if (c.candidate == null) return;
-      unawaited(
-        _send(uid, VoiceSignal.candidate, {
-          'candidate': c.candidate,
-          'sdpMid': c.sdpMid,
-          'sdpMLineIndex': c.sdpMLineIndex,
-        }),
-      );
+  Future<VoiceConn> _newConnection(String uid) async {
+    final conn = voiceCreateConnection(kVoiceIceServers);
+    final mic = _mic;
+    if (mic != null) await conn.addLocalAudio(mic);
+
+    conn.onIceCandidate = (c) => unawaited(
+      _send(uid, VoiceSignal.candidate, c),
+    );
+    conn.onRemoteAudio = () {
+      // Apply any mute the player had already set before this peer connected.
+      _applyMute(uid);
+      notifyListeners();
     };
-    pc.onTrack = (event) {
-      if (event.streams.isNotEmpty) {
-        peers[uid]?.remoteStream = event.streams.first;
-        _applyMute(uid);
-        notifyListeners();
-      }
-    };
-    pc.onConnectionState = (s) {
+    conn.onStateChange = (state) {
       final peer = peers[uid];
       if (peer == null) return;
-      peer.state = switch (s) {
-        rtc.RTCPeerConnectionState.RTCPeerConnectionStateConnected =>
-          VoicePeerState.connected,
-        rtc.RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
-        rtc.RTCPeerConnectionState.RTCPeerConnectionStateClosed =>
-          VoicePeerState.failed,
+      // The browser's own connectionState strings, mapped onto the three
+      // states the UI distinguishes.
+      peer.state = switch (state) {
+        'connected' => VoicePeerState.connected,
+        'failed' || 'closed' || 'disconnected' => VoicePeerState.failed,
         _ => VoicePeerState.connecting,
       };
       notifyListeners();
     };
-    return pc;
+    return conn;
   }
 
   Future<void> _dial(String uid) async {
     final peer = peers[uid];
     if (peer == null) return;
-    final pc = await _newConnection(uid);
-    peer.pc = pc;
-    final offer = await pc.createOffer({'offerToReceiveAudio': true});
-    await pc.setLocalDescription(offer);
-    await _send(uid, VoiceSignal.offer, {
-      'sdp': offer.sdp,
-      'type': offer.type,
-    });
+    final conn = await _newConnection(uid);
+    peer.conn = conn;
+    final offer = await conn.createOffer();
+    await conn.setLocalDescription(offer);
+    await _send(uid, VoiceSignal.offer, offer);
   }
 
   Future<void> _handleSignal(Map<String, dynamic> d) async {
@@ -264,29 +250,16 @@ class VoiceSession extends ChangeNotifier {
     peer ??= peers[from] = VoicePeer(uid: from, name: 'Player');
 
     if (type == VoiceSignal.offer.name) {
-      final pc = peer.pc ?? await _newConnection(from);
-      peer.pc = pc;
-      await pc.setRemoteDescription(
-        rtc.RTCSessionDescription(payload['sdp'], payload['type']),
-      );
-      final answer = await pc.createAnswer({'offerToReceiveAudio': true});
-      await pc.setLocalDescription(answer);
-      await _send(from, VoiceSignal.answer, {
-        'sdp': answer.sdp,
-        'type': answer.type,
-      });
+      final conn = peer.conn ?? await _newConnection(from);
+      peer.conn = conn;
+      await conn.setRemoteDescription(payload);
+      final answer = await conn.createAnswer();
+      await conn.setLocalDescription(answer);
+      await _send(from, VoiceSignal.answer, answer);
     } else if (type == VoiceSignal.answer.name) {
-      await peer.pc?.setRemoteDescription(
-        rtc.RTCSessionDescription(payload['sdp'], payload['type']),
-      );
+      await peer.conn?.setRemoteDescription(payload);
     } else if (type == VoiceSignal.candidate.name) {
-      await peer.pc?.addCandidate(
-        rtc.RTCIceCandidate(
-          payload['candidate'],
-          payload['sdpMid'],
-          (payload['sdpMLineIndex'] as num?)?.toInt(),
-        ),
-      );
+      await peer.conn?.addIceCandidate(payload);
     }
   }
 
@@ -303,9 +276,7 @@ class VoiceSession extends ChangeNotifier {
   /// stopped, so unmuting is instant and does not re-prompt for permission.
   void toggleMic() {
     _micMuted = !_micMuted;
-    for (final t in _localStream?.getAudioTracks() ?? const []) {
-      t.enabled = !_micMuted;
-    }
+    _mic?.setEnabled(!_micMuted);
     notifyListeners();
   }
 
@@ -320,15 +291,12 @@ class VoiceSession extends ChangeNotifier {
 
   void _applyMute(String uid) {
     final peer = peers[uid];
-    if (peer == null) return;
-    for (final t in peer.remoteStream?.getAudioTracks() ?? const []) {
-      t.enabled = !peer.mutedByMe;
-    }
+    peer?.conn?.setRemoteMuted(peer.mutedByMe);
   }
 
   void _dropPeer(String uid) {
     final peer = peers.remove(uid);
-    unawaited(peer?.pc?.close().catchError((_) {}));
+    unawaited(peer?.conn?.close().catchError((_) {}));
   }
 
   Future<void> leave() async {
@@ -345,11 +313,8 @@ class VoiceSession extends ChangeNotifier {
     for (final uid in peers.keys.toList()) {
       _dropPeer(uid);
     }
-    for (final t in _localStream?.getAudioTracks() ?? const []) {
-      await t.stop();
-    }
-    await _localStream?.dispose();
-    _localStream = null;
+    _mic?.stop();
+    _mic = null;
     // Best-effort: leave no ghost in the room list if the app is closing.
     await _voiceCol(roomId).doc(myUid).delete().catchError((_) {});
   }
@@ -372,6 +337,30 @@ class VoiceChatBar extends StatelessWidget {
     listenable: session,
     builder: (context, _) {
       if (!session.joined) {
+        // On mobile there is no microphone path at all, so the control says
+        // where voice lives instead of offering a button that cannot work.
+        if (!voiceRtcSupported) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.xs,
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.headset_mic_outlined,
+                    size: 16, color: AppColors.textMuted),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    'Voice chat is on pakbazar24.com — the app stays smaller '
+                    'without it.',
+                    style: AppType.caption,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
           child: Column(

@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.76+82
+version: 1.0.77+83
 
 environment:
   sdk: ^3.12.1
@@ -65,16 +65,7 @@ dependencies:
   path_provider: ^2.1.4
   safe_device: ^1.4.1
   package_info_plus: ^10.1.0
-  flutter_webrtc: ^1.6.0
-
-# record 5.2.1 pulls record_linux 0.7.2, which doesn't implement the members
-# added in record_platform_interface 1.6.0 (startStream + hasPermission's
-# `request:` arg). That breaks the Dart plugin registrant compile for ALL
-# targets (Android/web included), even though Linux code never runs there.
-# Upstream jumped record_linux 0.7.2 -> 2.x (needing interface 2.x + a newer
-# Android toolchain), so there is no drop-in 0.x fix. This points at a vendored
-# patched copy that just adds the two missing members. Drop it once record_linux
-# ships a 0.x release compatible with interface 1.6.0.
+  web: ^1.1.1
 dependency_overrides:
   record_linux:
     path: third_party/record_linux

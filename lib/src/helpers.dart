@@ -12,7 +12,7 @@ const String currencySymbol = 'Rs';
 /// App version shown in the UI (About screen, support emails). Keep in sync
 /// with the `version:` line in pubspec.yaml — that one feeds the Play
 /// versionName/versionCode, this one is what users see inside the app.
-const String kAppVersion = '1.0.76';
+const String kAppVersion = '1.0.77';
 
 /// Version name and build number as reported by the platform, so they cannot
 /// drift from what was actually installed.

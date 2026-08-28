@@ -2,9 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-// Prefixed: flutter_webrtc exports a lot of top-level names, and an unprefixed
-// import would put them in scope for every part file in this library.
-import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
+// Voice chat runs on the WEB ONLY, using the browser's own WebRTC. On mobile
+// this resolves to a stub, so no native library is linked and the Android
+// download does not carry 11.5 MB of WebRTC for a feature Ludo players reach
+// from the website.
+import 'voice_rtc_stub.dart'
+    if (dart.library.js_interop) 'voice_rtc_web.dart';
 // Web reads its route from the URL path only if we ask it to; on mobile this
 // resolves to a no-op stub, because flutter_web_plugins does not exist there.
 import 'url_strategy_stub.dart'

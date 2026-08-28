@@ -11,6 +11,15 @@ app and `firestore.rules`/`firestore.indexes.json`. Storage rules, Cloud
 Functions and the website are deployed by hand, so backend items are marked
 with where they landed.
 
+## [1.0.77] — 2026-08-28
+
+- Voice chat is now web-only, and the app is 11.5 MB smaller because of it.
+  Browsers already have WebRTC, so voice costs nothing there; the native library
+  it needed on Android was about a third of the app's whole native payload and
+  every user paid it, including people who never open Ludo. Voice works exactly
+  as before on pakbazar24.com, and the app no longer asks for microphone
+  permission at all.
+
 ## [1.0.76] — 2026-08-28
 
 - Ludo voice chat. Talk to the other players at your table. Peer to peer, so no

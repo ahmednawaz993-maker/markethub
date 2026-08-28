@@ -10,9 +10,20 @@
 // The rest of the file covers the small stated facts that other code depends
 // on: that STUN is configured, that TURN deliberately is not, and that the
 // signal names are stable (they go on the wire between two app versions).
+//
+// One test here exists purely to guard a SIZE decision. Voice is web-only
+// because the native WebRTC library cost 11.5 MB compressed on arm64-v8a —
+// about a third of the app's whole native payload — and every Android user paid
+// it, including the ones who only buy and sell. Re-adding that dependency would
+// silently undo the decision, so the pubspec is asserted.
+
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markethub/main.dart';
+// Imported directly, not through main.dart: this asserts what the MOBILE half
+// of the conditional import says, which is the half Android compiles.
+import 'package:markethub/voice_rtc_stub.dart';
 
 void main() {
   group('exactly one side of a pair dials', () {
@@ -110,6 +121,33 @@ void main() {
     });
   });
 
+  group('voice stays off the Android download', () {
+    test('no native WebRTC dependency is declared', () {
+      // The browser already has WebRTC; linking a native copy put 11.5 MB into
+      // every Android install for a feature most users never open.
+      final pubspec = File('pubspec.yaml').readAsStringSync();
+      expect(
+        pubspec.contains('flutter_webrtc'),
+        isFalse,
+        reason: 'flutter_webrtc is back — that is 11.5 MB on every install',
+      );
+    });
+
+    test('the app does not ask Android for microphone permission', () {
+      // A marketplace app requesting RECORD_AUDIO has to justify it on the Play
+      // data-safety form, and there is nothing on mobile that would use it.
+      final manifest =
+          File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
+      expect(manifest.contains('RECORD_AUDIO'), isFalse);
+    });
+
+    test('the mobile stub reports itself unsupported', () {
+      // Under the test VM the stub is what compiles, so this is the mobile
+      // branch: join() must refuse rather than reach for a microphone.
+      expect(voiceRtcSupported, isFalse);
+    });
+  });
+
   group('peer state', () {
     test('covers connecting, connected and failed', () {
       // 'failed' has to exist as a first-class state: with STUN only, some
@@ -123,7 +161,7 @@ void main() {
       final p = VoicePeer(uid: 'u1', name: 'Ali');
       expect(p.state, VoicePeerState.connecting);
       expect(p.mutedByMe, isFalse);
-      expect(p.pc, isNull);
+      expect(p.conn, isNull);
     });
   });
 }
