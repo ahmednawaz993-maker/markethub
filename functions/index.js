@@ -4436,6 +4436,16 @@ const LUDO_MAX_INSTANCES = 200;
 // with no winner, so nobody is paid for a game they were not present at.
 const LUDO_MAX_AUTO_PLAYS = 12;
 
+// How far back the payout repair looks.
+//
+// Payout hangs off a trigger, and a trigger fires once — miss it and the
+// player simply never gets their coins. Six hours was the first guess and it
+// was too short to be much use: a failure that happens overnight is past the
+// window before anybody is awake. A day covers a missed deploy or a bad hour
+// without ever growing unbounded, because a repaired game is marked and
+// skipped from then on.
+const LUDO_REPAIR_WINDOW_MS = 24 * 3600 * 1000;
+
 //
 // ONE INSTANCE IS KEPT WARM. A cold start on this function measured 7.6
 // SECONDS against ~390ms warm, and it lands on whoever rolls first — the worst
@@ -4642,7 +4652,13 @@ exports.ludoSweepStuckGames = onSchedule("every 1 minutes", async () => {
   const settled = await db
     .collection("ludoRooms")
     .where("status", "==", "finished")
-    .where("updatedAt", ">", Timestamp.fromMillis(Date.now() - 6 * 3600 * 1000))
+    .where("updatedAt", ">", Timestamp.fromMillis(Date.now() - LUDO_REPAIR_WINDOW_MS))
+    // NEWEST FIRST, and that is not cosmetic. Without an explicit order this
+    // sorts by updatedAt ascending, so once the window holds more finished
+    // games than the limit, the pass looks at the same OLDEST fifty every
+    // minute — all long since repaired — and never reaches a game that failed
+    // a moment ago. The repair would appear to run forever and fix nothing.
+    .orderBy("updatedAt", "desc")
     .limit(50)
     .get();
 
