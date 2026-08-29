@@ -123,6 +123,14 @@ Color ludoColorOf(LudoColor c) => switch (c) {
   LudoColor.orange => const Color(0xFFE2622B),
 };
 
+/// The gold of the safe squares and the winner's circle.
+///
+/// One colour for both because they mean related things — a square nothing can
+/// touch you on, and the place you are trying to reach. It is deliberately not
+/// any of the four seat colours: a marking that shared a player's colour would
+/// read as belonging to that player.
+const Color kLudoSafeStar = Color(0xFFD9A521);
+
 /// Paints the static board: yards, ring, home columns, centre and stars.
 class LudoBoardPainter extends CustomPainter {
   const LudoBoardPainter({
@@ -172,9 +180,28 @@ class LudoBoardPainter extends CustomPainter {
 
     // Ground. Rounded, so the board reads as an object sitting on the page
     // rather than a pattern printed across it.
+    final boardRect = Offset.zero & size;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(u * 0.45)),
+      RRect.fromRectAndRadius(boardRect, Radius.circular(u * 0.45)),
       fill..color = ground,
+    );
+    // A light from the top-left and a shade at the bottom-right. One gradient,
+    // and the board stops looking printed and starts looking like a thing on a
+    // table. Kept very shallow — a strong vignette would fight the pieces,
+    // which are what the eye is supposed to follow.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(boardRect, Radius.circular(u * 0.45)),
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.55, -0.6),
+          radius: 1.15,
+          colors: [
+            (dark ? Colors.white : Colors.white).withValues(alpha: 0.14),
+            Colors.transparent,
+            (dark ? Colors.black : Colors.black).withValues(alpha: 0.10),
+          ],
+          stops: const [0.0, 0.55, 1.0],
+        ).createShader(boardRect),
     );
 
     // Yards. A flat block of colour is what makes a hand-drawn board look
@@ -247,10 +274,30 @@ class LudoBoardPainter extends CustomPainter {
         // has no way to tell which direction is forward from their own yard.
         _chevron(canvas, r.center, u * 0.22, _travelAngle(i), Colors.white);
       } else {
-        canvas.drawRRect(rr, fill..color = surface);
+        canvas.drawRRect(
+          rr,
+          Paint()
+            ..shader = LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color.lerp(surface, Colors.white, dark ? 0.10 : 0.0)!,
+                Color.lerp(surface, Colors.black, dark ? 0.0 : 0.06)!,
+              ],
+            ).createShader(r),
+        );
         canvas.drawRRect(rr, hairline..color = tileEdge);
         if (kLudoSafeCells.contains(i)) {
-          _star(canvas, r.center, u * 0.30, tileEdge);
+          // A halo, then the star. These squares are the only protection in
+          // the game and they were the faintest mark on the board — a grey
+          // star at 30% of a cell, easy to miss entirely while deciding a
+          // move.
+          canvas.drawCircle(
+            r.center,
+            u * 0.40,
+            fill..color = kLudoSafeStar.withValues(alpha: 0.16),
+          );
+          _star(canvas, r.center, u * 0.36, kLudoSafeStar);
         }
       }
     }
@@ -333,16 +380,30 @@ class LudoBoardPainter extends CustomPainter {
     tri(tr, br, LudoColor.yellow); // yellow from the right
     tri(br, bl, LudoColor.blue); // blue from the bottom
     canvas.restore();
-    canvas.drawCircle(centre, u * 0.58, fill..color = surface);
+    // The middle is where the game is won, and it was a grey star on a white
+    // sticker. A gold disc under a gold star is what every physical board puts
+    // there, and it gives the eye somewhere to end up.
+    final discRect = Rect.fromCircle(center: centre, radius: u * 0.62);
     canvas.drawCircle(
       centre,
-      u * 0.58,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = tileEdge,
+      u * 0.66,
+      fill..color = Colors.black.withValues(alpha: 0.16),
     );
-    _star(canvas, centre, u * 0.36, tileEdge);
+    canvas.drawCircle(
+      centre,
+      u * 0.62,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.4, -0.5),
+          colors: [
+            Color.lerp(kLudoSafeStar, Colors.white, 0.55)!,
+            kLudoSafeStar,
+            Color.lerp(kLudoSafeStar, Colors.black, 0.25)!,
+          ],
+          stops: const [0.0, 0.6, 1.0],
+        ).createShader(discRect),
+    );
+    _star(canvas, centre, u * 0.40, Colors.white.withValues(alpha: 0.92));
   }
 
   /// The direction of travel at ring cell [i], taken from the next cell along

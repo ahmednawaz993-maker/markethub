@@ -62,6 +62,18 @@ class GamesSectionTiles extends StatelessWidget {
         subtitle: 'Play with friends, with chat at the table',
         builder: () => const LudoLobbyScreen(),
       ),
+      _MenuItem(
+        icon: Icons.stairs,
+        label: 'Saanp Seerhi',
+        subtitle: 'Snakes and ladders — pass the phone round',
+        builder: () => const SnakesSetupScreen(),
+      ),
+      _MenuItem(
+        icon: Icons.grid_3x3,
+        label: 'Tic Tac Toe',
+        subtitle: 'One quick round — the hard opponent never loses',
+        builder: () => const TicTacToeScreen(),
+      ),
     ],
   );
 }
