@@ -604,6 +604,8 @@ class _FollowButtonState extends State<_FollowButton> {
         });
       }
       await batch.commit();
+      // The one moment the followed-sellers rail can change.
+      unawaited(userSession.refreshFollowing());
       if (mounted && !currentlyFollowing) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

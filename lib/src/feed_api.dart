@@ -25,14 +25,63 @@ part of '../main.dart';
 /// URL bypasses the CDN and would give every caller a cold origin read.
 const String kFeedEndpoint = 'https://pakbazar24.com/api/feed';
 
-/// One page of the browse feed.
+/// A featured business, as its rail draws it.
+///
+/// Deliberately not a user document: see businessView in functions/feed.js for
+/// what the server will and will not publish about an account.
+class FeaturedBusiness {
+  const FeaturedBusiness({
+    required this.id,
+    required this.name,
+    required this.tagline,
+    required this.logoUrl,
+    required this.verified,
+    required this.until,
+  });
+
+  factory FeaturedBusiness.fromMap(Map<String, dynamic> m) => FeaturedBusiness(
+    id: m['id']?.toString() ?? '',
+    name: m['businessName']?.toString() ?? 'Business',
+    tagline: m['tagline']?.toString() ?? '',
+    logoUrl: m['logoUrl']?.toString() ?? '',
+    verified: m['businessVerified'] == true,
+    until: m['featuredBusinessUntil'] is num
+        ? DateTime.fromMillisecondsSinceEpoch(
+            (m['featuredBusinessUntil'] as num).toInt(),
+          )
+        : null,
+  );
+
+  final String id;
+  final String name;
+  final String tagline;
+  final String logoUrl;
+  final bool verified;
+
+  /// When the placement lapses. The rail hides an expired one.
+  final DateTime? until;
+}
+
+/// One page of the browse feed, plus the rails that come with its first page.
 class FeedPage {
-  const FeedPage({required this.items, required this.next});
+  const FeedPage({
+    required this.items,
+    required this.next,
+    this.deals = const [],
+    this.businesses = const [],
+  });
 
   final List<Listing> items;
 
   /// Cursor for the next page, or null at the end of the feed.
   final int? next;
+
+  /// Recent price drops. Same for everybody, so it travels with the feed
+  /// rather than on a listener of its own.
+  final List<Listing> deals;
+
+  /// Featured businesses. Likewise.
+  final List<FeaturedBusiness> businesses;
 }
 
 /// Fetches a page of the browse feed from the CDN.
@@ -83,8 +132,35 @@ FeedPage parseFeedBody(Object? body) {
       items.add(Listing.fromMap(id, map));
     } catch (_) {}
   }
+  final rails = body['rails'];
+  final deals = <Listing>[];
+  final businesses = <FeaturedBusiness>[];
+  if (rails is Map) {
+    for (final raw in (rails['deals'] as List? ?? const [])) {
+      if (raw is! Map) continue;
+      final map = raw.cast<String, dynamic>();
+      final id = map['id']?.toString() ?? '';
+      if (id.isEmpty) continue;
+      try {
+        deals.add(Listing.fromMap(id, map));
+      } catch (_) {}
+    }
+    for (final raw in (rails['businesses'] as List? ?? const [])) {
+      if (raw is! Map) continue;
+      try {
+        final b = FeaturedBusiness.fromMap(raw.cast<String, dynamic>());
+        if (b.id.isNotEmpty) businesses.add(b);
+      } catch (_) {}
+    }
+  }
+
   final next = body['next'];
-  return FeedPage(items: items, next: next is num ? next.toInt() : null);
+  return FeedPage(
+    items: items,
+    next: next is num ? next.toInt() : null,
+    deals: deals,
+    businesses: businesses,
+  );
 }
 
 /// The browse feed, from the CDN, falling back to Firestore.
@@ -94,7 +170,7 @@ FeedPage parseFeedBody(Object? body) {
 /// day — and "the marketplace is empty" is the worst possible way for that to
 /// present. If the edge cannot answer, this reads Firestore directly, exactly
 /// as the app did before, and the user sees a feed either way.
-Future<List<Listing>> loadFeedPage({
+Future<FeedPage> loadFeedPage({
   int? before,
   int limit = 60,
   bool fresh = false,
@@ -104,7 +180,7 @@ Future<List<Listing>> loadFeedPage({
     // An empty first page is treated as a failure rather than as an empty
     // marketplace: this app always has listings, so nothing coming back means
     // something is wrong upstream, and Firestore is the second opinion.
-    if (page.items.isNotEmpty || before != null) return page.items;
+    if (page.items.isNotEmpty || before != null) return page;
   } catch (err, stack) {
     // Recorded rather than swallowed: the fallback means nobody SEES this
     // happen, so without a report a broken cache layer could sit there quietly
@@ -125,5 +201,11 @@ Future<List<Listing>> loadFeedPage({
     q = q.startAfter([Timestamp.fromMillisecondsSinceEpoch(before)]);
   }
   final snap = await q.limit(limit).get();
-  return snap.docs.map(Listing.fromDoc).toList();
+  // The rails come back empty on this path. They are decoration on a screen
+  // that is already in trouble, and reading them here would mean three more
+  // Firestore queries at exactly the moment something is wrong.
+  return FeedPage(
+    items: snap.docs.map(Listing.fromDoc).toList(),
+    next: null,
+  );
 }

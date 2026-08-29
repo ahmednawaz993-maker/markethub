@@ -262,7 +262,12 @@ class AccountSuspendedScreen extends StatelessWidget {
                 if (uid != null) _AppealSection(uid: uid),
                 const SizedBox(height: AppSpacing.sm),
                 TextButton.icon(
-                  onPressed: () => FirebaseAuth.instance.signOut(),
+                  onPressed: () {
+                    // Held state, so it has to be dropped deliberately — a
+                    // listener would simply have stopped.
+                    userSession.clear();
+                    FirebaseAuth.instance.signOut();
+                  },
                   icon: const Icon(Icons.logout, size: 18),
                   label: const Text('Sign out'),
                   style: TextButton.styleFrom(

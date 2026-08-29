@@ -14,7 +14,7 @@
 // named is a failure, including keys nobody has thought of yet.
 
 const assert = require("assert");
-const { cardView } = require("./feed");
+const { cardView, businessView } = require("./feed");
 
 let pass = 0;
 function t(name, fn) {
@@ -146,6 +146,42 @@ t("timestamps come out as plain numbers", () => {
   // JSON and would arrive as {_seconds: ...}.
   const v = cardView("l", { createdAt: { toMillis: () => 1700000000000 } });
   assert.strictEqual(v.createdAt, 1700000000000);
+});
+
+t("a featured business publishes a shopfront, not an account", () => {
+  // A user document is a person's account. The rail needs the shopfront its
+  // owner wrote to be seen — and nothing about the human behind it.
+  const v = businessView("u1", {
+    businessName: "Ahmed Motors",
+    tagline: "Since 1998",
+    logoUrl: "https://example.com/logo.png",
+    businessVerified: true,
+    // --- account data, none of which may be published ---
+    email: "ahmed@example.com",
+    phone: "+923001234567",
+    walletBalance: 5000,
+    fcmToken: "abc123",
+    latitude: 33.6,
+  });
+  assert.deepStrictEqual(Object.keys(v).sort(), [
+    "businessName",
+    "businessVerified",
+    "featuredBusinessUntil",
+    "id",
+    "logoUrl",
+    "tagline",
+  ]);
+  const body = JSON.stringify(v);
+  for (const secret of ["ahmed@example.com", "923001234567", "5000", "abc123", "33.6"]) {
+    assert.ok(!body.includes(secret), secret + " was published");
+  }
+});
+
+t("a business with nothing filled in does not throw", () => {
+  const v = businessView("u1", {});
+  assert.strictEqual(v.businessName, "");
+  assert.strictEqual(v.businessVerified, false);
+  assert.strictEqual(v.featuredBusinessUntil, null);
 });
 
 console.log(`\n${pass} passed`);

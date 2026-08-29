@@ -301,6 +301,12 @@ Future<void> setupPushNotifications() async {
     if (!_onMessageListenerRegistered) {
       _onMessageListenerRegistered = true;
       FirebaseMessaging.onMessage.listen((message) {
+        // A push arriving IS the change signal. The badge used to learn this
+        // from a permanent Firestore listener watching for the very event that
+        // is being delivered here anyway — so the listener is gone and this
+        // updates the count instead. See user_session.dart.
+        userSession.refreshUnread();
+
         final n = message.notification;
         if (n != null) {
           // App is open — the OS won't play the notification sound, so chime

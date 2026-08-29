@@ -108,6 +108,63 @@ function cardView(id, d) {
   };
 }
 
+/**
+ * A featured business, as its rail draws it.
+ *
+ * A user document is NOT safe to publish wholesale — it is a person's account.
+ * These five fields are a shopfront: the business name and tagline the owner
+ * wrote to be seen, their logo, whether we have verified them, and when the
+ * placement expires. Nothing about the human behind it.
+ */
+function businessView(id, d) {
+  const str = (v) => (v == null ? "" : String(v));
+  return {
+    id,
+    businessName: str(d.businessName),
+    tagline: str(d.tagline),
+    logoUrl: str(d.logoUrl),
+    businessVerified: d.businessVerified === true,
+    featuredBusinessUntil:
+      d.featuredBusinessUntil && typeof d.featuredBusinessUntil.toMillis === "function"
+        ? d.featuredBusinessUntil.toMillis()
+        : null,
+  };
+}
+
+/**
+ * The two rails on the home screen that are the same for everybody: recent
+ * price drops, and the featured businesses.
+ *
+ * They rode on their own live Firestore listeners, one of each per user, for
+ * data with no personalisation in it whatsoever. Bundled into the feed
+ * response they cost nothing extra: the home screen becomes ONE cached request
+ * instead of three connections.
+ *
+ * Only ever attached to the first page — paging further down the feed has no
+ * reason to re-send them.
+ */
+async function rails(db) {
+  const monthAgo = Timestamp.fromMillis(Date.now() - 30 * 24 * 3600 * 1000);
+  const [drops, businesses] = await Promise.all([
+    db
+      .collection("listings")
+      .where("approvalStatus", "==", "approved")
+      .where("priceDropAt", ">", monthAgo)
+      .orderBy("priceDropAt", "desc")
+      .limit(15)
+      .get(),
+    db
+      .collection("users")
+      .where("featuredBusiness", "==", true)
+      .limit(30)
+      .get(),
+  ]);
+  return {
+    deals: drops.docs.map((d) => cardView(d.id, d.data() || {})),
+    businesses: businesses.docs.map((d) => businessView(d.id, d.data() || {})),
+  };
+}
+
 exports.feed = onRequest(
   { region: "us-central1", memory: "256MiB", maxInstances: 20, cors: true },
   async (req, res) => {
@@ -121,7 +178,8 @@ exports.feed = onRequest(
       // everything it skips, so page 20 would cost twenty times page 1.
       const before = parseInt(req.query.before, 10);
 
-      let q = getFirestore()
+      const db = getFirestore();
+      let q = db
         .collection("listings")
         .where("approvalStatus", "==", "approved")
         .orderBy("createdAt", "desc");
@@ -129,7 +187,11 @@ exports.feed = onRequest(
         q = q.startAfter(Timestamp.fromMillis(before));
       }
 
-      const snap = await q.limit(limit).get();
+      const firstPage = !(Number.isFinite(before) && before > 0);
+      const [snap, rail] = await Promise.all([
+        q.limit(limit).get(),
+        firstPage ? rails(db) : Promise.resolve(null),
+      ]);
       const items = snap.docs.map((d) => cardView(d.id, d.data() || {}));
       const last = items.length ? items[items.length - 1].createdAt : null;
 
@@ -138,6 +200,7 @@ exports.feed = onRequest(
         items,
         // Null means the client has reached the end and should stop asking.
         next: items.length < limit ? null : last,
+        ...(rail ? { rails: rail } : {}),
       });
     } catch (err) {
       console.error("feed failed", err);
@@ -151,3 +214,4 @@ exports.feed = onRequest(
 );
 
 module.exports.cardView = cardView;
+module.exports.businessView = businessView;

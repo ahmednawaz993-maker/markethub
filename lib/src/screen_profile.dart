@@ -2144,6 +2144,7 @@ class ProfileScreen extends StatelessWidget {
             color: AppColors.error,
             onPressed: () async {
               favoriteListings.clear();
+              userSession.clear();
               await FirebaseAuth.instance.signOut();
               // AuthGate listens to authStateChanges and shows the login screen.
             },

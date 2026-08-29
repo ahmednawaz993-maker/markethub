@@ -191,13 +191,14 @@ class VerifyBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || isAdminUser()) return const SizedBox.shrink();
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .snapshots(),
-      builder: (context, snapshot) {
-        final data = snapshot.data?.data() as Map<String, dynamic>?;
+    // Read from the session rather than watched. Whether somebody's ID is
+    // verified changes at most once in their life, and when it does they are
+    // sent a push — so a permanent socket to find out is a socket held for
+    // nothing. See user_session.dart.
+    return ListenableBuilder(
+      listenable: userSession,
+      builder: (context, _) {
+        final data = userSession.profile;
         if (data == null || data['idVerified'] == true) {
           return const SizedBox.shrink();
         }
@@ -499,22 +500,19 @@ class ContinueBrowsingRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return const SizedBox.shrink();
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('recentlyViewed')
-          .orderBy('viewedAt', descending: true)
-          .limit(10)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const SizedBox.shrink();
-        final items = snapshot.data!.docs
-            .map((d) => Listing.fromDoc(d))
+    if (FirebaseAuth.instance.currentUser == null) {
+      return const SizedBox.shrink();
+    }
+    // From the session. This list changes for exactly one reason — this user
+    // opened an ad, in this app, a moment ago — so the app already knows when
+    // to refresh it and does not need to be told by a socket.
+    return ListenableBuilder(
+      listenable: userSession,
+      builder: (context, _) {
+        final items = userSession.recentlyViewed
             .where((l) => l.isApproved && !isHiddenSeller(l.userId))
             .toList();
+        if (items.isEmpty) return const SizedBox.shrink();
         return HorizontalListingSection(
           title: 'Continue Browsing',
           subtitle: 'Pick up where you left off',
@@ -543,177 +541,138 @@ class FollowingRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return const SizedBox.shrink();
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('following')
-          .orderBy('createdAt', descending: true)
-          .limit(30)
-          .snapshots(),
-      builder: (context, followSnap) {
-        if (!followSnap.hasData) return const SizedBox.shrink();
-        final ids = followSnap.data!.docs.map((d) => d.id).toList();
-        if (ids.isEmpty) return const SizedBox.shrink();
-        return StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('listings')
-              .where('userId', whereIn: ids)
-              .where('approvalStatus', isEqualTo: 'approved')
-              // A rail, not an archive: one prolific seller you follow could
-              // otherwise fill it with a thousand ads.
-              .limit(40)
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) return const SizedBox.shrink();
-            final items =
-                snapshot.data!.docs
-                    .map((d) => Listing.fromDoc(d))
-                    .where((l) => l.isApproved)
-                    .toList()
-                  ..sort((a, b) {
-                    final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
-                    final bt = b.createdAt?.millisecondsSinceEpoch ?? 0;
-                    return bt.compareTo(at);
-                  });
-            return HorizontalListingSection(
-              title: 'From sellers you follow',
-              icon: Icons.people_alt_outlined,
-              listings: items.take(12).toList(),
-              onSeeAll: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const FollowingScreen()),
-              ),
-            );
-          },
+    if (FirebaseAuth.instance.currentUser == null) {
+      return const SizedBox.shrink();
+    }
+    // This was TWO nested live queries per user: the follow list, and then a
+    // thirty-seller whereIn over listings. Both now load with the session and
+    // refresh when the user follows or unfollows somebody, which is the only
+    // moment the first one can change.
+    return ListenableBuilder(
+      listenable: userSession,
+      builder: (context, _) {
+        final items =
+            userSession.followingAds
+                .where((l) => l.isApproved && !isHiddenSeller(l.userId))
+                .toList()
+              ..sort((a, b) {
+                final at = a.createdAt?.millisecondsSinceEpoch ?? 0;
+                final bt = b.createdAt?.millisecondsSinceEpoch ?? 0;
+                return bt.compareTo(at);
+              });
+        if (items.isEmpty) return const SizedBox.shrink();
+        return HorizontalListingSection(
+          title: 'From sellers you follow',
+          icon: Icons.people_alt_outlined,
+          listings: items.take(12).toList(),
+          onSeeAll: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const FollowingScreen()),
+          ),
         );
       },
     );
   }
 }
 
-/// Home rail of ads whose price was recently reduced — a "deals" shelf. Hidden
-/// when there are fewer than two live price-dropped ads.
 class DealsRail extends StatelessWidget {
-  const DealsRail({super.key});
+  const DealsRail({super.key, required this.deals});
+
+  /// Arrives with the feed rather than on a listener of its own: recent price
+  /// drops are the same for everybody, so one cached answer serves all of them
+  /// and the home screen holds one less Firestore connection.
+  final List<Listing> deals;
 
   @override
   Widget build(BuildContext context) {
-    final cutoff = Timestamp.fromDate(
-      DateTime.now().subtract(const Duration(days: 30)),
-    );
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('listings')
-          .where('approvalStatus', isEqualTo: 'approved')
-          .where('priceDropAt', isGreaterThan: cutoff)
-          .orderBy('priceDropAt', descending: true)
-          .limit(15)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const SizedBox.shrink();
-        final items = snapshot.data!.docs
-            .map((d) => Listing.fromDoc(d))
-            .where(
-              (l) =>
-                  !l.isSold &&
-                  l.isPubliclyVisible &&
-                  l.isApproved &&
-                  !isHiddenSeller(l.userId),
-            )
-            .toList();
-        return HorizontalListingSection(
-          title: 'Deals & price drops',
-          icon: Icons.local_fire_department_outlined,
-          iconColor: Colors.deepOrange,
-          listings: items,
-          minItems: 2,
-        );
-      },
+    final items = deals
+        .where(
+          (l) =>
+              !l.isSold &&
+              l.isPubliclyVisible &&
+              l.isApproved &&
+              // Blocking is personal, so it stays on the phone: a shared cache
+              // cannot know who YOU have blocked, and must not, or it would
+              // stop being shared.
+              !isHiddenSeller(l.userId),
+        )
+        .toList();
+    if (items.isEmpty) return const SizedBox.shrink();
+    return HorizontalListingSection(
+      title: 'Deals & price drops',
+      icon: Icons.local_fire_department_outlined,
+      iconColor: Colors.deepOrange,
+      listings: items,
+      minItems: 2,
     );
   }
 }
 
 /// Rail of admin-featured business storefronts.
 class FeaturedBusinessesRail extends StatelessWidget {
-  const FeaturedBusinessesRail({super.key});
+  const FeaturedBusinessesRail({super.key, required this.businesses});
+
+  /// Arrives with the feed. Admin-curated and identical for everybody, so it
+  /// has no business being a live query on every phone.
+  final List<FeaturedBusiness> businesses;
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .where('featuredBusiness', isEqualTo: true)
-          .limit(10)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const SizedBox.shrink();
-        final now = DateTime.now();
-        final docs = snapshot.data!.docs.where((d) {
-          final until = (d.data() as Map)['featuredBusinessUntil'];
-          return until is! Timestamp || until.toDate().isAfter(now);
-        }).toList();
-        if (docs.isEmpty) return const SizedBox.shrink();
+    final now = DateTime.now();
+    // A lapsed placement is not shown. Filtered here rather than in the query
+    // because a shared cached response cannot be re-filtered per viewer, and
+    // "featured until" ticks past while a response sits in the cache.
+    final live = businesses
+        .where((b) => b.until == null || b.until!.isAfter(now))
+        .toList();
+    if (live.isEmpty) return const SizedBox.shrink();
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: AppSpacing.section),
-            SectionHeader(
-              title: 'Featured businesses',
-              icon: Icons.storefront_outlined,
-              onAction: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const StoresScreen()),
-              ),
-            ),
-            SizedBox(
-              height: 86,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.page,
-                ),
-                itemCount: docs.length,
-                separatorBuilder: (_, _) =>
-                    const SizedBox(width: AppSpacing.md),
-                itemBuilder: (context, i) {
-                  final d = docs[i].data() as Map<String, dynamic>;
-                  final name = d['businessName']?.toString() ?? 'Business';
-                  final tagline = d['tagline']?.toString() ?? '';
-                  return SizedBox(
-                    width: 250,
-                    child: SellerCard(
-                      name: name,
-                      subtitle: tagline,
-                      avatarUrl: d['logoUrl']?.toString() ?? '',
-                      verified: d['businessVerified'] == true,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => SellerProfileScreen(
-                            sellerId: docs[i].id,
-                            sellerName: name,
-                          ),
-                        ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: AppSpacing.section),
+        SectionHeader(
+          title: 'Featured businesses',
+          icon: Icons.storefront_outlined,
+          onAction: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const StoresScreen()),
+          ),
+        ),
+        SizedBox(
+          height: 86,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.page),
+            itemCount: live.length,
+            separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.md),
+            itemBuilder: (context, i) {
+              final b = live[i];
+              return SizedBox(
+                width: 250,
+                child: SellerCard(
+                  name: b.name,
+                  subtitle: b.tagline,
+                  avatarUrl: b.logoUrl,
+                  verified: b.verified,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SellerProfileScreen(
+                        sellerId: b.id,
+                        sellerName: b.name,
                       ),
                     ),
-                  );
-                },
-              ),
-            ),
-          ],
-        );
-      },
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// Home screen + bottom navigation
-// ---------------------------------------------------------------------------
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -767,6 +726,9 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) resumePendingRoute(context);
     });
+    // The user's own state, read once. Four permanent Firestore listeners
+    // used to do this job continuously; see user_session.dart.
+    userSession.refresh();
     loadFavorites();
     loadBlocked();
     loadPlatformBlockedUsers().then((_) {
@@ -1106,8 +1068,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// The browse feed, once it has arrived. Null while it is still coming.
-  List<Listing>? _browse;
+  /// The browse feed and its rails, once they have arrived. Null while still
+  /// coming.
+  FeedPage? _browse;
   Object? _browseError;
 
   /// Loads the browse feed from the CDN, falling back to Firestore.
@@ -1117,10 +1080,10 @@ class _HomeScreenState extends State<HomeScreen> {
   /// all of them. See feed_api.dart.
   Future<void> _loadBrowse({bool fresh = false}) async {
     try {
-      final items = await loadFeedPage(limit: 60, fresh: fresh);
+      final page = await loadFeedPage(limit: 60, fresh: fresh);
       if (!mounted) return;
       setState(() {
-        _browse = items;
+        _browse = page;
         _browseError = null;
       });
     } catch (err) {
@@ -1145,7 +1108,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Builder(
       builder: (context) {
         var listings =
-            _browse!
+            _browse!.items
                 .where((l) => l.isApproved && l.isPubliclyVisible)
                 .toList()
               ..sort((a, b) {
@@ -1192,7 +1155,11 @@ class _HomeScreenState extends State<HomeScreen> {
             // `fresh` asks the CDN to revalidate rather than serve what it
             // already has: a pull-to-refresh that returned the cached copy
             // would be the same lie in a new form.
-            await Future.wait([_loadBrowse(fresh: true), _feedSource.refresh()]);
+            await Future.wait([
+              _loadBrowse(fresh: true),
+              userSession.refresh(),
+              _feedSource.refresh(),
+            ]);
             if (mounted) setState(() {});
           },
           child: LayoutBuilder(
@@ -1318,11 +1285,15 @@ class _HomeScreenState extends State<HomeScreen> {
                             icon: Icons.checkroom_outlined,
                           ),
                         ),
-                        const SliverToBoxAdapter(child: DealsRail()),
+                        SliverToBoxAdapter(
+                          child: DealsRail(deals: _browse!.deals),
+                        ),
                         const SliverToBoxAdapter(child: FollowingRail()),
                         if (featuringEnabled.value)
-                          const SliverToBoxAdapter(
-                            child: FeaturedBusinessesRail(),
+                          SliverToBoxAdapter(
+                            child: FeaturedBusinessesRail(
+                              businesses: _browse!.businesses,
+                            ),
                           ),
 
                         // ── Recommended feed ──

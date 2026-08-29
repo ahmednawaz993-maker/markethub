@@ -834,6 +834,11 @@ Future<void> recordRecentlyViewed(Listing listing) async {
         .collection('recentlyViewed')
         .doc(listing.id)
         .set({...listing.toMap(), 'viewedAt': Timestamp.now()});
+    // The Continue Browsing rail used to watch this collection continuously to
+    // notice a change that only ever happens HERE, in response to this user
+    // opening an ad. Telling it directly costs one read instead of a socket
+    // held for the life of the session.
+    unawaited(userSession.refreshRecentlyViewed());
   } catch (_) {
     // Non-critical.
   }

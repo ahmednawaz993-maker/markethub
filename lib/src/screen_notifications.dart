@@ -182,21 +182,17 @@ class NotificationBell extends StatelessWidget {
       ),
     );
     if (uid == null) return open;
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('notifications')
-          .where('read', isEqualTo: false)
-          // Capped. This badge downloaded every unread notification in order
-          // to print how many there were — a user who ignores the bell for a
-          // month pays for that on every screen the badge appears on. Nobody
-          // needs to be told they have exactly 347 unread; past 99 the number
-          // stops being information.
-          .limit(100)
-          .snapshots(),
-      builder: (context, snapshot) {
-        final count = snapshot.data?.docs.length ?? 0;
+    // Counted from the session, not watched.
+    //
+    // This badge is the last thing that kept a Firestore connection open for
+    // the whole time the app was on screen — and it was watching for the one
+    // event the app is ALREADY told about by other means: a push notification
+    // arrives at the same moment the unread count changes. So the push
+    // refreshes the count and the socket is gone. See user_session.dart.
+    return ListenableBuilder(
+      listenable: userSession,
+      builder: (context, _) {
+        final count = userSession.unread;
         return Badge(
           isLabelVisible: count > 0,
           label: Text(count > 99 ? '99+' : '$count'),
@@ -252,6 +248,8 @@ class NotificationsScreen extends StatelessWidget {
                     }
                     await batch.commit();
                   }
+                  // The badge is held state now, so it has to be told.
+                  await userSession.refreshUnread();
                 } catch (_) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -332,7 +330,9 @@ class NotificationsScreen extends StatelessWidget {
                             // Mark read on tap (unread rows only) and jump to
                             // whatever this notification is about.
                             if (!read) {
-                              docs[i].reference.update({'read': true});
+                              docs[i].reference
+                                  .update({'read': true})
+                                  .then((_) => userSession.refreshUnread());
                             }
                             openNotificationTarget(context, d);
                           },

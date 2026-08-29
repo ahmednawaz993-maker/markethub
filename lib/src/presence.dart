@@ -70,7 +70,14 @@ class PresenceService with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!_started) return;
-    _beat(state == AppLifecycleState.resumed);
+    final resumed = state == AppLifecycleState.resumed;
+    _beat(resumed);
+    if (resumed) {
+      // Nothing was listening while the app was away, so this is the moment to
+      // find out what changed. The alternative — holding a socket open the
+      // whole time the phone was in a pocket — is what this replaced.
+      userSession.refresh();
+    }
   }
 
   Future<void> _beat(bool online) async {
