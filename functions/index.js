@@ -4725,6 +4725,10 @@ const seo = require("./seo");
 exports.adPage = seo.adPage;
 exports.sitemapXml = seo.sitemapXml;
 
+// The browse feed, served from the CDN rather than from a live Firestore
+// listener on every phone. See functions/feed.js.
+exports.feed = require("./feed").feed;
+
 // ---------------------------------------------------------------------------
 // Ludo coins.
 //

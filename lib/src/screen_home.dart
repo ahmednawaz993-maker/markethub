@@ -740,6 +740,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _loadBrowse();
     _feedSource = PagedListings(
       query: FirebaseFirestore.instance
           .collection('listings')
@@ -1105,25 +1106,46 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _homeFeed() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('listings')
-          .where('approvalStatus', isEqualTo: 'approved')
-          .orderBy('createdAt', descending: true)
-          .limit(60)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return ErrorStateWidget(
-            message: 'We couldn’t load the marketplace. Pull down to retry.',
-            onRetry: () => setState(() {}),
-          );
-        }
+  /// The browse feed, once it has arrived. Null while it is still coming.
+  List<Listing>? _browse;
+  Object? _browseError;
 
+  /// Loads the browse feed from the CDN, falling back to Firestore.
+  ///
+  /// This used to be a live Firestore listener held by every user on the home
+  /// screen — a connection each, for sixty documents that are identical for
+  /// all of them. See feed_api.dart.
+  Future<void> _loadBrowse({bool fresh = false}) async {
+    try {
+      final items = await loadFeedPage(limit: 60, fresh: fresh);
+      if (!mounted) return;
+      setState(() {
+        _browse = items;
+        _browseError = null;
+      });
+    } catch (err) {
+      if (!mounted) return;
+      // Only surface the failure if there is nothing to show. A refresh that
+      // fails while the screen already holds a feed should leave the feed
+      // alone rather than replace it with an error.
+      setState(() => _browseError = _browse == null ? err : null);
+    }
+  }
+
+  Widget _homeFeed() {
+    if (_browse == null) {
+      return _browseError != null
+          ? ErrorStateWidget(
+              message: 'We couldn’t load the marketplace. Pull down to retry.',
+              onRetry: _loadBrowse,
+            )
+          : const Center(child: CircularProgressIndicator());
+    }
+
+    return Builder(
+      builder: (context) {
         var listings =
-            (snapshot.data?.docs ?? [])
-                .map((d) => Listing.fromDoc(d))
+            _browse!
                 .where((l) => l.isApproved && l.isPubliclyVisible)
                 .toList()
               ..sort((a, b) {
@@ -1166,7 +1188,11 @@ class _HomeScreenState extends State<HomeScreen> {
           onRefresh: () async {
             // Actually reload. This used to await a 500ms timer and no data,
             // so pulling down looked like a refresh without being one.
-            await _feedSource.refresh();
+            //
+            // `fresh` asks the CDN to revalidate rather than serve what it
+            // already has: a pull-to-refresh that returned the cached copy
+            // would be the same lie in a new form.
+            await Future.wait([_loadBrowse(fresh: true), _feedSource.refresh()]);
             if (mounted) setState(() {});
           },
           child: LayoutBuilder(

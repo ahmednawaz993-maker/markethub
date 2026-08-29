@@ -13,6 +13,13 @@
       ],
       "rewrites": [
         {
+          "source": "/api/feed",
+          "function": {
+            "functionId": "feed",
+            "region": "us-central1"
+          }
+        },
+        {
           "source": "/ad/**",
           "function": {
             "functionId": "adPage",
@@ -32,6 +39,15 @@
         }
       ],
       "headers": [
+        {
+          "source": "/api/feed",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=60, s-maxage=120, stale-while-revalidate=600"
+            }
+          ]
+        },
         {
           "source": "/ad/**",
           "headers": [
@@ -116,6 +132,13 @@
       ],
       "rewrites": [
         {
+          "source": "/api/feed",
+          "function": {
+            "functionId": "feed",
+            "region": "us-central1"
+          }
+        },
+        {
           "source": "/ad/**",
           "function": {
             "functionId": "adPage",
@@ -135,6 +158,15 @@
         }
       ],
       "headers": [
+        {
+          "source": "/api/feed",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=60, s-maxage=120, stale-while-revalidate=600"
+            }
+          ]
+        },
         {
           "source": "/ad/**",
           "headers": [

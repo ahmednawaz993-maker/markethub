@@ -185,8 +185,21 @@ class Listing {
     };
   }
 
-  factory Listing.fromDoc(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+  /// A listing from a Firestore document.
+  factory Listing.fromDoc(DocumentSnapshot doc) =>
+      Listing.fromMap(doc.id, doc.data() as Map<String, dynamic>? ?? {});
+
+  /// A listing from a plain map.
+  ///
+  /// Exists because the browse feed now arrives as JSON from the CDN rather
+  /// than as documents from Firestore, and the two must produce IDENTICAL
+  /// objects — a feed card built one way and the same card built the other way
+  /// differing in some field is the kind of bug that shows up as "the app is
+  /// weird sometimes". So there is one parser and [fromDoc] delegates to it.
+  ///
+  /// Timestamps therefore have to be accepted in both shapes: a Firestore
+  /// [Timestamp] from the database, or milliseconds since epoch from JSON.
+  factory Listing.fromMap(String id, Map<String, dynamic> data) {
 
     // Tolerant numeric read: a single doc with a stringified/odd number field
     // (legacy or hand-edited) must not throw and blank the entire feed.
@@ -194,6 +207,13 @@ class Listing {
       if (v is num) return v;
       if (v is String) return num.tryParse(v);
       return null;
+    }
+
+    // A Firestore Timestamp, or milliseconds from JSON, or nothing.
+    Timestamp? asTime(Object? v) {
+      if (v is Timestamp) return v;
+      final n = asNum(v);
+      return n == null ? null : Timestamp.fromMillisecondsSinceEpoch(n.toInt());
     }
 
     final rawImages = data['images'];
@@ -210,7 +230,7 @@ class Listing {
     );
 
     return Listing(
-      id: doc.id,
+      id: id,
       title: data['title']?.toString() ?? '',
       price: data['price']?.toString() ?? '',
       location: data['location']?.toString() ?? '',
@@ -247,16 +267,10 @@ class Listing {
       // feed filters keep hiding sold items.
       isSold: invStatus == 'sold',
       status: invStatus,
-      featuredUntil: data['featuredUntil'] is Timestamp
-          ? data['featuredUntil'] as Timestamp
-          : null,
-      createdAt: data['createdAt'] is Timestamp
-          ? data['createdAt'] as Timestamp
-          : null,
+      featuredUntil: asTime(data['featuredUntil']),
+      createdAt: asTime(data['createdAt']),
       previousPrice: data['previousPrice']?.toString() ?? '',
-      priceDropAt: data['priceDropAt'] is Timestamp
-          ? data['priceDropAt'] as Timestamp
-          : null,
+      priceDropAt: asTime(data['priceDropAt']),
       approvalStatus: data['approvalStatus']?.toString() ?? '',
     );
   }
