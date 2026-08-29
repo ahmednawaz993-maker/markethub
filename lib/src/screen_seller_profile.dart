@@ -589,22 +589,25 @@ class _FollowButtonState extends State<_FollowButton> {
         .collection('following')
         .doc(widget.sellerId);
     try {
-      // The ids are ALSO kept on the follower's own profile document, so the
-      // home rail can find out who they follow without reading thirty
-      // subcollection documents on every launch. Same batch as the follow
-      // itself, so the two cannot drift apart. See UserSession.
-      final myProfile = fs.collection('users').doc(uid);
+      // The ids are ALSO mirrored, so the home rail can find out who this user
+      // follows without reading thirty subcollection documents on every
+      // launch. Same batch as the follow itself, so the two cannot drift
+      // apart.
+      //
+      // In the OWNER-ONLY private document, never on the profile: the profile
+      // is readable by any signed-in user, and who you follow is not.
+      final mySocial = UserSession.privateSocialRef(uid);
       final batch = fs.batch();
       if (currentlyFollowing) {
         batch.delete(followerDoc);
         batch.delete(followingDoc);
-        batch.set(myProfile, {
+        batch.set(mySocial, {
           UserSession.kFollowingIdsField: FieldValue.arrayRemove([
             widget.sellerId,
           ]),
         }, SetOptions(merge: true));
       } else {
-        batch.set(myProfile, {
+        batch.set(mySocial, {
           UserSession.kFollowingIdsField: FieldValue.arrayUnion([
             widget.sellerId,
           ]),

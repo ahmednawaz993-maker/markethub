@@ -62,7 +62,10 @@ class UserSession extends ChangeNotifier {
   /// Drops everything on sign-out, so the next person to use this device does
   /// not briefly see the last person's ads.
   void clear() {
+    // A shared phone must not show one person's browsing to the next.
+    unawaited(clearCachedRecentlyViewed());
     profile = null;
+    _social = null;
     recentlyViewed = const [];
     followingAds = const [];
     unread = 0;
@@ -88,6 +91,7 @@ class UserSession extends ChangeNotifier {
     try {
       await Future.wait([
         _loadProfile(uid),
+        _loadSocial(uid),
         _loadRecentlyViewed(uid),
         _loadFollowing(uid),
         _loadUnread(uid),
@@ -112,31 +116,66 @@ class UserSession extends ChangeNotifier {
     }
   }
 
+  Future<void> _loadSocial(String uid) async {
+    try {
+      final doc = await privateSocialRef(uid).get();
+      _social = doc.data();
+    } catch (_) {}
+  }
+
+  /// Continue Browsing, from the device.
+  ///
+  /// This is a list of ads THIS user opened on THIS phone moments ago, so the
+  /// phone already has all of them — asking a database what it just did cost
+  /// ten document reads on every launch and every resume. The Firestore copy
+  /// is still written and is still what carries the rail to another device;
+  /// it is read only when the local list is empty, which is a fresh install.
   Future<void> _loadRecentlyViewed(String uid) async {
+    final local = await loadCachedRecentlyViewed();
+    if (local.isNotEmpty) {
+      recentlyViewed = local;
+      return;
+    }
     try {
       final snap = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
           .collection('recentlyViewed')
           .orderBy('viewedAt', descending: true)
-          .limit(10)
+          .limit(kRecentlyViewedCap)
           .get();
       recentlyViewed = snap.docs.map(Listing.fromDoc).toList();
+      // Seeded, so this device never pays for it again.
+      await seedCachedRecentlyViewed(recentlyViewed);
     } catch (_) {}
   }
 
-  /// The follow list, kept on the user's own document.
+  /// The follow list, mirrored as a list of ids so the rail does not have to
+  /// read thirty subcollection documents on every launch and every resume.
   ///
-  /// Reading it out of the `following` subcollection cost thirty document
-  /// reads, on every launch and every resume, to answer a question that is
-  /// almost always "the same four sellers as last time". The ids now ride on
-  /// the profile document the session already fetches, so the list itself
-  /// costs nothing at all.
+  /// KEPT IN users/{uid}/private/social, NOT ON THE PROFILE DOCUMENT. The
+  /// profile is readable by any signed-in user — seller pages need the name
+  /// and rating — while `following` is deliberately owner-only, described in
+  /// the rules as "their own private list". Mirroring the ids onto the profile
+  /// would have published who everybody follows to every signed-in account,
+  /// and it would have done it silently, because a denormalised copy inherits
+  /// the permissions of where you PUT it, not of where it came from.
   ///
   /// The subcollection stays the source of truth — it carries the seller names
-  /// and timestamps the Following screen shows — and this is a denormalised
-  /// copy of just the ids, maintained where the follow is written.
+  /// and timestamps the Following screen shows — and this is a copy of just
+  /// the ids, written in the same batch as the follow itself.
   static const String kFollowingIdsField = 'followingIds';
+
+  /// The owner-only document the mirror lives in.
+  static DocumentReference<Map<String, dynamic>> privateSocialRef(String uid) =>
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('private')
+          .doc('social');
+
+  /// The private half of the session, read alongside the profile.
+  Map<String, dynamic>? _social;
 
   /// Firestore's `whereIn` accepts at most thirty values, which is the real
   /// reason the rail looks at thirty sellers and not a hundred.
@@ -181,7 +220,7 @@ class UserSession extends ChangeNotifier {
   /// The sellers this user follows: free when the profile carries them, and
   /// backfilled the one time it does not.
   Future<List<String>> _followedSellerIds(String uid) async {
-    final cached = profile?[kFollowingIdsField];
+    final cached = _social?[kFollowingIdsField];
     if (cached is List) return followedIdsFrom(cached);
 
     // Accounts that predate the field. Read the subcollection once, then write
@@ -195,11 +234,11 @@ class UserSession extends ChangeNotifier {
         .get();
     // Oldest first, to match the order arrayUnion will keep it in from here.
     final ids = follows.docs.map((d) => d.id).toList().reversed.toList();
-    profile = {...?profile, kFollowingIdsField: ids};
+    _social = {...?_social, kFollowingIdsField: ids};
     try {
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        kFollowingIdsField: ids,
-      }, SetOptions(merge: true));
+      await privateSocialRef(
+        uid,
+      ).set({kFollowingIdsField: ids}, SetOptions(merge: true));
     } catch (_) {
       // Backfill is an optimisation. Failing it costs this user the thirty
       // reads again next time; it must never cost them the rail.
@@ -247,13 +286,13 @@ class UserSession extends ChangeNotifier {
   /// from a list that does not yet include the seller the user just followed,
   /// and following somebody would appear to do nothing.
   Future<void> noteFollowChange(String sellerId, {required bool following}) async {
-    final current = (profile?[kFollowingIdsField] as List?)
+    final current = (_social?[kFollowingIdsField] as List?)
             ?.map((e) => e.toString())
             .toList() ??
         <String>[];
     current.remove(sellerId);
     if (following) current.add(sellerId); // newest at the end, as arrayUnion
-    profile = {...?profile, kFollowingIdsField: current};
+    _social = {...?_social, kFollowingIdsField: current};
     await refreshFollowing();
   }
 

@@ -827,6 +827,11 @@ Future<void> clearRecentSearches() async {
 Future<void> recordRecentlyViewed(Listing listing) async {
   final uid = FirebaseAuth.instance.currentUser?.uid;
   if (uid == null || listing.id.isEmpty) return;
+  // The rail is drawn from the device, so update that FIRST and unconditionally
+  // — it is what the user will actually see, and it must not wait on, or be
+  // lost by, a network write.
+  await cacheRecentlyViewed(listing);
+  await userSession.refreshRecentlyViewed();
   try {
     await FirebaseFirestore.instance
         .collection('users')
@@ -834,14 +839,105 @@ Future<void> recordRecentlyViewed(Listing listing) async {
         .collection('recentlyViewed')
         .doc(listing.id)
         .set({...listing.toMap(), 'viewedAt': Timestamp.now()});
-    // The Continue Browsing rail used to watch this collection continuously to
-    // notice a change that only ever happens HERE, in response to this user
-    // opening an ad. Telling it directly costs one read instead of a socket
-    // held for the life of the session.
-    unawaited(userSession.refreshRecentlyViewed());
   } catch (_) {
     // Non-critical.
   }
+}
+
+// ---------------------------------------------------------------------------
+// Continue Browsing, on the device.
+//
+// The rail is a list of ads THIS user opened, on THIS phone, moments ago — so
+// the phone already has every one of them and does not need to ask a database
+// what it just did. It used to cost ten document reads on every launch and
+// every resume, and before that a permanent listener.
+//
+// The Firestore copy is still written, because it is what carries the rail
+// across to another device, and it is what the app falls back to on a fresh
+// install. It is simply no longer the thing the rail is drawn from.
+//
+// Same reasoning as Recent Searches above, and the same storage.
+// ---------------------------------------------------------------------------
+
+const String _kRecentlyViewedKey = 'recently_viewed_v1';
+
+/// How many the rail keeps. Matches the Firestore query it replaces.
+const int kRecentlyViewedCap = 10;
+
+/// A listing as JSON.
+///
+/// `toMap` is built for Firestore, so its timestamps are Firestore
+/// [Timestamp] objects — which jsonEncode cannot encode, and which threw
+/// straight into the catch below, storing nothing at all while looking like it
+/// worked. Listing.fromMap already accepts milliseconds, so they go out that
+/// way and come back in unchanged.
+String _encodeListing(Listing l) => jsonEncode({
+  'id': l.id,
+  for (final e in l.toMap().entries)
+    e.key: e.value is Timestamp
+        ? (e.value as Timestamp).millisecondsSinceEpoch
+        : e.value,
+});
+
+/// Remembers an ad locally, newest first.
+Future<void> cacheRecentlyViewed(Listing listing) async {
+  if (listing.id.isEmpty) return;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final existing = prefs.getStringList(_kRecentlyViewedKey) ?? const [];
+    final out = <String>[_encodeListing(listing)];
+    for (final raw in existing) {
+      if (out.length >= kRecentlyViewedCap) break;
+      try {
+        // Re-opening an ad moves it to the front rather than listing it twice.
+        if (jsonDecode(raw)['id'] == listing.id) continue;
+      } catch (_) {
+        continue; // unreadable entry from an older format
+      }
+      out.add(raw);
+    }
+    await prefs.setStringList(_kRecentlyViewedKey, out);
+  } catch (_) {
+    // A convenience rail is never worth an error.
+  }
+}
+
+/// The locally remembered ads, newest first.
+Future<List<Listing>> loadCachedRecentlyViewed() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList(_kRecentlyViewedKey) ?? const [];
+    final out = <Listing>[];
+    for (final entry in raw) {
+      try {
+        final map = (jsonDecode(entry) as Map).cast<String, dynamic>();
+        final id = map['id']?.toString() ?? '';
+        if (id.isNotEmpty) out.add(Listing.fromMap(id, map));
+      } catch (_) {}
+    }
+    return out;
+  } catch (_) {
+    return const [];
+  }
+}
+
+/// Replaces the local list, used to seed it from Firestore on a new device.
+Future<void> seedCachedRecentlyViewed(List<Listing> listings) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_kRecentlyViewedKey, [
+      for (final l in listings.take(kRecentlyViewedCap)) _encodeListing(l),
+    ]);
+  } catch (_) {}
+}
+
+/// Forgets the list, so a shared phone does not show one person's browsing to
+/// the next.
+Future<void> clearCachedRecentlyViewed() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kRecentlyViewedKey);
+  } catch (_) {}
 }
 
 // ---------------------------------------------------------------------------
