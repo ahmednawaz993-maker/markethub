@@ -589,11 +589,26 @@ class _FollowButtonState extends State<_FollowButton> {
         .collection('following')
         .doc(widget.sellerId);
     try {
+      // The ids are ALSO kept on the follower's own profile document, so the
+      // home rail can find out who they follow without reading thirty
+      // subcollection documents on every launch. Same batch as the follow
+      // itself, so the two cannot drift apart. See UserSession.
+      final myProfile = fs.collection('users').doc(uid);
       final batch = fs.batch();
       if (currentlyFollowing) {
         batch.delete(followerDoc);
         batch.delete(followingDoc);
+        batch.set(myProfile, {
+          UserSession.kFollowingIdsField: FieldValue.arrayRemove([
+            widget.sellerId,
+          ]),
+        }, SetOptions(merge: true));
       } else {
+        batch.set(myProfile, {
+          UserSession.kFollowingIdsField: FieldValue.arrayUnion([
+            widget.sellerId,
+          ]),
+        }, SetOptions(merge: true));
         batch.set(followerDoc, {
           'followerUid': uid,
           'createdAt': Timestamp.now(),
@@ -605,7 +620,12 @@ class _FollowButtonState extends State<_FollowButton> {
       }
       await batch.commit();
       // The one moment the followed-sellers rail can change.
-      unawaited(userSession.refreshFollowing());
+      unawaited(
+        userSession.noteFollowChange(
+          widget.sellerId,
+          following: !currentlyFollowing,
+        ),
+      );
       if (mounted && !currentlyFollowing) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

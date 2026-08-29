@@ -125,30 +125,86 @@ class UserSession extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> _loadFollowing(String uid) async {
+  /// The follow list, kept on the user's own document.
+  ///
+  /// Reading it out of the `following` subcollection cost thirty document
+  /// reads, on every launch and every resume, to answer a question that is
+  /// almost always "the same four sellers as last time". The ids now ride on
+  /// the profile document the session already fetches, so the list itself
+  /// costs nothing at all.
+  ///
+  /// The subcollection stays the source of truth — it carries the seller names
+  /// and timestamps the Following screen shows — and this is a denormalised
+  /// copy of just the ids, maintained where the follow is written.
+  static const String kFollowingIdsField = 'followingIds';
+
+  /// Firestore's `whereIn` accepts at most thirty values, which is the real
+  /// reason the rail looks at thirty sellers and not a hundred.
+  static const int maxFollowsQueried = 30;
+
+  /// How long the followed-sellers rail may go without re-checking.
+  ///
+  /// It changes when somebody you follow posts an ad, which is not something
+  /// that needs noticing within seconds. Without this, every resume — every
+  /// glance at the phone — paid for the rail again.
+  static const Duration _followingTtl = Duration(minutes: 10);
+
+  DateTime? _followingLoadedAt;
+
+  Future<void> _loadFollowing(String uid, {bool force = false}) async {
+    if (!force &&
+        _followingLoadedAt != null &&
+        DateTime.now().difference(_followingLoadedAt!) < _followingTtl) {
+      return;
+    }
     try {
-      final follows = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('following')
-          .orderBy('createdAt', descending: true)
-          .limit(30)
-          .get();
-      final ids = follows.docs.map((d) => d.id).toList();
+      final ids = await _followedSellerIds(uid);
       if (ids.isEmpty) {
         followingAds = const [];
+        _followingLoadedAt = DateTime.now();
         return;
       }
       final snap = await FirebaseFirestore.instance
           .collection('listings')
-          // whereIn takes at most 30 values, which is why the follow list above
-          // is capped at 30 rather than being a coincidence.
           .where('userId', whereIn: ids)
           .where('approvalStatus', isEqualTo: 'approved')
-          .limit(40)
+          // Newest first IN THE QUERY, so twelve documents are twelve reads.
+          // This used to fetch forty and sort them on the phone to show twelve.
+          .orderBy('createdAt', descending: true)
+          .limit(12)
           .get();
       followingAds = snap.docs.map(Listing.fromDoc).toList();
+      _followingLoadedAt = DateTime.now();
     } catch (_) {}
+  }
+
+  /// The sellers this user follows: free when the profile carries them, and
+  /// backfilled the one time it does not.
+  Future<List<String>> _followedSellerIds(String uid) async {
+    final cached = profile?[kFollowingIdsField];
+    if (cached is List) return followedIdsFrom(cached);
+
+    // Accounts that predate the field. Read the subcollection once, then write
+    // the ids onto the profile so this user never pays for it again.
+    final follows = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('following')
+        .orderBy('createdAt', descending: true)
+        .limit(maxFollowsQueried)
+        .get();
+    // Oldest first, to match the order arrayUnion will keep it in from here.
+    final ids = follows.docs.map((d) => d.id).toList().reversed.toList();
+    profile = {...?profile, kFollowingIdsField: ids};
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        kFollowingIdsField: ids,
+      }, SetOptions(merge: true));
+    } catch (_) {
+      // Backfill is an optimisation. Failing it costs this user the thirty
+      // reads again next time; it must never cost them the rail.
+    }
+    return ids;
   }
 
   Future<void> _loadUnread(String uid) async {
@@ -184,14 +240,53 @@ class UserSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Records a follow or unfollow the user just made, and reloads the rail.
+  ///
+  /// The id list is mirrored on the profile document, and the copy held here
+  /// was fetched before the change — so without this the rail would rebuild
+  /// from a list that does not yet include the seller the user just followed,
+  /// and following somebody would appear to do nothing.
+  Future<void> noteFollowChange(String sellerId, {required bool following}) async {
+    final current = (profile?[kFollowingIdsField] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        <String>[];
+    current.remove(sellerId);
+    if (following) current.add(sellerId); // newest at the end, as arrayUnion
+    profile = {...?profile, kFollowingIdsField: current};
+    await refreshFollowing();
+  }
+
   /// Refreshes just the followed-sellers rail, after the user follows or
   /// unfollows somebody — the one moment it can change.
   Future<void> refreshFollowing() async {
     final uid = _uid;
     if (uid == null) return;
-    await _loadFollowing(uid);
+    // Forced: the user just followed somebody and expects to see it.
+    await _loadFollowing(uid, force: true);
     notifyListeners();
   }
+}
+
+/// The sellers to ask about, out of the raw `followingIds` array.
+///
+/// Pure, and tested, because the trimming is where this quietly goes wrong:
+/// Firestore's `whereIn` takes at most thirty values and REJECTS a longer list
+/// outright, so a user who follows thirty-one sellers would get no rail at all
+/// rather than a shorter one. Taking from the wrong end is the other failure —
+/// arrayUnion appends, so the recent follows are at the TAIL, and trimming the
+/// front would show somebody the thirty sellers they cared about least.
+List<String> followedIdsFrom(
+  List<Object?> raw, {
+  int max = UserSession.maxFollowsQueried,
+}) {
+  final ids = <String>[];
+  for (final e in raw) {
+    final id = e?.toString() ?? '';
+    // Duplicates would waste slots in a list capped at thirty.
+    if (id.isNotEmpty && !ids.contains(id)) ids.add(id);
+  }
+  return ids.length <= max ? ids : ids.sublist(ids.length - max);
 }
 
 /// Shorthand, because this is referenced from several screens.

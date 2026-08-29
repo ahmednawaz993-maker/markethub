@@ -98,7 +98,9 @@ void main() {
     final signals = {
       'launch': 'userSession.refresh()',
       'a push arriving': 'userSession.refreshUnread()',
-      'following a seller': 'userSession.refreshFollowing()',
+      // Follows also update the id list cached on the profile, so this
+      // signal carries the change as well as triggering the reload.
+      'following a seller': 'userSession.noteFollowChange(',
       'opening an ad': 'userSession.refreshRecentlyViewed()',
       'signing out': 'userSession.clear()',
     };
