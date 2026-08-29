@@ -23,9 +23,16 @@ class ChatsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Chats')),
       body: StreamBuilder<QuerySnapshot>(
+        // Ordered and capped by the QUERY. It used to fetch every conversation
+        // this user has ever had, live, and sort them on the phone — fine at
+        // fifteen chats, and a growing download that never stops growing for
+        // anybody who actually uses the app. Forty is far more than fits on a
+        // screen, and the newest are the ones anybody looks for.
         stream: FirebaseFirestore.instance
             .collection('chats')
             .where('participants', arrayContains: uid)
+            .orderBy('lastTime', descending: true)
+            .limit(40)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -38,18 +45,8 @@ class ChatsScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final chats = snapshot.data!.docs.toList()
-            ..sort((a, b) {
-              final at =
-                  ((a.data() as Map<String, dynamic>)['lastTime'] as Timestamp?)
-                      ?.millisecondsSinceEpoch ??
-                  0;
-              final bt =
-                  ((b.data() as Map<String, dynamic>)['lastTime'] as Timestamp?)
-                      ?.millisecondsSinceEpoch ??
-                  0;
-              return bt.compareTo(at);
-            });
+          // Already newest-first from the query.
+          final chats = snapshot.data!.docs;
 
           if (chats.isEmpty) {
             return const EmptyStateWidget(
@@ -272,6 +269,14 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  /// How many messages of this conversation are loaded.
+  ///
+  /// The thread used to stream EVERY message in it, live and unbounded. A
+  /// conversation that runs for months would re-download itself on every open
+  /// and hold the whole history in memory — on the phone of someone paying for
+  /// their data by the megabyte. Newest first, more on request.
+  static const int _pageSize = 40;
+  int _limit = _pageSize;
   final messageController = TextEditingController();
   final picker = ImagePicker();
   bool sendingImage = false;
@@ -485,6 +490,7 @@ class _ChatScreenState extends State<ChatScreen> {
               stream: chatRef
                   .collection('messages')
                   .orderBy('createdAt', descending: true)
+                  .limit(_limit)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
@@ -542,8 +548,29 @@ class _ChatScreenState extends State<ChatScreen> {
                       child: ListView.builder(
                         reverse: true,
                         padding: const EdgeInsets.all(AppSpacing.md),
-                        itemCount: messages.length,
+                        // A full page probably means there is more behind it.
+                        // The list is reversed, so this last item is the one
+                        // that appears at the TOP — where you look for older
+                        // messages.
+                        itemCount:
+                            messages.length +
+                            (messages.length >= _limit ? 1 : 0),
                         itemBuilder: (context, index) {
+                          if (index == messages.length) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: AppSpacing.md,
+                                ),
+                                child: TextButton(
+                                  onPressed: () => setState(
+                                    () => _limit += _pageSize,
+                                  ),
+                                  child: const Text('Load earlier messages'),
+                                ),
+                              ),
+                            );
+                          }
                           final data =
                               messages[index].data() as Map<String, dynamic>;
                           // In admin (monitoring) mode the viewer is neither party, so

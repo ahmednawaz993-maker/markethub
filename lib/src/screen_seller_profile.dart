@@ -103,6 +103,11 @@ class SellerProfileScreen extends StatelessWidget {
           .collection('listings')
           .where('userId', isEqualTo: sellerId)
           .where('approvalStatus', isEqualTo: 'approved')
+          // Newest first and capped. Unbounded, a shopfront downloads every ad
+          // a seller has ever posted — and keeps it live, so one edit anywhere
+          // re-sends the lot. Nobody scrolls past sixty on a profile.
+          .orderBy('createdAt', descending: true)
+          .limit(60)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -625,12 +630,15 @@ class _FollowButtonState extends State<_FollowButton> {
         .collection('users')
         .doc(widget.sellerId)
         .collection('followers');
-    return StreamBuilder<QuerySnapshot>(
-      stream: followerCol.snapshots(),
-      builder: (context, snap) {
-        final docs = snap.data?.docs ?? const [];
-        final count = docs.length;
-        final following = docs.any((d) => d.id == uid);
+    // Two different questions were being answered by downloading every
+    // follower: how many there are, and whether I am one of them. The first is
+    // a count; the second is a single document, whose id IS the follower's uid.
+    // Asked separately, a seller with fifty thousand followers costs two reads
+    // instead of fifty thousand.
+    return StreamBuilder<DocumentSnapshot>(
+      stream: followerCol.doc(uid).snapshots(),
+      builder: (context, mine) {
+        final following = mine.data?.exists ?? false;
         return Column(
           children: [
             SizedBox(
@@ -647,14 +655,24 @@ class _FollowButtonState extends State<_FollowButton> {
                       label: const Text('Follow'),
                     ),
             ),
-            if (count > 0)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  '$count follower${count == 1 ? '' : 's'}',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-                ),
-              ),
+            // Re-read when the follow state changes, so the number moves the
+            // moment you press the button rather than looking broken.
+            CountBuilder(
+              query: followerCol,
+              refreshKey: following,
+              builder: (context, n) => (n == null || n == 0)
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        '$n follower${n == 1 ? '' : 's'}',
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+            ),
           ],
         );
       },
@@ -705,6 +723,7 @@ class FollowingScreen extends StatelessWidget {
                       .collection('listings')
                       .where('userId', whereIn: ids)
                       .where('approvalStatus', isEqualTo: 'approved')
+                      .limit(40)
                       .snapshots(),
                   builder: (context, ls) {
                     if (ls.hasError) {

@@ -1939,10 +1939,10 @@ class _FollowStatsRow extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: userRef.collection('followers').snapshots(),
-                builder: (context, snap) =>
-                    _stat('${snap.data?.docs.length ?? 0}', 'Followers'),
+              // Counted, not downloaded — see CountBuilder.
+              child: CountBuilder(
+                query: userRef.collection('followers'),
+                builder: (context, n) => _stat('${n ?? 0}', 'Followers'),
               ),
             ),
             Expanded(
@@ -1951,10 +1951,9 @@ class _FollowStatsRow extends StatelessWidget {
                   context,
                   MaterialPageRoute(builder: (_) => const FollowingScreen()),
                 ),
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: userRef.collection('following').snapshots(),
-                  builder: (context, snap) =>
-                      _stat('${snap.data?.docs.length ?? 0}', 'Following'),
+                child: CountBuilder(
+                  query: userRef.collection('following'),
+                  builder: (context, n) => _stat('${n ?? 0}', 'Following'),
                 ),
               ),
             ),

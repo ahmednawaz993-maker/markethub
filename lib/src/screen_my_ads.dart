@@ -83,6 +83,8 @@ class SalesDashboardScreen extends StatelessWidget {
         stream: FirebaseFirestore.instance
             .collection('orders')
             .where('sellerId', isEqualTo: uid)
+            .orderBy('createdAt', descending: true)
+            .limit(kMyListCap)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -395,6 +397,10 @@ class SellerAnalyticsScreen extends StatelessWidget {
         stream: FirebaseFirestore.instance
             .collection('listings')
             .where('userId', isEqualTo: uid)
+            // Newest first, and capped so a seller with thousands of ads does
+            // not download all of them — live — every time they open the tab.
+            .orderBy('createdAt', descending: true)
+            .limit(kMyListCap)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -660,6 +666,8 @@ class SellerDashboardScreen extends StatelessWidget {
     final ordersStream = fs
         .collection('orders')
         .where('sellerId', isEqualTo: uid)
+        .orderBy('createdAt', descending: true)
+        .limit(kMyListCap)
         .snapshots();
 
     return Scaffold(
@@ -720,6 +728,7 @@ class SellerDashboardScreen extends StatelessWidget {
                   stream: fs
                       .collection('offers')
                       .where('sellerId', isEqualTo: uid)
+                      .limit(kMyListCap)
                       .snapshots(),
                   builder: (context, snap) {
                     final n = (snap.data?.docs ?? [])
@@ -753,6 +762,7 @@ class SellerDashboardScreen extends StatelessWidget {
                   stream: fs
                       .collection('listings')
                       .where('userId', isEqualTo: uid)
+                      .limit(kMyListCap)
                       .snapshots(),
                   builder: (context, snap) {
                     final docs = snap.data?.docs ?? [];
@@ -1041,6 +1051,8 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
         stream: FirebaseFirestore.instance
             .collection('listings')
             .where('userId', isEqualTo: userId)
+            .orderBy('createdAt', descending: true)
+            .limit(kMyListCap)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {

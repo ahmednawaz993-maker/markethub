@@ -787,6 +787,7 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
               stream: _ticketRef
                   .collection('messages')
                   .orderBy('createdAt')
+                  .limit(200)
                   .snapshots(),
               builder: (context, snap) {
                 if (!snap.hasData) {

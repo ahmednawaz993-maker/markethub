@@ -115,6 +115,9 @@ class ReviewsScreen extends StatelessWidget {
             .collection('users')
             .doc(sellerId)
             .collection('reviews')
+            // A well-reviewed seller is exactly the one whose page must not
+            // take longer to open the better they do.
+            .limit(100)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {

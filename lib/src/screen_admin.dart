@@ -679,6 +679,7 @@ class _AdminFeaturedTab extends StatelessWidget {
           stream: fs
               .collection('listings')
               .where('isFeatured', isEqualTo: true)
+              .limit(kAdminListCap)
               .snapshots(),
           builder: (context, snap) {
             if (!snap.hasData) {
@@ -732,6 +733,7 @@ class _AdminFeaturedTab extends StatelessWidget {
           stream: fs
               .collection('users')
               .where('featuredBusiness', isEqualTo: true)
+              .limit(kAdminListCap)
               .snapshots(),
           builder: (context, snap) {
             if (!snap.hasData) {
@@ -795,6 +797,12 @@ class _AdminEscrowTab extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('orders')
           .where('status', isEqualTo: 'in_escrow')
+          // A work queue, and one that grows with the business rather than
+          // being curated like the featured lists above. Capped so the escrow
+          // desk keeps opening at any volume; the oldest are the ones that
+          // need chasing.
+          .orderBy('createdAt')
+          .limit(100)
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
@@ -2016,15 +2024,106 @@ class _LiveUsersCard extends StatelessWidget {
 class _AdminOverviewTab extends StatelessWidget {
   const _AdminOverviewTab();
 
-  Widget _section(
-    String title,
-    Stream<QuerySnapshot> stream,
-    List<_Metric> Function(List<QueryDocumentSnapshot>) compute,
-  ) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: stream,
+  /// A dashboard card whose numbers come from Firestore AGGREGATIONS.
+  ///
+  /// These sections used to stream the whole collection and add it up on the
+  /// phone: every user, every listing, every order, live, re-read on every
+  /// change anywhere. At 388 users that is invisible. At a million it is a
+  /// million document reads to draw one card, it costs real money each time
+  /// the screen is opened, and it will simply never finish loading.
+  ///
+  /// count() and sum() are answered from the index and billed at one read per
+  /// thousand entries, so the same card costs a few reads at any size. The
+  /// figures are identical: sum() skips documents missing the field, which is
+  /// exactly what the `?? 0` it replaces did.
+  ///
+  /// The trade is that an aggregation cannot be watched, so the card no longer
+  /// updates itself. Pull to refresh — which is what an operator does anyway.
+  // ---------------------------------------------------------------------
+  // Dashboard figures, read as aggregations.
+  //
+  // Each of these replaces a live stream of an entire collection. Written out
+  // one query per figure rather than one pass over the documents, because that
+  // is the shape Firestore can answer from the index — and the whole point is
+  // never to fetch the documents.
+  // ---------------------------------------------------------------------
+
+  Future<int> _count(Query<Object?> q) async =>
+      (await q.count().get()).count ?? 0;
+
+  Future<num> _sum(Query<Object?> q, String field) async =>
+      (await q.aggregate(sum(field)).get()).getSum(field) ?? 0;
+
+  Future<List<_Metric>> _userMetrics() async {
+    final fs = FirebaseFirestore.instance;
+    final users = fs.collection('users');
+    final results = await Future.wait([
+      _count(users),
+      _count(users.where('isBusiness', isEqualTo: true)),
+      // sum() ignores documents without the field, which is what the old
+      // `(m['walletBalance'] as num?) ?? 0` did document by document.
+      _sum(users, 'walletBalance'),
+    ]);
+    return [
+      _Metric('${results[0]}', 'Total users'),
+      _Metric('${results[1]}', 'Businesses'),
+      _Metric(formatPrice('${results[2].toInt()}'), 'Wallet float'),
+    ];
+  }
+
+  Future<List<_Metric>> _listingMetrics() async {
+    final listings = FirebaseFirestore.instance.collection('listings');
+    final results = await Future.wait([
+      _count(listings),
+      _count(listings.where('isFeatured', isEqualTo: true)),
+      _count(listings.where('isSold', isEqualTo: true)),
+    ]);
+    return [
+      _Metric('${results[0]}', 'Total ads'),
+      _Metric('${results[1]}', 'Featured'),
+      _Metric('${results[2]}', 'Sold'),
+    ];
+  }
+
+  Future<List<_Metric>> _orderMetrics() async {
+    final orders = FirebaseFirestore.instance.collection('orders');
+    final escrow = orders.where('status', isEqualTo: 'in_escrow');
+    // 'completed' is the legacy name for a released order; both must count or
+    // the historical figures move.
+    final done = orders.where('status', whereIn: ['released', 'completed']);
+    final results = await Future.wait([
+      _count(escrow),
+      _sum(escrow, 'amount'),
+      _count(done),
+      _sum(done, 'amount'),
+      _sum(done, 'commission'),
+    ]);
+    return [
+      _Metric('${results[2]}', 'Deals done'),
+      _Metric(formatPrice('${results[3].toInt()}'), 'GMV'),
+      _Metric(
+        formatPrice('${results[4].toInt()}'),
+        // Reads the live rate rather than a hard-coded "2%", which is wrong
+        // for the whole free-launch period.
+        'Your earnings (${(commissionRate * 100).toStringAsFixed(0)}%)',
+      ),
+      _Metric('${results[0]}', 'In escrow'),
+      _Metric(formatPrice('${results[1].toInt()}'), 'Held now'),
+    ];
+  }
+
+  Future<List<_Metric>> _offerMetrics() async => [
+    _Metric(
+      '${await _count(FirebaseFirestore.instance.collection('offers'))}',
+      'Total offers',
+    ),
+  ];
+
+  Widget _aggregateSection(String title, Future<List<_Metric>> future) {
+    return FutureBuilder<List<_Metric>>(
+      future: future,
       builder: (context, snapshot) {
-        final metrics = snapshot.hasData ? compute(snapshot.data!.docs) : null;
+        final metrics = snapshot.data;
         return AppCard(
           margin: const EdgeInsets.only(bottom: AppSpacing.md),
           padding: const EdgeInsets.all(AppSpacing.lg),
@@ -2089,6 +2188,30 @@ class _AdminOverviewTab extends StatelessWidget {
 
   /// A 6-month trend card: buckets each doc's [valueOf] into the month of its
   /// completedAt/createdAt and draws a bar per month.
+  /// The window the trend cards chart.
+  ///
+  /// They are titled "last 6 months" and they bucket by month, but the queries
+  /// behind them used to stream the ENTIRE collection — every order, every
+  /// user, every listing ever — and then throw away everything older than six
+  /// months on the phone. Five cards, five whole collections, live.
+  ///
+  /// Asking for the window in the query returns exactly the same chart, and
+  /// stops the cost of drawing it growing forever. Documents with no createdAt
+  /// drop out, which changes nothing: they had no month to be bucketed into.
+  ///
+  /// At much larger volume even six months is too much to stream and these
+  /// should become monthly totals written once by a function. That is a
+  /// different piece of work; this one stops the unbounded growth.
+  Query<Map<String, dynamic>> _trendWindow(String collection) =>
+      FirebaseFirestore.instance
+          .collection(collection)
+          .where(
+            'createdAt',
+            isGreaterThan: Timestamp.fromDate(
+              DateTime.now().subtract(const Duration(days: 190)),
+            ),
+          );
+
   Widget _trendCard(
     String title,
     Stream<QuerySnapshot> stream,
@@ -2146,7 +2269,6 @@ class _AdminOverviewTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fs = FirebaseFirestore.instance;
     return ListView(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.page,
@@ -2157,73 +2279,14 @@ class _AdminOverviewTab extends StatelessWidget {
       children: [
         const _VerificationToggle(),
         const _LiveUsersCard(),
-        _section('Users', fs.collection('users').snapshots(), (docs) {
-          int business = 0;
-          num float = 0;
-          for (final d in docs) {
-            final m = d.data() as Map;
-            if (m['isBusiness'] == true) business++;
-            float += (m['walletBalance'] as num?) ?? 0;
-          }
-          return [
-            _Metric('${docs.length}', 'Total users'),
-            _Metric('$business', 'Businesses'),
-            _Metric(formatPrice('${float.toInt()}'), 'Wallet float'),
-          ];
-        }),
-        _section('Listings', fs.collection('listings').snapshots(), (docs) {
-          int featured = 0, sold = 0;
-          for (final d in docs) {
-            final m = d.data() as Map;
-            if (m['isFeatured'] == true) featured++;
-            if (m['isSold'] == true) sold++;
-          }
-          return [
-            _Metric('${docs.length}', 'Total ads'),
-            _Metric('$featured', 'Featured'),
-            _Metric('$sold', 'Sold'),
-          ];
-        }),
-        // Platform owner's revenue: the 2% commission on every released escrow
-        // deal accrues to you (it's the gap between what the buyer paid and the
-        // seller payout). With PayFast wired, it settles into your merchant
-        // account automatically; here it's the running total you've earned.
-        _section(
-          'Escrow & your earnings',
-          fs.collection('orders').snapshots(),
-          (docs) {
-            int inEscrow = 0, settled = 0;
-            num held = 0, gmv = 0, earnings = 0;
-            for (final d in docs) {
-              final m = d.data() as Map;
-              final amt = (m['amount'] as num?) ?? 0;
-              switch (m['status']) {
-                case 'in_escrow':
-                  inEscrow++;
-                  held += amt;
-                case 'released' || 'completed': // 'completed' = legacy orders
-                  settled++;
-                  gmv += amt;
-                  earnings +=
-                      (m['commission'] as num?) ?? (amt * commissionRate);
-              }
-            }
-            return [
-              _Metric('$settled', 'Deals done'),
-              _Metric(formatPrice('${gmv.toInt()}'), 'GMV'),
-              _Metric(formatPrice('${earnings.toInt()}'), 'Your earnings (2%)'),
-              _Metric('$inEscrow', 'In escrow'),
-              _Metric(formatPrice('${held.toInt()}'), 'Held now'),
-            ];
-          },
-        ),
-        _section(
-          'Negotiation & purchases',
-          fs.collection('offers').snapshots(),
-          (docs) {
-            return [_Metric('${docs.length}', 'Total offers')];
-          },
-        ),
+        _aggregateSection('Users', _userMetrics()),
+        _aggregateSection('Listings', _listingMetrics()),
+        // Platform owner's revenue: the commission on every released escrow
+        // deal accrues to you (it's the gap between what the buyer paid and
+        // the seller payout). With PayFast wired, it settles into your
+        // merchant account automatically; here it's the running total.
+        _aggregateSection('Escrow & your earnings', _orderMetrics()),
+        _aggregateSection('Negotiation & purchases', _offerMetrics()),
         const Padding(
           padding: EdgeInsets.fromLTRB(4, 10, 4, 6),
           child: Text(
@@ -2233,7 +2296,7 @@ class _AdminOverviewTab extends StatelessWidget {
         ),
         _trendCard(
           'GMV (sales value)',
-          fs.collection('orders').snapshots(),
+          _trendWindow('orders').snapshots(),
           (m) => (m['status'] == 'released' || m['status'] == 'completed')
               ? (((m['amount'] as num?)?.toDouble()) ?? 0.0)
               : 0.0,
@@ -2241,7 +2304,7 @@ class _AdminOverviewTab extends StatelessWidget {
         ),
         _trendCard(
           'Your earnings (2% commission)',
-          fs.collection('orders').snapshots(),
+          _trendWindow('orders').snapshots(),
           (m) {
             if (m['status'] != 'released' && m['status'] != 'completed') {
               return 0.0;
@@ -2252,15 +2315,15 @@ class _AdminOverviewTab extends StatelessWidget {
           },
           money: true,
         ),
-        _trendCard('New users', fs.collection('users').snapshots(), (m) => 1.0),
+        _trendCard('New users', _trendWindow('users').snapshots(), (m) => 1.0),
         _trendCard(
           'New ads',
-          fs.collection('listings').snapshots(),
+          _trendWindow('listings').snapshots(),
           (m) => 1.0,
         ),
         _trendCard(
           'Orders placed',
-          fs.collection('orders').snapshots(),
+          _trendWindow('orders').snapshots(),
           (m) => 1.0,
         ),
       ],
@@ -2684,7 +2747,13 @@ class _AdminOffersTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('offers').snapshots(),
+      // Capped. An admin browsing offers does not need every offer ever made
+      // delivered to their phone, and at volume they cannot have it.
+      stream: FirebaseFirestore.instance
+          .collection('offers')
+          .orderBy('createdAt', descending: true)
+          .limit(kAdminListCap)
+          .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -3318,7 +3387,11 @@ class _AdminOrdersTabState extends State<_AdminOrdersTab> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('orders').snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('orders')
+          .orderBy('createdAt', descending: true)
+          .limit(kAdminListCap)
+          .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -3650,6 +3723,8 @@ class _MasterOrderTile extends StatelessWidget {
           stream: FirebaseFirestore.instance
               .collection('orders')
               .where('masterOrderId', isEqualTo: master.id)
+              // One basket's lines; fifty is far more than any basket holds.
+              .limit(50)
               .snapshots(),
           builder: (context, s) {
             if (!s.hasData) {
@@ -4788,6 +4863,7 @@ class _AdminChatsTabState extends State<_AdminChatsTab> {
             stream: FirebaseFirestore.instance
                 .collection('chats')
                 .orderBy('lastTime', descending: true)
+                .limit(kAdminListCap)
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
@@ -5048,6 +5124,7 @@ class _AdminBusinessTabState extends State<_AdminBusinessTab> {
       stream: FirebaseFirestore.instance
           .collection('users')
           .where('isBusiness', isEqualTo: true)
+          .limit(kAdminListCap)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -6054,6 +6131,11 @@ class _AdminApprovalsTab extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('listings')
           .where('approvalStatus', isEqualTo: 'pending')
+          // The moderation queue, oldest first: the ad that has waited longest
+          // is the one to review next, and a queue that loads is worth more
+          // than a queue that is complete.
+          .orderBy('createdAt')
+          .limit(kAdminListCap)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {

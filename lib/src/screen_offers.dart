@@ -75,6 +75,7 @@ class _OffersList extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('offers')
           .where(asSeller ? 'sellerId' : 'buyerId', isEqualTo: uid)
+          .limit(kMyListCap)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {

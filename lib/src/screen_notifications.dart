@@ -188,12 +188,18 @@ class NotificationBell extends StatelessWidget {
           .doc(uid)
           .collection('notifications')
           .where('read', isEqualTo: false)
+          // Capped. This badge downloaded every unread notification in order
+          // to print how many there were — a user who ignores the bell for a
+          // month pays for that on every screen the badge appears on. Nobody
+          // needs to be told they have exactly 347 unread; past 99 the number
+          // stops being information.
+          .limit(100)
           .snapshots(),
       builder: (context, snapshot) {
         final count = snapshot.data?.docs.length ?? 0;
         return Badge(
           isLabelVisible: count > 0,
-          label: Text('$count'),
+          label: Text(count > 99 ? '99+' : '$count'),
           offset: const Offset(-4, 4),
           child: open,
         );

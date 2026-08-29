@@ -562,6 +562,9 @@ class FollowingRail extends StatelessWidget {
               .collection('listings')
               .where('userId', whereIn: ids)
               .where('approvalStatus', isEqualTo: 'approved')
+              // A rail, not an archive: one prolific seller you follow could
+              // otherwise fill it with a thousand ads.
+              .limit(40)
               .snapshots(),
           builder: (context, snapshot) {
             if (!snapshot.hasData) return const SizedBox.shrink();

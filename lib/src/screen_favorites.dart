@@ -32,6 +32,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             .collection('users')
             .doc(uid)
             .collection('favorites')
+            // Capped: somebody who favourites everything they browse should
+            // not end up with a screen that takes longer to open every week.
+            .limit(kMyListCap)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {

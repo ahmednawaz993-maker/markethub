@@ -381,6 +381,8 @@ class _OrdersList extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('orders')
           .where(asSeller ? 'sellerId' : 'buyerId', isEqualTo: uid)
+          .orderBy('createdAt', descending: true)
+          .limit(kMyListCap)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {

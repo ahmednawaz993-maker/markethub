@@ -117,6 +117,7 @@ part 'src/ludo_local.dart';
 part 'src/screen_ludo.dart';
 part 'src/screen_admin_categories.dart';
 part 'src/screen_notifications.dart';
+part 'src/live_count.dart';
 part 'src/screen_chat.dart';
 part 'src/screen_support.dart';
 
