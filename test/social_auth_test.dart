@@ -1,4 +1,4 @@
-// Facebook sign-in: the parts that can be tested without a live OAuth window.
+// Google sign-in: the parts that can be tested without a live OAuth window.
 //
 // The sign-in call itself needs a real popup and a real Meta app, so what is
 // pinned here is the logic that decides what the USER is told — which is where
@@ -15,9 +15,9 @@ FirebaseAuthException err(String code, [String? message]) =>
     FirebaseAuthException(code: code, message: message);
 
 void main() {
-  group('friendlyFacebookError', () {
+  group('friendlySignInError', () {
     test('an existing email account gets told to use the other door', () {
-      final msg = friendlyFacebookError(
+      final msg = friendlySignInError(
         err('account-exists-with-different-credential'),
       );
       // The specifics matter: name the account, name the way in.
@@ -36,12 +36,12 @@ void main() {
         'web-context-canceled',
         'user-cancelled',
       ]) {
-        expect(friendlyFacebookError(err(code)), '', reason: code);
+        expect(friendlySignInError(err(code)), '', reason: code);
       }
     });
 
     test('a blocked popup explains the fix', () {
-      expect(friendlyFacebookError(err('popup-blocked')), contains('pop-up'));
+      expect(friendlySignInError(err('popup-blocked')), contains('pop-up'));
     });
 
     test('no message is ever a raw Firebase code', () {
@@ -51,7 +51,7 @@ void main() {
         'operation-not-allowed',
         'user-disabled',
       ]) {
-        final msg = friendlyFacebookError(err(code));
+        final msg = friendlySignInError(err(code));
         expect(msg, isNotEmpty, reason: code);
         expect(msg, isNot(contains(code)), reason: code);
         // Sentences, not codes: every one ends like something a person wrote.
@@ -62,16 +62,25 @@ void main() {
     test('an unknown code falls back to the Firebase message, then to prose',
         () {
       expect(
-        friendlyFacebookError(err('something-new', 'Server said no.')),
+        friendlySignInError(err('something-new', 'Server said no.')),
         'Server said no.',
       );
-      expect(friendlyFacebookError(err('something-new')), contains('Facebook'));
+      expect(friendlySignInError(err('something-new')), contains('Google'));
+    });
+
+    test('closing the account picker says nothing at all', () {
+      // Google's cancellation is a GoogleSignInException, not a
+      // FirebaseAuthException, so it would otherwise fall through to "could
+      // not sign in" — a red banner for somebody who simply changed their
+      // mind, on the most common way of abandoning a sign-in.
+      expect(friendlySignInError(Exception('GoogleSignInException: canceled')), '');
+      expect(friendlySignInError(Exception('flow was cancelled by the user')), '');
     });
 
     test('a non-Firebase throwable still produces a sentence', () {
       // A TypeError or a timeout must not reach the user as a stack trace.
-      expect(friendlyFacebookError(StateError('boom')), contains('Facebook'));
-      expect(friendlyFacebookError('boom'), contains('Facebook'));
+      expect(friendlySignInError(StateError('boom')), contains('Google'));
+      expect(friendlySignInError('boom'), contains('Google'));
     });
   });
 

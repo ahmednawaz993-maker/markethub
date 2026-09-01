@@ -179,6 +179,10 @@ class _LudoInviteSheetState extends State<LudoInviteSheet> {
   /// access token is held in memory and never persisted, so there is nothing
   /// to look friends up with otherwise.
   Future<void> _loadFacebookFriends() async {
+    // Never true since Facebook sign-in was removed from the login page:
+    // nothing sets this token any more, so this section simply does not
+    // appear. Left in place rather than deleted because the friends lookup
+    // still works and would come back with the button if it ever returns.
     if (facebookAccessToken == null) return;
     setState(() => _fbLoading = true);
     final friends = await facebookFriendsOnPakBazar();

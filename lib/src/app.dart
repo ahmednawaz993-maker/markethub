@@ -51,8 +51,26 @@ class PakBazarApp extends StatelessWidget {
   }
 }
 
-class AuthGate extends StatelessWidget {
+/// Whether signing in should clear whatever is stacked on top of the gate.
+///
+/// True only on the SIGNED-OUT to SIGNED-IN edge. It is deliberately not "am I
+/// signed in": authStateChanges also fires on a token refresh while somebody is
+/// happily browsing, and popping their stack then would throw them out of
+/// whatever screen they were reading.
+bool shouldClearAuthRoutes(bool? wasSignedIn, bool signedIn) =>
+    wasSignedIn == false && signedIn;
+
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  /// Null until the first auth state arrives, so the app opening already
+  /// signed in is not mistaken for somebody signing in.
+  bool? _wasSignedIn;
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +87,28 @@ class AuthGate extends StatelessWidget {
         // uid is the account handle, not PII beyond what we already store.
         setObservabilityUser(snapshot.data?.uid);
 
-        if (snapshot.hasData) {
+        // THE LOGIN SCREEN IS A PUSHED ROUTE, and this gate only decides what
+        // sits UNDERNEATH it. So when somebody signs in, the home screen
+        // appears at the bottom of the stack while they carry on looking at
+        // the login form — which is exactly what "it does not open the app
+        // after signing in with Google" is.
+        //
+        // It worked before only because the login form used to BE this gate's
+        // signed-out branch; putting a landing page in front of it is what
+        // introduced the gap. Handled here rather than in each sign-in handler
+        // so it covers every way in — Google, email, phone, guest — including
+        // any added later.
+        final signedIn = snapshot.hasData;
+        if (shouldClearAuthRoutes(_wasSignedIn, signedIn)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            final nav = Navigator.of(context);
+            if (nav.canPop()) nav.popUntil((r) => r.isFirst);
+          });
+        }
+        _wasSignedIn = signedIn;
+
+        if (signedIn) {
           return const _PresenceHost(child: _GatedHome());
         }
 

@@ -18,9 +18,8 @@ class _AuthScreenState extends State<AuthScreen> {
 
   bool isLogin = true;
   bool isLoading = false;
-  // Separate from isLoading so the spinner appears in the Facebook button
+  // Separate from isLoading so the spinner appears in the Google button
   // rather than on the email form, which is what the user actually tapped.
-  bool isFacebookLoading = false;
   bool isGoogleLoading = false;
   String? errorMessage;
 
@@ -466,43 +465,15 @@ class _AuthScreenState extends State<AuthScreen> {
       // AuthGate listens to authStateChanges and navigates automatically.
     } catch (e) {
       if (!mounted) return;
-      // Same as Facebook: an empty message means the user closed the window
-      // themselves, which is not an error worth showing them.
-      final msg = friendlyFacebookError(e);
+      // An empty message means the user closed the account picker themselves,
+      // which is not an error and must not produce a red banner.
+      final msg = friendlySignInError(e);
       setState(() => errorMessage = msg.isEmpty ? null : msg);
     } finally {
       if (mounted) {
         setState(() {
           isLoading = false;
           isGoogleLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> continueWithFacebook() async {
-    setState(() {
-      isLoading = true;
-      isFacebookLoading = true;
-      errorMessage = null;
-    });
-    try {
-      final cred = await signInWithFacebook();
-      if (cred.additionalUserInfo?.isNewUser == true) {
-        trackSignUp(method: 'facebook');
-      }
-      // AuthGate listens to authStateChanges and navigates automatically.
-    } catch (e) {
-      if (!mounted) return;
-      // An empty message means the user closed the Facebook window themselves.
-      // That is not an error and showing one for it is just noise.
-      final msg = friendlyFacebookError(e);
-      setState(() => errorMessage = msg.isEmpty ? null : msg);
-    } finally {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-          isFacebookLoading = false;
         });
       }
     }
@@ -759,16 +730,13 @@ class _AuthScreenState extends State<AuthScreen> {
                       child: const Text('Change number'),
                     ),
                   const Divider(height: 32),
-                  // Google first: it is the account almost everybody already
-                  // has on the phone in their hand.
+                  // Facebook was removed from this page: no account on
+                  // PakBazar had ever used it (checked — zero of 490), and a
+                  // sign-in button nobody uses is a button everybody has to
+                  // read past.
                   GoogleSignInButton(
                     busy: isGoogleLoading,
                     onPressed: isLoading ? null : continueWithGoogle,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  FacebookSignInButton(
-                    busy: isFacebookLoading,
-                    onPressed: isLoading ? null : continueWithFacebook,
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   OutlinedButton.icon(

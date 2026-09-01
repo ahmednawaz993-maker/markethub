@@ -119,16 +119,44 @@ Future<UserCredential> signInWithGoogle() async {
       try {
         return await guest.linkWithPopup(provider);
       } on FirebaseAuthException catch (e) {
-        if (e.code != 'credential-already-in-use' &&
-            e.code != 'provider-already-linked' &&
-            e.code != 'email-already-in-use') {
-          rethrow;
-        }
+        if (!_alreadyClaimed(e)) rethrow;
       }
     }
     return auth.signInWithPopup(provider);
   }
 
+  // Native first. If the device cannot do it — no Play Services, an unusual
+  // Android build, a platform the plugin does not implement — fall back to the
+  // Custom Tab flow rather than leaving the button dead. Two ways in beats one
+  // way that works on most phones.
+  if (GoogleSignIn.instance.supportsAuthenticate()) {
+    try {
+      return await _googleNative(auth);
+    } on FirebaseAuthException {
+      // A real Firebase refusal — wrong token audience, disabled account, an
+      // email already taken. Falling back would only ask the user to pick
+      // their account a second time and fail identically.
+      rethrow;
+    } catch (e) {
+      // Anything else is the NATIVE layer failing, not the sign-in being
+      // refused: a missing SHA on some build, Play Services out of date, a
+      // device with none. The web handler needs none of that.
+      if (e.toString().contains('canceled') ||
+          e.toString().contains('cancelled')) {
+        rethrow; // the user closed the picker; do not reopen it
+      }
+      recordHandledError(
+        e,
+        StackTrace.current,
+        context: 'native Google sign-in failed, falling back to the web flow',
+      );
+    }
+  }
+  return _googleViaHandler(auth);
+}
+
+/// The native account picker.
+Future<UserCredential> _googleNative(FirebaseAuth auth) async {
   if (!_googleReady) {
     await GoogleSignIn.instance.initialize(
       serverClientId: kGoogleServerClientId,
@@ -139,31 +167,58 @@ Future<UserCredential> signInWithGoogle() async {
   final account = await GoogleSignIn.instance.authenticate();
   final idToken = account.authentication.idToken;
   if (idToken == null) {
-    // Nothing to hand Firebase. Better a clear failure than a silent one that
-    // leaves the button spinning.
+    // Nothing to hand Firebase. A clear failure beats a silent one that leaves
+    // the button spinning for ever.
     throw FirebaseAuthException(
       code: 'missing-id-token',
       message: 'Google did not return a sign-in token. Please try again.',
     );
   }
-  final credential = GoogleAuthProvider.credential(idToken: idToken);
+  return _finish(auth, GoogleAuthProvider.credential(idToken: idToken));
+}
 
+/// Firebase's own OAuth handler, in a Custom Tab.
+///
+/// The fallback, and the flow Google sign-in used before the native picker was
+/// added. It needs no native configuration at all, which is exactly why it is
+/// worth keeping for the devices where the native path cannot run.
+Future<UserCredential> _googleViaHandler(FirebaseAuth auth) async {
+  final provider = GoogleAuthProvider()
+    ..addScope('email')
+    ..addScope('profile');
+  final guest = auth.currentUser;
+  if (guest != null && guest.isAnonymous) {
+    try {
+      return await guest.linkWithProvider(provider);
+    } on FirebaseAuthException catch (e) {
+      if (!_alreadyClaimed(e)) rethrow;
+    }
+  }
+  return auth.signInWithProvider(provider);
+}
+
+/// Links the credential onto a browsing guest, or signs in with it.
+Future<UserCredential> _finish(
+  FirebaseAuth auth,
+  AuthCredential credential,
+) async {
   final guest = auth.currentUser;
   if (guest != null && guest.isAnonymous) {
     try {
       return await guest.linkWithCredential(credential);
     } on FirebaseAuthException catch (e) {
-      if (e.code != 'credential-already-in-use' &&
-          e.code != 'provider-already-linked' &&
-          e.code != 'email-already-in-use') {
-        rethrow;
-      }
+      if (!_alreadyClaimed(e)) rethrow;
       // That Google account already has a PakBazar account of its own, and the
       // guest session is the throwaway one.
     }
   }
   return auth.signInWithCredential(credential);
 }
+
+bool _alreadyClaimed(FirebaseAuthException e) =>
+    e.code == 'credential-already-in-use' ||
+    e.code == 'provider-already-linked' ||
+    e.code == 'email-already-in-use';
 
 /// Records this account's Facebook id so friends can find each other.
 ///
@@ -204,14 +259,22 @@ String? facebookIdOf(User? user) => user?.providerData
 /// the person already has a PakBazar account on that email address with a
 /// password, and Firebase will not silently merge the two. Saying "an error
 /// occurred" there strands them; telling them which door to use does not.
-String friendlyFacebookError(Object e) {
+String friendlySignInError(Object e, {String provider = 'Google'}) {
+  // The user closing the account picker is not an error and must not produce a
+  // red banner. Google's own cancellation comes back as a GoogleSignInException
+  // rather than a FirebaseAuthException, so it is matched by name — the type is
+  // in the plugin, and importing it here to catch a cancellation is not worth
+  // the coupling.
+  final text = e.toString();
+  if (text.contains('canceled') || text.contains('cancelled')) return '';
+
   if (e is! FirebaseAuthException) {
-    return 'Could not sign in with Facebook. Please try again.';
+    return 'Could not sign in with $provider. Please try again.';
   }
   return switch (e.code) {
     'account-exists-with-different-credential' =>
-      'You already have an account on this email address. Log in with your '
-          'email and password instead — you can connect Facebook afterwards '
+      'You already have an account on this email address. Sign in with your '
+          'email and password instead — you can connect $provider afterwards '
           'from your profile.',
     'popup-closed-by-user' ||
     'cancelled-popup-request' ||
@@ -219,18 +282,20 @@ String friendlyFacebookError(Object e) {
     'user-cancelled' =>
       '',
     'popup-blocked' =>
-      'Your browser blocked the Facebook window. Allow pop-ups for this site '
+      'Your browser blocked the $provider window. Allow pop-ups for this site '
           'and try again.',
-    'network-request-failed' =>
-      'No internet connection. Please try again.',
+    'network-request-failed' => 'No internet connection. Please try again.',
     'too-many-requests' =>
       'Too many attempts. Please try again in a few minutes.',
     'operation-not-allowed' =>
-      'Facebook sign-in is not enabled for this app right now.',
+      '$provider sign-in is not enabled for this app right now.',
     'user-disabled' => 'This account has been disabled.',
-    _ => e.message ?? 'Could not sign in with Facebook. Please try again.',
+    'missing-id-token' =>
+      'Google did not complete the sign-in. Please try again.',
+    _ => e.message ?? 'Could not sign in with $provider. Please try again.',
   };
 }
+
 
 /// Facebook friends who ALSO use PakBazar, as (facebook id, name) pairs.
 ///
