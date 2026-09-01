@@ -21,6 +21,7 @@ class _AuthScreenState extends State<AuthScreen> {
   // Separate from isLoading so the spinner appears in the Facebook button
   // rather than on the email form, which is what the user actually tapped.
   bool isFacebookLoading = false;
+  bool isGoogleLoading = false;
   String? errorMessage;
 
   // Phone / OTP login state.
@@ -451,6 +452,34 @@ class _AuthScreenState extends State<AuthScreen> {
     resetController.dispose();
   }
 
+  Future<void> continueWithGoogle() async {
+    setState(() {
+      isLoading = true;
+      isGoogleLoading = true;
+      errorMessage = null;
+    });
+    try {
+      final cred = await signInWithGoogle();
+      if (cred.additionalUserInfo?.isNewUser == true) {
+        trackSignUp(method: 'google');
+      }
+      // AuthGate listens to authStateChanges and navigates automatically.
+    } catch (e) {
+      if (!mounted) return;
+      // Same as Facebook: an empty message means the user closed the window
+      // themselves, which is not an error worth showing them.
+      final msg = friendlyFacebookError(e);
+      setState(() => errorMessage = msg.isEmpty ? null : msg);
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+          isGoogleLoading = false;
+        });
+      }
+    }
+  }
+
   Future<void> continueWithFacebook() async {
     setState(() {
       isLoading = true;
@@ -730,6 +759,13 @@ class _AuthScreenState extends State<AuthScreen> {
                       child: const Text('Change number'),
                     ),
                   const Divider(height: 32),
+                  // Google first: it is the account almost everybody already
+                  // has on the phone in their hand.
+                  GoogleSignInButton(
+                    busy: isGoogleLoading,
+                    onPressed: isLoading ? null : continueWithGoogle,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
                   FacebookSignInButton(
                     busy: isFacebookLoading,
                     onPressed: isLoading ? null : continueWithFacebook,

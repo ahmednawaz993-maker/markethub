@@ -73,7 +73,12 @@ class AuthGate extends StatelessWidget {
           return const _PresenceHost(child: _GatedHome());
         }
 
-        return const AuthScreen();
+        // Signed out, the app opens on the landing page rather than on a
+        // login form. Somebody arriving for the first time — including an
+        // app-store reviewer, who will not create an account either — can see
+        // what PakBazar is and what is for sale on it before being asked for
+        // anything. Sign-in is one tap from there. See screen_welcome.dart.
+        return const WelcomeScreen();
       },
     );
   }

@@ -119,6 +119,7 @@ part 'src/snakes_board.dart';
 part 'src/screen_snakes.dart';
 part 'src/tictactoe.dart';
 part 'src/screen_tictactoe.dart';
+part 'src/screen_welcome.dart';
 part 'src/screen_ludo.dart';
 part 'src/screen_admin_categories.dart';
 part 'src/screen_notifications.dart';

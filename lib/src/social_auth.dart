@@ -72,6 +72,50 @@ Future<UserCredential> signInWithFacebook() async {
   return cred;
 }
 
+/// Signs in with Google.
+///
+/// google.com has been enabled on the Firebase project all along and the app
+/// never offered it — the single most-used sign-in button in Pakistan was
+/// configured and invisible.
+///
+/// Deliberately the same shape as Facebook above, and deliberately WITHOUT the
+/// google_sign_in package: that route needs the native SDK, a SHA-1 registered
+/// for both the debug and the release keystore, and a google-services entry —
+/// four things that can be wrong on a release build and are all fine on the
+/// developer's machine. signInWithProvider goes through Firebase's own OAuth
+/// handler on the domain that already works for Facebook, so there is no new
+/// native configuration to get wrong.
+///
+/// A guest is UPGRADED rather than replaced, so somebody who has been browsing
+/// with a cart or favourites keeps them.
+Future<UserCredential> signInWithGoogle() async {
+  final provider = GoogleAuthProvider()
+    ..addScope('email')
+    ..addScope('profile');
+
+  final auth = FirebaseAuth.instance;
+  final guest = auth.currentUser;
+
+  if (guest != null && guest.isAnonymous) {
+    try {
+      return kIsWeb
+          ? await guest.linkWithPopup(provider)
+          : await guest.linkWithProvider(provider);
+    } on FirebaseAuthException catch (e) {
+      if (e.code != 'credential-already-in-use' &&
+          e.code != 'provider-already-linked' &&
+          e.code != 'email-already-in-use') {
+        rethrow;
+      }
+      // That Google account already has a PakBazar account of its own, and the
+      // guest session is the throwaway one.
+    }
+  }
+  return kIsWeb
+      ? await auth.signInWithPopup(provider)
+      : await auth.signInWithProvider(provider);
+}
+
 /// Records this account's Facebook id so friends can find each other.
 ///
 /// The id stored is Facebook's APP-SCOPED id: it is unique to this app and
@@ -353,4 +397,111 @@ class _FacebookGlyphPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_FacebookGlyphPainter old) => false;
+}
+
+/// The Google button.
+///
+/// White with a hairline, which is what Google's own branding guidance asks
+/// for and what every other app on the phone looks like — a coloured Google
+/// button reads as a fake.
+class GoogleSignInButton extends StatelessWidget {
+  const GoogleSignInButton({
+    super.key,
+    required this.onPressed,
+    this.busy = false,
+    this.label = 'Continue with Google',
+  });
+
+  final VoidCallback? onPressed;
+  final bool busy;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => ElevatedButton.icon(
+    onPressed: busy ? null : onPressed,
+    style: ElevatedButton.styleFrom(
+      backgroundColor: Colors.white,
+      foregroundColor: const Color(0xFF3C4043),
+      elevation: 0,
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        side: const BorderSide(color: Color(0xFFDADCE0)),
+      ),
+    ),
+    icon: busy
+        ? const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : const _GoogleGlyph(size: 20),
+    label: Text(
+      label,
+      style: AppType.body.copyWith(
+        color: const Color(0xFF3C4043),
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
+}
+
+/// Google's four-colour G, drawn as arcs.
+///
+/// Drawn rather than typed or shipped as an asset for the reason recorded on
+/// _FacebookGlyph above: this app has already shipped a sign-in button with no
+/// mark on it, because the icon codepoint was not in the font. A path cannot
+/// go missing.
+class _GoogleGlyph extends StatelessWidget {
+  const _GoogleGlyph({required this.size});
+  final double size;
+
+  @override
+  Widget build(BuildContext context) =>
+      CustomPaint(size: Size.square(size), painter: _GoogleGlyphPainter());
+}
+
+class _GoogleGlyphPainter extends CustomPainter {
+  static const _blue = Color(0xFF4285F4);
+  static const _green = Color(0xFF34A853);
+  static const _yellow = Color(0xFFFBBC05);
+  static const _red = Color(0xFFEA4335);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width;
+    final stroke = s * 0.22;
+    final rect = Rect.fromCircle(
+      center: Offset(s / 2, s / 2),
+      radius: s / 2 - stroke / 2,
+    );
+    final arc = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.butt;
+
+    // Four quadrants, in Google's order, starting at the right and going
+    // clockwise: red across the top, yellow down the left, green along the
+    // bottom, blue up the right.
+    void quarter(double startDeg, double sweepDeg, Color c) => canvas.drawArc(
+      rect,
+      startDeg * math.pi / 180,
+      sweepDeg * math.pi / 180,
+      false,
+      arc..color = c,
+    );
+    quarter(-90, -80, _red);
+    quarter(-170, -80, _yellow);
+    quarter(110, 80, _green);
+    quarter(-14, -76, _blue);
+
+    // The bar of the G.
+    canvas.drawRect(
+      Rect.fromLTWH(s * 0.52, s * 0.42, s * 0.42, stroke * 0.95),
+      Paint()..color = _blue,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_GoogleGlyphPainter old) => false;
 }
