@@ -201,25 +201,73 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            const Spacer(),
+            // Sign in sits at the top, always visible, next to the name.
+            // Somebody who already has an account should not have to read the
+            // pitch or scroll past it to get in.
+            TextButton(
+              onPressed: () => _signIn(context),
+              style: TextButton.styleFrom(foregroundColor: Colors.white),
+              child: const Text('Sign in'),
+            ),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
         Text(
-          'Pakistan’s marketplace for buying and selling anything, safely.',
+          'Pakistan’s online marketplace.',
           style: AppType.sectionTitle.copyWith(
             color: Colors.white,
-            height: 1.35,
+            height: 1.3,
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          'Cars, phones, property, furniture, livestock — listed by people and '
-          'businesses near you. Deal in chat, pay into escrow, and only '
-          'release the money when the item is in your hands.',
+          'PakBazar is a place to buy and sell. People and small businesses '
+          'across Pakistan list what they have; you search, message them, '
+          'agree a price and pay through the app — with the money held until '
+          'the item reaches you.',
           style: AppType.body.copyWith(
             color: Colors.white.withValues(alpha: 0.92),
             height: 1.45,
           ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        // The categories actually ON the marketplace, in the order they are
+        // actually stocked. Naming ones it does not carry would be the easiest
+        // way to make this page a lie — the first draft said "livestock",
+        // which PakBazar does not sell.
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            for (final c in const [
+              'Women Essentials',
+              'Garments',
+              'Home & Furniture',
+              'Mobiles & Tablets',
+              'Electronics',
+              'Motors',
+              'Properties',
+              'Sports & Hobbies',
+            ])
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: AppSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.14),
+                  borderRadius: AppRadius.rPill,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Text(
+                  c,
+                  style: AppType.caption.copyWith(color: Colors.white),
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: AppSpacing.lg),
         SizedBox(

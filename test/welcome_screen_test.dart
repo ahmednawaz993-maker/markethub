@@ -32,9 +32,10 @@ void main() {
     await _pump(tester);
     expect(tester.takeException(), isNull);
 
-    // What the platform IS.
+    // What the platform IS, said plainly at the top.
     expect(find.text('PakBazar'), findsOneWidget);
-    expect(find.textContaining('buying and selling'), findsOneWidget);
+    expect(find.text('Pakistan’s online marketplace.'), findsOneWidget);
+    expect(find.textContaining('a place to buy and sell'), findsOneWidget);
 
     // How each side of it works.
     expect(find.textContaining('Buying'), findsWidgets);
@@ -60,6 +61,27 @@ void main() {
     // login form where nobody arriving for the first time would find it.
     expect(find.text('Create account or sign in'), findsWidgets);
     expect(find.text('Browse without an account'), findsOneWidget);
+    // And sign-in is reachable from the very top without scrolling, for
+    // somebody who already has an account.
+    expect(find.text('Sign in'), findsOneWidget);
+  });
+
+  testWidgets('it names categories the marketplace actually carries', (
+    tester,
+  ) async {
+    await _pump(tester);
+    // Taken from the live stock. The first draft of this page advertised
+    // livestock, which PakBazar does not sell — the quickest way to make a
+    // landing page a lie is to describe a marketplace you wish you had.
+    for (final c in const [
+      'Women Essentials',
+      'Home & Furniture',
+      'Mobiles & Tablets',
+      'Motors',
+    ]) {
+      expect(find.text(c), findsOneWidget, reason: '$c should be listed');
+    }
+    expect(find.textContaining('livestock'), findsNothing);
   });
 
   testWidgets('the safety claims are the ones the app actually implements', (
