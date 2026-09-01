@@ -511,6 +511,66 @@ bool canOpenAdminPanel() => isSuperAdmin() || staffPermissions.isNotEmpty;
 String priceLabel(Listing l) =>
     formatPrice(l.price) + (l.unit.isEmpty ? '' : ' / ${l.unit}');
 
+/// What a profile document needs writing to it, given what is already there.
+///
+/// Pure, and separate from the Firestore call, because THIS is where the bugs
+/// were and none of them were visible from the code that does the writing.
+///
+/// ensureUserDoc used to do one of two things: create the document if it was
+/// missing, or — if it existed — sync nothing but the email-verified flag.
+/// That is correct for somebody who signs up once and never changes, and wrong
+/// for three cases that all now happen:
+///
+///  * A GUEST WHO SIGNS IN. Linking keeps the same uid, so the document
+///    already exists and was skipped, and `isAnonymous` stayed true for ever.
+///    Nothing currently READS that field — the app asks the auth object, which
+///    is always right — so this one is wrong data rather than a broken gate,
+///    and it is fixed because a field that lies is a trap for whoever reads it
+///    next. Browsing without an account is now a button on the landing page,
+///    so this path is the common one, not a corner.
+///
+///  * A NAME WE WERE GIVEN AND THREW AWAY. Google and Facebook hand back the
+///    person's name and photo. Neither was ever stored, and both are read:
+///    displayName decides the seller name on every ad they post, and photoUrl
+///    is the avatar on the ad page. So somebody who signed in with Google
+///    posted ads as the first half of their email address, with no picture.
+///
+///  * AN EMAIL WE NEVER RECORDED. The private contact row is written only when
+///    the document is created. A guest has no email at creation time, so after
+///    upgrading there was no address on file — the one the orders desk uses to
+///    chase a delivery.
+///
+/// A name the user has typed themselves is never overwritten by the provider's
+/// version: filling a blank is help, replacing a choice is not.
+Map<String, dynamic> profileUpdates({
+  required Map<String, dynamic>? existing,
+  required bool isAnonymous,
+  required bool emailVerified,
+  String? displayName,
+  String? photoUrl,
+}) {
+  if (existing == null) return const {};
+  final out = <String, dynamic>{};
+
+  if (existing['isAnonymous'] != isAnonymous) {
+    out['isAnonymous'] = isAnonymous;
+  }
+  if (existing['verified'] != emailVerified) {
+    out['verified'] = emailVerified;
+  }
+  final name = displayName?.trim() ?? '';
+  final hasName = ((existing['displayName'] as String?)?.trim() ?? '').isNotEmpty;
+  if (name.isNotEmpty && !hasName) {
+    out['displayName'] = name;
+  }
+  final photo = photoUrl?.trim() ?? '';
+  final hasPhoto = ((existing['photoUrl'] as String?)?.trim() ?? '').isNotEmpty;
+  if (photo.isNotEmpty && !hasPhoto) {
+    out['photoUrl'] = photo;
+  }
+  return out;
+}
+
 /// Privacy-friendly public name from a user's profile data:
 /// display name > business name > email local-part > "User". Never the full
 /// email address.

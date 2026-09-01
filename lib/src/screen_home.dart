@@ -790,20 +790,58 @@ class _HomeScreenState extends State<HomeScreen> {
       // because friend matching is a whereIn query across users, which a
       // private subcollection cannot serve.
       final facebookId = facebookIdOf(user);
+      final name = user.displayName?.trim() ?? '';
+      final photo = user.photoURL?.trim() ?? '';
       await ref.set({
         'isAnonymous': user.isAnonymous,
         'verified': user.emailVerified,
         'createdAt': Timestamp.now(),
         'facebookId': ?facebookId,
+        // Google and Facebook hand these back. Not keeping them meant somebody
+        // who signed in with Google appeared on their own ads as the first
+        // half of their email address.
+        if (name.isNotEmpty) 'displayName': name,
+        if (photo.isNotEmpty) 'photoUrl': photo,
       });
       await savePrivateContact(user.uid, {
         'email': user.email ?? '',
         'phone': phone,
         'updatedAt': Timestamp.now(),
       });
-    } else if (snap.data()?['verified'] != user.emailVerified) {
-      // Keep the public "Verified" badge in sync with email verification.
-      await ref.set({'verified': user.emailVerified}, SetOptions(merge: true));
+    } else {
+      // The document already exists — which is the case for a GUEST WHO HAS
+      // JUST SIGNED IN, because linking keeps the same uid. This branch used
+      // to sync the verified flag and nothing else, so such an account stayed
+      // marked anonymous for ever and never got the name it was just given.
+      final updates = profileUpdates(
+        existing: snap.data(),
+        isAnonymous: user.isAnonymous,
+        emailVerified: user.emailVerified,
+        displayName: user.displayName,
+        photoUrl: user.photoURL,
+      );
+      if (updates.isNotEmpty) {
+        await ref.set(updates, SetOptions(merge: true));
+      }
+      // An address we now have and did not before. A guest has no email when
+      // their document is created, so without this there is nothing on file
+      // for the orders desk to contact them with.
+      final email = user.email?.trim() ?? '';
+      if (email.isNotEmpty) {
+        final contact = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('private')
+            .doc('contact')
+            .get();
+        final onFile = (contact.data()?['email'] as String?)?.trim() ?? '';
+        if (onFile.isEmpty) {
+          await savePrivateContact(user.uid, {
+            'email': email,
+            'updatedAt': Timestamp.now(),
+          });
+        }
+      }
     }
   }
 
