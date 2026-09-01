@@ -25,6 +25,24 @@ Future<void> _pumpGame(
   await tester.pump();
 }
 
+/// Pumps until [condition] holds, or gives up.
+///
+/// A roll is a CHAIN of awaited delays — read the number, step the piece,
+/// slide down the snake — and a single pump(duration) advances the clock once,
+/// which is not enough to drain a chain. pumpAndSettle does not help either:
+/// it returns as soon as no frame is scheduled, and a pending Future.delayed
+/// schedules none. The result was a test that passed on its own and failed
+/// only in the full parallel suite, which is the worst kind.
+Future<void> _pumpUntil(
+  WidgetTester tester,
+  bool Function() condition, {
+  int maxPumps = 40,
+}) async {
+  for (var i = 0; i < maxPumps && !condition(); i++) {
+    await tester.pump(const Duration(milliseconds: 250));
+  }
+}
+
 void main() {
   testWidgets('the setup screen offers 2 to 4 players and starts a game', (
     tester,
@@ -61,10 +79,11 @@ void main() {
     expect(find.textContaining("Player 1's turn"), findsOneWidget);
 
     await tester.tap(find.byType(LudoDice));
-    // Long enough for the read-the-roll pause, the step and any slide.
     await tester.pump();
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
+    await _pumpUntil(
+      tester,
+      () => find.textContaining('Tap the dice').evaluate().isEmpty,
+    );
 
     // Either it is now player 2's turn, or player 1 rolled a six and goes
     // again. Both are correct; a screen stuck on neither is not.
@@ -74,6 +93,14 @@ void main() {
     expect(find.textContaining('Tap the dice'), findsNothing);
   });
 
+  testWidgets('single player reads as Your turn, not the possessive of You', (
+    tester,
+  ) async {
+    await _pumpGame(tester, vsComputer: true);
+    expect(find.text('Your turn'), findsOneWidget);
+    expect(find.textContaining("You's"), findsNothing);
+  });
+
   testWidgets('the computer takes its own turn without being tapped', (
     tester,
   ) async {
@@ -81,8 +108,10 @@ void main() {
     // Player one is the human, so the computer only moves after they do.
     await tester.tap(find.byType(LudoDice));
     await tester.pump();
-    await tester.pump(const Duration(seconds: 3));
-    await tester.pumpAndSettle();
+    await _pumpUntil(
+      tester,
+      () => find.textContaining('Tap the dice').evaluate().isEmpty,
+    );
     // The computer has rolled at least once by now, so the board is no longer
     // in its opening state.
     expect(find.textContaining('Tap the dice'), findsNothing);
@@ -102,7 +131,7 @@ void main() {
       if (dice.evaluate().isEmpty) break;
       await tester.tap(dice, warnIfMissed: false);
       await tester.pump();
-      await tester.pump(const Duration(seconds: 2));
+      await _pumpUntil(tester, () => false, maxPumps: 12);
       taps++;
     }
     await tester.pumpAndSettle();

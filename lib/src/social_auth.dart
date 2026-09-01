@@ -72,35 +72,86 @@ Future<UserCredential> signInWithFacebook() async {
   return cred;
 }
 
+/// The project's WEB OAuth client.
+///
+/// Passed to Google Sign-In as the SERVER client id, which is what decides the
+/// audience of the ID token it hands back. Firebase will only accept a token
+/// minted for this client — get it wrong and sign-in fails at the very last
+/// step, after the user has already picked their account, which is the most
+/// annoying possible place to fail.
+const String kGoogleServerClientId =
+    '541505846653-0mngf37raalnfhth2dana49laa6egg9g.apps.googleusercontent.com';
+
+bool _googleReady = false;
+
 /// Signs in with Google.
 ///
-/// google.com has been enabled on the Firebase project all along and the app
-/// never offered it — the single most-used sign-in button in Pakistan was
-/// configured and invisible.
+/// WHY THIS IS THE NATIVE FLOW AND FACEBOOK IS NOT. Facebook goes through
+/// Firebase's generic OAuth handler in a Custom Tab, which needs no native
+/// configuration at all — and that is why it was used there. The same trick
+/// does NOT work reliably for Google: Google refuses OAuth from an embedded
+/// WebView, and the Custom Tab is only used when the device has a browser that
+/// supports one. On a device without it the flow silently falls back to a
+/// WebView and Google rejects it. So Google gets the native picker, which is
+/// also the account chooser people expect to see.
 ///
-/// Deliberately the same shape as Facebook above, and deliberately WITHOUT the
-/// google_sign_in package: that route needs the native SDK, a SHA-1 registered
-/// for both the debug and the release keystore, and a google-services entry —
-/// four things that can be wrong on a release build and are all fine on the
-/// developer's machine. signInWithProvider goes through Firebase's own OAuth
-/// handler on the domain that already works for Facebook, so there is no new
-/// native configuration to get wrong.
+/// It needs an Android OAuth client, which needs a SHA-1 registered for the
+/// signing key — and this is where it was actually broken. Both certificates
+/// were registered in Firebase, but android/app/google-services.json in this
+/// repo was downloaded BEFORE that happened, so the file shipped in the app
+/// carried only a web client for com.pakbazar24.app and no Android one. Adding
+/// a SHA to Firebase does not update the file you already have; it has to be
+/// downloaded again.
 ///
 /// A guest is UPGRADED rather than replaced, so somebody who has been browsing
 /// with a cart or favourites keeps them.
 Future<UserCredential> signInWithGoogle() async {
-  final provider = GoogleAuthProvider()
-    ..addScope('email')
-    ..addScope('profile');
-
   final auth = FirebaseAuth.instance;
-  final guest = auth.currentUser;
 
+  // The web has its own, better flow: a popup against the same handler, no
+  // native anything.
+  if (kIsWeb) {
+    final provider = GoogleAuthProvider()
+      ..addScope('email')
+      ..addScope('profile');
+    final guest = auth.currentUser;
+    if (guest != null && guest.isAnonymous) {
+      try {
+        return await guest.linkWithPopup(provider);
+      } on FirebaseAuthException catch (e) {
+        if (e.code != 'credential-already-in-use' &&
+            e.code != 'provider-already-linked' &&
+            e.code != 'email-already-in-use') {
+          rethrow;
+        }
+      }
+    }
+    return auth.signInWithPopup(provider);
+  }
+
+  if (!_googleReady) {
+    await GoogleSignIn.instance.initialize(
+      serverClientId: kGoogleServerClientId,
+    );
+    _googleReady = true;
+  }
+
+  final account = await GoogleSignIn.instance.authenticate();
+  final idToken = account.authentication.idToken;
+  if (idToken == null) {
+    // Nothing to hand Firebase. Better a clear failure than a silent one that
+    // leaves the button spinning.
+    throw FirebaseAuthException(
+      code: 'missing-id-token',
+      message: 'Google did not return a sign-in token. Please try again.',
+    );
+  }
+  final credential = GoogleAuthProvider.credential(idToken: idToken);
+
+  final guest = auth.currentUser;
   if (guest != null && guest.isAnonymous) {
     try {
-      return kIsWeb
-          ? await guest.linkWithPopup(provider)
-          : await guest.linkWithProvider(provider);
+      return await guest.linkWithCredential(credential);
     } on FirebaseAuthException catch (e) {
       if (e.code != 'credential-already-in-use' &&
           e.code != 'provider-already-linked' &&
@@ -111,9 +162,7 @@ Future<UserCredential> signInWithGoogle() async {
       // guest session is the throwaway one.
     }
   }
-  return kIsWeb
-      ? await auth.signInWithPopup(provider)
-      : await auth.signInWithProvider(provider);
+  return auth.signInWithCredential(credential);
 }
 
 /// Records this account's Facebook id so friends can find each other.

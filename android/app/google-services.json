@@ -94,6 +94,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "541505846653-4ld1ga30iknfs25hhjkrnafenqj5nroe.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pakbazar24.app",
+            "certificate_hash": "02640c9ec0d487e722ba73fa60a51b261a007f5a"
+          }
+        },
+        {
+          "client_id": "541505846653-l32dndu3tqssl6i676siqkm4obals02i.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pakbazar24.app",
+            "certificate_hash": "809819a908b3e441782f1e49614459ad0549fac0"
+          }
+        },
+        {
           "client_id": "541505846653-0mngf37raalnfhth2dana49laa6egg9g.apps.googleusercontent.com",
           "client_type": 3
         }

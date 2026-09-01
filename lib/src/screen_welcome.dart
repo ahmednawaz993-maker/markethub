@@ -92,66 +92,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             children: [
               _hero(context),
               _liveStrip(),
-              _section(
-                title: 'Buying, with your money protected',
-                subtitle:
-                    'Pay through PakBazar and the money is held until you '
-                    'have the item. It is released to the seller when you '
-                    'confirm — or returned to you if the deal falls through.',
-                steps: const [
-                  (
-                    Icons.search,
-                    'Find it',
-                    'Search by city and category, or follow sellers you like.',
-                  ),
-                  (
-                    Icons.forum_outlined,
-                    'Agree a price',
-                    'Message the seller and make an offer. They can counter.',
-                  ),
-                  (
-                    Icons.verified_user_outlined,
-                    'Pay into escrow',
-                    'We hold the payment. Cash on delivery is there too, if '
-                        'the seller offers it.',
-                  ),
-                  (
-                    Icons.local_shipping_outlined,
-                    'Get it, then release',
-                    'Confirm delivery and the seller is paid. Not right? Ask '
-                        'for a refund or return.',
-                  ),
-                ],
-              ),
-              _section(
-                title: 'Selling takes a few minutes',
-                subtitle:
-                    'Post an ad, answer your messages, get paid. There is no '
-                    'listing fee, and during the free-launch period there is '
-                    'no commission on a sale either.',
-                steps: const [
-                  (
-                    Icons.add_a_photo_outlined,
-                    'Post your ad',
-                    'Photos, price, city, condition. It goes live once our '
-                        'team has checked it.',
-                  ),
-                  (
-                    Icons.badge_outlined,
-                    'Verify yourself',
-                    'A verified badge on your ads. Businesses get a shopfront '
-                        'page of their own.',
-                  ),
-                  (
-                    Icons.payments_outlined,
-                    'Get paid',
-                    'Money lands in your PakBazar wallet and you withdraw it '
-                        'to your account.',
-                  ),
-                ],
-              ),
-              _safety(),
-              _extras(),
+              _points(),
               _footer(context),
             ],
           ),
@@ -240,15 +181,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,
           children: [
+            // Five, not eight: enough to say "marketplace" at a glance
+            // without turning the hero into a directory.
             for (final c in const [
               'Women Essentials',
-              'Garments',
               'Home & Furniture',
               'Mobiles & Tablets',
               'Electronics',
               'Motors',
-              'Properties',
-              'Sports & Hobbies',
             ])
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -366,11 +306,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     );
   }
 
-  Widget _section({
-    required String title,
-    required String subtitle,
-    required List<(IconData, String, String)> steps,
-  }) => Padding(
+  /// The whole explanation, in three lines.
+  ///
+  /// This page carried two step-by-step walkthroughs, a six-point safety card
+  /// and a grid of extras. All of it was true and almost none of it was read:
+  /// somebody deciding whether to open a marketplace wants to know what it is,
+  /// whether their money is safe, and what it costs. Everything else is
+  /// discoverable inside the app, which is one tap away.
+  Widget _points() => Padding(
     padding: const EdgeInsets.fromLTRB(
       AppSpacing.page,
       AppSpacing.section,
@@ -378,164 +321,26 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       0,
     ),
     child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: AppType.sectionTitle),
-        const SizedBox(height: AppSpacing.xs),
-        Text(subtitle, style: AppType.caption.copyWith(height: 1.45)),
-        const SizedBox(height: AppSpacing.lg),
-        for (final (icon, heading, detail) in steps)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: kPakGreen.withValues(alpha: 0.10),
-                    borderRadius: AppRadius.rMd,
-                  ),
-                  child: Icon(icon, color: kPakGreen, size: 20),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        heading,
-                        style: AppType.body.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        detail,
-                        style: AppType.caption.copyWith(height: 1.4),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-    ),
-  );
-
-  Widget _safety() => Padding(
-    padding: const EdgeInsets.fromLTRB(
-      AppSpacing.page,
-      AppSpacing.section,
-      AppSpacing.page,
-      0,
-    ),
-    child: AppCard(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.shield_outlined, color: kPakGreen),
-              const SizedBox(width: AppSpacing.sm),
-              // Expanded for the same reason as the hero title: a heading in a
-              // Row beside an icon takes its natural width and pushes off the
-              // edge on a narrow phone.
-              Expanded(
-                child: Text(
-                  'How we keep it safe',
-                  style: AppType.sectionTitle,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          for (final line in const [
-            'Every ad is reviewed by our team before it appears.',
-            'Sellers verify their identity; businesses are verified separately.',
-            'Payments sit in escrow until the buyer confirms delivery.',
-            'Refunds, returns and cancellations are handled in the app.',
-            'Report or block anyone. Suspended accounts disappear from search.',
-            'Contact numbers are never shown publicly or to search engines.',
-          ])
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.check, size: 16, color: kPakGreen),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      line,
-                      style: AppType.caption.copyWith(height: 1.4),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    ),
-  );
-
-  Widget _extras() => Padding(
-    padding: const EdgeInsets.fromLTRB(
-      AppSpacing.page,
-      AppSpacing.section,
-      AppSpacing.page,
-      0,
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('And a reason to come back', style: AppType.sectionTitle),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          'A marketplace is only open when you need something. These are for '
-          'the other days.',
-          style: AppType.caption.copyWith(height: 1.45),
+      children: const [
+        _Point(
+          icon: Icons.verified_user_outlined,
+          title: 'Your money is held safely',
+          body: 'Pay through PakBazar and we hold it until the item reaches '
+              'you. Cash on delivery too, if the seller offers it.',
         ),
-        const SizedBox(height: AppSpacing.md),
-        Row(
-          children: const [
-            Expanded(
-              child: _TileCard(
-                icon: Icons.casino,
-                title: 'Ludo',
-                body: 'Play online with friends, with chat at the table.',
-              ),
-            ),
-            SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: _TileCard(
-                icon: Icons.stairs,
-                title: 'Saanp Seerhi',
-                body: 'Snakes and ladders, on one phone.',
-              ),
-            ),
-          ],
+        SizedBox(height: AppSpacing.lg),
+        _Point(
+          icon: Icons.sell_outlined,
+          title: 'Selling is free',
+          body: 'No fee to list, and no commission on a sale during the '
+              'free-launch period.',
         ),
-        const SizedBox(height: AppSpacing.md),
-        Row(
-          children: const [
-            Expanded(
-              child: _TileCard(
-                icon: Icons.mosque_outlined,
-                title: 'Prayer timings',
-                body: 'Daily namaz times for your city.',
-              ),
-            ),
-            SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: _TileCard(
-                icon: Icons.menu_book_outlined,
-                title: 'Quran',
-                body: 'Read with Urdu translation.',
-              ),
-            ),
-          ],
+        SizedBox(height: AppSpacing.lg),
+        _Point(
+          icon: Icons.shield_outlined,
+          title: 'Checked before it appears',
+          body: 'Every ad is reviewed by our team, sellers verify their '
+              'identity, and phone numbers are never shown publicly.',
         ),
       ],
     ),
@@ -661,28 +466,38 @@ class _PreviewCard extends StatelessWidget {
   );
 }
 
-class _TileCard extends StatelessWidget {
-  const _TileCard({
-    required this.icon,
-    required this.title,
-    required this.body,
-  });
+/// One line of the explanation.
+class _Point extends StatelessWidget {
+  const _Point({required this.icon, required this.title, required this.body});
 
   final IconData icon;
   final String title;
   final String body;
 
   @override
-  Widget build(BuildContext context) => AppCard(
-    padding: const EdgeInsets.all(AppSpacing.md),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: kPakGreen),
-        const SizedBox(height: AppSpacing.sm),
-        Text(title, style: AppType.body.copyWith(fontWeight: FontWeight.w700)),
-        Text(body, style: AppType.caption.copyWith(height: 1.35)),
-      ],
-    ),
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Container(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: kPakGreen.withValues(alpha: 0.10),
+          borderRadius: AppRadius.rMd,
+        ),
+        child: Icon(icon, color: kPakGreen, size: 20),
+      ),
+      const SizedBox(width: AppSpacing.md),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: AppType.body.copyWith(
+              fontWeight: FontWeight.w700,
+            )),
+            Text(body, style: AppType.caption.copyWith(height: 1.4)),
+          ],
+        ),
+      ),
+    ],
   );
 }

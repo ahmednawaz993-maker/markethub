@@ -37,10 +37,11 @@ void main() {
     expect(find.text('Pakistan’s online marketplace.'), findsOneWidget);
     expect(find.textContaining('a place to buy and sell'), findsOneWidget);
 
-    // How each side of it works.
-    expect(find.textContaining('Buying'), findsWidgets);
-    expect(find.textContaining('Selling'), findsWidgets);
-    expect(find.text('How we keep it safe'), findsOneWidget);
+    // And the three things somebody deciding whether to open a marketplace
+    // actually wants to know.
+    expect(find.text('Your money is held safely'), findsOneWidget);
+    expect(find.text('Selling is free'), findsOneWidget);
+    expect(find.text('Checked before it appears'), findsOneWidget);
   });
 
   testWidgets('the money story is spelled out, because it is the point', (
@@ -49,9 +50,8 @@ void main() {
     await _pump(tester);
     // Escrow is the reason to use a marketplace rather than meet a stranger
     // with cash, so it has to be on the page in words.
-    expect(find.textContaining('escrow'), findsWidgets);
+    expect(find.textContaining('held until the item reaches'), findsWidgets);
     expect(find.textContaining('Cash on delivery'), findsOneWidget);
-    expect(find.textContaining('wallet'), findsWidgets);
   });
 
   testWidgets('both ways in are offered', (tester) async {
@@ -94,7 +94,6 @@ void main() {
     // that promises something the app does not do is a lie told to a reviewer.
     expect(find.textContaining('reviewed by our team'), findsOneWidget);
     expect(find.textContaining('verify their identity'), findsOneWidget);
-    expect(find.textContaining('Refunds, returns'), findsOneWidget);
     expect(find.textContaining('never shown publicly'), findsOneWidget);
   });
 
@@ -106,7 +105,7 @@ void main() {
     // is evidence, and losing it must not cost the visitor the explanation.
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.text('On PakBazar right now'), findsNothing);
-    expect(find.text('How we keep it safe'), findsOneWidget);
+    expect(find.text('Checked before it appears'), findsOneWidget);
   });
 
   testWidgets('it scrolls, so nothing is stranded off-screen on a phone', (

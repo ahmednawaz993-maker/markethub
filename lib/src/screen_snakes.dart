@@ -135,6 +135,15 @@ class _SnakesScreenState extends State<SnakesScreen> {
   int? _dice;
   bool _busy = false;
 
+  /// The computer's pending turn.
+  ///
+  /// Held so it can be CANCELLED. A bare Future.delayed with a `mounted` check
+  /// inside guards the callback but leaves the timer itself running — so
+  /// leaving the screen mid-game left a timer alive behind it, and a widget
+  /// test that popped the screen failed at teardown with "a Timer is still
+  /// pending". The guard hid the symptom; this removes the timer.
+  Timer? _botTimer;
+
   /// What the board is showing while a move plays out. The piece steps to
   /// where the die landed first, and only then slides down the snake — showing
   /// the final square immediately would hide the whole point of the game.
@@ -198,12 +207,19 @@ class _SnakesScreenState extends State<SnakesScreen> {
   }
 
   void _maybeComputerTurn() {
+    _botTimer?.cancel();
     if (!_isComputer || _game.isOver) return;
     // A beat before the computer rolls. Instant, it reads as the app playing
     // itself rather than as an opponent taking a turn.
-    Future<void>.delayed(const Duration(milliseconds: 650), () {
+    _botTimer = Timer(const Duration(milliseconds: 650), () {
       if (mounted && _isComputer && !_game.isOver && !_busy) _roll();
     });
+  }
+
+  @override
+  void dispose() {
+    _botTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -334,7 +350,14 @@ class _SnakesScreenState extends State<SnakesScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          _isComputer ? 'Computer is rolling…' : "${_nameOf(_game.turn)}'s turn",
+          _isComputer
+              ? 'Computer is rolling…'
+              // "You's turn" — the name of the human player in single-player
+              // is "You", so the possessive has to be special-cased or the
+              // status line is broken English on the most-played mode.
+              : _nameOf(_game.turn) == 'You'
+              ? 'Your turn'
+              : "${_nameOf(_game.turn)}'s turn",
           style: AppType.sectionTitle,
         ),
         const SizedBox(height: AppSpacing.xs),

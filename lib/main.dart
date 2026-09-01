@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 // Voice chat runs on the WEB ONLY, using the browser's own WebRTC. On mobile
 // this resolves to a stub, so no native library is linked and the Android
