@@ -1008,7 +1008,20 @@ class _MarketplaceListingCardState extends State<MarketplaceListingCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
+              // A FIXED square, not whatever height is left over.
+              //
+              // As an Expanded the photo absorbed the space the text did not
+              // use, so a card with a one-line title got a taller photo than
+              // the card beside it with a two-line title. Every row in the
+              // grid came out ragged, and the same picture was cropped
+              // differently depending on how long its neighbour's title was.
+              //
+              // The cell height already allows for this exact ratio plus a
+              // two-line title, so pinning the photo cannot overflow — the
+              // slack simply falls below the text, which is what makes a grid
+              // look ordered.
+              AspectRatio(
+                aspectRatio: MarketplaceListingCard.imageAspect,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
