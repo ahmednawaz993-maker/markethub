@@ -1173,13 +1173,23 @@ class _ContactAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = color ?? AppColors.accent;
-    return OutlinedButton(
+    // A TEXT button, not an outlined one.
+    //
+    // Six actions sat on this bar in two rows — Buy Now, Add to Cart, Call,
+    // WhatsApp, Chat, Offer — every one of them boxed, and together they held
+    // a fifth of the screen on every ad. Six equally-loud buttons is not six
+    // choices, it is a decision to make before you have finished reading the
+    // ad.
+    //
+    // Nothing is removed: buying stays the filled button it was, and these
+    // four keep their icon, their label and their colour. They simply stop
+    // shouting, and the bar gets shorter.
+    return TextButton(
       onPressed: onTap,
-      style: OutlinedButton.styleFrom(
+      style: TextButton.styleFrom(
         foregroundColor: c,
-        side: BorderSide(color: c.withValues(alpha: 0.5)),
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-        minimumSize: const Size(0, 46),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+        minimumSize: const Size(0, 40),
         shape: RoundedRectangleBorder(borderRadius: AppRadius.rMd),
       ),
       child: Column(

@@ -717,7 +717,12 @@ class _HomeScreenState extends State<HomeScreen> {
     // that session, on top of raising an async error.
     ensureUserDoc()
         .catchError((_) {})
-        .then((_) => maybePromptLocation())
+        // Deliberately NOT followed by maybePromptLocation(). Asking on launch
+        // put a modal over the app before a single ad had been seen — it even
+        // blocked scrolling — so the first thing a new visitor met, and the
+        // first thing an app-store reviewer met, was a permission request for
+        // something they had not asked to do. It is asked at the moment it
+        // means something instead: when they open the city picker.
         .catchError((_) {});
     // Somebody who followed a shared link before signing in gets taken there
     // now — an ad or a Ludo board, whichever it was. After the first frame, so
@@ -955,6 +960,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _pickCity() async {
+    // The contextual moment: they are telling the app where they are, so
+    // offering to read it from the phone is help rather than an interruption.
+    // Still once ever — maybePromptLocation remembers that it asked.
+    await maybePromptLocation();
+    if (!mounted) return;
     final c = await showCityPicker(context, includeAll: true);
     if (!mounted || c == null) return;
     final picked = c == 'All' ? 'All Pakistan' : c;
@@ -989,58 +999,45 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Row(
             children: [
-              // The full horizontal lockup (dark green + gold on transparent),
-              // which is the variant drawn for light backgrounds — it already
-              // contains the wordmark, so no separate "PakBazar" label. In dark
-              // mode the artwork sits on a dark slate header, so it gets a soft
-              // light plate behind it to stay legible.
+              // The MARK plus a typeset wordmark, not the full artwork
+              // lockup.
+              //
+              // The lockup is a horizontal image containing "PAK BAZAR LLP"
+              // and a rule. At the 28px a header allows, the wordmark inside
+              // it is a few pixels tall, the legal suffix is unreadable, and
+              // in dark mode the whole thing needs a white plate behind it to
+              // survive — three symptoms of artwork being used at a size it
+              // was not drawn for.
+              //
+              // The mark alone is legible at any size, and the name set in the
+              // app's own type sits correctly on both themes with no plate.
+              // It is also what the landing page already shows, so the app
+              // finally introduces itself the same way twice.
+              Image.asset(
+                'assets/pakbazar_mark_light.png',
+                height: 30,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stack) =>
+                    Icon(Icons.storefront, size: 28, color: AppColors.accent),
+              ),
+              const SizedBox(width: AppSpacing.sm),
               Flexible(
-                child: Container(
-                  padding: appBrightnessValue == Brightness.dark
-                      ? const EdgeInsets.symmetric(horizontal: 6, vertical: 3)
-                      : EdgeInsets.zero,
-                  decoration: appBrightnessValue == Brightness.dark
-                      ? BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.92),
-                          borderRadius: AppRadius.rSm,
-                        )
-                      : null,
-                  child: Semantics(
-                    label: 'PakBazar',
-                    child: Image.asset(
-                      'assets/pakbazar_logo.png',
-                      height: 28,
-                      fit: BoxFit.contain,
-                      alignment: AlignmentDirectional.centerStart,
-                      errorBuilder: (context, error, stack) => Text(
-                        'PakBazar',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.accent,
-                        ),
-                      ),
+                child: Semantics(
+                  label: 'PakBazar',
+                  child: Text(
+                    'PakBazar',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
+                      color: AppColors.accent,
                     ),
                   ),
                 ),
               ),
               const Spacer(),
-              if (luckyDrawActive())
-                IconButton(
-                  icon: const Icon(Icons.card_giftcard, color: kGold),
-                  tooltip: 'Invite & Win PKR 100,000',
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const InviteFriendsScreen(),
-                    ),
-                  ),
-                ),
-              // Favourites lives here rather than in the bottom bar, which is
-              // reserved for Home / Chats / Sell / My Ads / Menu. It is also
-              // listed under Menu → Buying.
               IconButton(
                 icon: const Icon(Icons.favorite_border),
                 tooltip: 'Favorites',
