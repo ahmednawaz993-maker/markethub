@@ -1077,7 +1077,22 @@ class _MarketplaceListingCardState extends State<MarketplaceListingCard> {
                       crossAxisAlignment: CrossAxisAlignment.baseline,
                       textBaseline: TextBaseline.alphabetic,
                       children: [
+                        // The two prices do NOT get equal shares.
+                        //
+                        // Both were plain Flexible, so a card with a price
+                        // drop split its width down the middle — and since the
+                        // asking price is set in the largest type on the card
+                        // and the old one in the smallest, the CURRENT price
+                        // was the one that ran out of room. Live on the site:
+                        // "Rs 415,0… Rs 425,000". The number the buyer needs
+                        // was truncated so that the number they do not could
+                        // be shown in full.
+                        //
+                        // Loose flex means each child takes at most its share
+                        // and no more, so this simply says the price may use
+                        // most of the row, and the old price yields first.
                         Flexible(
+                          flex: 5,
                           child: Text(
                             priceLabel(l),
                             maxLines: 1,
@@ -1088,6 +1103,7 @@ class _MarketplaceListingCardState extends State<MarketplaceListingCard> {
                         if (l.hasRecentPriceDrop) ...[
                           const SizedBox(width: 5),
                           Flexible(
+                            flex: 3,
                             child: Text(
                               formatPrice(l.previousPrice),
                               maxLines: 1,
