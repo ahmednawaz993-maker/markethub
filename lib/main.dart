@@ -7,8 +7,7 @@ import 'package:http/http.dart' as http;
 // this resolves to a stub, so no native library is linked and the Android
 // download does not carry 11.5 MB of WebRTC for a feature Ludo players reach
 // from the website.
-import 'voice_rtc_stub.dart'
-    if (dart.library.js_interop) 'voice_rtc_web.dart';
+import 'voice_rtc_stub.dart' if (dart.library.js_interop) 'voice_rtc_web.dart';
 // Web reads its route from the URL path only if we ask it to; on mobile this
 // resolves to a no-op stub, because flutter_web_plugins does not exist there.
 import 'url_strategy_stub.dart'
@@ -177,6 +176,12 @@ Future<void> main() async {
   // Immediately after Firebase.initializeApp and before anything else can
   // throw, so a crash during the remaining startup work is still reported.
   await initObservability();
+
+  // Web Google sign-in leaves the page and comes back here. This is the half
+  // of it that actually signs the user in, so it has to finish before the
+  // gate decides whether to show the app or the landing page — otherwise
+  // somebody returning from Google gets one frame of "signed out" first.
+  await completeWebSignIn();
 
   // Only these two gate the first frame, and both are local SharedPreferences
   // reads costing well under a millisecond. They decide the language and theme

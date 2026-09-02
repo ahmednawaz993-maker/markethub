@@ -108,21 +108,17 @@ bool _googleReady = false;
 Future<UserCredential> signInWithGoogle() async {
   final auth = FirebaseAuth.instance;
 
-  // The web has its own, better flow: a popup against the same handler, no
-  // native anything.
+  // On the web this LEAVES THE PAGE and never comes back to this future: the
+  // browser navigates to Google, and the result is picked up by
+  // completeWebSignIn() on the next load. Callers must not wait on it to
+  // decide what to show.
   if (kIsWeb) {
-    final provider = GoogleAuthProvider()
-      ..addScope('email')
-      ..addScope('profile');
-    final guest = auth.currentUser;
-    if (guest != null && guest.isAnonymous) {
-      try {
-        return await guest.linkWithPopup(provider);
-      } on FirebaseAuthException catch (e) {
-        if (!_alreadyClaimed(e)) rethrow;
-      }
-    }
-    return auth.signInWithPopup(provider);
+    await _googleViaRedirect(auth);
+    // Unreachable in practice — the navigation has already been scheduled.
+    throw FirebaseAuthException(
+      code: 'redirect-in-progress',
+      message: 'Taking you to Google to sign in…',
+    );
   }
 
   // Native first. If the device cannot do it — no Play Services, an unusual
@@ -153,6 +149,67 @@ Future<UserCredential> signInWithGoogle() async {
     }
   }
   return _googleViaHandler(auth);
+}
+
+/// Starts the web sign-in by navigating to Google.
+///
+/// A popup would be nicer, and is what this used to do. Two things stopped it.
+/// The handler is on firebaseapp.com — a different origin from the site — and
+/// it sends Cross-Origin-Opener-Policy: same-origin, which severs the opener
+/// link, so the app could never see the popup close and sat there for ever.
+/// Pointing authDomain at our own host fixed that and broke sign-in outright
+/// with redirect_uri_mismatch, because our host is not a registered redirect
+/// URI on the OAuth client.
+///
+/// A redirect needs neither: no opener to keep, and it goes to the handler
+/// that IS registered.
+Future<void> _googleViaRedirect(FirebaseAuth auth) async {
+  final provider = GoogleAuthProvider()
+    ..addScope('email')
+    ..addScope('profile');
+  final guest = auth.currentUser;
+  // Linking keeps a browsing guest's uid, so their cart and favourites survive
+  // signing in. If that Google account already has an account of its own the
+  // link fails on the way back, and completeWebSignIn sorts it out there.
+  if (guest != null && guest.isAnonymous) {
+    return guest.linkWithRedirect(provider);
+  }
+  return auth.signInWithRedirect(provider);
+}
+
+/// Finishes a web sign-in that started with a redirect.
+///
+/// Called once at startup. Harmless and fast when there is no sign-in pending
+/// — it resolves to null. On the way back from Google it is what actually
+/// signs the user in, so a failure here is a failed sign-in and is reported.
+Future<void> completeWebSignIn() async {
+  if (!kIsWeb) return;
+  final auth = FirebaseAuth.instance;
+  try {
+    await auth.getRedirectResult();
+  } on FirebaseAuthException catch (e, st) {
+    // The guest we tried to upgrade cannot have this Google account, because
+    // it already belongs to a real one. The credential comes back with the
+    // error, so the user is signed into their own account without being sent
+    // to Google a second time.
+    final credential = e.credential;
+    if (_alreadyClaimed(e) && credential != null) {
+      try {
+        await auth.signInWithCredential(credential);
+        return;
+      } catch (inner, innerSt) {
+        recordHandledError(
+          inner,
+          innerSt,
+          context: 'signing in with an already-claimed Google credential',
+        );
+        return;
+      }
+    }
+    recordHandledError(e, st, context: 'completing a web Google sign-in');
+  } catch (e, st) {
+    recordHandledError(e, st, context: 'completing a web Google sign-in');
+  }
 }
 
 /// The native account picker.
@@ -276,11 +333,13 @@ String friendlySignInError(Object e, {String provider = 'Google'}) {
       'You already have an account on this email address. Sign in with your '
           'email and password instead — you can connect $provider afterwards '
           'from your profile.',
+    // The browser is on its way to Google. Not a failure, and there is no
+    // banner worth showing on a page that is about to be replaced.
+    'redirect-in-progress' => '',
     'popup-closed-by-user' ||
     'cancelled-popup-request' ||
     'web-context-canceled' ||
-    'user-cancelled' =>
-      '',
+    'user-cancelled' => '',
     'popup-blocked' =>
       'Your browser blocked the $provider window. Allow pop-ups for this site '
           'and try again.',
@@ -295,7 +354,6 @@ String friendlySignInError(Object e, {String provider = 'Google'}) {
     _ => e.message ?? 'Could not sign in with $provider. Please try again.',
   };
 }
-
 
 /// Facebook friends who ALSO use PakBazar, as (facebook id, name) pairs.
 ///
@@ -480,26 +538,12 @@ class _FacebookGlyphPainter extends CustomPainter {
     path
       // The ascender rises out of the crossbar and hooks right over the top.
       ..lineTo(0.42 * w, 0.30 * h)
-      ..cubicTo(
-        0.42 * w,
-        0.06 * h,
-        0.52 * w,
-        0.00 * h,
-        0.74 * w,
-        0.00 * h,
-      )
+      ..cubicTo(0.42 * w, 0.06 * h, 0.52 * w, 0.00 * h, 0.74 * w, 0.00 * h)
       ..lineTo(p(0.80, 0.0).dx, p(0.80, 0.0).dy)
       ..lineTo(p(0.80, 0.17).dx, p(0.80, 0.17).dy)
       ..lineTo(p(0.72, 0.17).dx, p(0.72, 0.17).dy)
       // ...then curves back down into the bowl of the stem.
-      ..cubicTo(
-        0.62 * w,
-        0.17 * h,
-        0.60 * w,
-        0.22 * h,
-        0.60 * w,
-        0.32 * h,
-      )
+      ..cubicTo(0.62 * w, 0.17 * h, 0.60 * w, 0.22 * h, 0.60 * w, 0.32 * h)
       ..lineTo(p(0.60, 0.40).dx, p(0.60, 0.40).dy)
       ..lineTo(p(0.80, 0.40).dx, p(0.80, 0.40).dy)
       ..lineTo(p(0.78, 0.56).dx, p(0.78, 0.56).dy)
