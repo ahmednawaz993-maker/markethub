@@ -18,10 +18,42 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// Where a notification should take the reader. Listing pushes have a real
+// route; everything else goes to the app, which then routes from its own
+// notification inbox.
+function targetUrl(data) {
+  const d = data || {};
+  const listingId = d.listingId || (d.type === "listing" ? d.refId : "");
+  return listingId ? "/ad/" + listingId : "/";
+}
+
 messaging.onBackgroundMessage((payload) => {
   const n = payload.notification || {};
   self.registration.showNotification(n.title || "PakBazar", {
     body: n.body || "",
     icon: "/icons/Icon-192.png",
+    // Carried through to the click handler below — without it a tapped
+    // notification had nowhere to go, so tapping one did nothing at all.
+    data: { url: targetUrl(payload.data) },
   });
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((windows) => {
+        // Reuse the tab the reader already has open rather than stacking up a
+        // new one per notification.
+        for (const client of windows) {
+          if (client.url.indexOf(self.location.origin) === 0 && client.focus) {
+            client.navigate(url);
+            return client.focus();
+          }
+        }
+        return self.clients.openWindow(url);
+      })
+  );
 });

@@ -267,6 +267,27 @@ Future<void> playNotificationAlert() async {
 /// HomeScreen re-mounts).
 bool _onMessageListenerRegistered = false;
 
+/// Records this device's token against the signed-in user, which is what the
+/// Cloud Functions read when they push. Best-effort: a device that cannot
+/// write it just does not get notified.
+Future<void> _registerToken(String token) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return;
+  try {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('fcmTokens')
+        .doc(token)
+        .set({
+          'createdAt': Timestamp.now(),
+          'platform': kIsWeb ? 'web' : 'app',
+        });
+  } catch (_) {
+    // Offline or signed out mid-flight.
+  }
+}
+
 /// Requests notification permission, registers this device's FCM token under
 /// users/{uid}/fcmTokens, and surfaces foreground messages. Fully guarded:
 /// if messaging isn't configured/available it silently no-ops.
@@ -286,17 +307,7 @@ Future<void> setupPushNotifications() async {
         ? await messaging.getToken(vapidKey: fcmVapidKey)
         : await messaging.getToken();
 
-    if (token != null) {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('fcmTokens')
-          .doc(token)
-          .set({
-            'createdAt': Timestamp.now(),
-            'platform': kIsWeb ? 'web' : 'app',
-          });
-    }
+    if (token != null) await _registerToken(token);
 
     if (!_onMessageListenerRegistered) {
       _onMessageListenerRegistered = true;
@@ -321,6 +332,14 @@ Future<void> setupPushNotifications() async {
           );
         }
       });
+
+      // FCM rotates a device's token on its own schedule — a restore to a new
+      // phone, a Play Services update, clearing the app's data. The old token
+      // stops receiving anything at that moment, and registration only ran at
+      // launch, so a user who left the app in the background simply stopped
+      // being notified until they next opened it. This writes the replacement
+      // as soon as it is issued.
+      FirebaseMessaging.instance.onTokenRefresh.listen(_registerToken);
 
       // Tapping a tray notification while the app is backgrounded.
       FirebaseMessaging.onMessageOpenedApp.listen(handlePushTap);

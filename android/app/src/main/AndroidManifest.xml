@@ -82,6 +82,23 @@
                 <data android:scheme="pakbazar"/>
             </intent-filter>
         </activity>
+        <!--
+          What a push looks like when it arrives with the app closed.
+
+          Without these, FCM falls back to the launcher icon for the status
+          bar. Android draws that icon as a silhouette from its alpha channel,
+          and the launcher icon is a filled square — so every background
+          notification showed a plain white block. ic_stat_notify is a
+          transparent-background silhouette of the mark, which is what the
+          status bar is asking for.
+        -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notify" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_accent" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

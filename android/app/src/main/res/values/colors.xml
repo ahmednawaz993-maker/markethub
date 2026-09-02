@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#000000</color>
+    <!-- Tints the app name and small icon on a background notification. -->
+    <color name="notification_accent">#0F2E5C</color>
 </resources>
