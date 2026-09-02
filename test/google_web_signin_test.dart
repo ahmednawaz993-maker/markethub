@@ -36,31 +36,37 @@ void main() {
     );
   });
 
-  test('the web signs in by redirect, not by popup', () {
-    // A popup needs the opener relationship that the handler's COOP header
-    // severs. A redirect needs no opener at all.
+  test('the web tries a popup and keeps a redirect in reserve', () {
+    // The popup hands the result straight back to the page that opened it.
+    // The redirect reads it out of the handler's own storage, which is a
+    // third-party context here — so it is the fallback, not the first choice,
+    // and it exists because a popup is the one thing a browser can refuse
+    // outright.
     final src = File('lib/src/social_auth.dart').readAsStringSync();
+    expect(src, contains('auth.signInWithPopup(provider)'));
+    expect(src, contains('guest.linkWithPopup(provider)'));
     expect(src, contains('signInWithRedirect'));
     expect(src, contains('linkWithRedirect'));
+  });
 
-    // Scoped to the Google entry point. The Facebook function still uses a
-    // popup and has the same flaw, but its button was removed in v1.2.4 and
-    // nothing reaches it.
-    final start = src.indexOf('Future<UserCredential> signInWithGoogle()');
-    final end = src.indexOf('/// Starts the web sign-in', start);
+  test('only a refused window falls back, never a cancelled sign-in', () {
+    // Falling back on popup-closed-by-user would send somebody who had just
+    // changed their mind straight off to Google anyway.
+    final src = File('lib/src/social_auth.dart').readAsStringSync();
+    final start = src.indexOf('bool _popupUnavailable');
+    final end = src.indexOf('}.contains(e.code);', start);
     expect(start, greaterThan(-1));
-    expect(end, greaterThan(start));
-    expect(
-      src.substring(start, end),
-      isNot(contains('Popup')),
-      reason: 'the popup flow is what COOP breaks',
-    );
+    final codes = src.substring(start, end);
+    expect(codes, contains('popup-blocked'));
+    expect(codes, isNot(contains('popup-closed-by-user')));
+    expect(codes, isNot(contains('cancelled')));
   });
 
   test('a browsing guest is upgraded rather than replaced', () {
     // Somebody who has been browsing has a cart and favourites on an
     // anonymous uid. Signing them in with a fresh account throws that away.
     final src = File('lib/src/social_auth.dart').readAsStringSync();
+    expect(src, contains('guest.linkWithPopup(provider)'));
     expect(src, contains('guest.linkWithRedirect(provider)'));
   });
 

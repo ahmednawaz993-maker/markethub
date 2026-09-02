@@ -42,28 +42,26 @@ class DefaultFirebaseOptions {
 
   /// The domain Firebase's OAuth handler is served from.
   ///
-  /// This was briefly pointed at whatever host the app was served from, to
-  /// make the sign-in popup same-origin and dodge a Cross-Origin-Opener-Policy
-  /// problem. It made Google sign-in fail earlier and harder:
+  /// This was briefly pointed at whatever host was serving the app, chasing a
+  /// Cross-Origin-Opener-Policy warning in the console. That warning turns out
+  /// to come from accounts.google.com's own REPORT-ONLY policy and enforces
+  /// nothing — but the change broke Google sign-in on the website outright:
   ///
   ///   Error 400: redirect_uri_mismatch
   ///   redirect_uri = https://pakbazar24.com/__/auth/handler
   ///
   /// Adding a domain to Firebase Auth's authorised list does NOT add it to the
-  /// OAuth client's authorised redirect URIs, and only the firebaseapp.com
-  /// handler is registered there. So the popup opened straight onto a Google
-  /// error page — worse than the COOP stall it was meant to fix, because that
-  /// one at least happened after signing in.
+  /// OAuth client's authorised redirect URIs. Only the firebaseapp.com handler
+  /// is registered there, so that is the only value that works.
   ///
-  /// The COOP problem is dodged by using signInWithRedirect instead of a popup
-  /// (see social_auth.dart), which needs no opener relationship at all.
-  ///
-  /// TO GO BACK TO THE SAME-ORIGIN POPUP: add
-  ///   https://pakbazar24.com/__/auth/handler
-  ///   https://www.pakbazar24.com/__/auth/handler
-  /// to the "Web client (auto created by Google Service)" credential under
-  /// APIs & Services -> Credentials in the Google Cloud console. There is no
-  /// API for it; it has to be done in the console.
+  /// TO MOVE THE FLOW ONTO OUR OWN DOMAIN, on the "Web client (auto created by
+  /// Google Service)" credential under APIs & Services -> Credentials:
+  ///   Authorised redirect URIs   += https://pakbazar24.com/__/auth/handler
+  ///                                 https://www.pakbazar24.com/__/auth/handler
+  ///   Authorised JavaScript origins += https://pakbazar24.com
+  ///                                    https://www.pakbazar24.com
+  /// Both lists are missing our host today, verified separately. There is no
+  /// API for either; it is a console job.
   static const String webAuthDomain = 'markethub-80276.firebaseapp.com';
 
   static FirebaseOptions get web => FirebaseOptions(

@@ -108,18 +108,7 @@ bool _googleReady = false;
 Future<UserCredential> signInWithGoogle() async {
   final auth = FirebaseAuth.instance;
 
-  // On the web this LEAVES THE PAGE and never comes back to this future: the
-  // browser navigates to Google, and the result is picked up by
-  // completeWebSignIn() on the next load. Callers must not wait on it to
-  // decide what to show.
-  if (kIsWeb) {
-    await _googleViaRedirect(auth);
-    // Unreachable in practice — the navigation has already been scheduled.
-    throw FirebaseAuthException(
-      code: 'redirect-in-progress',
-      message: 'Taking you to Google to sign in…',
-    );
-  }
+  if (kIsWeb) return _googleOnWeb(auth);
 
   // Native first. If the device cannot do it — no Play Services, an unusual
   // Android build, a platform the plugin does not implement — fall back to the
@@ -151,18 +140,86 @@ Future<UserCredential> signInWithGoogle() async {
   return _googleViaHandler(auth);
 }
 
+/// Google sign-in on the website.
+///
+/// MEASURED, not reasoned about, because the reasoning was wrong twice.
+///
+/// Only markethub-80276.firebaseapp.com can host this flow. pakbazar24.com is
+/// an authorised DOMAIN in Firebase Auth, which is a different list from the
+/// two Google actually checks, and it is on neither:
+///
+///   * as a redirect URI      -> Error 400: redirect_uri_mismatch
+///     (pointed authDomain at our own host, clicked the button, read the page)
+///   * as a JavaScript origin -> "[GSI_LOGGER]: The given origin is not
+///     allowed for the given client ID"
+///     (loaded Google Identity Services on the live site and called
+///     renderButton)
+///
+/// So a same-origin popup and Google's own button are both unavailable until
+/// our host is added to those two lists in the Google Cloud console. There is
+/// no API for it: clientauthconfig.googleapis.com and oauth2.googleapis.com
+/// both 404 for a service account.
+///
+/// THE COOP WARNING IS NOT THE BUG. This console line —
+///
+///   Cross-Origin-Opener-Policy policy would block the window.closed call.
+///
+/// — is what sent an earlier attempt off after authDomain, which is how the
+/// redirect_uri mismatch got shipped. It comes from accounts.google.com, which
+/// sends Cross-Origin-Opener-Policy-REPORT-ONLY: same-origin. Report-only
+/// enforces nothing. Our own handler sends no COOP header at all. Both checked
+/// with curl; the warning still appears with our header removed, so it is
+/// Google's noise and every Firebase site sees it.
+///
+/// A popup is preferred because it is one page load rather than three and it
+/// keeps the user where they were. The redirect is the fallback for a browser
+/// that refuses the window, which is the one thing a popup cannot survive.
+Future<UserCredential> _googleOnWeb(FirebaseAuth auth) async {
+  final provider = GoogleAuthProvider()
+    ..addScope('email')
+    ..addScope('profile');
+  final guest = auth.currentUser;
+
+  try {
+    // Linking keeps a browsing guest's uid, so their cart and favourites
+    // survive signing in.
+    if (guest != null && guest.isAnonymous) {
+      try {
+        return await guest.linkWithPopup(provider);
+      } on FirebaseAuthException catch (e) {
+        if (!_alreadyClaimed(e)) rethrow;
+      }
+    }
+    return await auth.signInWithPopup(provider);
+  } on FirebaseAuthException catch (e) {
+    if (!_popupUnavailable(e)) rethrow;
+    // No window to be had. A redirect needs none.
+    await _googleViaRedirect(auth);
+    throw FirebaseAuthException(
+      code: 'redirect-in-progress',
+      message: 'Taking you to Google to sign in…',
+    );
+  }
+}
+
+/// The browser would not give us a window — as opposed to the user closing it,
+/// or Google refusing the sign-in. Only these are worth a second attempt by
+/// another route.
+bool _popupUnavailable(FirebaseAuthException e) => const {
+  'popup-blocked',
+  'operation-not-supported-in-this-environment',
+  'web-storage-unsupported',
+}.contains(e.code);
+
 /// Starts the web sign-in by navigating to Google.
 ///
-/// A popup would be nicer, and is what this used to do. Two things stopped it.
-/// The handler is on firebaseapp.com — a different origin from the site — and
-/// it sends Cross-Origin-Opener-Policy: same-origin, which severs the opener
-/// link, so the app could never see the popup close and sat there for ever.
-/// Pointing authDomain at our own host fixed that and broke sign-in outright
-/// with redirect_uri_mismatch, because our host is not a registered redirect
-/// URI on the OAuth client.
+/// The fallback for a browser that will not open a popup. It goes to the same
+/// registered handler and comes back to completeWebSignIn() on the next load.
 ///
-/// A redirect needs neither: no opener to keep, and it goes to the handler
-/// that IS registered.
+/// Second choice rather than first: it costs a full page load each way, and
+/// the return leg is the flow Google specifically warns about under storage
+/// partitioning. Worth having anyway — a blocked popup is otherwise a dead
+/// button with nothing behind it.
 Future<void> _googleViaRedirect(FirebaseAuth auth) async {
   final provider = GoogleAuthProvider()
     ..addScope('email')
