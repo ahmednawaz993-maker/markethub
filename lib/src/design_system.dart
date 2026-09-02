@@ -1114,9 +1114,14 @@ class _MarketplaceListingCardState extends State<MarketplaceListingCard> {
                             decoration: BoxDecoration(
                               color: swatch,
                               shape: BoxShape.circle,
+                              // A full-weight border, because the commonest
+                              // product colour is WHITE — and a white dot
+                              // behind a half-pixel hairline on a white card
+                              // does not read as "this item is white", it
+                              // reads as an icon that failed to load.
                               border: Border.all(
-                                color: AppColors.border,
-                                width: 0.5,
+                                color: AppColors.textMuted,
+                                width: 1,
                               ),
                             ),
                           ),

@@ -145,14 +145,35 @@ class InfiniteScrollTrigger extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        final m = notification.metrics;
-        if (m.axis != Axis.vertical) return false;
-        if (m.maxScrollExtent - m.pixels <= threshold) onLoadMore();
+    bool nearBottom(ScrollMetrics m) =>
+        m.axis == Axis.vertical && m.maxScrollExtent - m.pixels <= threshold;
+
+    // TWO listeners, and the second one is the interesting one.
+    //
+    // ScrollNotification only arrives when somebody SCROLLS. If a page of
+    // results is shorter than the screen there is nothing to scroll, so the
+    // next page is never asked for — the list sits at whatever it has, under a
+    // count that says "2+ results", above a screenful of nothing. On a young
+    // marketplace that is most searches, and it reads as the app being broken
+    // rather than as the search being narrow.
+    //
+    // ScrollMetricsNotification fires when the metrics themselves change —
+    // including on first layout and whenever the content grows — so a list
+    // that cannot scroll still gets asked. It settles on its own: if a load
+    // adds nothing, the metrics do not change and no further notification
+    // arrives.
+    return NotificationListener<ScrollMetricsNotification>(
+      onNotification: (n) {
+        if (nearBottom(n.metrics)) onLoadMore();
         return false;
       },
-      child: child,
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          if (nearBottom(n.metrics)) onLoadMore();
+          return false;
+        },
+        child: child,
+      ),
     );
   }
 }
