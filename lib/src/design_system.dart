@@ -122,8 +122,10 @@ abstract final class AppType {
     height: 1.25,
   );
 
+  /// The price. The one thing on a card that is never skimmed past, so it is
+  /// a full step up the scale from the title rather than a shade bolder.
   static TextStyle get price => TextStyle(
-    fontSize: 15.5,
+    fontSize: 17,
     fontWeight: FontWeight.w800,
     color: AppColors.textPrimary,
     height: 1.2,
@@ -603,14 +605,22 @@ class AppSearchBar extends StatelessWidget {
     return Container(
       height: 54,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      // Filled and lifted rather than outlined.
+      //
+      // A hairline box on the page background is the cheapest possible search
+      // field and reads like one — it is the same weight as a divider. Every
+      // classifieds app people already use makes this element look pressable,
+      // because it is the control the whole screen exists to serve. A filled
+      // surface with a soft shadow does that without adding a colour.
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: AppRadius.rPill,
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.borderSoft),
+        boxShadow: AppShadow.card,
       ),
       child: Row(
         children: [
-          Icon(Icons.search, size: 22, color: AppColors.textMuted),
+          Icon(Icons.search, size: 22, color: AppColors.accent),
           const SizedBox(width: AppSpacing.sm),
           Expanded(child: field),
           if (locationLabel != null) ...[
@@ -885,7 +895,15 @@ class MarketplaceListingCard extends StatefulWidget {
   });
 
   /// Image aspect ratio (width / height) every card targets.
-  static const double imageAspect = 1.18;
+  /// The photo is SQUARE, and it is the card.
+  ///
+  /// Was 1.18 — wider than tall — which gave a letterbox strip of the item and
+  /// a block of text under it. Every classifieds app people already use puts
+  /// the photo first and lets it dominate, because a photo is what somebody
+  /// scrolling is actually reading. Square also suits the pictures sellers
+  /// take: a phone camera in portrait, cropped, loses less of the item than a
+  /// landscape strip does.
+  static const double imageAspect = 1.0;
 
   /// Height of the text block below the image at the current text scale.
   static double infoHeightFor(BuildContext context) {
