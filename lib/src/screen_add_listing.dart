@@ -144,6 +144,59 @@ class _AddListingScreenState extends State<AddListingScreen> {
   double? longitude;
   bool isLocating = false;
   bool isSubmitting = false;
+  // Which required fields were empty on the last attempt to post.
+  //
+  // Posting used to fail with a SnackBar — "Please fill title, price, and
+  // location" — which appears at the BOTTOM of the screen, beside the button,
+  // while the empty fields are somewhere above in a form long enough to need
+  // several scrolls. It told the seller what was wrong and then took the
+  // message away without showing them where. Somebody who has just spent five
+  // minutes filling this in is the last person to make hunt for it.
+  //
+  // Now the fields themselves say so, and the first one is scrolled to.
+  String? _titleError;
+  String? _priceError;
+  String? _areaError;
+
+  final GlobalKey _titleKey = GlobalKey();
+  final GlobalKey _priceKey = GlobalKey();
+  final GlobalKey _areaKey = GlobalKey();
+
+  /// Marks the empty required fields and brings the first one into view.
+  ///
+  /// Returns true when something is missing, so the caller can stop.
+  bool _flagMissingFields() {
+    setState(() {
+      _titleError = titleController.text.trim().isEmpty
+          ? 'Give your ad a title'
+          : null;
+      _priceError = priceController.text.trim().isEmpty
+          ? 'Add a price'
+          : null;
+      _areaError = locationController.text.trim().isEmpty
+          ? 'Add an area or block'
+          : null;
+    });
+    final firstMissing = _titleError != null
+        ? _titleKey
+        : _priceError != null
+        ? _priceKey
+        : _areaError != null
+        ? _areaKey
+        : null;
+    if (firstMissing == null) return false;
+    final ctx = firstMissing.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+        alignment: 0.2,
+      );
+    }
+    return true;
+  }
+
   bool savingDraft = false;
 
   @override
@@ -335,9 +388,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
     try {
       if (!await ensureVerified(context)) return;
       if (!mounted) return;
-      if (titleController.text.trim().isEmpty ||
-          priceController.text.trim().isEmpty ||
-          locationController.text.trim().isEmpty) {
+      if (_flagMissingFields()) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Please fill title, price, and location'),
@@ -709,12 +760,17 @@ class _AddListingScreenState extends State<AddListingScreen> {
               ),
               const SizedBox(height: AppSpacing.md),
               TextField(
+                key: _titleKey,
                 controller: titleController,
                 enabled: !isSubmitting,
                 textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
+                onChanged: (_) {
+                  if (_titleError != null) setState(() => _titleError = null);
+                },
+                decoration: InputDecoration(
                   labelText: 'Title',
                   hintText: 'e.g. Honda Civic 2018 — single owner',
+                  errorText: _titleError,
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -760,12 +816,17 @@ class _AddListingScreenState extends State<AddListingScreen> {
             icon: Icons.payments_outlined,
             children: [
               TextField(
+                key: _priceKey,
                 controller: priceController,
                 enabled: !isSubmitting,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
+                onChanged: (_) {
+                  if (_priceError != null) setState(() => _priceError = null);
+                },
+                decoration: InputDecoration(
                   labelText: 'Price (PKR)',
                   prefixText: 'Rs ',
+                  errorText: _priceError,
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -816,11 +877,16 @@ class _AddListingScreenState extends State<AddListingScreen> {
               ),
               const SizedBox(height: AppSpacing.md),
               TextField(
+                key: _areaKey,
                 controller: locationController,
                 enabled: !isSubmitting,
-                decoration: const InputDecoration(
+                onChanged: (_) {
+                  if (_areaError != null) setState(() => _areaError = null);
+                },
+                decoration: InputDecoration(
                   labelText: 'Area / Block',
                   hintText: 'Example: Gulshan-e-Iqbal, Block 5',
+                  errorText: _areaError,
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
