@@ -40,12 +40,40 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions web = FirebaseOptions(
+  /// The domain the sign-in popup is served from.
+  ///
+  /// THIS IS WHY GOOGLE SIGN-IN DID NOT WORK ON THE WEBSITE. With the
+  /// generated value — markethub-80276.firebaseapp.com — the popup is a
+  /// DIFFERENT ORIGIN from the page that opened it. Firebase detects that the
+  /// sign-in has finished by polling `popup.closed`, the browser refuses that
+  /// call across the origin boundary, and the popup completes while the app
+  /// sits there having learnt nothing. Seen in the browser console as:
+  ///
+  ///   Cross-Origin-Opener-Policy policy would block the window.closed call.
+  ///
+  /// Firebase Hosting serves /__/auth/handler on EVERY site of the project, so
+  /// pointing this at whatever host the app is being served from makes the
+  /// popup same-origin and the question disappears. Confirmed:
+  /// https://pakbazar24.com/__/auth/handler answers 200.
+  ///
+  /// Localhost is excluded deliberately — `flutter run -d chrome` serves from
+  /// a plain dev server that has no /__/auth/ on it, so development keeps the
+  /// firebaseapp.com handler.
+  static String get webAuthDomain {
+    final host = Uri.base.host;
+    final servedByFirebaseHosting =
+        host.endsWith('pakbazar24.com') ||
+        host.endsWith('.web.app') ||
+        host.endsWith('.firebaseapp.com');
+    return servedByFirebaseHosting ? host : 'markethub-80276.firebaseapp.com';
+  }
+
+  static FirebaseOptions get web => FirebaseOptions(
     apiKey: 'AIzaSyCERNmuaRMssjATHPc3MoJPtfLeVtqykKA',
     appId: '1:541505846653:web:2afe478f1fb52e358a2014',
     messagingSenderId: '541505846653',
     projectId: 'markethub-80276',
-    authDomain: 'markethub-80276.firebaseapp.com',
+    authDomain: webAuthDomain,
     storageBucket: 'markethub-80276.firebasestorage.app',
   );
 
