@@ -60,6 +60,12 @@ class Listing {
   Timestamp? priceDropAt; // when the price was last reduced (optional)
   String approvalStatus; // '', 'pending', 'approved', or 'rejected'
 
+  /// Why an admin rejected the ad, in their words. Shown to the seller on My
+  /// Ads — before this was stored, a rejected ad carried a red chip and no
+  /// explanation, and the reason existed only inside a notification the seller
+  /// may never have opened.
+  String rejectionReason;
+
   Listing({
     required this.id,
     required this.title,
@@ -96,6 +102,7 @@ class Listing {
     this.previousPrice = '',
     this.priceDropAt,
     this.approvalStatus = '',
+    this.rejectionReason = '',
   });
 
   bool get hasCoordinates => latitude != null && longitude != null;
@@ -179,6 +186,7 @@ class Listing {
       'status': status,
       'previousPrice': previousPrice,
       'approvalStatus': approvalStatus,
+      'rejectionReason': rejectionReason,
       if (featuredUntil != null) 'featuredUntil': featuredUntil,
       if (createdAt != null) 'createdAt': createdAt,
       if (priceDropAt != null) 'priceDropAt': priceDropAt,
@@ -272,6 +280,7 @@ class Listing {
       previousPrice: data['previousPrice']?.toString() ?? '',
       priceDropAt: asTime(data['priceDropAt']),
       approvalStatus: data['approvalStatus']?.toString() ?? '',
+      rejectionReason: data['rejectionReason']?.toString() ?? '',
     );
   }
 }

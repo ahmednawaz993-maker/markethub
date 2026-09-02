@@ -636,9 +636,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.upload),
-                      label: Text(
-                        uploadingLogo ? 'Uploading…' : 'Upload logo',
-                      ),
+                      label: Text(uploadingLogo ? 'Uploading…' : 'Upload logo'),
                     ),
                   ],
                 ),
@@ -972,9 +970,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
       cnicUrl = v?['cnicUrl']?.toString();
       addressProofUrl = v?['addressProofUrl']?.toString();
       addressController.text =
-          v?['address']?.toString() ??
-          contact['address']?.toString() ??
-          '';
+          v?['address']?.toString() ?? contact['address']?.toString() ?? '';
       idVerified = uDoc.data()?['idVerified'] == true;
       loaded = true;
     });
@@ -1128,7 +1124,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   /// [onTap] is null once the record is locked (approved) — the capture button
   /// then renders disabled instead of silently uploading a replacement.
-  Widget _uploadTile(String label, String? url, bool busy, VoidCallback? onTap) {
+  Widget _uploadTile(
+    String label,
+    String? url,
+    bool busy,
+    VoidCallback? onTap,
+  ) {
     return Card(
       child: ListTile(
         leading: SizedBox(
@@ -1831,9 +1832,7 @@ class AboutScreen extends StatelessWidget {
                 ListTile(
                   leading: const Icon(Icons.support_agent, color: kPakGreen),
                   title: const Text('Customer Care (24/7)'),
-                  subtitle: const Text(
-                    'Open a request — resolved within 24h',
-                  ),
+                  subtitle: const Text('Open a request — resolved within 24h'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.push(
                     context,
@@ -2155,6 +2154,35 @@ class ProfileScreen extends StatelessWidget {
   }
 }
 
+/// One line of account status: a tick or a warning, and what it is about.
+class _StatusLine extends StatelessWidget {
+  final bool ok;
+  final String label;
+  const _StatusLine({required this.ok, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(
+          ok ? Icons.verified : Icons.error_outline,
+          size: 14,
+          color: ok ? AppColors.success : AppColors.warning,
+        ),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppType.caption,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// The account card at the top of the Menu tab.
 class _AccountHeader extends StatelessWidget {
   final User? user;
@@ -2164,6 +2192,11 @@ class _AccountHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final isGuest = user?.isAnonymous ?? true;
     final emailVerified = user?.emailVerified ?? false;
+    // A phone sign-up has no email address at all, so "Email not verified"
+    // was both wrong and unfixable: the button under it called
+    // sendEmailVerification() on an account with nowhere to send it.
+    final hasEmail = (user?.email ?? '').trim().isNotEmpty;
+    final hasPhone = (user?.phoneNumber ?? '').trim().isNotEmpty;
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -2184,7 +2217,12 @@ class _AccountHeader extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      user?.email ?? 'Guest user',
+                      accountHeadline(
+                        isAnonymous: isGuest,
+                        displayName: user?.displayName,
+                        email: user?.email,
+                        phoneNumber: user?.phoneNumber,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -2196,31 +2234,17 @@ class _AccountHeader extends StatelessWidget {
                     const SizedBox(height: 3),
                     if (isGuest)
                       Text('Browsing as a guest', style: AppType.caption)
-                    else
-                      Row(
-                        children: [
-                          Icon(
-                            emailVerified
-                                ? Icons.verified
-                                : Icons.error_outline,
-                            size: 14,
-                            color: emailVerified
-                                ? AppColors.success
-                                : AppColors.warning,
-                          ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              emailVerified
-                                  ? 'Email verified'
-                                  : 'Email not verified',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppType.caption,
-                            ),
-                          ),
-                        ],
-                      ),
+                    else if (hasEmail)
+                      _StatusLine(
+                        ok: emailVerified,
+                        label: emailVerified
+                            ? 'Email verified'
+                            : 'Email not verified',
+                      )
+                    else if (hasPhone)
+                      // Firebase only issues a phone credential after the code
+                      // has been entered, so the number is verified by then.
+                      const _StatusLine(ok: true, label: 'Phone verified'),
                   ],
                 ),
               ),
@@ -2232,7 +2256,20 @@ class _AccountHeader extends StatelessWidget {
               'Log in to keep your ads, favorites and chats across devices.',
               style: AppType.secondary,
             ),
-          ] else if (!emailVerified) ...[
+            // Signing in is the single most useful thing a guest can do from
+            // this screen, and it used to be a sentence telling them to do it
+            // with nothing to press. An unverified email got a button; a guest
+            // got advice.
+            const SizedBox(height: AppSpacing.md),
+            PrimaryActionButton(
+              label: 'Log in or sign up',
+              icon: Icons.login,
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AuthScreen()),
+              ),
+            ),
+          ] else if (hasEmail && !emailVerified) ...[
             const SizedBox(height: AppSpacing.md),
             PrimaryActionButton(
               label: 'Verify email',
@@ -2300,7 +2337,10 @@ class _MenuGroup extends StatelessWidget {
       children: [
         const SizedBox(height: AppSpacing.section),
         Padding(
-          padding: const EdgeInsetsDirectional.only(bottom: AppSpacing.md, start: 2),
+          padding: const EdgeInsetsDirectional.only(
+            bottom: AppSpacing.md,
+            start: 2,
+          ),
           child: Text(title, style: AppType.sectionTitle),
         ),
         AppCard(

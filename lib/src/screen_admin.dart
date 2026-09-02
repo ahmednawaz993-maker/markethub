@@ -6319,7 +6319,13 @@ class _ListingApprovalActionsState extends State<_ListingApprovalActions> {
     if (ok != true) return;
     setState(() => _busy = true);
     try {
-      await widget.listingRef.update({'approvalStatus': 'rejected'});
+      // The reason goes onto the ad as well as into the notification. The
+      // notification can be swiped away or never opened; My Ads is where the
+      // seller looks when they wonder why their ad is not live.
+      await widget.listingRef.update({
+        'approvalStatus': 'rejected',
+        'rejectionReason': reason,
+      });
       await _notifySeller(
         '⚠️ Your ad was not approved',
         reason.isEmpty

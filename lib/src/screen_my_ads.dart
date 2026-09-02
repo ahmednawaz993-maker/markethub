@@ -1021,6 +1021,92 @@ class SellerDashboardScreen extends StatelessWidget {
   }
 }
 
+/// Why an ad is not live, said in full rather than as a red chip.
+///
+/// The reason an admin types when rejecting an ad is sent as a notification,
+/// which can be swiped away or never opened. My Ads is where a seller looks
+/// when they wonder what happened, and it used to show them the word
+/// "Rejected" and nothing else — nothing to act on, so the usual response was
+/// to post the same ad again.
+class RejectedAdNote extends StatelessWidget {
+  final String reason;
+  const RejectedAdNote({super.key, required this.reason});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = reason.trim();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.08),
+        border: Border(top: BorderSide(color: AppColors.borderSoft)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, size: 18, color: AppColors.error),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  text.isEmpty ? 'This ad was not approved.' : text,
+                  style: AppType.secondary.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Tap to edit and send it back for review.',
+                  style: AppType.caption,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The shelves a seller's own ads sit on.
+///
+/// One flat list meant a rejected ad, an ad still waiting for review and last
+/// month's sold ad were all mixed in with what is currently live — and the two
+/// that need the seller to do something were the hardest to find.
+enum MyAdsShelf { all, live, pending, rejected, sold }
+
+/// Named, so the shelf rules can be tested directly: an unnamed extension is
+/// invisible outside this library.
+extension MyAdsShelfInfo on MyAdsShelf {
+  String get label => switch (this) {
+    MyAdsShelf.all => 'All',
+    MyAdsShelf.live => 'Live',
+    MyAdsShelf.pending => 'In review',
+    MyAdsShelf.rejected => 'Not approved',
+    MyAdsShelf.sold => 'Sold',
+  };
+
+  bool accepts(Listing l) => switch (this) {
+    MyAdsShelf.all => true,
+    MyAdsShelf.live => l.isApproved && l.status == 'in_stock',
+    MyAdsShelf.pending => l.approvalStatus == 'pending',
+    MyAdsShelf.rejected => l.approvalStatus == 'rejected',
+    MyAdsShelf.sold => l.status == 'sold',
+  };
+
+  /// What to say when this shelf is empty but the seller does have ads.
+  String get emptyLine => switch (this) {
+    MyAdsShelf.all => 'No ads posted yet',
+    MyAdsShelf.live => 'Nothing live right now',
+    MyAdsShelf.pending => 'Nothing waiting for review',
+    MyAdsShelf.rejected => 'Nothing was turned down',
+    MyAdsShelf.sold => 'Nothing sold yet',
+  };
+}
+
 class MyAdsScreen extends StatefulWidget {
   const MyAdsScreen({super.key});
 
@@ -1029,6 +1115,17 @@ class MyAdsScreen extends StatefulWidget {
 }
 
 class _MyAdsScreenState extends State<MyAdsScreen> {
+  MyAdsShelf _shelf = MyAdsShelf.all;
+
+  Future<void> _postAd() async {
+    if (!await ensureVerified(context)) return;
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AddListingScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -1065,190 +1162,250 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final docs = snapshot.data!.docs;
+          final all = snapshot.data!.docs.map(Listing.fromDoc).toList();
 
-          if (docs.isEmpty) {
-            return const EmptyState(
+          if (all.isEmpty) {
+            // This used to read "Tap the green SELL button". The SELL button
+            // is navy, and has been since the palette changed — so now the
+            // action is here rather than described.
+            return EmptyStateWidget(
               icon: Icons.inventory_2_outlined,
               title: 'No ads posted yet',
-              subtitle: 'Tap the green SELL button to post your first ad.',
+              subtitle: 'Your ads, their views and their offers all live here.',
+              actionLabel: 'Post your first ad',
+              onAction: _postAd,
             );
           }
 
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.page,
-              AppSpacing.lg,
-              AppSpacing.page,
-              AppSpacing.navClearance,
-            ),
-            itemCount: docs.length,
-            itemBuilder: (context, index) {
-              final listing = Listing.fromDoc(docs[index]);
-              final badges = <Widget>[
-                if (listing.isCurrentlyFeatured) _statusChip('Featured', kGold),
-                if (listing.approvalStatus == 'pending')
-                  _statusChip('Pending review', AppColors.warning),
-                if (listing.approvalStatus == 'rejected')
-                  _statusChip('Rejected', AppColors.error),
-                if (listing.statusLabel.isNotEmpty)
-                  _statusChip(
-                    listing.statusLabel,
-                    listing.isAvailableForSale
-                        ? AppColors.success
-                        : AppColors.error,
+          // Counted over every ad, so a shelf's number does not change with
+          // whichever shelf happens to be open.
+          final counts = {
+            for (final shelf in MyAdsShelf.values)
+              shelf: all.where(shelf.accepts).length,
+          };
+          // "Not approved" appears only when something was, rather than
+          // sitting there permanently as an accusation.
+          final shelves = MyAdsShelf.values
+              .where(
+                (s) =>
+                    s != MyAdsShelf.rejected ||
+                    counts[MyAdsShelf.rejected]! > 0,
+              )
+              .toList();
+          final docs = all.where(_shelf.accepts).toList();
+
+          return Column(
+            children: [
+              SizedBox(
+                height: 46,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.page,
+                    vertical: AppSpacing.sm,
                   ),
-              ];
-              // Every listing card in the app uses the same shape: image,
-              // Expanded info, ONE trailing action menu. Stats live on their
-              // own wrapped row so they never squeeze the title.
-              return MarketplaceListingTile(
-                listing: listing,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => EditListingScreen(listing: listing),
-                  ),
-                ),
-                details: [
-                  ...badges,
-                  MetaChip(
-                    icon: Icons.remove_red_eye_outlined,
-                    label: '${listing.views}',
-                  ),
-                  MetaChip(
-                    icon: Icons.call_outlined,
-                    label: '${listing.calls}',
-                  ),
-                  MetaChip(
-                    icon: Icons.chat_bubble_outline,
-                    label: '${listing.chats}',
-                  ),
-                  MetaChip(
-                    icon: Icons.forum_outlined,
-                    label: '${listing.whatsapps}',
-                  ),
-                ],
-                trailing: PopupMenuButton<String>(
-                  tooltip: 'Actions',
-                  icon: const Icon(Icons.more_vert),
-                  onSelected: (value) async {
-                    final messenger = ScaffoldMessenger.of(context);
-                    if (value == 'bump') {
-                      final created = listing.createdAt?.toDate();
-                      if (created != null &&
-                          DateTime.now().difference(created).inHours < 24) {
-                        messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Still recent — you can bump 24h after '
-                              'posting or your last bump.',
-                            ),
-                          ),
-                        );
-                        return;
-                      }
-                      await FirebaseFirestore.instance
-                          .collection('listings')
-                          .doc(listing.id)
-                          .update({'createdAt': Timestamp.now()});
-                      messenger.showSnackBar(
-                        const SnackBar(content: Text('Bumped to the top!')),
-                      );
-                    } else if (value == 'promote') {
-                      showPromoteSheet(context, listing);
-                    } else if (value == 'inventory') {
-                      showInventorySheet(context, listing);
-                    } else if (value == 'lower') {
-                      showLowerPriceSheet(context, listing);
-                    } else if (value == 'delete') {
-                      final ok = await showDialog<bool>(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          title: const Text('Delete ad?'),
-                          content: const Text(
-                            'This permanently removes the ad and '
-                            'cannot be undone.',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text(
-                                'Delete',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (ok == true) {
-                        await FirebaseFirestore.instance
-                            .collection('listings')
-                            .doc(listing.id)
-                            .delete();
-                      }
-                    }
+                  itemCount: shelves.length,
+                  separatorBuilder: (_, _) =>
+                      const SizedBox(width: AppSpacing.sm),
+                  itemBuilder: (context, i) {
+                    final shelf = shelves[i];
+                    final selected = shelf == _shelf;
+                    return ChoiceChip(
+                      label: Text('${shelf.label} (${counts[shelf]})'),
+                      labelStyle: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: selected
+                            ? Colors.white
+                            : AppColors.textSecondary,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      selected: selected,
+                      onSelected: (_) => setState(() => _shelf = shelf),
+                    );
                   },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(
-                      value: 'bump',
-                      child: ListTile(
-                        leading: Icon(Icons.arrow_upward, color: kPakGreen),
-                        title: Text('Bump to top'),
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'promote',
-                      child: ListTile(
-                        leading: Icon(
-                          listing.isFeatured
-                              ? Icons.star
-                              : Icons.campaign_outlined,
-                          color: kGold,
-                        ),
-                        title: Text(
-                          listing.isFeatured ? 'Featured' : 'Promote',
-                        ),
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'inventory',
-                      child: ListTile(
-                        leading: Icon(Icons.inventory_2_outlined),
-                        title: Text('Inventory status'),
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                    if (!listing.isSold)
-                      const PopupMenuItem(
-                        value: 'lower',
-                        child: ListTile(
-                          leading: Icon(Icons.south, color: Colors.deepOrange),
-                          title: Text('Lower price'),
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                      ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: ListTile(
-                        leading: Icon(Icons.delete, color: Colors.red),
-                        title: Text('Delete'),
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                  ],
                 ),
-              );
-            },
+              ),
+              Divider(height: 1, color: AppColors.borderSoft),
+              Expanded(
+                child: docs.isEmpty
+                    ? EmptyStateWidget(
+                        icon: Icons.inventory_2_outlined,
+                        title: _shelf.emptyLine,
+                        subtitle: 'Your other ads are on the shelves above.',
+                      )
+                    : _adList(docs),
+              ),
+            ],
           );
         },
       ),
+    );
+  }
+
+  Widget _adList(List<Listing> docs) {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.page,
+        AppSpacing.lg,
+        AppSpacing.page,
+        AppSpacing.navClearance,
+      ),
+      itemCount: docs.length,
+      itemBuilder: (context, index) {
+        final listing = docs[index];
+        final badges = <Widget>[
+          if (listing.isCurrentlyFeatured) _statusChip('Featured', kGold),
+          if (listing.approvalStatus == 'pending')
+            _statusChip('Pending review', AppColors.warning),
+          if (listing.approvalStatus == 'rejected')
+            _statusChip('Rejected', AppColors.error),
+          if (listing.statusLabel.isNotEmpty)
+            _statusChip(
+              listing.statusLabel,
+              listing.isAvailableForSale ? AppColors.success : AppColors.error,
+            ),
+        ];
+        // Every listing card in the app uses the same shape: image,
+        // Expanded info, ONE trailing action menu. Stats live on their
+        // own wrapped row so they never squeeze the title.
+        return MarketplaceListingTile(
+          listing: listing,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => EditListingScreen(listing: listing),
+            ),
+          ),
+          details: [
+            ...badges,
+            MetaChip(
+              icon: Icons.remove_red_eye_outlined,
+              label: '${listing.views}',
+            ),
+            MetaChip(icon: Icons.call_outlined, label: '${listing.calls}'),
+            MetaChip(
+              icon: Icons.chat_bubble_outline,
+              label: '${listing.chats}',
+            ),
+            MetaChip(icon: Icons.forum_outlined, label: '${listing.whatsapps}'),
+          ],
+          trailing: PopupMenuButton<String>(
+            tooltip: 'Actions',
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) async {
+              final messenger = ScaffoldMessenger.of(context);
+              if (value == 'bump') {
+                final created = listing.createdAt?.toDate();
+                if (created != null &&
+                    DateTime.now().difference(created).inHours < 24) {
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Still recent — you can bump 24h after '
+                        'posting or your last bump.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+                await FirebaseFirestore.instance
+                    .collection('listings')
+                    .doc(listing.id)
+                    .update({'createdAt': Timestamp.now()});
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('Bumped to the top!')),
+                );
+              } else if (value == 'promote') {
+                showPromoteSheet(context, listing);
+              } else if (value == 'inventory') {
+                showInventorySheet(context, listing);
+              } else if (value == 'lower') {
+                showLowerPriceSheet(context, listing);
+              } else if (value == 'delete') {
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text('Delete ad?'),
+                    content: const Text(
+                      'This permanently removes the ad and '
+                      'cannot be undone.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text(
+                          'Delete',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+                if (ok == true) {
+                  await FirebaseFirestore.instance
+                      .collection('listings')
+                      .doc(listing.id)
+                      .delete();
+                }
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'bump',
+                child: ListTile(
+                  leading: Icon(Icons.arrow_upward, color: kPakGreen),
+                  title: Text('Bump to top'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'promote',
+                child: ListTile(
+                  leading: Icon(
+                    listing.isFeatured ? Icons.star : Icons.campaign_outlined,
+                    color: kGold,
+                  ),
+                  title: Text(listing.isFeatured ? 'Featured' : 'Promote'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'inventory',
+                child: ListTile(
+                  leading: Icon(Icons.inventory_2_outlined),
+                  title: Text('Inventory status'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              if (!listing.isSold)
+                const PopupMenuItem(
+                  value: 'lower',
+                  child: ListTile(
+                    leading: Icon(Icons.south, color: Colors.deepOrange),
+                    title: Text('Lower price'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: ListTile(
+                  leading: Icon(Icons.delete, color: Colors.red),
+                  title: Text('Delete'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ),
+          actions: listing.approvalStatus == 'rejected'
+              ? RejectedAdNote(reason: listing.rejectionReason)
+              : null,
+        );
+      },
     );
   }
 }
@@ -1460,6 +1617,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
       // going live again (also lets a rejected ad be resubmitted by editing).
       // Demo/review accounts stay auto-approved.
       data['approvalStatus'] = isDemoUser() ? 'approved' : 'pending';
+      // The ad has been changed and is going back for review, so whatever
+      // it was turned down for last time is no longer what it says.
+      data['rejectionReason'] = '';
       await FirebaseFirestore.instance
           .collection('listings')
           .doc(widget.listing.id)
@@ -1510,7 +1670,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
               if (showNew)
                 for (final x in newImages)
                   Padding(
-                    padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
+                    padding: const EdgeInsetsDirectional.only(
+                      end: AppSpacing.sm,
+                    ),
                     child: ClipRRect(
                       borderRadius: AppRadius.rSm,
                       child: FutureBuilder<Uint8List>(
@@ -1529,7 +1691,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
               else
                 for (final u in existing)
                   Padding(
-                    padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
+                    padding: const EdgeInsetsDirectional.only(
+                      end: AppSpacing.sm,
+                    ),
                     child: ClipRRect(
                       borderRadius: AppRadius.rSm,
                       child: SizedBox(

@@ -146,10 +146,7 @@ Future<Map<String, Map<String, dynamic>>> loadPrivateContacts(
 }
 
 /// Writes contact details to the private subcollection.
-Future<void> savePrivateContact(
-  String uid,
-  Map<String, dynamic> values,
-) async {
+Future<void> savePrivateContact(String uid, Map<String, dynamic> values) async {
   await privateContactRef(uid).set(values, SetOptions(merge: true));
 }
 
@@ -511,6 +508,26 @@ bool canOpenAdminPanel() => isSuperAdmin() || staffPermissions.isNotEmpty;
 String priceLabel(Listing l) =>
     formatPrice(l.price) + (l.unit.isEmpty ? '' : ' / ${l.unit}');
 
+/// What to call somebody on their own account card.
+///
+/// It used to be `user?.email ?? 'Guest user'`. Phone sign-ups have no email
+/// address, so every one of them opened their own profile and was told they
+/// were a guest — while the card underneath showed their verification badge.
+String accountHeadline({
+  required bool isAnonymous,
+  String? displayName,
+  String? email,
+  String? phoneNumber,
+}) {
+  if (isAnonymous) return 'Guest user';
+  for (final candidate in [displayName, email, phoneNumber]) {
+    final value = candidate?.trim() ?? '';
+    if (value.isNotEmpty) return value;
+  }
+  // Signed in, but through a provider that told us nothing about them.
+  return 'Your account';
+}
+
 /// What a profile document needs writing to it, given what is already there.
 ///
 /// Pure, and separate from the Firestore call, because THIS is where the bugs
@@ -559,7 +576,8 @@ Map<String, dynamic> profileUpdates({
     out['verified'] = emailVerified;
   }
   final name = displayName?.trim() ?? '';
-  final hasName = ((existing['displayName'] as String?)?.trim() ?? '').isNotEmpty;
+  final hasName =
+      ((existing['displayName'] as String?)?.trim() ?? '').isNotEmpty;
   if (name.isNotEmpty && !hasName) {
     out['displayName'] = name;
   }
