@@ -190,6 +190,89 @@ class SavedSearchesScreen extends StatelessWidget {
 
 /// Reusable browse surface: search box, subcategory chips (when a category is
 /// given), sort + price/emirate filters, and the results list.
+/// The searches this device has run, offered while the search field is
+/// focused and empty.
+///
+/// The app has remembered searches since the list was added to Home, but the
+/// screen people actually search on never showed them: tapping the field gave
+/// you a cursor and nothing else, so a query you ran yesterday had to be typed
+/// out again from memory.
+class RecentSearchesPanel extends StatelessWidget {
+  final List<RecentSearch> items;
+  final void Function(RecentSearch) onRun;
+
+  const RecentSearchesPanel({
+    super.key,
+    required this.items,
+    required this.onRun,
+  });
+
+  /// Where the search was made, when that was anywhere in particular.
+  static String? scopeLabel(RecentSearch s) {
+    final parts = <String>[
+      if (s.category.isNotEmpty && s.category != 'All') s.category,
+      if (s.city.isNotEmpty && s.city != 'All') 'in ${s.city}',
+    ];
+    return parts.isEmpty ? null : parts.join(' · ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Material, not a coloured box: the rows are tappable, and a plain
+    // ColoredBox between them and the nearest Material swallows the ink
+    // splash, so a tap would land with no feedback at all.
+    return Material(
+      color: AppColors.background,
+      child: ListView(
+        padding: const EdgeInsets.only(bottom: AppSpacing.navClearance),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.page,
+              AppSpacing.md,
+              AppSpacing.sm,
+              0,
+            ),
+            child: Row(
+              children: [
+                Expanded(child: Text('Recent searches', style: AppType.label)),
+                TextButton(
+                  onPressed: clearRecentSearches,
+                  child: const Text('Clear all'),
+                ),
+              ],
+            ),
+          ),
+          for (final s in items)
+            ListTile(
+              dense: true,
+              leading: Icon(
+                Icons.history,
+                size: 20,
+                color: AppColors.textMuted,
+              ),
+              title: Text(
+                s.query,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppType.cardTitle,
+              ),
+              subtitle: scopeLabel(s) == null
+                  ? null
+                  : Text(scopeLabel(s)!, style: AppType.caption),
+              trailing: IconButton(
+                tooltip: 'Remove',
+                icon: Icon(Icons.close, size: 18, color: AppColors.textMuted),
+                onPressed: () => removeRecentSearch(s),
+              ),
+              onTap: () => onRun(s),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class ListingsBrowser extends StatefulWidget {
   final String? category;
   final String initialQuery;
@@ -228,6 +311,13 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
   bool negotiableOnly = false;
   String colorFilter = ''; // '' = any colour
 
+  /// Focus and emptiness of the search field, which together decide whether
+  /// the screen is showing results or offering the searches this device has
+  /// run before.
+  final FocusNode _searchFocus = FocusNode();
+  bool _searchFocused = false;
+  late bool _queryEmpty;
+
   /// Results view: a responsive card grid (default) or a compact list. The
   /// grid drops to one column automatically on very narrow screens.
   bool gridView = true;
@@ -243,6 +333,12 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     super.initState();
     searchText = widget.initialQuery;
     searchController = TextEditingController(text: widget.initialQuery);
+    _queryEmpty = widget.initialQuery.trim().isEmpty;
+    _searchFocus.addListener(_onSearchFocusChanged);
+    // The results are re-filtered on a debounce, so the first typed character
+    // would otherwise leave the recent-searches list up for a quarter of a
+    // second on top of the results the user is typing towards.
+    searchController.addListener(_onQueryEmptinessChanged);
     selectedSubcategory = widget.initialSubcategory ?? 'All';
     cityFilter = widget.initialCity ?? 'All';
     minPrice = widget.initialMinPrice;
@@ -270,6 +366,68 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
       clientFilter: matchesFilters,
     );
     _source.loadMore();
+  }
+
+  void _onSearchFocusChanged() {
+    if (_searchFocus.hasFocus == _searchFocused) return;
+    setState(() => _searchFocused = _searchFocus.hasFocus);
+  }
+
+  void _onQueryEmptinessChanged() {
+    final empty = searchController.text.trim().isEmpty;
+    if (empty == _queryEmpty) return;
+    setState(() => _queryEmpty = empty);
+  }
+
+  /// True when the user has tapped the search field and not typed anything —
+  /// the moment they are deciding what to look for, and the only moment their
+  /// past searches are more useful than the results underneath.
+  bool get _offeringRecents => _searchFocused && _queryEmpty;
+
+  /// Empties the field and puts the cursor back in it, which is what brings
+  /// the history up.
+  void _clearSearch() {
+    _debounce?.cancel();
+    searchController.clear();
+    setState(() => searchText = '');
+    _restartPaging();
+    _searchFocus.requestFocus();
+  }
+
+  /// Remembers a search run from this screen.
+  ///
+  /// Only the home screen used to record searches, so refining a query here —
+  /// which is where most searching actually happens — was never remembered.
+  void _rememberSearch(String query) {
+    final q = query.trim();
+    if (q.isEmpty) return;
+    addRecentSearch(
+      RecentSearch(
+        query: q,
+        category: hasCategory ? widget.category! : '',
+        city: cityFilter == 'All' ? '' : cityFilter,
+      ),
+    );
+  }
+
+  /// Runs a search the user picked from their history, restoring the city it
+  /// was made in so it returns what it returned last time.
+  void _runRecentSearch(RecentSearch recent) {
+    _debounce?.cancel();
+    searchController.text = recent.query;
+    searchController.selection = TextSelection.collapsed(
+      offset: recent.query.length,
+    );
+    _searchFocus.unfocus();
+    setState(() {
+      searchText = recent.query;
+      if (recent.city.isNotEmpty && recent.city != 'All') {
+        cityFilter = recent.city;
+      }
+    });
+    _restartPaging();
+    // Re-recording moves it back to the top of the list.
+    _rememberSearch(recent.query);
   }
 
   /// Applies a filter mutation and restarts paging, since a filter change
@@ -322,7 +480,9 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Saved "$label" — we\'ll alert you on new matches'),
+        // The label already quotes the query when there is one, so quoting it
+        // again here read: Saved ""shoes"" — we'll alert you on new matches.
+        content: Text('Saved $label — we\'ll alert you on new matches'),
       ),
     );
   }
@@ -331,7 +491,9 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
   void dispose() {
     _debounce?.cancel();
     _source.dispose();
+    searchController.removeListener(_onQueryEmptinessChanged);
     searchController.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -702,7 +864,11 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
             children: [
               AppSearchBar(
                 controller: searchController,
-                hintText: tr('home.searchHint', 'Search title, brand, category or city'),
+                focusNode: _searchFocus,
+                hintText: tr(
+                  'home.searchHint',
+                  'Search title, brand, category or city',
+                ),
                 // Debounced: re-filter 250ms after the user stops typing, not
                 // on every keystroke (which would rebuild the results list).
                 onChanged: (value) {
@@ -718,7 +884,11 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                   _debounce?.cancel();
                   setState(() => searchText = value);
                   _restartPaging();
+                  _rememberSearch(value);
+                  _searchFocus.unfocus();
                 },
+                showClear: !_queryEmpty,
+                onClear: _clearSearch,
                 trailing: IconButton(
                   tooltip: 'Save this search & get alerts',
                   icon: Icon(Icons.notification_add, color: AppColors.accent),
@@ -809,73 +979,88 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
           ),
         Divider(height: 1, color: AppColors.borderSoft),
         Expanded(
-          child: AnimatedBuilder(
-            animation: _source,
-            builder: (context, _) {
-              final loaded = _source.items;
-
-              // First page still in flight.
-              if (loaded.isEmpty && _source.isLoading) {
-                return _resultsSkeleton();
-              }
-              // Nothing loaded and the very first fetch failed.
-              if (loaded.isEmpty && _source.error != null) {
-                return ErrorStateWidget(
-                  message: 'We couldn’t load listings. Please try again.',
-                  onRetry: _restartPaging,
+          // The results stay in the `child`, built once and handed back
+          // untouched, so opening and dismissing the history does not throw
+          // away a loaded page.
+          child: ValueListenableBuilder<List<RecentSearch>>(
+            valueListenable: recentSearches,
+            builder: (context, recents, results) {
+              if (_offeringRecents && recents.isNotEmpty) {
+                return RecentSearchesPanel(
+                  items: recents,
+                  onRun: _runRecentSearch,
                 );
               }
+              return results!;
+            },
+            child: AnimatedBuilder(
+              animation: _source,
+              builder: (context, _) {
+                final loaded = _source.items;
 
-              // Sorting applies to what has been loaded; scrolling further
-              // widens the set. Reported once the query is exhausted so the
-              // count is the real total, not a partial page.
-              final sorted = applyFilters(loaded);
-              if (!_source.hasMore) _maybeTrackSearch(sorted.length);
+                // First page still in flight.
+                if (loaded.isEmpty && _source.isLoading) {
+                  return _resultsSkeleton();
+                }
+                // Nothing loaded and the very first fetch failed.
+                if (loaded.isEmpty && _source.error != null) {
+                  return ErrorStateWidget(
+                    message: 'We couldn’t load listings. Please try again.',
+                    onRetry: _restartPaging,
+                  );
+                }
 
-              if (sorted.isEmpty && !_source.hasMore) {
-                return EmptyStateWidget(
-                  icon: Icons.search_off,
-                  title: tr('state.noResults', 'No listings found'),
-                  subtitle: _source.scannedCount > 0
-                      ? 'We looked through every ad and none matched. Try a '
-                            'different search or adjust your filters.'
-                      : 'Try a different search or adjust your filters.',
-                );
-              }
+                // Sorting applies to what has been loaded; scrolling further
+                // widens the set. Reported once the query is exhausted so the
+                // count is the real total, not a partial page.
+                final sorted = applyFilters(loaded);
+                if (!_source.hasMore) _maybeTrackSearch(sorted.length);
 
-              return Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.page,
-                      AppSpacing.md,
-                      AppSpacing.page,
-                      AppSpacing.sm,
-                    ),
-                    child: Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: Text(
-                        // "+" while more pages remain, so the count never
-                        // claims to be the whole catalogue when it isn't.
-                        '${sorted.length}${_source.hasMore ? '+' : ''} result'
-                        '${sorted.length == 1 ? '' : 's'}',
-                        style: AppType.label,
+                if (sorted.isEmpty && !_source.hasMore) {
+                  return EmptyStateWidget(
+                    icon: Icons.search_off,
+                    title: tr('state.noResults', 'No listings found'),
+                    subtitle: _source.scannedCount > 0
+                        ? 'We looked through every ad and none matched. Try a '
+                              'different search or adjust your filters.'
+                        : 'Try a different search or adjust your filters.',
+                  );
+                }
+
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.page,
+                        AppSpacing.md,
+                        AppSpacing.page,
+                        AppSpacing.sm,
+                      ),
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Text(
+                          // "+" while more pages remain, so the count never
+                          // claims to be the whole catalogue when it isn't.
+                          '${sorted.length}${_source.hasMore ? '+' : ''} result'
+                          '${sorted.length == 1 ? '' : 's'}',
+                          style: AppType.label,
+                        ),
                       ),
                     ),
-                  ),
-                  Expanded(
-                    child: InfiniteScrollTrigger(
-                      onLoadMore: _source.loadMore,
-                      child: _results(sorted),
+                    Expanded(
+                      child: InfiniteScrollTrigger(
+                        onLoadMore: _source.loadMore,
+                        child: _results(sorted),
+                      ),
                     ),
-                  ),
-                  PagedListingFooter(
-                    source: _source,
-                    onRetry: _source.loadMore,
-                  ),
-                ],
-              );
-            },
+                    PagedListingFooter(
+                      source: _source,
+                      onRetry: _source.loadMore,
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ],

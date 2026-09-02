@@ -558,6 +558,10 @@ class AppSearchBar extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final VoidCallback? onTap;
 
+  /// Lets the owning screen know when the field is focused — which is what
+  /// tells a search screen to offer recent searches instead of results.
+  final FocusNode? focusNode;
+
   /// Optional leading location button (label + tap target) rendered inside the
   /// pill, before the query text.
   final String? locationLabel;
@@ -566,6 +570,13 @@ class AppSearchBar extends StatelessWidget {
   /// Optional trailing action, e.g. a filter button.
   final Widget? trailing;
 
+  /// Clears the query. Shown as an × inside the pill while [showClear] is set;
+  /// the owning screen decides that, since this widget does not watch the
+  /// controller. Without it the only way back to an empty field is selecting
+  /// the text and deleting it, on a phone keyboard.
+  final VoidCallback? onClear;
+  final bool showClear;
+
   const AppSearchBar({
     super.key,
     this.controller,
@@ -573,9 +584,12 @@ class AppSearchBar extends StatelessWidget {
     this.onSubmitted,
     this.onChanged,
     this.onTap,
+    this.focusNode,
     this.locationLabel,
     this.onLocationTap,
     this.trailing,
+    this.onClear,
+    this.showClear = false,
   });
 
   @override
@@ -584,6 +598,7 @@ class AppSearchBar extends StatelessWidget {
 
     final field = TextField(
       controller: controller,
+      focusNode: focusNode,
       readOnly: readOnly,
       onTap: onTap,
       textInputAction: TextInputAction.search,
@@ -667,6 +682,17 @@ class AppSearchBar extends StatelessWidget {
               ),
             ),
           ],
+          if (showClear && onClear != null)
+            IconButton(
+              tooltip: 'Clear',
+              visualDensity: VisualDensity.compact,
+              icon: Icon(
+                Icons.cancel,
+                size: 18,
+                color: AppColors.textMuted,
+              ),
+              onPressed: onClear,
+            ),
           if (trailing != null) ...[const SizedBox(width: 2), trailing!],
         ],
       ),
