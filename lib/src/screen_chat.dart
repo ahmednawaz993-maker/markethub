@@ -299,6 +299,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     if (!widget.adminView) {
+      _loadListing();
       _metaSub = FirebaseFirestore.instance
           .collection('chats')
           .doc(widget.chatId)
@@ -425,6 +426,141 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
+  /// The ad this conversation is about, fetched once when the thread opens.
+  ///
+  /// The chat document keeps a snapshot of the title and photo taken when the
+  /// conversation started; the price is not in it at all. Reading the listing
+  /// costs one document per chat opened and is what makes the strip honest —
+  /// a buyer haggling over an ad that has since sold, or whose price has
+  /// dropped, sees that rather than a stale copy.
+  Listing? _listing;
+
+  Future<void> _loadListing() async {
+    if (widget.listingId.isEmpty) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('listings')
+          .doc(widget.listingId)
+          .get();
+      if (!mounted || !doc.exists) return;
+      setState(() => _listing = Listing.fromDoc(doc));
+    } catch (_) {
+      // Taken down, or no permission to read it. The strip falls back to the
+      // title and photo the chat itself remembers.
+    }
+  }
+
+  /// The photo to show in the strip: the ad's current one when we have it,
+  /// otherwise the copy the chat document kept.
+  String get _thumbUrl {
+    final live = _listing?.imageUrl.trim() ?? '';
+    return live.isNotEmpty ? live : widget.listingImage.trim();
+  }
+
+  /// A tappable summary of the ad this conversation is about.
+  Widget _listingStrip() {
+    if (widget.listingId.isEmpty && widget.listingTitle.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Material(
+      color: AppColors.surface,
+      child: InkWell(
+        onTap: _listing == null ? null : _openListing,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: AppColors.borderSoft)),
+          ),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: AppRadius.rSm,
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: _thumbUrl.isEmpty
+                      ? Container(
+                          color: AppColors.surfaceVariant,
+                          child: Icon(
+                            Icons.image_outlined,
+                            size: 18,
+                            color: AppColors.textMuted,
+                          ),
+                        )
+                      : Image.network(
+                          _thumbUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Container(
+                            color: AppColors.surfaceVariant,
+                            child: Icon(
+                              Icons.image_outlined,
+                              size: 18,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _listing?.title.isNotEmpty == true
+                          ? _listing!.title
+                          : (widget.listingTitle.isEmpty
+                                ? 'This ad'
+                                : widget.listingTitle),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.cardTitle,
+                    ),
+                    if (_listing != null)
+                      Row(
+                        children: [
+                          Text(
+                            priceLabel(_listing!),
+                            style: AppType.label.copyWith(
+                              color: AppColors.accent,
+                            ),
+                          ),
+                          if (!_listing!.isAvailableForSale) ...[
+                            const SizedBox(width: AppSpacing.xs),
+                            Text(
+                              _listing!.status == 'sold'
+                                  ? '• Sold'
+                                  : '• Unavailable',
+                              style: AppType.caption,
+                            ),
+                          ],
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+              if (_listing != null)
+                Icon(Icons.chevron_right, size: 20, color: AppColors.textMuted),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openListing() {
+    final listing = _listing;
+    if (listing == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => AdDetailsScreen(listing: listing)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -445,20 +581,24 @@ class _ChatScreenState extends State<ChatScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               )
-            else ...[
+            // The ad's title used to be a third line here. The strip under the
+            // bar carries it now, with the photo and the price, so repeating
+            // it only cost header height.
+            else
               PresenceStatusLine(_otherUid),
-              Text(
-                widget.listingTitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 11, color: AppColors.textMuted),
-              ),
-            ],
           ],
         ),
       ),
       body: Column(
         children: [
+          // The thing being discussed, pinned above the conversation.
+          //
+          // The chat document already stores the listing's id, title, price
+          // and image — and the screen showed none of it beyond a line of grey
+          // text in the app bar. Two people negotiating a price could not see
+          // the item, its asking price, or get back to the ad without leaving
+          // the conversation and finding it again.
+          if (!widget.adminView) _listingStrip(),
           if (widget.adminView)
             Container(
               width: double.infinity,
