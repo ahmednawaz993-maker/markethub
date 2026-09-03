@@ -73,14 +73,24 @@ class DeliveryAddress {
 
   /// The fields that MUST be present before an order can be placed. Optional
   /// fields (landmark, postalCode, deliveryInstructions) are excluded.
-  bool get isComplete =>
-      fullName.trim().isNotEmpty &&
-      isValidPakMobile(phone) &&
-      province.trim().isNotEmpty &&
-      city.trim().isNotEmpty &&
-      area.trim().isNotEmpty &&
-      streetAddress.trim().isNotEmpty &&
-      houseOrBuilding.trim().isNotEmpty;
+  bool get isComplete => missing.isEmpty;
+
+  /// What is still needed, named the way the buyer would name it.
+  ///
+  /// Checkout used to know only that something was wrong: an address saved
+  /// before a field existed, or with a number that no longer validates, left
+  /// the Place Order button greyed out with no message anywhere on the screen.
+  /// The one explanation in the code sat behind that disabled button and could
+  /// never run.
+  List<String> get missing => [
+    if (fullName.trim().isEmpty) 'a name',
+    if (!isValidPakMobile(phone)) 'a valid mobile number',
+    if (province.trim().isEmpty) 'a province',
+    if (city.trim().isEmpty) 'a city',
+    if (area.trim().isEmpty) 'an area',
+    if (streetAddress.trim().isEmpty) 'a street address',
+    if (houseOrBuilding.trim().isEmpty) 'a house or building',
+  ];
 
   /// One-line address summary for list / checkout display.
   String get shortSummary => [

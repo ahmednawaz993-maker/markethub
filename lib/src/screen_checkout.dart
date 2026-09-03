@@ -299,17 +299,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Widget _cardTitle(String t) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
-    child: Text(
-      t,
-      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5),
-    ),
+    child: Text(t, style: AppType.cardTitle),
   );
 
   Widget _itemCard() {
     final img = listing.galleryImages.isEmpty
         ? ''
         : listing.galleryImages.first;
-    return Card(
+    return AppCard(
+      padding: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Row(
@@ -337,7 +335,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   const SizedBox(height: 4),
                   Text(
                     priceLabel(listing),
-                    style: const TextStyle(color: kPakGreen),
+                    // The accent, like every other price in the app since the
+                    // palette changed. This one was still the old green.
+                    style: AppType.price.copyWith(color: AppColors.accent),
                   ),
                 ],
               ),
@@ -350,7 +350,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Widget _addressCard() {
     final a = _address;
-    return Card(
+    return AppCard(
+      padding: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
@@ -432,7 +433,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _paymentCard() {
-    return Card(
+    return AppCard(
+      padding: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
@@ -450,7 +452,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   const RadioListTile<String>(
                     contentPadding: EdgeInsets.zero,
                     value: 'escrow',
-                    activeColor: kPakGreen,
+
                     title: Text('Pay online (escrow)'),
                     subtitle: Text(
                       'Held safely until you confirm you received the item.',
@@ -461,7 +463,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     const RadioListTile<String>(
                       contentPadding: EdgeInsets.zero,
                       value: 'cod',
-                      activeColor: kPakGreen,
+
                       title: Text('Cash on Delivery'),
                       subtitle: Text(
                         'Pay cash when the item is delivered.',
@@ -478,7 +480,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _notesCard() {
-    return Card(
+    return AppCard(
+      padding: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
@@ -501,7 +504,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _summaryCard() {
-    return Card(
+    return AppCard(
+      padding: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
@@ -518,47 +522,88 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
+  /// Why Place Order is greyed out, in the buyer's words, or null when it is
+  /// not. A disabled button with no explanation is a dead end, and this screen
+  /// is the last one before the money.
+  String? get _blockedReason {
+    if (_submitting || _loadingAddress) return null;
+    final a = _address;
+    if (a == null) return 'Add a delivery address to place your order.';
+    final missing = a.missing;
+    if (missing.isNotEmpty) {
+      return 'Your delivery address still needs ${listPhrase(missing)}.';
+    }
+    if (subtotal <= 0) return 'This ad has no price, so it cannot be ordered.';
+    return null;
+  }
+
   Widget _placeBar() {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (_address == null)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 6),
-                child: Text(
-                  'Add a delivery address to place your order.',
-                  style: TextStyle(fontSize: 12, color: Colors.redAccent),
-                ),
-              ),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _canPlace ? _placeOrder : null,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: _submitting
-                    ? const SizedBox(
-                        height: 22,
-                        width: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        'Place Order · ${formatPrice(grandTotal.toStringAsFixed(0))}',
-                        style: const TextStyle(
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.bold,
-                        ),
+    final blocked = _blockedReason;
+    // A surface with a hairline above it, so the total and the button read as
+    // a bar rather than as the last thing in the scrolling list.
+    return Material(
+      color: AppColors.surface,
+      child: SafeArea(
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: AppColors.borderSoft)),
+          ),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.md,
+            AppSpacing.page,
+            AppSpacing.md,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (blocked != null) ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: AppColors.error),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        blocked,
+                        style: AppType.caption.copyWith(color: AppColors.error),
                       ),
+                    ),
+                    TextButton(
+                      onPressed: _submitting ? null : _changeAddress,
+                      child: const Text('Fix'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+              ],
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _canPlace ? _placeOrder : null,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: _submitting
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          'Place Order · ${formatPrice(grandTotal.toStringAsFixed(0))}',
+                          style: const TextStyle(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

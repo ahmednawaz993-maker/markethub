@@ -508,6 +508,16 @@ bool canOpenAdminPanel() => isSuperAdmin() || staffPermissions.isNotEmpty;
 String priceLabel(Listing l) =>
     formatPrice(l.price) + (l.unit.isEmpty ? '' : ' / ${l.unit}');
 
+/// Joins a short list the way a person would say it: "a, b and c".
+///
+/// Used where a screen has to name several missing things in one sentence.
+/// Commas alone read like a form error; this reads like an explanation.
+String listPhrase(List<String> parts) {
+  if (parts.isEmpty) return '';
+  if (parts.length == 1) return parts.first;
+  return '${parts.sublist(0, parts.length - 1).join(', ')} and ${parts.last}';
+}
+
 /// What to call somebody on their own account card.
 ///
 /// It used to be `user?.email ?? 'Guest user'`. Phone sign-ups have no email

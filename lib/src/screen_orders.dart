@@ -338,6 +338,47 @@ Future<void> showDisputeSheet(
   reason.dispose();
 }
 
+/// The shelves an order sits on, from the point of view of somebody looking
+/// for the one that needs them.
+///
+/// Both lists were flat and newest-first, which puts the order you still owe
+/// money on below three months of finished ones as soon as you have used the
+/// marketplace at all.
+enum OrderShelf { all, unpaid, active, done, closed }
+
+/// Named, so the rules can be tested without building the screen.
+extension OrderShelfInfo on OrderShelf {
+  String label(bool asSeller) => switch (this) {
+    OrderShelf.all => 'All',
+    OrderShelf.unpaid => asSeller ? 'Unpaid' : 'To pay',
+    OrderShelf.active => 'In progress',
+    OrderShelf.done => 'Completed',
+    OrderShelf.closed => 'Cancelled',
+  };
+
+  bool accepts(String status) => switch (this) {
+    OrderShelf.all => true,
+    OrderShelf.unpaid => status == 'pending_payment',
+    // Money has moved, or is about to, and the item has not finished its
+    // journey: this is the shelf where something is still happening.
+    OrderShelf.active =>
+      status == 'payment_review' ||
+          status == 'cod_pending' ||
+          status == 'in_escrow',
+    OrderShelf.done => status == 'released' || status == 'completed',
+    OrderShelf.closed => status == 'cancelled' || status == 'refunded',
+  };
+
+  String emptyLine(bool asSeller) => switch (this) {
+    OrderShelf.all => 'No orders yet',
+    OrderShelf.unpaid =>
+      asSeller ? 'Nothing waiting to be paid for' : 'Nothing left to pay for',
+    OrderShelf.active => 'Nothing in progress',
+    OrderShelf.done => 'Nothing completed yet',
+    OrderShelf.closed => 'Nothing cancelled',
+  };
+}
+
 class OrdersScreen extends StatelessWidget {
   /// 0 = Buying (default), 1 = Selling. Lets the seller dashboard deep-link
   /// straight to the Selling tab.
@@ -367,9 +408,18 @@ class OrdersScreen extends StatelessWidget {
   }
 }
 
-class _OrdersList extends StatelessWidget {
+class _OrdersList extends StatefulWidget {
   final bool asSeller;
   const _OrdersList({required this.asSeller});
+
+  @override
+  State<_OrdersList> createState() => _OrdersListState();
+}
+
+class _OrdersListState extends State<_OrdersList> {
+  OrderShelf _shelf = OrderShelf.all;
+
+  bool get asSeller => widget.asSeller;
 
   @override
   Widget build(BuildContext context) {
@@ -423,7 +473,8 @@ class _OrdersList extends StatelessWidget {
         // first sub-order of the group in the list (it hosts the pay action).
         final masterCounts = <String, int>{};
         final masterTotals = <String, double>{};
-        final masterLeader = <String, int>{};
+        final masterPayableId = <String, String>{};
+        final masterFirstId = <String, String>{};
         final masterDelivered = <String, int>{};
         const kDoneStates = {'delivered', 'buyer_confirmed', 'completed'};
         if (!asSeller) {
@@ -440,362 +491,421 @@ class _OrdersList extends StatelessWidget {
                   (masterTotals[m] ?? 0) +
                   ((dd['amount'] as num?)?.toDouble() ?? 0);
             }
-            masterLeader.putIfAbsent(m, () => idx);
+            // The package that hosts the single pay button. A still-payable
+            // one is preferred: the button only renders on a package whose
+            // own status is pending_payment, so pinning it to the first
+            // package regardless left the buyer looking at a note pointing
+            // them to a package that had no button on it.
+            if (st == 'pending_payment') {
+              masterPayableId.putIfAbsent(m, () => docs[idx].id);
+            }
+            masterFirstId.putIfAbsent(m, () => docs[idx].id);
             if (kDoneStates.contains(orderStatusOf(dd))) {
               masterDelivered[m] = (masterDelivered[m] ?? 0) + 1;
             }
           }
         }
-        return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.page,
-            AppSpacing.lg,
-            AppSpacing.page,
-            AppSpacing.navClearance,
-          ),
-          itemCount: docs.length,
-          itemBuilder: (context, i) {
-            final d = docs[i].data() as Map<String, dynamic>;
-            final masterId = d['masterOrderId']?.toString() ?? '';
-            final pkgCount = asSeller ? 1 : (masterCounts[masterId] ?? 1);
-            final isMasterOrder = !asSeller && masterId.isNotEmpty;
-            final isMasterLeader = isMasterOrder && masterLeader[masterId] == i;
-            final masterTotal = masterTotals[masterId] ?? 0;
-            final status = d['status']?.toString() ?? 'pending_payment';
-            final img = d['listingImage']?.toString() ?? '';
-            final amount = (d['amount'] as num?)?.toDouble() ?? 0;
-            final payout = (d['sellerPayout'] as num?)?.toDouble() ?? 0;
-            final (label, color) = switch (status) {
-              'cod_pending' => ('Cash on Delivery', Colors.indigo),
-              'payment_review' => ('Payment under review', Colors.orange),
-              'in_escrow' => ('Paid · held by PakBazar', kPakGreen),
-              'released' => ('Completed · paid out', Colors.green),
-              'completed' => ('Completed', Colors.green),
-              'refunded' => ('Refunded', Colors.blueGrey),
-              'cancelled' => ('Cancelled', Colors.grey),
-              _ => ('Awaiting payment', Colors.orange),
-            };
-            return Card(
-              margin: const EdgeInsets.only(bottom: 10),
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Column(
+        // Counted over every order, so a shelf's number does not depend on
+        // which shelf happens to be open.
+        final counts = {
+          for (final shelf in OrderShelf.values)
+            shelf: docs
+                .where(
+                  (d) => shelf.accepts(
+                    (d.data() as Map)['status']?.toString() ??
+                        'pending_payment',
+                  ),
+                )
+                .length,
+        };
+        final shown = docs
+            .where(
+              (d) => _shelf.accepts(
+                (d.data() as Map)['status']?.toString() ?? 'pending_payment',
+              ),
+            )
+            .toList();
+
+        return Column(
+          children: [
+            SizedBox(
+              height: 46,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.page,
+                  vertical: AppSpacing.sm,
+                ),
+                itemCount: OrderShelf.values.length,
+                separatorBuilder: (_, _) =>
+                    const SizedBox(width: AppSpacing.sm),
+                itemBuilder: (context, i) {
+                  final shelf = OrderShelf.values[i];
+                  final selected = shelf == _shelf;
+                  return ChoiceChip(
+                    label: Text('${shelf.label(asSeller)} (${counts[shelf]})'),
+                    labelStyle: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: selected ? Colors.white : AppColors.textSecondary,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    selected: selected,
+                    onSelected: (_) => setState(() => _shelf = shelf),
+                  );
+                },
+              ),
+            ),
+            Divider(height: 1, color: AppColors.borderSoft),
+            Expanded(
+              child: shown.isEmpty
+                  ? EmptyState(
+                      icon: Icons.receipt_long,
+                      title: _shelf.emptyLine(asSeller),
+                      subtitle: 'Your other orders are on the shelves above.',
+                    )
+                  : _orderList(context, shown, masterCounts, masterTotals, {
+                      ...masterFirstId,
+                      ...masterPayableId,
+                    }, masterDelivered),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _orderList(
+    BuildContext context,
+    List<QueryDocumentSnapshot> docs,
+    Map<String, int> masterCounts,
+    Map<String, double> masterTotals,
+    Map<String, String> masterLeaderId,
+    Map<String, int> masterDelivered,
+  ) {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.page,
+        AppSpacing.lg,
+        AppSpacing.page,
+        AppSpacing.navClearance,
+      ),
+      itemCount: docs.length,
+      itemBuilder: (context, i) {
+        final d = docs[i].data() as Map<String, dynamic>;
+        final masterId = d['masterOrderId']?.toString() ?? '';
+        final pkgCount = asSeller ? 1 : (masterCounts[masterId] ?? 1);
+        final isMasterOrder = !asSeller && masterId.isNotEmpty;
+        // Matched by document id, not by position: the index is into
+        // whichever shelf is open, while the leader was worked out over
+        // every order.
+        final isMasterLeader =
+            isMasterOrder && masterLeaderId[masterId] == docs[i].id;
+        final masterTotal = masterTotals[masterId] ?? 0;
+        final status = d['status']?.toString() ?? 'pending_payment';
+        final img = d['listingImage']?.toString() ?? '';
+        final amount = (d['amount'] as num?)?.toDouble() ?? 0;
+        final payout = (d['sellerPayout'] as num?)?.toDouble() ?? 0;
+        // Raw Material colours here ignored the palette, which lightens
+        // every status colour in dark mode precisely so it stays legible
+        // on a dark card — and they carried no icon, which the app's own
+        // rule says a status must never do.
+        final label = switch (status) {
+          'cod_pending' => 'Cash on Delivery',
+          'payment_review' => 'Payment under review',
+          'in_escrow' => 'Paid · held by PakBazar',
+          'released' => 'Completed · paid out',
+          'completed' => 'Completed',
+          'refunded' => 'Refunded',
+          'cancelled' => 'Cancelled',
+          _ => 'Awaiting payment',
+        };
+        return AppCard(
+          margin: const EdgeInsets.only(bottom: AppSpacing.md),
+          padding: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!asSeller && pkgCount > 1)
+                  _MultiPackageBanner(
+                    orderNumber: d['orderNumber']?.toString() ?? '',
+                    packages: pkgCount,
+                    delivered: masterDelivered[masterId] ?? 0,
+                  ),
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (!asSeller && pkgCount > 1)
-                      _MultiPackageBanner(
-                        orderNumber: d['orderNumber']?.toString() ?? '',
-                        packages: pkgCount,
-                        delivered: masterDelivered[masterId] ?? 0,
+                    ClipRRect(
+                      borderRadius: AppRadius.rSm,
+                      child: SizedBox(
+                        width: 56,
+                        height: 56,
+                        child: AppNetworkImage(url: img, iconSize: 22),
                       ),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ClipRRect(
-                          borderRadius: AppRadius.rSm,
-                          child: SizedBox(
-                            width: 56,
-                            height: 56,
-                            child: AppNetworkImage(url: img, iconSize: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            d['listingTitle']?.toString() ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                d['listingTitle']?.toString() ?? '',
+                          if ((d['orderNumber']?.toString() ?? '').isNotEmpty)
+                            // Tap to copy: the number is what a user quotes
+                            // to support, and retyping "PB-1042" off a phone
+                            // screen into a chat is where mistakes happen.
+                            _CopyableOrderNumber(
+                              number: d['orderNumber'].toString(),
+                            ),
+                          Text(
+                            asSeller
+                                ? '${d['buyerName'] ?? 'Buyer'}'
+                                : '${d['sellerName'] ?? 'Seller'}',
+                            style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 12,
+                            ),
+                          ),
+                          Text(
+                            asSeller
+                                ? 'You receive ${formatPrice(payout.toStringAsFixed(0))}${commissionActive ? ' (after 2% fee)' : ' (0% fee — free)'}'
+                                : formatPrice(amount.toStringAsFixed(0)),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: kPakGreen,
+                            ),
+                          ),
+                          if (d['items'] is List &&
+                              (d['items'] as List).isNotEmpty)
+                            ...(d['items'] as List).take(4).map((it) {
+                              final m = (it as Map);
+                              return Text(
+                                '• ${m['title']} ×${m['quantity']}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              if ((d['orderNumber']?.toString() ?? '')
-                                  .isNotEmpty)
-                                // Tap to copy: the number is what a user quotes
-                                // to support, and retyping "PB-1042" off a phone
-                                // screen into a chat is where mistakes happen.
-                                _CopyableOrderNumber(
-                                  number: d['orderNumber'].toString(),
-                                ),
-                              Text(
-                                asSeller
-                                    ? '${d['buyerName'] ?? 'Buyer'}'
-                                    : '${d['sellerName'] ?? 'Seller'}',
                                 style: TextStyle(
+                                  fontSize: 11,
                                   color: AppColors.textMuted,
-                                  fontSize: 12,
+                                ),
+                              );
+                            }),
+                        ],
+                      ),
+                    ),
+                    StatusBadge(status: status, label: label, dense: true),
+                  ],
+                ),
+                _OrderDeliveryPanel(data: d, asSeller: asSeller),
+                CancellationSection(
+                  orderId: docs[i].id,
+                  data: d,
+                  asSeller: asSeller,
+                ),
+                ReturnSection(orderId: docs[i].id, data: d, asSeller: asSeller),
+                RefundSection(orderId: docs[i].id, data: d, asSeller: asSeller),
+                if (!asSeller &&
+                    (status == 'in_escrow' ||
+                        status == 'completed' ||
+                        status == 'cod_pending'))
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton.icon(
+                      onPressed: () => showDisputeSheet(context, docs[i].id, d),
+                      icon: const Icon(Icons.report_problem_outlined, size: 16),
+                      label: const Text('Report a problem'),
+                    ),
+                  ),
+                if (status == 'pending_payment') ...[
+                  const SizedBox(height: 8),
+                  if (!asSeller && isMasterOrder)
+                    // Phase 6: one payment covers every package in the
+                    // master order. Only the first package hosts the button;
+                    // the rest show a note so the buyer pays exactly once.
+                    (isMasterLeader
+                        ? Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: () => _payMasterEscrow(
+                                  context,
+                                  masterId,
+                                  (d['orderNumber']?.toString() ?? '')
+                                      .replaceAll(RegExp(r'-S\d+$'), ''),
+                                  masterTotal,
+                                  pkgCount,
+                                ),
+                                icon: const Icon(Icons.lock, size: 18),
+                                label: Text(
+                                  'Pay ${formatPrice(masterTotal.toStringAsFixed(0))} '
+                                  'for all $pkgCount packages',
                                 ),
                               ),
-                              Text(
-                                asSeller
-                                    ? 'You receive ${formatPrice(payout.toStringAsFixed(0))}${commissionActive ? ' (after 2% fee)' : ' (0% fee — free)'}'
-                                    : formatPrice(amount.toStringAsFixed(0)),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: kPakGreen,
-                                ),
-                              ),
-                              if (d['items'] is List &&
-                                  (d['items'] as List).isNotEmpty)
-                                ...(d['items'] as List).take(4).map((it) {
-                                  final m = (it as Map);
-                                  return Text(
-                                    '• ${m['title']} ×${m['quantity']}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: AppColors.textMuted,
-                                    ),
-                                  );
-                                }),
                             ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.15),
-                            borderRadius: AppRadius.rSm,
-                          ),
-                          child: Text(
-                            label,
+                          )
+                        : Text(
+                            'Paid together with the other packages in this '
+                            'order — use the first package above to pay.',
                             style: TextStyle(
-                              color: color,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              color: AppColors.textMuted,
                             ),
+                          ))
+                  else if (!asSeller)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () =>
+                              _payOrderEscrow(context, docs[i].id, d),
+                          icon: const Icon(Icons.lock, size: 18),
+                          label: const Text('Pay & hold securely'),
+                        ),
+                      ],
+                    )
+                  else
+                    Text(
+                      'Waiting for the buyer to pay.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                ],
+                if (status == 'cod_pending') ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    decoration: BoxDecoration(
+                      color: Colors.indigo.withValues(alpha: 0.08),
+                      borderRadius: AppRadius.rSm,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.local_shipping,
+                          size: 16,
+                          color: Colors.indigo,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            asSeller
+                                ? 'Cash on Delivery — deliver the item and '
+                                      'collect the cash.'
+                                : 'Cash on Delivery — pay cash when the item '
+                                      'is delivered.',
+                            style: const TextStyle(fontSize: 12),
                           ),
                         ),
                       ],
                     ),
-                    _OrderDeliveryPanel(data: d, asSeller: asSeller),
-                    CancellationSection(
-                      orderId: docs[i].id,
-                      data: d,
-                      asSeller: asSeller,
-                    ),
-                    ReturnSection(
-                      orderId: docs[i].id,
-                      data: d,
-                      asSeller: asSeller,
-                    ),
-                    RefundSection(
-                      orderId: docs[i].id,
-                      data: d,
-                      asSeller: asSeller,
-                    ),
-                    if (!asSeller &&
-                        (status == 'in_escrow' ||
-                            status == 'completed' ||
-                            status == 'cod_pending'))
-                      Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: TextButton.icon(
-                          onPressed: () =>
-                              showDisputeSheet(context, docs[i].id, d),
-                          icon: const Icon(
-                            Icons.report_problem_outlined,
-                            size: 16,
-                          ),
-                          label: const Text('Report a problem'),
+                  ),
+                  // COD orders get the same Accepted → Ready to dispatch →
+                  // Dispatched → Delivered tracking as escrow orders. The
+                  // buyer confirming receipt completes the order (cash was
+                  // collected on delivery — no escrow payout to release).
+                  OrderFulfillmentPanel(
+                    data: d,
+                    orderId: docs[i].id,
+                    asSeller: asSeller,
+                  ),
+                ],
+                if (status == 'payment_review') ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.hourglass_top,
+                        size: 16,
+                        color: Colors.orange,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          asSeller
+                              ? "Buyer's payment is under review."
+                              : 'Payment submitted — under review. It is '
+                                    'held in escrow once an admin confirms '
+                                    'it.',
+                          style: const TextStyle(fontSize: 12),
                         ),
                       ),
-                    if (status == 'pending_payment') ...[
-                      const SizedBox(height: 8),
-                      if (!asSeller && isMasterOrder)
-                        // Phase 6: one payment covers every package in the
-                        // master order. Only the first package hosts the button;
-                        // the rest show a note so the buyer pays exactly once.
-                        (isMasterLeader
-                            ? Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  ElevatedButton.icon(
-                                    onPressed: () => _payMasterEscrow(
-                                      context,
-                                      masterId,
-                                      (d['orderNumber']?.toString() ?? '')
-                                          .replaceAll(RegExp(r'-S\d+$'), ''),
-                                      masterTotal,
-                                      pkgCount,
-                                    ),
-                                    icon: const Icon(Icons.lock, size: 18),
-                                    label: Text(
-                                      'Pay ${formatPrice(masterTotal.toStringAsFixed(0))} '
-                                      'for all $pkgCount packages',
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : Text(
-                                'Paid together with the other packages in this '
-                                'order — use the first package above to pay.',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textMuted,
-                                ),
-                              ))
-                      else if (!asSeller)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: () =>
-                                  _payOrderEscrow(context, docs[i].id, d),
-                              icon: const Icon(Icons.lock, size: 18),
-                              label: const Text('Pay & hold securely'),
-                            ),
-                          ],
-                        )
-                      else
-                        Text(
-                          'Waiting for the buyer to pay.',
+                    ],
+                  ),
+                ],
+                if (status == 'in_escrow') ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    decoration: BoxDecoration(
+                      color: kPakGreen.withValues(alpha: 0.08),
+                      borderRadius: AppRadius.rSm,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.lock, size: 16, color: kPakGreen),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            asSeller
+                                ? 'Payment is held by PakBazar and will be '
+                                      'released after the buyer confirms '
+                                      'delivery and the platform approves '
+                                      'the payout.'
+                                : 'Your payment is held safely by PakBazar. '
+                                      'Confirm delivery once you have '
+                                      'received and checked the item.',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  OrderFulfillmentPanel(
+                    data: d,
+                    orderId: docs[i].id,
+                    asSeller: asSeller,
+                  ),
+                ],
+                if (status == 'released' || status == 'completed') ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      if (asSeller && status == 'released')
+                        const Text(
+                          'Paid to your wallet',
                           style: TextStyle(
                             fontSize: 12,
-                            color: AppColors.textMuted,
+                            color: Colors.green,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                    ],
-                    if (status == 'cod_pending') ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(AppSpacing.sm),
-                        decoration: BoxDecoration(
-                          color: Colors.indigo.withValues(alpha: 0.08),
-                          borderRadius: AppRadius.rSm,
+                      OutlinedButton.icon(
+                        onPressed: () => showReviewDialog(
+                          context,
+                          (asSeller ? d['buyerId'] : d['sellerId'])
+                                  ?.toString() ??
+                              '',
                         ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.local_shipping,
-                              size: 16,
-                              color: Colors.indigo,
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                asSeller
-                                    ? 'Cash on Delivery — deliver the item and '
-                                          'collect the cash.'
-                                    : 'Cash on Delivery — pay cash when the item '
-                                          'is delivered.',
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // COD orders get the same Accepted → Ready to dispatch →
-                      // Dispatched → Delivered tracking as escrow orders. The
-                      // buyer confirming receipt completes the order (cash was
-                      // collected on delivery — no escrow payout to release).
-                      OrderFulfillmentPanel(
-                        data: d,
-                        orderId: docs[i].id,
-                        asSeller: asSeller,
+                        icon: const Icon(Icons.star, size: 18),
+                        label: Text(asSeller ? 'Rate buyer' : 'Rate seller'),
                       ),
                     ],
-                    if (status == 'payment_review') ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.hourglass_top,
-                            size: 16,
-                            color: Colors.orange,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              asSeller
-                                  ? "Buyer's payment is under review."
-                                  : 'Payment submitted — under review. It is '
-                                        'held in escrow once an admin confirms '
-                                        'it.',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    if (status == 'in_escrow') ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(AppSpacing.sm),
-                        decoration: BoxDecoration(
-                          color: kPakGreen.withValues(alpha: 0.08),
-                          borderRadius: AppRadius.rSm,
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.lock, size: 16, color: kPakGreen),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                asSeller
-                                    ? 'Payment is held by PakBazar and will be '
-                                          'released after the buyer confirms '
-                                          'delivery and the platform approves '
-                                          'the payout.'
-                                    : 'Your payment is held safely by PakBazar. '
-                                          'Confirm delivery once you have '
-                                          'received and checked the item.',
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      OrderFulfillmentPanel(
-                        data: d,
-                        orderId: docs[i].id,
-                        asSeller: asSeller,
-                      ),
-                    ],
-                    if (status == 'released' || status == 'completed') ...[
-                      const SizedBox(height: 8),
-                      Wrap(
-                        alignment: WrapAlignment.end,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          if (asSeller && status == 'released')
-                            const Text(
-                              'Paid to your wallet',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.green,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          OutlinedButton.icon(
-                            onPressed: () => showReviewDialog(
-                              context,
-                              (asSeller ? d['buyerId'] : d['sellerId'])
-                                      ?.toString() ??
-                                  '',
-                            ),
-                            icon: const Icon(Icons.star, size: 18),
-                            label: Text(
-                              asSeller ? 'Rate buyer' : 'Rate seller',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            );
-          },
+                  ),
+                ],
+              ],
+            ),
+          ),
         );
       },
     );
@@ -816,9 +926,9 @@ class _CopyableOrderNumber extends StatelessWidget {
       onTap: () {
         Clipboard.setData(ClipboardData(text: number));
         HapticFeedback.selectionClick();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Copied $number')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Copied $number')));
       },
       borderRadius: AppRadius.rXs,
       child: Padding(
