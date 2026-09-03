@@ -508,6 +508,31 @@ bool canOpenAdminPanel() => isSuperAdmin() || staffPermissions.isNotEmpty;
 String priceLabel(Listing l) =>
     formatPrice(l.price) + (l.unit.isEmpty ? '' : ' / ${l.unit}');
 
+/// Newest save first.
+///
+/// The favourites query had no ordering at all, so Firestore returned the
+/// documents by id — which for listing ids is arbitrary. Somebody saved an ad
+/// and it appeared in the middle of the list. Sorted here rather than in the
+/// query because a `savedAt` orderBy would silently DROP any favourite saved
+/// before that field existed; a missing timestamp only sinks it to the bottom.
+List<T> byNewestSaved<T>(List<T> items, int Function(T) savedAtMillis) {
+  final sorted = [...items];
+  sorted.sort((a, b) => savedAtMillis(b).compareTo(savedAtMillis(a)));
+  return sorted;
+}
+
+/// Splits ids into batches a Firestore `whereIn` will accept.
+///
+/// The limit is 30 per query. Batching rather than one read per favourite
+/// keeps re-checking a full list of saved ads to a handful of queries.
+List<List<String>> idBatches(List<String> ids, {int size = 30}) {
+  if (size < 1) return const [];
+  return [
+    for (var i = 0; i < ids.length; i += size)
+      ids.sublist(i, i + size > ids.length ? ids.length : i + size),
+  ];
+}
+
 /// Joins a short list the way a person would say it: "a, b and c".
 ///
 /// Used where a screen has to name several missing things in one sentence.

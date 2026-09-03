@@ -246,7 +246,8 @@ class AppNetworkImage extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final dpr = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 1.0;
-        final logicalWidth = decodeWidth ??
+        final logicalWidth =
+            decodeWidth ??
             (constraints.hasBoundedWidth && constraints.maxWidth > 0
                 ? constraints.maxWidth
                 : null);
@@ -686,11 +687,7 @@ class AppSearchBar extends StatelessWidget {
             IconButton(
               tooltip: 'Clear',
               visualDensity: VisualDensity.compact,
-              icon: Icon(
-                Icons.cancel,
-                size: 18,
-                color: AppColors.textMuted,
-              ),
+              icon: Icon(Icons.cancel, size: 18, color: AppColors.textMuted),
               onPressed: onClear,
             ),
           if (trailing != null) ...[const SizedBox(width: 2), trailing!],
@@ -800,7 +797,12 @@ class SectionHeader extends StatelessWidget {
     this.iconColor,
     this.actionLabel = 'See all',
     this.onAction,
-    this.padding = const EdgeInsetsDirectional.fromSTEB(AppSpacing.page, 0, AppSpacing.sm, AppSpacing.md),
+    this.padding = const EdgeInsetsDirectional.fromSTEB(
+      AppSpacing.page,
+      0,
+      AppSpacing.sm,
+      AppSpacing.md,
+    ),
   });
 
   @override
@@ -1252,10 +1254,7 @@ class _CardBadge extends StatelessWidget {
       start: 7,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: AppRadius.rSm,
-        ),
+        decoration: BoxDecoration(color: color, borderRadius: AppRadius.rSm),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1510,11 +1509,7 @@ class MetaChip extends StatelessWidget {
         const SizedBox(width: 3),
         Text(
           label,
-          style: TextStyle(
-            fontSize: 11,
-            color: c,
-            fontWeight: FontWeight.w500,
-          ),
+          style: TextStyle(fontSize: 11, color: c, fontWeight: FontWeight.w500),
         ),
       ],
     );
@@ -1527,6 +1522,93 @@ class MetaChip extends StatelessWidget {
 
 /// A titled, horizontally scrolling rail of [MarketplaceListingCard]s.
 /// Renders nothing when [listings] is empty, so sections never leave a gap.
+/// Body text that stops after [collapsedLines] with a "Show more".
+///
+/// A seller who lists every seam of a suit writes fifteen lines, and an ad
+/// detail page that prints all of them pushes the safety notice and the
+/// similar ads far below the fold — on the screen where a buyer decides.
+/// Short descriptions are unaffected: the toggle only appears when the text
+/// really is longer than the limit, measured rather than guessed from the
+/// character count.
+class ExpandableText extends StatefulWidget {
+  final String text;
+  final TextStyle? style;
+  final int collapsedLines;
+
+  const ExpandableText({
+    super.key,
+    required this.text,
+    this.style,
+    this.collapsedLines = 8,
+  });
+
+  @override
+  State<ExpandableText> createState() => _ExpandableTextState();
+}
+
+class _ExpandableTextState extends State<ExpandableText> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = widget.style;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Laid out twice: once unbounded to learn the real height, once as
+        // rendered. Guessing from character count gets it wrong for the two
+        // cases that matter — a long single paragraph and a short list of
+        // many short lines.
+        final painter = TextPainter(
+          text: TextSpan(text: widget.text, style: style),
+          maxLines: widget.collapsedLines,
+          textDirection: Directionality.of(context),
+        )..layout(maxWidth: constraints.maxWidth);
+        final overflows = painter.didExceedMaxLines;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.text,
+              style: style,
+              maxLines: _expanded ? null : widget.collapsedLines,
+              overflow: _expanded
+                  ? TextOverflow.visible
+                  : TextOverflow.ellipsis,
+            ),
+            if (overflows)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
+                child: InkWell(
+                  onTap: () => setState(() => _expanded = !_expanded),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _expanded ? 'Show less' : 'Show more',
+                          style: AppType.label.copyWith(
+                            color: AppColors.accent,
+                          ),
+                        ),
+                        Icon(
+                          _expanded ? Icons.expand_less : Icons.expand_more,
+                          size: 18,
+                          color: AppColors.accent,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class HorizontalListingSection extends StatelessWidget {
   final String title;
   final String? subtitle;
@@ -1632,8 +1714,9 @@ class FeaturedBannerCard extends StatelessWidget {
             .md // gap
             +
         // Ceil per line, as in MarketplaceListingCard.infoHeightFor.
-        (ts.scale(_titleSize) * 1.25).ceilToDouble() // title
-        +
+        (ts.scale(_titleSize) * 1.25)
+            .ceilToDouble() // title
+            +
         3 +
         (ts.scale(_subtitleSize) * 1.3).ceilToDouble() * 2; // subtitle, 2 lines
   }

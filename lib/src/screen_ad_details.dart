@@ -839,9 +839,12 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                       ),
                     ),
                     if (deliveryFeeOf(listing) > 0)
+                      // Muted, not green. Delivery is money the buyer has to
+                      // add on, and the success colour is what this app uses
+                      // to say something went their way.
                       _Pill(
                         label: '+ ${formatPrice(listing.deliveryFee)} delivery',
-                        color: AppColors.success,
+                        color: AppColors.textSecondary,
                       ),
                     if (listing.hasRecentPriceDrop) ...[
                       Text(
@@ -1042,8 +1045,8 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
           // ── Description ──
           _section(
             'Description',
-            Text(
-              listing.description.isNotEmpty
+            ExpandableText(
+              text: listing.description.isNotEmpty
                   ? listing.description
                   : 'No description provided.',
               style: TextStyle(
@@ -1358,26 +1361,12 @@ class _SimilarAds extends StatelessWidget {
         final shown = items.take(10).toList();
         if (shown.isEmpty) return const SizedBox.shrink();
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Divider(height: 32),
-            const Text(
-              'Similar ads',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 250,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: shown.length,
-                itemBuilder: (context, i) =>
-                    HorizontalAdCard(listing: shown[i]),
-              ),
-            ),
-          ],
-        );
+        // The same rail every other list of ads in the app uses: page
+        // padding, separators, and a height derived from the card rather
+        // than guessed. This one was hand-rolled with none of the three, so
+        // its heading and its first card sat flush against the screen edge
+        // while everything above them was inset.
+        return HorizontalListingSection(title: 'Similar ads', listings: shown);
       },
     );
   }
