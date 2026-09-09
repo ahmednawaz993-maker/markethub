@@ -690,11 +690,11 @@ class _AdminFeaturedTab extends StatelessWidget {
             }
             final docs = snap.data!.docs;
             if (docs.isEmpty) {
-              return const Padding(
+              return Padding(
                 padding: EdgeInsets.all(AppSpacing.sm),
                 child: Text(
                   'No featured ads.',
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(color: AppColors.textMuted),
                 ),
               );
             }
@@ -744,11 +744,11 @@ class _AdminFeaturedTab extends StatelessWidget {
             }
             final docs = snap.data!.docs;
             if (docs.isEmpty) {
-              return const Padding(
+              return Padding(
                 padding: EdgeInsets.all(AppSpacing.sm),
                 child: Text(
                   'No featured businesses.',
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(color: AppColors.textMuted),
                 ),
               );
             }
@@ -1155,11 +1155,11 @@ class _PayoutReviewCardState extends State<_PayoutReviewCard> {
               ],
             ),
             if (!_canRelease && !busy)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 4),
                 child: Text(
                   'Release is enabled only when every check above passes.',
-                  style: TextStyle(fontSize: 12, color: Colors.orange),
+                  style: TextStyle(fontSize: 12, color: AppColors.warning),
                 ),
               ),
           ],
@@ -1350,10 +1350,10 @@ class _PaymentAccountEditorState extends State<_PaymentAccountEditor> {
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         const SizedBox(height: 4),
-        const Text(
+        Text(
           'Shown to users on the wallet top-up sheet so they know where to '
           'send payment. Leave a field blank to hide it.',
-          style: TextStyle(color: Colors.grey, fontSize: 14),
+          style: TextStyle(color: AppColors.textMuted, fontSize: 14),
         ),
         const SizedBox(height: 12),
         _field(bankName, 'Bank name'),
@@ -1591,7 +1591,7 @@ class _AdminVerificationsTab extends StatelessWidget {
                         height: 110,
                         margin: const EdgeInsets.symmetric(horizontal: 2),
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
+                          color: AppColors.borderSoft,
                           borderRadius: AppRadius.rSm,
                           image: url.isEmpty
                               ? null
@@ -1618,10 +1618,10 @@ class _AdminVerificationsTab extends StatelessWidget {
                             'Status: $status',
                             style: TextStyle(
                               color: pending
-                                  ? Colors.orange
+                                  ? AppColors.warning
                                   : (status == 'approved'
-                                        ? Colors.green
-                                        : Colors.red),
+                                        ? AppColors.success
+                                        : AppColors.error),
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -1736,7 +1736,7 @@ class _VerificationToggle extends StatelessWidget {
           child: SwitchListTile(
             secondary: Icon(
               on ? Icons.verified_user : Icons.lock_open,
-              color: on ? kPakGreen : Colors.orange,
+              color: on ? kPakGreen : AppColors.warning,
             ),
             title: const Text('Require ID & face verification'),
             subtitle: Text(
@@ -1890,7 +1890,7 @@ class _VerificationReopenState extends State<_VerificationReopen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Re-open'),
           ),
@@ -2437,7 +2437,7 @@ Future<void> _toggleUserBlock(
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: block ? Colors.red : null,
+            backgroundColor: block ? AppColors.error : null,
           ),
           onPressed: () => Navigator.pop(ctx, true),
           child: Text(block ? 'Block' : 'Unblock'),
@@ -2576,13 +2576,13 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
               child: ListTile(
                 dense: true,
                 leading: CircleAvatar(
-                  backgroundColor: (blocked ? Colors.red : kPakGreen)
+                  backgroundColor: (blocked ? AppColors.error : kPakGreen)
                       .withValues(alpha: 0.12),
                   child: Icon(
                     blocked
                         ? Icons.block
                         : (isBusiness ? Icons.storefront : Icons.person),
-                    color: blocked ? Colors.red : kPakGreen,
+                    color: blocked ? AppColors.error : kPakGreen,
                   ),
                 ),
                 title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -2593,7 +2593,7 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
                   '${isBusiness ? ' · Business' : ''}'
                   '${d['featuredBusiness'] == true ? ' · ★Featured' : ''}'
                   '${blocked ? ' · ⛔ BLOCKED' : ''}',
-                  style: blocked ? const TextStyle(color: Colors.red) : null,
+                  style: blocked ? TextStyle(color: AppColors.error) : null,
                 ),
                 trailing: PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert),
@@ -2678,14 +2678,14 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
                         ],
                       ),
                     ),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'warn',
                       child: Row(
                         children: [
                           Icon(
                             Icons.warning_amber_rounded,
                             size: 20,
-                            color: Colors.red,
+                            color: AppColors.error,
                           ),
                           SizedBox(width: 10),
                           Text('Issue warning'),
@@ -2699,7 +2699,7 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
                           Icon(
                             blocked ? Icons.lock_open : Icons.block,
                             size: 20,
-                            color: blocked ? Colors.green : Colors.red,
+                            color: blocked ? AppColors.success : AppColors.error,
                           ),
                           const SizedBox(width: 10),
                           Text(blocked ? 'Unblock user' : 'Block user'),
@@ -2863,10 +2863,10 @@ class _AdminPurchasesTab extends StatelessWidget {
                   status,
                   style: TextStyle(
                     color: status == 'completed'
-                        ? Colors.green
+                        ? AppColors.success
                         : (status == 'insufficient' || status == 'error'
-                              ? Colors.red
-                              : Colors.orange),
+                              ? AppColors.error
+                              : AppColors.warning),
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
                   ),
@@ -2943,7 +2943,7 @@ class _AdminReportsTab extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       'Reason: ${d['reason'] ?? '—'}',
-                      style: const TextStyle(color: Colors.red),
+                      style: TextStyle(color: AppColors.error),
                     ),
                     Text(
                       timeAgo(d['createdAt'] as Timestamp?),
@@ -2978,7 +2978,7 @@ class _AdminReportsTab extends StatelessWidget {
                         const SizedBox(width: 4),
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
+                            backgroundColor: AppColors.error,
                           ),
                           // Was a bare one-tap delete of a LIVE listing: a
                           // stray tap destroyed a seller's ad outright, with no
@@ -3087,8 +3087,8 @@ class _AdminPromotionsTab extends StatelessWidget {
                       'Status: $status',
                       style: TextStyle(
                         color: pending
-                            ? Colors.orange
-                            : (status == 'active' ? Colors.green : Colors.red),
+                            ? AppColors.warning
+                            : (status == 'active' ? AppColors.success : AppColors.error),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -3240,10 +3240,10 @@ class _AdminTopupsTab extends StatelessWidget {
                       'Status: $status',
                       style: TextStyle(
                         color: pending
-                            ? Colors.orange
+                            ? AppColors.warning
                             : (status == 'approved'
-                                  ? Colors.green
-                                  : Colors.red),
+                                  ? AppColors.success
+                                  : AppColors.error),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -3505,7 +3505,7 @@ class _AdminOrdersTabState extends State<_AdminOrdersTab> {
                             // The one bucket that means "somebody has to do
                             // something" gets the warning colour.
                             selectedColor: code == 'attention'
-                                ? Colors.orange.withValues(alpha: 0.25)
+                                ? AppColors.warning.withValues(alpha: 0.25)
                                 : null,
                           );
                         },
@@ -3571,9 +3571,9 @@ class _AdminOrdersTabState extends State<_AdminOrdersTab> {
                               ),
                             ),
                             leading: overdue
-                                ? const Icon(
+                                ? Icon(
                                     Icons.running_with_errors,
-                                    color: Colors.orange,
+                                    color: AppColors.warning,
                                   )
                                 : Icon(
                                     Icons.receipt_long,
@@ -3828,7 +3828,7 @@ class _PendingCancellationsPanel extends StatelessWidget {
         if (docs.isEmpty) return const SizedBox.shrink();
         return Card(
           margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          color: Colors.red.shade50,
+          color: AppColors.error.withValues(alpha: 0.10),
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.md),
             child: Column(
@@ -3836,9 +3836,9 @@ class _PendingCancellationsPanel extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.cancel_schedule_send,
-                      color: Colors.red,
+                      color: AppColors.error,
                       size: 18,
                     ),
                     const SizedBox(width: 6),
@@ -3915,7 +3915,7 @@ class _CancellationRequestRow extends StatelessWidget {
               const SizedBox(width: 4),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red.shade700,
+                  backgroundColor: AppColors.error,
                 ),
                 onPressed: () => _decide(context, approve: true),
                 child: const Text('Approve & cancel'),
@@ -4138,7 +4138,7 @@ class _LuckyDrawEntryRow extends StatelessWidget {
         leading: CircleAvatar(
           backgroundColor: isWinner
               ? kGold
-              : (eligible ? kPakGreen : Colors.grey.shade400),
+              : (eligible ? kPakGreen : AppColors.disabled),
           child: Text(
             '$shares',
             style: const TextStyle(
@@ -4459,7 +4459,7 @@ class _PendingReturnsPanel extends StatelessWidget {
         if (docs.isEmpty) return const SizedBox.shrink();
         return Card(
           margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          color: Colors.blueGrey.shade50,
+          color: AppColors.surfaceVariant,
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.md),
             child: Column(
@@ -4467,9 +4467,9 @@ class _PendingReturnsPanel extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.assignment_return,
-                      color: Colors.blueGrey,
+                      color: AppColors.textSecondary,
                       size: 18,
                     ),
                     const SizedBox(width: 6),
@@ -4546,7 +4546,7 @@ class _ReturnRequestRow extends StatelessWidget {
               const SizedBox(width: 4),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueGrey,
+                  backgroundColor: AppColors.textSecondary,
                 ),
                 onPressed: () => _decide(context, approve: true),
                 child: const Text('Approve & refund'),
@@ -4714,11 +4714,11 @@ class _AdminListingsTab extends StatelessWidget {
                                       ),
                                     ),
                                   if (l.isSold)
-                                    const Text(
+                                    Text(
                                       'SOLD',
                                       style: TextStyle(
                                         fontSize: 12,
-                                        color: Colors.red,
+                                        color: AppColors.error,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
@@ -4796,7 +4796,7 @@ class _AdminListingsTab extends StatelessWidget {
                                   ),
                                   ElevatedButton(
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.red,
+                                      backgroundColor: AppColors.error,
                                     ),
                                     onPressed: () => Navigator.pop(c, true),
                                     child: const Text('Delete'),
@@ -4806,14 +4806,14 @@ class _AdminListingsTab extends StatelessWidget {
                             );
                             if (ok == true) await ref.delete();
                           },
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.delete,
                             size: 18,
-                            color: Colors.red,
+                            color: AppColors.error,
                           ),
-                          label: const Text(
+                          label: Text(
                             'Delete',
-                            style: TextStyle(color: Colors.red),
+                            style: TextStyle(color: AppColors.error),
                           ),
                         ),
                       ],
@@ -5198,8 +5198,8 @@ class _BusinessAccountCardState extends State<_BusinessAccountCard> {
     return switch (s) {
       'approved' => ('Approved', kPakGreen),
       'pending' => ('Pending', AppColors.info),
-      'suspended' => ('Suspended', Colors.orange),
-      'rejected' => ('Rejected', Colors.red),
+      'suspended' => ('Suspended', AppColors.warning),
+      'rejected' => ('Rejected', AppColors.error),
       _ => ('—', AppColors.textMuted),
     };
   }
@@ -5389,14 +5389,14 @@ class _BusinessAccountCardState extends State<_BusinessAccountCard> {
                         positive: false,
                         clearFeatured: true,
                       ),
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.pause_circle_outline,
-                        color: Colors.orange,
+                        color: AppColors.warning,
                         size: 18,
                       ),
-                      label: const Text(
+                      label: Text(
                         'Suspend',
-                        style: TextStyle(color: Colors.orange),
+                        style: TextStyle(color: AppColors.warning),
                       ),
                     ),
                   if (status == 'pending')
@@ -5407,14 +5407,14 @@ class _BusinessAccountCardState extends State<_BusinessAccountCard> {
                         verb: 'rejected',
                         positive: false,
                       ),
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.close,
-                        color: Colors.red,
+                        color: AppColors.error,
                         size: 18,
                       ),
-                      label: const Text(
+                      label: Text(
                         'Reject',
-                        style: TextStyle(color: Colors.red),
+                        style: TextStyle(color: AppColors.error),
                       ),
                     ),
                 ],
@@ -5642,9 +5642,9 @@ class _PayoutAccountReviewCardState extends State<_PayoutAccountReviewCard> {
 
   (String, Color) _chip(String s) => switch (s) {
     'verified' => ('Verified', kPakGreen),
-    'rejected' => ('Rejected', Colors.red),
-    'suspended' => ('Suspended', Colors.orange),
-    _ => ('Pending review', Colors.blueGrey),
+    'rejected' => ('Rejected', AppColors.error),
+    'suspended' => ('Suspended', AppColors.warning),
+    _ => ('Pending review', AppColors.textSecondary),
   };
 
   Future<void> _setStatus(String status, String verb) async {
@@ -5817,27 +5817,27 @@ class _PayoutAccountReviewCardState extends State<_PayoutAccountReviewCard> {
                   if (a.verificationStatus != 'suspended')
                     OutlinedButton.icon(
                       onPressed: () => _setStatus('suspended', 'suspended'),
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.pause_circle_outline,
-                        color: Colors.orange,
+                        color: AppColors.warning,
                         size: 18,
                       ),
-                      label: const Text(
+                      label: Text(
                         'Suspend',
-                        style: TextStyle(color: Colors.orange),
+                        style: TextStyle(color: AppColors.warning),
                       ),
                     ),
                   if (a.verificationStatus != 'rejected')
                     OutlinedButton.icon(
                       onPressed: () => _setStatus('rejected', 'rejected'),
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.close,
-                        color: Colors.red,
+                        color: AppColors.error,
                         size: 18,
                       ),
-                      label: const Text(
+                      label: Text(
                         'Reject',
-                        style: TextStyle(color: Colors.red),
+                        style: TextStyle(color: AppColors.error),
                       ),
                     ),
                 ],
@@ -6031,8 +6031,8 @@ class _AppealActionsState extends State<_AppealActions> {
       children: [
         OutlinedButton.icon(
           onPressed: () => _resolve(approve: false),
-          icon: const Icon(Icons.close, color: Colors.red, size: 18),
-          label: const Text('Reject', style: TextStyle(color: Colors.red)),
+          icon: Icon(Icons.close, color: AppColors.error, size: 18),
+          label: Text('Reject', style: TextStyle(color: AppColors.error)),
         ),
         const SizedBox(width: 8),
         ElevatedButton.icon(
@@ -6307,7 +6307,7 @@ class _ListingApprovalActionsState extends State<_ListingApprovalActions> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Reject'),
           ),
@@ -6367,8 +6367,8 @@ class _ListingApprovalActionsState extends State<_ListingApprovalActions> {
       children: [
         OutlinedButton.icon(
           onPressed: _reject,
-          icon: const Icon(Icons.close, color: Colors.red, size: 18),
-          label: const Text('Reject', style: TextStyle(color: Colors.red)),
+          icon: Icon(Icons.close, color: AppColors.error, size: 18),
+          label: Text('Reject', style: TextStyle(color: AppColors.error)),
         ),
         const SizedBox(width: 8),
         ElevatedButton.icon(
@@ -6599,11 +6599,11 @@ class _AdminStaffTab extends StatelessWidget {
                   return Card(
                     child: ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: (active ? kPakGreen : Colors.grey)
+                        backgroundColor: (active ? kPakGreen : AppColors.textMuted)
                             .withValues(alpha: 0.15),
                         child: Icon(
                           Icons.badge,
-                          color: active ? kPakGreen : Colors.grey,
+                          color: active ? kPakGreen : AppColors.textMuted,
                         ),
                       ),
                       title: Text(email),
@@ -6651,7 +6651,7 @@ class _AdminStaffTab extends StatelessWidget {
                                   ),
                                   TextButton(
                                     style: TextButton.styleFrom(
-                                      foregroundColor: Colors.red,
+                                      foregroundColor: AppColors.error,
                                     ),
                                     onPressed: () => Navigator.pop(ctx, true),
                                     child: const Text('Remove'),
@@ -6730,10 +6730,10 @@ class _AdminDeletionsTab extends StatelessWidget {
               width: double.infinity,
               color: const Color(0xFFFFF3CD),
               padding: const EdgeInsets.all(AppSpacing.md),
-              child: const Text(
+              child: Text(
                 'After deleting a user\'s data here, also remove their login in '
                 'Firebase Console → Authentication to fully delete the account.',
-                style: TextStyle(fontSize: 13, color: Colors.black87),
+                style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
               ),
             ),
             Expanded(
@@ -6823,7 +6823,7 @@ class _DeletionActionsState extends State<_DeletionActions> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete data'),
           ),
@@ -6901,7 +6901,7 @@ class _DeletionActionsState extends State<_DeletionActions> {
         TextButton(onPressed: _dismiss, child: const Text('Dismiss')),
         const SizedBox(width: 8),
         ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
           onPressed: _deleteAndResolve,
           icon: const Icon(Icons.delete_forever, size: 18),
           label: const Text('Delete data & resolve'),
@@ -7200,8 +7200,8 @@ class _BroadcastRow extends StatelessWidget {
 
     final (Color colour, IconData icon, String label) = switch (status) {
       'sent' => (kPakGreen, Icons.check_circle, 'Sent'),
-      'failed' => (Colors.red, Icons.error_outline, 'Failed'),
-      _ => (Colors.grey, Icons.schedule, 'Sending'),
+      'failed' => (AppColors.error, Icons.error_outline, 'Failed'),
+      _ => (AppColors.textMuted, Icons.schedule, 'Sending'),
     };
 
     return Card(
@@ -7227,7 +7227,7 @@ class _BroadcastRow extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   error,
-                  style: const TextStyle(fontSize: 12, color: Colors.red),
+                  style: TextStyle(fontSize: 12, color: AppColors.error),
                 ),
               ),
           ],

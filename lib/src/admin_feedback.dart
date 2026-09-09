@@ -306,9 +306,9 @@ class AdminFeedbackCard extends StatelessWidget {
 
   Widget _statusChip(String status) {
     final (label, color) = switch (status) {
-      'replied' => ('Replied', Colors.blue),
-      'resolved' => ('Resolved', Colors.green),
-      _ => ('Open', Colors.orange),
+      'replied' => ('Replied', AppColors.info),
+      'resolved' => ('Resolved', AppColors.success),
+      _ => ('Open', AppColors.warning),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -497,10 +497,10 @@ class _FeedbackClientPanelState extends State<_FeedbackClientPanel> {
             children: [
               _tag(
                 verified ? 'ID verified' : 'Not verified',
-                verified ? kPakGreen : Colors.orange,
+                verified ? kPakGreen : AppColors.warning,
               ),
-              if (blocked) _tag('Suspended', Colors.red),
-              if (business) _tag('Business', Colors.indigo),
+              if (blocked) _tag('Suspended', AppColors.error),
+              if (business) _tag('Business', AppColors.info),
               if (u['createdAt'] is Timestamp)
                 _tag('Joined ${timeAgo(u['createdAt'] as Timestamp)}',
                     AppColors.textMuted),

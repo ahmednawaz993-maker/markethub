@@ -273,7 +273,7 @@ class _AdminCategoriesTabState extends State<_AdminCategoriesTab> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete'),
           ),
@@ -317,7 +317,7 @@ class _AdminCategoriesTabState extends State<_AdminCategoriesTab> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Restore'),
           ),
@@ -471,7 +471,7 @@ class _AdminCategoriesTabState extends State<_AdminCategoriesTab> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: count == 0 ? null : Colors.red,
+              backgroundColor: count == 0 ? null : AppColors.error,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Remove'),
@@ -680,7 +680,7 @@ class _CategoryCard extends StatelessWidget {
               ),
               if (c.hidden) ...[
                 const SizedBox(width: 6),
-                const _CatPill(text: 'Hidden', color: Colors.blueGrey),
+                _CatPill(text: 'Hidden', color: AppColors.textSecondary),
               ],
               if (c.advertiseOnly) ...[
                 const SizedBox(width: 6),
@@ -802,7 +802,7 @@ class _SubRow extends StatelessWidget {
           IconButton(
             visualDensity: VisualDensity.compact,
             tooltip: 'Remove',
-            icon: const Icon(Icons.close, size: 17, color: Colors.red),
+            icon: Icon(Icons.close, size: 17, color: AppColors.error),
             onPressed: busy ? null : onDelete,
           ),
         ],
@@ -1044,10 +1044,10 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
                               IconButton(
                                 visualDensity: VisualDensity.compact,
                                 tooltip: 'Remove',
-                                icon: const Icon(
+                                icon: Icon(
                                   Icons.close,
                                   size: 16,
-                                  color: Colors.red,
+                                  color: AppColors.error,
                                 ),
                                 onPressed: () =>
                                     setState(() => _attributes.removeAt(i)),
@@ -1124,7 +1124,7 @@ class _AccentSwatch extends StatelessWidget {
           color: color ?? Colors.transparent,
           shape: BoxShape.circle,
           border: Border.all(
-            color: selected ? AppColors.textPrimary : Colors.black26,
+            color: selected ? AppColors.textPrimary : AppColors.textMuted,
             width: selected ? 2.5 : 1,
           ),
         ),

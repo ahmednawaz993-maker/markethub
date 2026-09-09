@@ -230,7 +230,7 @@ Future<bool> _confirmDestructive(
           child: const Text('Cancel'),
         ),
         TextButton(
-          style: TextButton.styleFrom(foregroundColor: Colors.red),
+          style: TextButton.styleFrom(foregroundColor: AppColors.error),
           onPressed: () => Navigator.pop(ctx, true),
           child: Text(action),
         ),
@@ -380,7 +380,7 @@ class AdminOrderView extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.running_with_errors, color: Colors.orange),
+            Icon(Icons.running_with_errors, color: AppColors.warning),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -450,7 +450,7 @@ class AdminOrderView extends StatelessWidget {
           Chip(
             visualDensity: VisualDensity.compact,
             label: Text(paymentStatusLabel(paymentStatusOf(data))),
-            backgroundColor: Colors.blueGrey.withValues(alpha: 0.12),
+            backgroundColor: AppColors.textSecondary.withValues(alpha: 0.12),
           ),
           if (data['paymentMethod']?.toString() == 'cod')
             const Chip(
@@ -483,14 +483,14 @@ class AdminOrderView extends StatelessWidget {
                 Icon(
                   i <= idx ? Icons.check_circle : Icons.radio_button_unchecked,
                   size: 13,
-                  color: i <= idx ? kPakGreen : Colors.grey.shade400,
+                  color: i <= idx ? kPakGreen : AppColors.disabled,
                 ),
                 const SizedBox(width: 3),
                 Text(
                   _shortStepLabel(steps[i]),
                   style: TextStyle(
                     fontSize: 12,
-                    color: i <= idx ? kPakGreen : Colors.grey,
+                    color: i <= idx ? kPakGreen : AppColors.textMuted,
                     fontWeight: i == idx ? FontWeight.bold : FontWeight.normal,
                   ),
                 ),
@@ -628,7 +628,7 @@ class AdminOrderView extends StatelessWidget {
           width: double.infinity,
           child: OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
-              foregroundColor: committed ? Colors.grey : Colors.orange,
+              foregroundColor: committed ? AppColors.textMuted : AppColors.warning,
             ),
             icon: const Icon(Icons.cancel_outlined, size: 18),
             label: Text(
@@ -652,7 +652,7 @@ class AdminOrderView extends StatelessWidget {
       SizedBox(
         width: double.infinity,
         child: TextButton.icon(
-          style: TextButton.styleFrom(foregroundColor: Colors.red),
+          style: TextButton.styleFrom(foregroundColor: AppColors.error),
           icon: const Icon(Icons.delete_outline, size: 18),
           label: const Text('Delete order'),
           onPressed: () => _delete(context),
@@ -927,7 +927,7 @@ class AdminOrderView extends StatelessWidget {
             child: const Text('Keep order'),
           ),
           TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Cancel order'),
           ),
@@ -979,7 +979,7 @@ class AdminOrderView extends StatelessWidget {
                   'This order has money held or already paid out. Deleting it '
                   'leaves the payment and payout records pointing at an order '
                   'that no longer exists. Type $_number to confirm.',
-                  style: const TextStyle(color: Colors.red, fontSize: 14),
+                  style: TextStyle(color: AppColors.error, fontSize: 14),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 TextField(
@@ -999,7 +999,7 @@ class AdminOrderView extends StatelessWidget {
               child: const Text('Keep'),
             ),
             TextButton(
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              style: TextButton.styleFrom(foregroundColor: AppColors.error),
               onPressed: committed && confirmCtrl.text.trim() != _number
                   ? null
                   : () => Navigator.pop(ctx, true),
