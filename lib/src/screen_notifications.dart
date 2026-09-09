@@ -383,7 +383,7 @@ class NotificationsScreen extends StatelessWidget {
                                             child: Text(
                                               title,
                                               style: TextStyle(
-                                                fontSize: 14,
+                                                fontSize: 15,
                                                 color: AppColors.textPrimary,
                                                 fontWeight: read
                                                     ? FontWeight.w500
@@ -397,7 +397,7 @@ class NotificationsScreen extends StatelessWidget {
                                       Text(
                                         d['body']?.toString() ?? '',
                                         style: TextStyle(
-                                          fontSize: 13,
+                                          fontSize: 14,
                                           height: 1.3,
                                           color: AppColors.textSecondary,
                                         ),
@@ -416,7 +416,7 @@ class NotificationsScreen extends StatelessWidget {
                                               d['createdAt'] as Timestamp?,
                                             ),
                                             style: TextStyle(
-                                              fontSize: 11,
+                                              fontSize: 12,
                                               color: AppColors.textMuted,
                                             ),
                                           ),
@@ -438,7 +438,7 @@ class NotificationsScreen extends StatelessWidget {
                                               child: Text(
                                                 'New',
                                                 style: TextStyle(
-                                                  fontSize: 10,
+                                                  fontSize: 11,
                                                   fontWeight: FontWeight.w700,
                                                   color: accent,
                                                 ),

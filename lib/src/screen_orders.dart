@@ -90,7 +90,7 @@ Future<void> _submitPaymentProofSheet(
                   const SizedBox(height: 4),
                   Text(
                     description,
-                    style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                    style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                   ),
                   const _PaymentAccountInfo(),
                   const SizedBox(height: 12),
@@ -248,7 +248,7 @@ Future<void> showDisputeSheet(
                 Text(
                   'Tell us what went wrong. Opening a dispute pauses any seller '
                   'payout until our team reviews it.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 8),
                 RadioGroup<String>(
@@ -545,7 +545,7 @@ class _OrdersListState extends State<_OrdersList> {
                   return ChoiceChip(
                     label: Text('${shelf.label(asSeller)} (${counts[shelf]})'),
                     labelStyle: TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: selected ? Colors.white : AppColors.textSecondary,
                     ),
@@ -669,7 +669,7 @@ class _OrdersListState extends State<_OrdersList> {
                                 : '${d['sellerName'] ?? 'Seller'}',
                             style: TextStyle(
                               color: AppColors.textMuted,
-                              fontSize: 12,
+                              fontSize: 13,
                             ),
                           ),
                           Text(
@@ -690,7 +690,7 @@ class _OrdersListState extends State<_OrdersList> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   color: AppColors.textMuted,
                                 ),
                               );
@@ -752,7 +752,7 @@ class _OrdersListState extends State<_OrdersList> {
                             'Paid together with the other packages in this '
                             'order — use the first package above to pay.',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 13,
                               color: AppColors.textMuted,
                             ),
                           ))
@@ -772,7 +772,7 @@ class _OrdersListState extends State<_OrdersList> {
                     Text(
                       'Waiting for the buyer to pay.',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: AppColors.textMuted,
                       ),
                     ),
@@ -800,7 +800,7 @@ class _OrdersListState extends State<_OrdersList> {
                                       'collect the cash.'
                                 : 'Cash on Delivery — pay cash when the item '
                                       'is delivered.',
-                            style: const TextStyle(fontSize: 12),
+                            style: const TextStyle(fontSize: 13),
                           ),
                         ),
                       ],
@@ -833,7 +833,7 @@ class _OrdersListState extends State<_OrdersList> {
                               : 'Payment submitted — under review. It is '
                                     'held in escrow once an admin confirms '
                                     'it.',
-                          style: const TextStyle(fontSize: 12),
+                          style: const TextStyle(fontSize: 13),
                         ),
                       ),
                     ],
@@ -861,7 +861,7 @@ class _OrdersListState extends State<_OrdersList> {
                                 : 'Your payment is held safely by PakBazar. '
                                       'Confirm delivery once you have '
                                       'received and checked the item.',
-                            style: const TextStyle(fontSize: 12),
+                            style: const TextStyle(fontSize: 13),
                           ),
                         ),
                       ],
@@ -885,7 +885,7 @@ class _OrdersListState extends State<_OrdersList> {
                         const Text(
                           'Paid to your wallet',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 13,
                             color: Colors.green,
                             fontWeight: FontWeight.w600,
                           ),
@@ -939,7 +939,7 @@ class _CopyableOrderNumber extends StatelessWidget {
             Text(
               number,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 12,
                 color: AppColors.textMuted,
                 fontWeight: FontWeight.w600,
               ),
@@ -1002,7 +1002,7 @@ class _MultiPackageBanner extends StatelessWidget {
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           color: Colors.deepPurple,
-                          fontSize: 13,
+                          fontSize: 14,
                         ),
                       ),
                     ),
@@ -1012,7 +1012,7 @@ class _MultiPackageBanner extends StatelessWidget {
                           ? 'All delivered'
                           : '$delivered/$packages delivered',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: allDone ? kPakGreen : Colors.deepPurple,
                       ),
@@ -1024,7 +1024,7 @@ class _MultiPackageBanner extends StatelessWidget {
                   'Your order will arrive in multiple packages because '
                   'products are being shipped from different sellers.',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
                     color: AppColors.textSecondary,
                   ),
                 ),
@@ -1101,7 +1101,7 @@ class _OrderDeliveryPanel extends StatelessWidget {
                     asSeller ? 'Deliver to buyer' : 'Your delivery address',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                      fontSize: 13,
                     ),
                   ),
                 ],
@@ -1114,18 +1114,18 @@ class _OrderDeliveryPanel extends StatelessWidget {
               if (phone.isNotEmpty)
                 Text(
                   phone,
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
                 ),
-              Text(summary, style: const TextStyle(fontSize: 12)),
+              Text(summary, style: const TextStyle(fontSize: 13)),
               if (line('landmark').isNotEmpty)
                 Text(
                   'Landmark: ${line('landmark')}',
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
               if (line('deliveryInstructions').isNotEmpty)
                 Text(
                   'Instructions: ${line('deliveryInstructions')}',
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
             ],
             if (payMethod.isNotEmpty) ...[
@@ -1133,13 +1133,13 @@ class _OrderDeliveryPanel extends StatelessWidget {
               Text(
                 'Payment: '
                 '${payMethod == 'cod' ? 'Cash on Delivery' : 'Online (escrow)'}',
-                style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
             ],
             if (notes.isNotEmpty)
               Text(
                 'Order notes: $notes',
-                style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
           ],
         ),

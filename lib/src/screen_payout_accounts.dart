@@ -277,7 +277,7 @@ class PayoutAccountsScreen extends StatelessWidget {
                     'Only a Verified account can receive a payout. Verification '
                     'is done by our team — you cannot verify your own account.',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       color: AppColors.textSecondary,
                     ),
                   ),
@@ -321,7 +321,7 @@ class PayoutAccountsScreen extends StatelessWidget {
                             child: Text(
                               label,
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: color,
                               ),
@@ -343,7 +343,7 @@ class PayoutAccountsScreen extends StatelessWidget {
                               child: Text(
                                 'Default',
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 13,
                                   color: kPakGreen,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -603,7 +603,7 @@ class _PayoutAccountFormScreenState extends State<PayoutAccountFormScreen> {
                       'team reviews and verifies the account before it can '
                       'receive money.',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: AppColors.textSecondary,
                       ),
                     ),

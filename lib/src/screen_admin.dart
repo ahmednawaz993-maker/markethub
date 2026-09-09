@@ -356,7 +356,7 @@ class _AdminActivityTabState extends State<_AdminActivityTab> {
                             _humanAction(action),
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                              fontSize: 15,
                             ),
                           ),
                         ),
@@ -376,7 +376,7 @@ class _AdminActivityTabState extends State<_AdminActivityTab> {
                       '${actorRole.isNotEmpty ? ' · by $actorRole' : ''}',
                       style: TextStyle(
                         color: AppColors.textMuted,
-                        fontSize: 12,
+                        fontSize: 13,
                       ),
                     ),
                     if (prev.isNotEmpty || next.isNotEmpty)
@@ -386,7 +386,7 @@ class _AdminActivityTabState extends State<_AdminActivityTab> {
                           prev.isNotEmpty ? '$prev → $next' : 'set to $next',
                           style: TextStyle(
                             color: AppColors.textSecondary,
-                            fontSize: 12,
+                            fontSize: 13,
                           ),
                         ),
                       ),
@@ -397,7 +397,7 @@ class _AdminActivityTabState extends State<_AdminActivityTab> {
                           reason,
                           style: TextStyle(
                             color: AppColors.textSecondary,
-                            fontSize: 12,
+                            fontSize: 13,
                             fontStyle: FontStyle.italic,
                           ),
                         ),
@@ -409,7 +409,7 @@ class _AdminActivityTabState extends State<_AdminActivityTab> {
                           timeAgo(m['createdAt'] as Timestamp?),
                           style: TextStyle(
                             color: AppColors.textMuted,
-                            fontSize: 11,
+                            fontSize: 12,
                           ),
                         ),
                         if (listingId.isNotEmpty) ...[
@@ -428,7 +428,7 @@ class _AdminActivityTabState extends State<_AdminActivityTab> {
                                   'Open ad',
                                   style: TextStyle(
                                     color: AppColors.link,
-                                    fontSize: 12,
+                                    fontSize: 13,
                                   ),
                                 ),
                               ],
@@ -536,7 +536,7 @@ class _AdminPaymentsTab extends StatelessWidget {
                       formatPrice(amount.toStringAsFixed(0)),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 15.5,
+                        fontSize: 16,
                       ),
                     ),
                     Text(
@@ -546,7 +546,7 @@ class _AdminPaymentsTab extends StatelessWidget {
                     Text(
                       d['buyerEmail']?.toString() ?? '',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: AppColors.textMuted,
                       ),
                     ),
@@ -554,7 +554,7 @@ class _AdminPaymentsTab extends StatelessWidget {
                     SelectableText(
                       'Reference: ${d['proofRef'] ?? ''}'
                       '${from.isEmpty ? '' : '\nPaid from: $from'}',
-                      style: const TextStyle(fontSize: 13),
+                      style: const TextStyle(fontSize: 14),
                     ),
                     const SizedBox(height: 8),
                     _PaymentConfirmActions(paymentId: docs[i].id),
@@ -672,7 +672,7 @@ class _AdminFeaturedTab extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(4, 12, 4, 6),
           child: Text(
             'Featured ads',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
         ),
         StreamBuilder<QuerySnapshot>(
@@ -726,7 +726,7 @@ class _AdminFeaturedTab extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(4, 12, 4, 6),
           child: Text(
             'Featured businesses',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
         ),
         StreamBuilder<QuerySnapshot>(
@@ -1093,12 +1093,12 @@ class _PayoutReviewCardState extends State<_PayoutReviewCard> {
             ),
             Text(
               'Order ${widget.orderId}',
-              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
             const SizedBox(height: 2),
             Text(
               'Buyer: ${d['buyerName'] ?? ''}   ·   Seller: ${d['sellerName'] ?? ''}',
-              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 13, color: AppColors.textMuted),
             ),
             const Divider(height: 16),
             _row('Item subtotal', _subtotal),
@@ -1159,7 +1159,7 @@ class _PayoutReviewCardState extends State<_PayoutReviewCard> {
                 padding: EdgeInsets.only(top: 4),
                 child: Text(
                   'Release is enabled only when every check above passes.',
-                  style: TextStyle(fontSize: 11, color: Colors.orange),
+                  style: TextStyle(fontSize: 12, color: Colors.orange),
                 ),
               ),
           ],
@@ -1176,14 +1176,14 @@ class _PayoutReviewCardState extends State<_PayoutReviewCard> {
         Text(
           k,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: bold ? FontWeight.bold : FontWeight.normal,
           ),
         ),
         Text(
           formatPrice(v.toStringAsFixed(0)),
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: bold ? FontWeight.bold : FontWeight.normal,
             color: bold ? kPakGreen : null,
           ),
@@ -1213,7 +1213,7 @@ class _PayoutReviewCardState extends State<_PayoutReviewCard> {
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 13,
               color: loading
                   ? AppColors.textMuted
                   : (ok ? AppColors.success : AppColors.error),
@@ -1347,13 +1347,13 @@ class _PaymentAccountEditorState extends State<_PaymentAccountEditor> {
       children: [
         const Text(
           'Receiving account',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         const SizedBox(height: 4),
         const Text(
           'Shown to users on the wallet top-up sheet so they know where to '
           'send payment. Leave a field blank to hide it.',
-          style: TextStyle(color: Colors.grey, fontSize: 13),
+          style: TextStyle(color: Colors.grey, fontSize: 14),
         ),
         const SizedBox(height: 12),
         _field(bankName, 'Bank name'),
@@ -1423,13 +1423,13 @@ class _AdminWithdrawalsTab extends StatelessWidget {
                       formatPrice(amount.toStringAsFixed(0)),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 15.5,
+                        fontSize: 16,
                       ),
                     ),
                     Text(
                       d['userEmail']?.toString() ?? '',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: AppColors.textMuted,
                       ),
                     ),
@@ -1438,7 +1438,7 @@ class _AdminWithdrawalsTab extends StatelessWidget {
                       'Pay to: ${d['payoutBank'] ?? ''}\n'
                       'Title: ${d['payoutTitle'] ?? ''}\n'
                       'Number: ${d['payoutNumber'] ?? ''}',
-                      style: const TextStyle(fontSize: 13),
+                      style: const TextStyle(fontSize: 14),
                     ),
                     const SizedBox(height: 8),
                     _WithdrawalActions(withdrawalId: docs[i].id),
@@ -1632,7 +1632,7 @@ class _AdminVerificationsTab extends StatelessWidget {
                             child: Text(
                               'Selfie  ·  CNIC  (tap to enlarge)',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 12,
                                 color: AppColors.textMuted,
                               ),
                             ),
@@ -1652,7 +1652,7 @@ class _AdminVerificationsTab extends StatelessWidget {
                                   address.isEmpty
                                       ? '(no address provided)'
                                       : address,
-                                  style: const TextStyle(fontSize: 13),
+                                  style: const TextStyle(fontSize: 14),
                                 ),
                               ),
                             ],
@@ -1683,7 +1683,7 @@ class _AdminVerificationsTab extends StatelessWidget {
                               child: Text(
                                 'Address proof (tap to enlarge)',
                                 style: TextStyle(
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   color: AppColors.textMuted,
                                 ),
                               ),
@@ -1990,7 +1990,7 @@ class _LiveUsersCard extends StatelessWidget {
                   ),
                   Text(
                     'Users online now',
-                    style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                    style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                   ),
                 ],
               ),
@@ -2001,14 +2001,14 @@ class _LiveUsersCard extends StatelessWidget {
               children: [
                 Text(
                   'Customer Care',
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 4),
                 PresenceStatusLine(
                   kSupportPresenceId,
                   onlinePrefix: 'Support is',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
                     color: AppColors.textSecondary,
                   ),
                 ),
@@ -2291,7 +2291,7 @@ class _AdminOverviewTab extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(4, 10, 4, 6),
           child: Text(
             'Trends — last 6 months',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
         ),
         _trendCard(
@@ -2868,7 +2868,7 @@ class _AdminPurchasesTab extends StatelessWidget {
                               ? Colors.red
                               : Colors.orange),
                     fontWeight: FontWeight.bold,
-                    fontSize: 12,
+                    fontSize: 13,
                   ),
                 ),
               ),
@@ -2949,7 +2949,7 @@ class _AdminReportsTab extends StatelessWidget {
                       timeAgo(d['createdAt'] as Timestamp?),
                       style: TextStyle(
                         color: AppColors.textMuted,
-                        fontSize: 12,
+                        fontSize: 13,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -3080,7 +3080,7 @@ class _AdminPromotionsTab extends StatelessWidget {
                       'Seller: ${d['sellerName'] ?? ''}',
                       style: TextStyle(
                         color: AppColors.textMuted,
-                        fontSize: 12,
+                        fontSize: 13,
                       ),
                     ),
                     Text(
@@ -3226,14 +3226,14 @@ class _AdminTopupsTab extends StatelessWidget {
                       formatPrice('$amount'),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 15.5,
+                        fontSize: 16,
                       ),
                     ),
                     Text(
                       '${d['userEmail'] ?? userId}',
                       style: TextStyle(
                         color: AppColors.textMuted,
-                        fontSize: 12,
+                        fontSize: 13,
                       ),
                     ),
                     Text(
@@ -3619,7 +3619,7 @@ class _AdminOrdersTabState extends State<_AdminOrdersTab> {
         ),
         Text(
           label,
-          style: const TextStyle(color: Colors.white70, fontSize: 12),
+          style: const TextStyle(color: Colors.white70, fontSize: 13),
         ),
       ],
     );
@@ -3703,17 +3703,17 @@ class _MasterOrderTile extends StatelessWidget {
       childrenPadding: const EdgeInsets.only(bottom: 8),
       title: Text(
         '$number · $packages package${packages == 1 ? '' : 's'}',
-        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
       ),
       subtitle: Text(
         '${mo.buyerName} · ${formatPrice(mo.itemsTotal.toStringAsFixed(0))} · '
         '${mo.paymentLabel}',
-        style: const TextStyle(fontSize: 12),
+        style: const TextStyle(fontSize: 13),
       ),
       trailing: Text(
         mo.allDelivered ? 'All delivered' : '${mo.deliveredCount}/$packages',
         style: TextStyle(
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: FontWeight.w600,
           color: mo.allDelivered ? kPakGreen : Colors.deepPurple,
         ),
@@ -3741,7 +3741,7 @@ class _MasterOrderTile extends StatelessWidget {
                   mo.status == 'pending'
                       ? 'Awaiting fan-out…'
                       : 'No sub-orders found.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
               );
             }
@@ -3788,7 +3788,7 @@ class _MasterSubOrderRow extends StatelessWidget {
                 Text(
                   '$seller${number.isEmpty ? '' : ' · $number'}',
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -3796,7 +3796,7 @@ class _MasterSubOrderRow extends StatelessWidget {
                   '${formatPrice(amount.toStringAsFixed(0))} · ${orderStatusLabel(os)}'
                   '${courier.isEmpty ? '' : ' · $courier'}'
                   '${tracking.isEmpty ? '' : ' ($tracking)'}',
-                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
               ],
             ),
@@ -3903,7 +3903,7 @@ class _CancellationRequestRow extends StatelessWidget {
             details.isEmpty
                 ? 'Reason: $reason'
                 : 'Reason: $reason — “$details”',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -3944,7 +3944,7 @@ class _CancellationRequestRow extends StatelessWidget {
                   ? 'The order will be cancelled and the buyer refunded if a '
                         'payment is held.'
                   : 'The order stays active. Add a note for the buyer.',
-              style: const TextStyle(fontSize: 13),
+              style: const TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -4284,7 +4284,7 @@ class _RefundRequestRow extends StatelessWidget {
             details.isEmpty
                 ? 'Reason: $reason'
                 : 'Reason: $reason — “$details”',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -4324,7 +4324,7 @@ class _RefundRequestRow extends StatelessWidget {
               'The buyer is refunded to their PakBazar wallet. Leave the amount '
               'blank to refund the full held amount, or enter a smaller amount '
               'for a partial refund.',
-              style: TextStyle(fontSize: 13),
+              style: TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -4400,7 +4400,7 @@ class _RefundRequestRow extends StatelessWidget {
             const Text(
               'The order is unchanged and no money moves. Add a note for the '
               'buyer explaining why.',
-              style: TextStyle(fontSize: 13),
+              style: TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -4534,7 +4534,7 @@ class _ReturnRequestRow extends StatelessWidget {
             details.isEmpty
                 ? 'Reason: $reason'
                 : 'Reason: $reason — “$details”',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -4575,7 +4575,7 @@ class _ReturnRequestRow extends StatelessWidget {
                   ? 'The buyer is refunded and the order marked returned '
                         '(only while the payment is still held).'
                   : 'The order stays as-is. Add a note for the buyer.',
-              style: const TextStyle(fontSize: 13),
+              style: const TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -4696,7 +4696,7 @@ class _AdminListingsTab extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 13,
                                   color: AppColors.textMuted,
                                 ),
                               ),
@@ -4708,7 +4708,7 @@ class _AdminListingsTab extends StatelessWidget {
                                     const Text(
                                       '★ Featured',
                                       style: TextStyle(
-                                        fontSize: 11,
+                                        fontSize: 12,
                                         color: kGold,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -4717,7 +4717,7 @@ class _AdminListingsTab extends StatelessWidget {
                                     const Text(
                                       'SOLD',
                                       style: TextStyle(
-                                        fontSize: 11,
+                                        fontSize: 12,
                                         color: Colors.red,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -4927,7 +4927,7 @@ class _AdminChatsTabState extends State<_AdminChatsTab> {
                           Text(
                             data['listingTitle']?.toString() ?? '',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 13,
                               color: AppColors.textMuted,
                             ),
                           ),
@@ -4940,7 +4940,7 @@ class _AdminChatsTabState extends State<_AdminChatsTab> {
                             Text(
                               timeAgo(lastTime),
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: 11,
                                 color: AppColors.textMuted,
                               ),
                             ),
@@ -5307,7 +5307,7 @@ class _BusinessAccountCardState extends State<_BusinessAccountCard> {
                   child: Text(
                     chipLabel,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: chipColor,
                     ),
@@ -5321,13 +5321,13 @@ class _BusinessAccountCardState extends State<_BusinessAccountCard> {
             if ((d['storeCategory']?.toString() ?? '').isNotEmpty)
               Text(
                 'Category: ${d['storeCategory']}',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
             if ((d['tagline']?.toString() ?? '').isNotEmpty)
               Text(
                 d['tagline'].toString(),
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   fontStyle: FontStyle.italic,
                   color: AppColors.textSecondary,
                 ),
@@ -5715,11 +5715,11 @@ class _PayoutAccountReviewCardState extends State<_PayoutAccountReviewCard> {
             width: 96,
             child: Text(
               label,
-              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 13, color: AppColors.textMuted),
             ),
           ),
           Expanded(
-            child: SelectableText(value, style: const TextStyle(fontSize: 13)),
+            child: SelectableText(value, style: const TextStyle(fontSize: 14)),
           ),
         ],
       ),
@@ -5765,7 +5765,7 @@ class _PayoutAccountReviewCardState extends State<_PayoutAccountReviewCard> {
                   child: Text(
                     chipLabel,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: chipColor,
                     ),
@@ -5921,7 +5921,7 @@ class _AdminAppealsTab extends StatelessWidget {
                         Text(
                           timeAgo(d['createdAt'] as Timestamp?),
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: AppColors.textMuted,
                           ),
                         ),
@@ -6456,7 +6456,7 @@ Future<void> _editStaffDialog(
                 ),
                 Text(
                   'Turn on only what this staff member should manage.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
                 for (final area in kAdminAreas)
                   SwitchListTile(
@@ -6733,7 +6733,7 @@ class _AdminDeletionsTab extends StatelessWidget {
               child: const Text(
                 'After deleting a user\'s data here, also remove their login in '
                 'Firebase Console → Authentication to fully delete the account.',
-                style: TextStyle(fontSize: 12, color: Colors.black87),
+                style: TextStyle(fontSize: 13, color: Colors.black87),
               ),
             ),
             Expanded(
@@ -6763,14 +6763,14 @@ class _AdminDeletionsTab extends StatelessWidget {
                           Text(
                             'UID: $uid',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 12,
                               color: AppColors.textMuted,
                             ),
                           ),
                           Text(
                             'Requested ${timeAgo(d['createdAt'] as Timestamp?)}',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 12,
                               color: AppColors.textMuted,
                             ),
                           ),
@@ -7065,7 +7065,7 @@ class _AdminBroadcastTabState extends State<_AdminBroadcastTab> {
             children: [
               const Text(
                 'Send a notification',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const SizedBox(height: 12),
               SegmentedButton<String>(
@@ -7150,7 +7150,7 @@ class _AdminBroadcastTabState extends State<_AdminBroadcastTab> {
                           'cannot be recalled once delivered.'
                     : 'Goes to that user\'s devices and is also saved to their '
                           'in-app notification inbox.',
-                style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
             ],
           ),
@@ -7220,14 +7220,14 @@ class _BroadcastRow extends StatelessWidget {
             Text(
               '$label · ${audience == 'all' ? 'Everyone' : 'One user'} · '
               '${timeAgo(data['createdAt'] as Timestamp?)}',
-              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
             if (error.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   error,
-                  style: const TextStyle(fontSize: 11, color: Colors.red),
+                  style: const TextStyle(fontSize: 12, color: Colors.red),
                 ),
               ),
           ],

@@ -71,7 +71,7 @@ class FreeDeliveryBanner extends StatelessWidget {
           Text(
             'Your order will be delivered free when you shop for '
             '${formatPrice(freeDeliveryThreshold.toStringAsFixed(0))} or more.',
-            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
           ),
         ],
       ),
@@ -389,7 +389,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     child: Text(
                       a.label,
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.bold,
                         color: kPakGreen,
                       ),
@@ -400,7 +400,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     Text(
                       'Default',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: AppColors.textMuted,
                       ),
                     ),
@@ -418,12 +418,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               if (a.landmark.trim().isNotEmpty)
                 Text(
                   'Landmark: ${a.landmark}',
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
               if (a.postalCode.trim().isNotEmpty)
                 Text(
                   'Postal code: ${a.postalCode}',
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
             ],
           ],
@@ -456,7 +456,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     title: Text('Pay online (escrow)'),
                     subtitle: Text(
                       'Held safely until you confirm you received the item.',
-                      style: TextStyle(fontSize: 12),
+                      style: TextStyle(fontSize: 13),
                     ),
                   ),
                   if (listing.codAvailable)
@@ -467,7 +467,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       title: Text('Cash on Delivery'),
                       subtitle: Text(
                         'Pay cash when the item is delivered.',
-                        style: TextStyle(fontSize: 12),
+                        style: TextStyle(fontSize: 13),
                       ),
                     ),
                 ],
@@ -596,7 +596,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       : Text(
                           'Place Order · ${formatPrice(grandTotal.toStringAsFixed(0))}',
                           style: const TextStyle(
-                            fontSize: 15.5,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -708,7 +708,7 @@ class OrderConfirmationScreen extends StatelessWidget {
                     Text(
                       'Landmark: ${address.landmark}',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: AppColors.textMuted,
                       ),
                     ),
@@ -740,7 +740,7 @@ class OrderConfirmationScreen extends StatelessWidget {
                         : 'Pay online — open Profile → My Orders to pay and hold '
                               'the amount safely in escrow.',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       color: AppColors.textPrimary,
                     ),
                   ),

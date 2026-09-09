@@ -208,7 +208,7 @@ class _NotificationPreferencesScreenState
                   'just ones matching your interests. Turn this off any time to '
                   'stop new-listing alerts on all your devices. Chat, order and '
                   'offer notifications are not affected.',
-                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
               ],
             ),

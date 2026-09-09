@@ -49,7 +49,7 @@ Future<void> showPromoteSheet(BuildContext context, Listing listing) async {
                       'FREE',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -390,7 +390,7 @@ Future<void> showInventorySheet(BuildContext context, Listing listing) async {
                 child: Text(
                   'You control availability. Placing, paying for, or delivering '
                   'an order never changes this automatically.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
               ),
               const SizedBox(height: 8),
@@ -888,7 +888,7 @@ class _PaymentAccountInfo extends StatelessWidget {
                       label,
                       style: TextStyle(
                         color: AppColors.textMuted,
-                        fontSize: 13,
+                        fontSize: 14,
                       ),
                     ),
                   ),
@@ -897,7 +897,7 @@ class _PaymentAccountInfo extends StatelessWidget {
                       v,
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
-                        fontSize: 13,
+                        fontSize: 14,
                       ),
                     ),
                   ),
@@ -937,7 +937,7 @@ class _PaymentAccountInfo extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
                     note,
-                    style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                    style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                   ),
                 ),
             ],

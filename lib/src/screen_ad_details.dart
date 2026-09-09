@@ -76,7 +76,7 @@ class _FullScreenGalleryState extends State<FullScreenGallery> {
         title: multi
             ? Text(
                 '${_index + 1} / ${images.length}',
-                style: const TextStyle(fontSize: 15.5, color: Colors.white),
+                style: const TextStyle(fontSize: 16, color: Colors.white),
               )
             : null,
       ),
@@ -511,7 +511,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                           '${currentImage + 1}/${images.length}',
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 12,
+                            fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -820,7 +820,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
-                        fontSize: 15.5,
+                        fontSize: 16,
                         letterSpacing: 2.5,
                       ),
                     ),
@@ -850,7 +850,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                       Text(
                         formatPrice(listing.previousPrice),
                         style: TextStyle(
-                          fontSize: 15.5,
+                          fontSize: 16,
                           color: AppColors.textMuted,
                           decoration: TextDecoration.lineThrough,
                         ),
@@ -1050,7 +1050,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                   ? listing.description
                   : 'No description provided.',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 15,
                 height: 1.5,
                 color: AppColors.textSecondary,
               ),
@@ -1148,7 +1148,7 @@ class _Pill extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
               color: color,
             ),
@@ -1204,7 +1204,7 @@ class _ContactAction extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -1308,7 +1308,7 @@ class _PriceInsight extends StatelessWidget {
                       '${formatPrice(low.toStringAsFixed(0))}–'
                       '${formatPrice(high.toStringAsFixed(0))}',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: AppColors.textMuted,
                       ),
                     ),

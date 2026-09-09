@@ -95,7 +95,7 @@ class AddressBookScreen extends StatelessWidget {
                               child: Text(
                                 a.label,
                                 style: const TextStyle(
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                   color: kPakGreen,
                                 ),
@@ -112,7 +112,7 @@ class AddressBookScreen extends StatelessWidget {
                               const Text(
                                 'Default',
                                 style: TextStyle(
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   color: kPakGreen,
                                 ),
                               ),

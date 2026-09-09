@@ -271,7 +271,7 @@ class _BuyerRefundPendingCard extends StatelessWidget {
                 const Expanded(
                   child: Text(
                     'Refund requested — under review',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                 ),
               ],
@@ -279,7 +279,7 @@ class _BuyerRefundPendingCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               'Reason: $reason. PakBazar is reviewing your request.',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              style: const TextStyle(fontSize: 13, color: Colors.grey),
             ),
             Align(
               alignment: AlignmentDirectional.centerEnd,
@@ -345,7 +345,7 @@ Future<void> showRefundSheet(
                 const Text(
                   'Your payment is held by PakBazar. If PakBazar approves, it '
                   'is refunded to your wallet (in full or in part).',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
                 ),
                 const SizedBox(height: 12),
                 const Text(

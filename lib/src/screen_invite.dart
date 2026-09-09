@@ -109,7 +109,7 @@ class InviteFriendsScreen extends StatelessWidget {
               foregroundColor: Colors.white,
               minimumSize: const Size.fromHeight(52),
               textStyle: const TextStyle(
-                fontSize: 15.5,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -129,7 +129,7 @@ class InviteFriendsScreen extends StatelessWidget {
             'awarded PKR 100,000 each and contacted on their registered phone '
             'number. PakBazar\'s decision is final.',
             style: const TextStyle(
-              fontSize: 11,
+              fontSize: 12,
             ).copyWith(color: AppColors.textMuted),
             textAlign: TextAlign.center,
           ),
@@ -178,7 +178,7 @@ class InviteFriendsScreen extends StatelessWidget {
             '5 WINNERS · 14 AUGUST 2026',
             style: TextStyle(
               color: kPakGreenDeep,
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -187,7 +187,7 @@ class InviteFriendsScreen extends StatelessWidget {
         const Text(
           'The more you share, the more chances to win!',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white, fontSize: 14),
+          style: TextStyle(color: Colors.white, fontSize: 15),
         ),
       ],
     ),
@@ -199,7 +199,7 @@ class InviteFriendsScreen extends StatelessWidget {
       children: const [
         Text(
           'How to enter',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         SizedBox(height: 10),
         _Step(
@@ -236,7 +236,7 @@ class InviteFriendsScreen extends StatelessWidget {
           'number to be eligible to win.',
           textAlign: TextAlign.center,
           style: const TextStyle(
-            fontSize: 12,
+            fontSize: 13,
           ).copyWith(color: AppColors.textSecondary),
         ),
         const SizedBox(height: 10),
@@ -304,7 +304,7 @@ class InviteFriendsScreen extends StatelessWidget {
                 Text(
                   'Shared with $shares of $_targetShares',
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
                   ).copyWith(color: AppColors.textSecondary),
                 ),
               ],
@@ -333,7 +333,7 @@ class _Step extends StatelessWidget {
             n,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -341,7 +341,7 @@ class _Step extends StatelessWidget {
         const SizedBox(width: 10),
         Icon(icon, size: 18, color: kPakGreen),
         const SizedBox(width: 8),
-        Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
+        Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
       ],
     ),
   );

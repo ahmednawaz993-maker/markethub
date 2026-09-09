@@ -234,12 +234,12 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen> {
               Expanded(
                 child: Text(
                   next == null ? 'Next prayer · tomorrow' : 'Next prayer',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
               ),
               Text(
                 _city.name,
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
               ),
             ],
           ),
@@ -272,7 +272,7 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen> {
           const SizedBox(height: AppSpacing.xs),
           Text(
             h > 0 ? 'in $h h $m min' : 'in $m min',
-            style: const TextStyle(color: Colors.white70, fontSize: 13),
+            style: const TextStyle(color: Colors.white70, fontSize: 14),
           ),
         ],
       ),
@@ -592,7 +592,7 @@ class _QuranSurahListScreenState extends State<QuranSurahListScreen> {
                           style: const TextStyle(
                             color: kPakGreen,
                             fontWeight: FontWeight.w700,
-                            fontSize: 13,
+                            fontSize: 14,
                           ),
                         ),
                       ),
@@ -653,7 +653,7 @@ class QuranReaderScreen extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: Text(
               '${surah.meaning} · ${surah.verses.length} ayahs',
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
             ),
           ),
         ),
@@ -702,7 +702,7 @@ class QuranReaderScreen extends StatelessWidget {
                       child: Text(
                         '${surah.number}:${v.number}',
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                           color: kPakGreen,
                         ),

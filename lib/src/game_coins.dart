@@ -172,7 +172,7 @@ class CoinPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('🪙', style: TextStyle(fontSize: 13)),
+          const Text('🪙', style: TextStyle(fontSize: 14)),
           const SizedBox(width: AppSpacing.xs),
           Text(
             // Grouped, but never with a currency symbol — this is not money and

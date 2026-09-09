@@ -961,7 +961,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                   return ChoiceChip(
                     label: Text(subcategory),
                     labelStyle: TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: selectedSubcategory == subcategory
                           ? Colors.white
@@ -1171,7 +1171,7 @@ class _HeaderPillButton extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: fg,
                 ),

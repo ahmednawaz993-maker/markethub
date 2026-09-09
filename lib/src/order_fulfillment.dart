@@ -79,7 +79,7 @@ class OrderFulfillmentPanel extends StatelessWidget {
               Text(
                 _shipSteps[i].label,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 11,
                   color: i <= activeIdx ? kPakGreen : Colors.grey,
                   fontWeight: i == activeIdx
                       ? FontWeight.bold
@@ -104,7 +104,7 @@ class OrderFulfillmentPanel extends StatelessWidget {
                     if (courier.isNotEmpty) courier,
                     if (tracking.isNotEmpty) 'Tracking: $tracking',
                   ].join(' · '),
-                  style: const TextStyle(fontSize: 12),
+                  style: const TextStyle(fontSize: 13),
                 ),
               ),
               if (trackingUrl.isNotEmpty)
@@ -128,7 +128,7 @@ class OrderFulfillmentPanel extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 shipDates,
-                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 13, color: AppColors.textMuted),
               ),
             ],
           ),
@@ -152,7 +152,7 @@ class OrderFulfillmentPanel extends StatelessWidget {
                     '(cash collected on delivery).'
               : 'Dispatched — waiting for the buyer to confirm they received it, '
                     'which releases your payout for settlement.',
-          style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+          style: TextStyle(fontSize: 13, color: AppColors.textMuted),
         ),
       );
     }
@@ -205,7 +205,7 @@ class OrderFulfillmentPanel extends StatelessWidget {
                     : 'Delivered — you confirmed receipt. The seller payout is '
                           'pending platform settlement.',
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   color: kPakGreen,
                   fontWeight: FontWeight.w600,
                 ),
@@ -227,7 +227,7 @@ class OrderFulfillmentPanel extends StatelessWidget {
                     'delivery, then confirm receipt once it has been dispatched.'
               : 'The seller is preparing your order. You can confirm receipt '
                     'once it has been dispatched.',
-          style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+          style: TextStyle(fontSize: 13, color: AppColors.textMuted),
         ),
       );
     }
@@ -336,7 +336,7 @@ class OrderFulfillmentPanel extends StatelessWidget {
                       : 'Enter the courier and tracking number so the buyer can '
                             'follow the delivery. Marking dispatched notifies '
                             'the buyer.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 12),
                 TextField(

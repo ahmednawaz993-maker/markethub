@@ -67,7 +67,12 @@ void main() {
   // the right AppType style stays a screen-by-screen job.
   test('the app uses one type scale, with no perceptually duplicate steps', () {
     // Not const: Dart forbids doubles in a constant set.
-    final allowed = <double>{9, 10, 11, 12, 13, 14, 15.5, 17, 20, 24, 28,
+    // Raised one step across the board (2026-09) so PakBazar reads at the
+    // same size as My Flats: what used to be 9/11/12/13 — captions and card
+    // titles a reader had to lean into — is now 10/12/13/14/15, and 15.5
+    // snapped to a whole 16. Still thirteen steps, still no perceptual
+    // duplicates: no 12 next to a 12.5, no 17 next to an 18.
+    final allowed = <double>{10, 11, 12, 13, 14, 15, 16, 17, 20, 24, 28,
       34, 40};
     final re = RegExp(r'fontSize:\s*([\d.]+)');
     final offenders = <String>[];

@@ -278,7 +278,7 @@ Widget _multiSellerBanner(String text) => Container(
       Expanded(
         child: Text(
           text,
-          style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
+          style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
         ),
       ),
     ],
@@ -710,7 +710,7 @@ class _CartScreenState extends State<CartScreen> {
                     Text(
                       'Cart total',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: AppColors.textMuted,
                       ),
                     ),
@@ -962,12 +962,12 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
           const SizedBox(height: 8),
           Text(
             'Item total: ${formatPrice(total.toStringAsFixed(0))}',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
           Text(
             'A delivery fee (if any) is added per seller and shown on each '
             'order.',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
         ],
       ),
@@ -989,7 +989,7 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
                       Text(
                         'Items',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           color: AppColors.textMuted,
                         ),
                       ),
@@ -1056,7 +1056,7 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
               Text(
                 'Please add a complete delivery address before placing your '
                 'order.',
-                style: TextStyle(color: AppColors.error, fontSize: 13),
+                style: TextStyle(color: AppColors.error, fontSize: 14),
               )
             else ...[
               Text(
@@ -1071,12 +1071,12 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
                   a.city,
                   a.province,
                 ].where((s) => s.trim().isNotEmpty).join(', '),
-                style: const TextStyle(fontSize: 13),
+                style: const TextStyle(fontSize: 14),
               ),
               if (a.deliveryInstructions.trim().isNotEmpty)
                 Text(
                   'Note: ${a.deliveryInstructions}',
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
             ],
           ],
@@ -1158,7 +1158,7 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
                   title: Text('Pay online (held by PakBazar)'),
                   subtitle: Text(
                     'Held safely until you confirm delivery from each seller.',
-                    style: TextStyle(fontSize: 12),
+                    style: TextStyle(fontSize: 13),
                   ),
                 ),
                 if (_allCod)
@@ -1169,7 +1169,7 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
                     title: Text('Cash on Delivery'),
                     subtitle: Text(
                       'Pay cash to each seller when your package arrives.',
-                      style: TextStyle(fontSize: 12),
+                      style: TextStyle(fontSize: 13),
                     ),
                   ),
               ],
@@ -1181,7 +1181,7 @@ class _CartCheckoutScreenState extends State<CartCheckoutScreen> {
               child: Text(
                 'Cash on Delivery is unavailable because some items don\'t '
                 'offer it.',
-                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 13, color: AppColors.textMuted),
               ),
             ),
         ],

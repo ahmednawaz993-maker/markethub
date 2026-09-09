@@ -63,7 +63,7 @@ class WalletScreen extends StatelessWidget {
                             'Balance unavailable',
                             style: TextStyle(
                               color: Colors.white70,
-                              fontSize: 15.5,
+                              fontSize: 16,
                             ),
                           ),
                         ),
@@ -383,7 +383,7 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
               Text(
                 'Your balance is held while the payout is processed. If it is '
                 'rejected, the amount is refunded to your wallet.',
-                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 13, color: AppColors.textMuted),
               ),
             ],
           ),
@@ -589,7 +589,7 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'Paid instantly from your PakBazar Wallet (Profile → Wallet).',
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
               ],
             ),

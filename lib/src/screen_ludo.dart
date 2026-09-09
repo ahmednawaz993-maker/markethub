@@ -1727,7 +1727,7 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
                                       child: Text(
                                         'Rolling for you in ${left}s',
                                         style: TextStyle(
-                                          fontSize: 11,
+                                          fontSize: 12,
                                           color: left <= 10
                                               ? AppColors.error
                                               : AppColors.textMuted,

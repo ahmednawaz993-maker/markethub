@@ -159,7 +159,7 @@ class AllCategoriesScreen extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: FontWeight.w700,
                         height: 1.15,
                         color: AppColors.textPrimary,
@@ -172,7 +172,7 @@ class AllCategoriesScreen extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 11,
                         color: AppColors.textMuted,
                       ),
                     ),

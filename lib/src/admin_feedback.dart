@@ -265,7 +265,7 @@ class AdminFeedbackCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(reply, style: const TextStyle(fontSize: 13)),
+                    Text(reply, style: const TextStyle(fontSize: 14)),
                   ],
                 ),
               ),
@@ -320,7 +320,7 @@ class AdminFeedbackCard extends StatelessWidget {
         label,
         style: TextStyle(
           color: color,
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: FontWeight.bold,
         ),
       ),
@@ -560,7 +560,7 @@ class _FeedbackClientPanelState extends State<_FeedbackClientPanel> {
     child: Text(
       label,
       style: TextStyle(
-        fontSize: 10,
+        fontSize: 11,
         color: color,
         fontWeight: FontWeight.w600,
       ),

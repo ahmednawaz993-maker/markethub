@@ -255,7 +255,7 @@ class _StoreHeroBar extends StatelessWidget {
       text,
       style: const TextStyle(
         color: Colors.white,
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: FontWeight.bold,
         letterSpacing: 0.4,
       ),
@@ -292,7 +292,7 @@ class _StoreHeroBar extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 15.5,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -435,7 +435,7 @@ class _StoreInfoCard extends StatelessWidget {
                   Text(
                     tagline,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 14,
                       fontStyle: FontStyle.italic,
                       color: AppColors.textSecondary,
                     ),
@@ -451,7 +451,7 @@ class _StoreInfoCard extends StatelessWidget {
                         memberSince,
                         style: TextStyle(
                           color: AppColors.textMuted,
-                          fontSize: 12,
+                          fontSize: 13,
                         ),
                       ),
                   ],
@@ -524,7 +524,7 @@ class _StoreInfoCard extends StatelessWidget {
                     child: const Text(
                       "This store also follows PakBazar's platform rules ›",
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: kPakGreen,
                         fontWeight: FontWeight.w600,
                       ),
@@ -693,7 +693,7 @@ class _FollowButtonState extends State<_FollowButton> {
                         '$n follower${n == 1 ? '' : 's'}',
                         style: TextStyle(
                           color: AppColors.textMuted,
-                          fontSize: 12,
+                          fontSize: 13,
                         ),
                       ),
                     ),

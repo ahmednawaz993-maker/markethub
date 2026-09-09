@@ -540,7 +540,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: kPakGreen,
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -657,12 +657,12 @@ class _AuthScreenState extends State<AuthScreen> {
                     const SizedBox(height: 6),
                     const Text(
                       'We\'ll text you a one-time code to verify your number.',
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
                     ),
                   ] else ...[
                     Text(
                       'Enter the 6-digit code sent to $_sentTo',
-                      style: const TextStyle(color: Colors.grey, fontSize: 13),
+                      style: const TextStyle(color: Colors.grey, fontSize: 14),
                     ),
                     const SizedBox(height: 12),
                     TextField(

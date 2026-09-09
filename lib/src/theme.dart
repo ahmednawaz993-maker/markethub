@@ -263,7 +263,7 @@ class StatusBadge extends StatelessWidget {
               label,
               style: TextStyle(
                 color: c,
-                fontSize: dense ? 10.5 : 11.5,
+                fontSize: dense ? 11 : 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -452,7 +452,7 @@ ThemeData buildAppTheme(Brightness brightness) {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
-        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15.5),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -478,8 +478,8 @@ ThemeData buildAppTheme(Brightness brightness) {
     listTileTheme: ListTileThemeData(
       iconColor: onSurfaceMuted,
       textColor: onSurface,
-      titleTextStyle: TextStyle(fontSize: 14, color: onSurface),
-      subtitleTextStyle: TextStyle(fontSize: 12, color: onSurfaceMuted),
+      titleTextStyle: TextStyle(fontSize: 15, color: onSurface),
+      subtitleTextStyle: TextStyle(fontSize: 13, color: onSurfaceMuted),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
@@ -540,10 +540,10 @@ ThemeData buildAppTheme(Brightness brightness) {
       type: BottomNavigationBarType.fixed,
       elevation: 0,
       selectedLabelStyle: const TextStyle(
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: FontWeight.w600,
       ),
-      unselectedLabelStyle: const TextStyle(fontSize: 11),
+      unselectedLabelStyle: const TextStyle(fontSize: 12),
     ),
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: surface,
@@ -559,8 +559,8 @@ ThemeData buildAppTheme(Brightness brightness) {
       unselectedLabelColor: onSurfaceFaint,
       indicatorColor: accent,
       dividerColor: borderSoftCol,
-      labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-      unselectedLabelStyle: const TextStyle(fontSize: 13),
+      labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+      unselectedLabelStyle: const TextStyle(fontSize: 14),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
@@ -592,7 +592,7 @@ ThemeData buildAppTheme(Brightness brightness) {
         borderRadius: BorderRadius.circular(AppRadius.md),
         side: BorderSide(color: borderSoftCol),
       ),
-      textStyle: TextStyle(fontSize: 14, color: onSurface),
+      textStyle: TextStyle(fontSize: 15, color: onSurface),
     ),
     dividerTheme: DividerThemeData(color: dividerCol, thickness: 1, space: 1),
     dividerColor: dividerCol,

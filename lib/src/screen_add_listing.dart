@@ -610,7 +610,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
                       ? 'Add photos'
                       : '${selectedImages.length} photo(s) selected',
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: AppColors.accent,
                   ),
@@ -1016,7 +1016,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
                         ],
                       ),
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         height: 1.35,
                         color: AppColors.textSecondary,
                       ),

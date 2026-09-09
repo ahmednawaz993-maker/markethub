@@ -110,14 +110,14 @@ abstract final class AppType {
 
   static TextStyle get sectionTitle => TextStyle(
     fontSize: 17,
-    fontWeight: FontWeight.w700,
+    fontWeight: FontWeight.w800,
     color: AppColors.textPrimary,
     height: 1.25,
   );
 
   static TextStyle get cardTitle => TextStyle(
-    fontSize: 13,
-    fontWeight: FontWeight.w600,
+    fontSize: 15,
+    fontWeight: FontWeight.w700,
     color: AppColors.textPrimary,
     height: 1.25,
   );
@@ -132,16 +132,16 @@ abstract final class AppType {
   );
 
   static TextStyle get body =>
-      TextStyle(fontSize: 14, color: AppColors.textPrimary, height: 1.4);
+      TextStyle(fontSize: 15, color: AppColors.textPrimary, height: 1.4);
 
   static TextStyle get secondary =>
-      TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.35);
+      TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.35);
 
   static TextStyle get caption =>
-      TextStyle(fontSize: 11, color: AppColors.textMuted, height: 1.3);
+      TextStyle(fontSize: 12, color: AppColors.textMuted, height: 1.3);
 
   static TextStyle get label => TextStyle(
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: FontWeight.w600,
     color: AppColors.textSecondary,
     height: 1.2,
@@ -605,11 +605,11 @@ class AppSearchBar extends StatelessWidget {
       textInputAction: TextInputAction.search,
       onSubmitted: onSubmitted,
       onChanged: onChanged,
-      style: TextStyle(fontSize: 14, color: AppColors.textPrimary),
+      style: TextStyle(fontSize: 15, color: AppColors.textPrimary),
       decoration: InputDecoration(
         isDense: true,
         hintText: hintText,
-        hintStyle: TextStyle(fontSize: 14, color: AppColors.textMuted),
+        hintStyle: TextStyle(fontSize: 15, color: AppColors.textMuted),
         filled: false,
         contentPadding: EdgeInsets.zero,
         border: InputBorder.none,
@@ -666,7 +666,7 @@ class AppSearchBar extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: AppColors.accent,
                           ),
@@ -759,7 +759,7 @@ class AppIconBadgeButton extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight: FontWeight.w700,
                         height: 1.2,
                       ),
@@ -855,7 +855,7 @@ class SectionHeader extends StatelessWidget {
                   Text(
                     actionLabel,
                     style: const TextStyle(
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -1150,7 +1150,7 @@ class _MarketplaceListingCardState extends State<MarketplaceListingCard> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 12,
                                 color: AppColors.textMuted,
                                 decoration: TextDecoration.lineThrough,
                               ),
@@ -1266,7 +1266,7 @@ class _CardBadge extends StatelessWidget {
               label,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 9,
+                fontSize: 10,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.4,
               ),
@@ -1303,7 +1303,7 @@ class _ImageCountPill extends StatelessWidget {
             '$count',
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1416,7 +1416,7 @@ class MarketplaceListingTile extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 15,
                           fontWeight: FontWeight.w600,
                           color: AppColors.textPrimary,
                           height: 1.25,
@@ -1509,7 +1509,7 @@ class MetaChip extends StatelessWidget {
         const SizedBox(width: 3),
         Text(
           label,
-          style: TextStyle(fontSize: 11, color: c, fontWeight: FontWeight.w500),
+          style: TextStyle(fontSize: 12, color: c, fontWeight: FontWeight.w500),
         ),
       ],
     );
@@ -1702,8 +1702,8 @@ class FeaturedBannerCard extends StatelessWidget {
   /// Text sizes used by BOTH the layout below and [heightFor]. Shared
   /// constants rather than repeated literals: the two had already drifted
   /// apart, leaving the title budgeted 0.5px short of what it renders.
-  static const double _titleSize = 15.5;
-  static const double _subtitleSize = 12;
+  static const double _titleSize = 16;
+  static const double _subtitleSize = 13;
 
   static double heightFor(BuildContext context, double width) {
     final ts = MediaQuery.textScalerOf(context);
@@ -1762,7 +1762,7 @@ class FeaturedBannerCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: 11,
                               fontWeight: FontWeight.w700,
                               color: AppColors.textPrimary,
                             ),
@@ -1870,7 +1870,7 @@ class RecentSearchCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     softWrap: false,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
                     ),
@@ -1925,7 +1925,7 @@ class CategoryCard extends StatelessWidget {
   });
 
   static double heightFor(BuildContext context) =>
-      58 + AppSpacing.sm + MediaQuery.textScalerOf(context).scale(11) * 1.2 * 2;
+      58 + AppSpacing.sm + MediaQuery.textScalerOf(context).scale(13) * 1.2 * 2;
 
   @override
   Widget build(BuildContext context) {
@@ -1953,7 +1953,7 @@ class CategoryCard extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 12,
                 height: 1.2,
                 color: AppColors.textSecondary,
                 fontWeight: FontWeight.w500,
@@ -2020,7 +2020,7 @@ class SellerCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 15,
                           fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary,
                         ),
@@ -2153,7 +2153,7 @@ class AppBottomNavigation extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 11,
                     height: 1.1,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                     color: selected ? AppColors.accent : AppColors.textMuted,
@@ -2199,7 +2199,7 @@ class AppBottomNavigation extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 9,
+                    fontSize: 10,
                     height: 1.1,
                     color: Colors.white,
                     fontWeight: FontWeight.w800,

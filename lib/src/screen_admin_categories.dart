@@ -593,7 +593,7 @@ class _CategoriesHeader extends StatelessWidget {
                     '$count categories',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 15.5,
+                      fontSize: 16,
                     ),
                   ),
                 ),
@@ -613,7 +613,7 @@ class _CategoriesHeader extends StatelessWidget {
             Text(
               'Drag to reorder. This is the order buyers see on the home strip '
               'and in every category picker. Changes reach open apps live.',
-              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
           ],
         ),
@@ -697,7 +697,7 @@ class _CategoryCard extends StatelessWidget {
                 '${c.attributes.length} spec '
                     '${c.attributes.length == 1 ? 'field' : 'fields'}',
             ].join('  ·  '),
-            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
           ),
           trailing: PopupMenuButton<String>(
             enabled: !busy,
@@ -776,7 +776,7 @@ class _SubRow extends StatelessWidget {
             color: AppColors.textMuted,
           ),
           const SizedBox(width: 6),
-          Expanded(child: Text(name, style: const TextStyle(fontSize: 13))),
+          Expanded(child: Text(name, style: const TextStyle(fontSize: 14))),
           if (advertiseOnly)
             const Padding(
               padding: EdgeInsetsDirectional.only(end: 4),
@@ -828,7 +828,7 @@ class _CatPill extends StatelessWidget {
       child: Text(
         text,
         style: TextStyle(
-          fontSize: 10,
+          fontSize: 11,
           color: color,
           fontWeight: FontWeight.w700,
         ),
@@ -925,7 +925,7 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
             const SizedBox(height: 14),
             Text(
               'Icon',
-              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 13, color: AppColors.textMuted),
             ),
             const SizedBox(height: 6),
             SizedBox(
@@ -954,7 +954,7 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
             const SizedBox(height: 12),
             Text(
               'Card colour',
-              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 13, color: AppColors.textMuted),
             ),
             const SizedBox(height: 6),
             SizedBox(
@@ -986,7 +986,7 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
                   child: Text(
                     'Spec fields',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       color: AppColors.textMuted,
                     ),
                   ),
@@ -1001,7 +1001,7 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
             Text(
               'Extra inputs sellers fill in when posting here, e.g. Year and '
               'KM driven for Motors.',
-              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
             const SizedBox(height: 4),
             SizedBox(
@@ -1012,7 +1012,7 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
                       child: Text(
                         'None. Sellers just get the standard fields.',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           fontStyle: FontStyle.italic,
                           color: AppColors.textMuted,
                         ),
@@ -1032,7 +1032,7 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
                               Expanded(
                                 child: Text(
                                   _attributes[i],
-                                  style: const TextStyle(fontSize: 13),
+                                  style: const TextStyle(fontSize: 14),
                                 ),
                               ),
                               IconButton(
@@ -1062,11 +1062,11 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
               contentPadding: EdgeInsets.zero,
               value: _advertiseOnly,
               onChanged: (v) => setState(() => _advertiseOnly = v ?? false),
-              title: const Text('Contact only', style: TextStyle(fontSize: 14)),
+              title: const Text('Contact only', style: TextStyle(fontSize: 15)),
               subtitle: Text(
                 'No Buy Now or checkout. Buyers call, WhatsApp or chat the '
                 'seller instead. Use for property, jobs and services.',
-                style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
             ),
           ],
@@ -1167,7 +1167,7 @@ Future<String?> _promptForText(
             const SizedBox(height: 10),
             Text(
               note,
-              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
           ],
         ],
@@ -1233,11 +1233,11 @@ class _SubEditorDialogState extends State<_SubEditorDialog> {
             contentPadding: EdgeInsets.zero,
             value: _advertiseOnly,
             onChanged: (v) => setState(() => _advertiseOnly = v ?? false),
-            title: const Text('Contact only', style: TextStyle(fontSize: 14)),
+            title: const Text('Contact only', style: TextStyle(fontSize: 15)),
             subtitle: Text(
               'Buyable category, but this subcategory is too big or awkward to '
               'ship (e.g. Cars within Motors).',
-              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
           ),
         ],

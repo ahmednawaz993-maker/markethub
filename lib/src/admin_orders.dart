@@ -387,7 +387,7 @@ class AdminOrderView extends StatelessWidget {
                 'The seller has not accepted this order within '
                 '$kSellerAcceptSlaHours hours$hrs. Contact them below, or '
                 'accept on their behalf to keep the buyer moving.',
-                style: const TextStyle(fontSize: 13),
+                style: const TextStyle(fontSize: 14),
               ),
             ),
           ],
@@ -421,13 +421,13 @@ class AdminOrderView extends StatelessWidget {
           width: 96,
           child: Text(
             label,
-            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 13, color: AppColors.textMuted),
           ),
         ),
         Expanded(
           child: Text(
             value.isEmpty ? '—' : value,
-            style: const TextStyle(fontSize: 13),
+            style: const TextStyle(fontSize: 14),
           ),
         ),
       ],
@@ -489,7 +489,7 @@ class AdminOrderView extends StatelessWidget {
                 Text(
                   _shortStepLabel(steps[i]),
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     color: i <= idx ? kPakGreen : Colors.grey,
                     fontWeight: i == idx ? FontWeight.bold : FontWeight.normal,
                   ),
@@ -684,7 +684,7 @@ class AdminOrderView extends StatelessWidget {
               Text(
                 '${e['action'] ?? ''} · ${e['by'] ?? ''}',
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -979,7 +979,7 @@ class AdminOrderView extends StatelessWidget {
                   'This order has money held or already paid out. Deleting it '
                   'leaves the payment and payout records pointing at an order '
                   'that no longer exists. Type $_number to confirm.',
-                  style: const TextStyle(color: Colors.red, fontSize: 13),
+                  style: const TextStyle(color: Colors.red, fontSize: 14),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 TextField(
@@ -1122,7 +1122,7 @@ class _ContactRowState extends State<_ContactRow> {
           children: [
             Text(
               widget.role,
-              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 13, color: AppColors.textMuted),
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(

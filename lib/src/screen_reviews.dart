@@ -179,7 +179,7 @@ class ReviewsScreen extends StatelessWidget {
                             timeAgo(r['createdAt'] as Timestamp?),
                             style: TextStyle(
                               color: AppColors.textMuted,
-                              fontSize: 12,
+                              fontSize: 13,
                             ),
                           ),
                         ],

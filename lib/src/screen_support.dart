@@ -287,14 +287,14 @@ class _TicketCard extends StatelessWidget {
             Text(
               '${data['category'] ?? ''}'
               '${showUser && (data['userEmail']?.toString().isNotEmpty ?? false) ? ' · ${data['userEmail']}' : ''}',
-              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 13, color: AppColors.textMuted),
             ),
             const SizedBox(height: 4),
             Text(
               data['lastMessage']?.toString() ?? '',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13),
+              style: const TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 6),
             Row(
@@ -318,7 +318,7 @@ class _TicketCard extends StatelessWidget {
     ),
     child: Text(
       text,
-      style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
+      style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
     ),
   );
 }
@@ -378,7 +378,7 @@ Future<void> _showNewTicketSheet(BuildContext context) async {
                       Expanded(
                         child: Text(
                           _categoryNote(category)!,
-                          style: const TextStyle(fontSize: 12, height: 1.3),
+                          style: const TextStyle(fontSize: 13, height: 1.3),
                         ),
                       ),
                     ],
@@ -742,7 +742,7 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                       '${d['category'] ?? ''}'
                       '${widget.adminView && (d['userEmail']?.toString().isNotEmpty ?? false) ? ' · ${d['userEmail']}' : ''}',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: AppColors.textMuted,
                       ),
                     ),
@@ -854,7 +854,7 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                                   ? 'PakBazar Support'
                                   : (m['senderName']?.toString() ?? 'User'),
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: isSupport
                                     ? AppColors.warning
@@ -881,7 +881,7 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                                 Text(
                                   timeAgo(m['createdAt'] as Timestamp?),
                                   style: TextStyle(
-                                    fontSize: 10,
+                                    fontSize: 11,
                                     color: AppColors.textMuted,
                                   ),
                                 ),
@@ -996,7 +996,7 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
     ),
     child: Text(
       text,
-      style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
+      style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.bold),
     ),
   );
 
@@ -1010,7 +1010,7 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
           minimumSize: const Size(0, 32),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
-        child: Text(text, style: const TextStyle(fontSize: 12)),
+        child: Text(text, style: const TextStyle(fontSize: 13)),
       );
 }
 
@@ -1674,7 +1674,7 @@ class _VoiceBubbleState extends State<_VoiceBubble> {
         const SizedBox(width: 8),
         Text(
           widget.durationSec > 0 ? _fmtClock(widget.durationSec) : 'Voice',
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
         ),
       ],
     );

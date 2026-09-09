@@ -298,7 +298,7 @@ class LuckyDrawBanner extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 15.5,
+                              fontSize: 16,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -317,7 +317,7 @@ class LuckyDrawBanner extends StatelessWidget {
                             '5 WINNERS',
                             style: TextStyle(
                               color: kPakGreenDeep,
-                              fontSize: 9,
+                              fontSize: 10,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -329,7 +329,7 @@ class LuckyDrawBanner extends StatelessWidget {
                       'Share more to win · draw on 14 Aug 2026',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                      style: TextStyle(color: Colors.white70, fontSize: 13),
                     ),
                   ],
                 ),
@@ -348,7 +348,7 @@ class LuckyDrawBanner extends StatelessWidget {
                   'Invite',
                   style: TextStyle(
                     color: kPakGreen,
-                    fontSize: 12,
+                    fontSize: 13,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -1467,7 +1467,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     label(),
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textSecondary,
                     ),

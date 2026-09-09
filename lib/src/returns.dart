@@ -261,14 +261,14 @@ class _BuyerReturnPendingCard extends StatelessWidget {
                 const Expanded(
                   child: Text(
                     'Return requested — under review',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                 ),
               ],
             ),
             Text(
               'Reason: $reason',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              style: const TextStyle(fontSize: 13, color: Colors.grey),
             ),
             Align(
               alignment: AlignmentDirectional.centerEnd,
@@ -337,16 +337,16 @@ class _SellerReturnCard extends StatelessWidget {
                 const Expanded(
                   child: Text(
                     'Buyer requested a return',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                 ),
               ],
             ),
-            Text('Reason: $reason', style: const TextStyle(fontSize: 12)),
+            Text('Reason: $reason', style: const TextStyle(fontSize: 13)),
             if (details.isNotEmpty)
               Text(
                 '“$details”',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: const TextStyle(fontSize: 13, color: Colors.grey),
               ),
             const SizedBox(height: 6),
             Row(
@@ -388,7 +388,7 @@ class _SellerReturnCard extends StatelessWidget {
                   ? 'The buyer will be refunded to their wallet and the order '
                         'marked returned. Arrange collection of the item.'
                   : 'The order stays as-is. Add a note for the buyer.',
-              style: const TextStyle(fontSize: 13),
+              style: const TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -472,7 +472,7 @@ Future<void> showReturnSheet(
                 const Text(
                   'Your payment is held by PakBazar. If the seller or PakBazar '
                   'approves, it is refunded to your wallet.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
                 ),
                 const SizedBox(height: 12),
                 const Text(

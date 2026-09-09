@@ -289,7 +289,7 @@ Widget _cancelBanner({
       children: [
         Icon(icon, size: 16, color: color),
         const SizedBox(width: 6),
-        Expanded(child: Text(text, style: const TextStyle(fontSize: 12))),
+        Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
       ],
     ),
   ),
@@ -366,7 +366,7 @@ class _BuyerPendingRequestCard extends StatelessWidget {
                 const Expanded(
                   child: Text(
                     'Cancellation requested — under review',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                 ),
               ],
@@ -374,7 +374,7 @@ class _BuyerPendingRequestCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               'Reason: $reason. Your request has been sent for review.',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              style: const TextStyle(fontSize: 13, color: Colors.grey),
             ),
             Align(
               alignment: AlignmentDirectional.centerEnd,
@@ -443,19 +443,19 @@ class _SellerCancellationCard extends StatelessWidget {
                 const Expanded(
                   child: Text(
                     'Buyer requested cancellation',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 2),
-            Text('Reason: $reason', style: const TextStyle(fontSize: 12)),
+            Text('Reason: $reason', style: const TextStyle(fontSize: 13)),
             if (details.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
                   '“$details”',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: const TextStyle(fontSize: 13, color: Colors.grey),
                 ),
               ),
             const SizedBox(height: 6),
@@ -498,7 +498,7 @@ class _SellerCancellationCard extends StatelessWidget {
                   ? 'The order will be cancelled. If the buyer already paid, '
                         'PakBazar refunds them automatically.'
                   : 'The order stays active. Add a short note for the buyer.',
-              style: const TextStyle(fontSize: 13),
+              style: const TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -597,7 +597,7 @@ Future<void> showCancellationSheet(
                 const SizedBox(height: 4),
                 Text(
                   explanation,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: const TextStyle(fontSize: 13, color: Colors.grey),
                 ),
                 const SizedBox(height: 12),
                 const Text(

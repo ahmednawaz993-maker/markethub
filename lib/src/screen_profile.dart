@@ -35,7 +35,7 @@ Future<void> showSupportSheet(BuildContext context) async {
                 Text(
                   'Need help or have an idea to improve PakBazar? Send it to our '
                   'team — we read every message.',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 14),
                 ),
                 const SizedBox(height: 12),
                 Wrap(
@@ -767,7 +767,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                                   'FREE',
                                   style: TextStyle(
                                     color: Colors.white,
-                                    fontSize: 10,
+                                    fontSize: 11,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -781,13 +781,13 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                               '${featuredUntil!.toDate().day}/'
                               '${featuredUntil!.toDate().month}/'
                               '${featuredUntil!.toDate().year}.',
-                              style: const TextStyle(fontSize: 13),
+                              style: const TextStyle(fontSize: 14),
                             )
                           else if (featuredTrialUsed)
                             Text(
                               'Your free 3-month trial has ended.',
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 14,
                                 color: AppColors.textMuted,
                               ),
                             )
@@ -796,7 +796,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
                               'Get a Featured Business spot on the home screen '
                               '— free for 3 months.',
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 14,
                                 color: AppColors.textMuted,
                               ),
                             ),
@@ -1299,7 +1299,7 @@ class TrustSafetyScreen extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 15.5,
+                    fontSize: 16,
                   ),
                 ),
               ],
@@ -1457,7 +1457,7 @@ class _LegalScreen extends StatelessWidget {
               children: [
                 Text(
                   'Last updated: $updated',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
                 ),
                 const SizedBox(height: 12),
                 for (final (heading, lines) in sections) ...[
@@ -1465,7 +1465,7 @@ class _LegalScreen extends StatelessWidget {
                     heading,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 15.5,
+                      fontSize: 16,
                       color: kPakGreen,
                     ),
                   ),
@@ -1488,7 +1488,7 @@ class _LegalScreen extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   'Questions? Contact us at ahmednawaz993@gmail.com.',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
                 ),
               ],
             ),
@@ -1923,7 +1923,7 @@ class _FollowStatsRow extends StatelessWidget {
           color: kPakGreen,
         ),
       ),
-      Text(label, style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
+      Text(label, style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
     ],
   );
 
@@ -2226,7 +2226,7 @@ class _AccountHeader extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 15.5,
+                        fontSize: 16,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
                       ),
@@ -2372,7 +2372,7 @@ class _MenuGroup extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
                     ),

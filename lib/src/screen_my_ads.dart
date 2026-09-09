@@ -15,7 +15,7 @@ Widget _statusChip(String label, Color color) {
       label,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color),
     ),
   );
 }
@@ -57,7 +57,7 @@ class SalesDashboardScreen extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 13, color: AppColors.textMuted),
           ),
         ],
       ),
@@ -178,7 +178,7 @@ class SalesDashboardScreen extends StatelessWidget {
                       '$sold item(s) sold${commissionActive ? ' · after 2% commission' : ' · 0% fee (free)'}',
                       style: const TextStyle(
                         color: Colors.white70,
-                        fontSize: 12,
+                        fontSize: 13,
                       ),
                     ),
                   ],
@@ -342,7 +342,7 @@ class _MonthBar extends StatelessWidget {
             width: 56,
             child: Text(
               label,
-              style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
+              style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
             ),
           ),
           Expanded(
@@ -375,7 +375,7 @@ class _MonthBar extends StatelessWidget {
               money
                   ? formatPrice(value.toStringAsFixed(0))
                   : '${value.toInt()}',
-              style: TextStyle(fontSize: 11, color: AppColors.textPrimary),
+              style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
               textAlign: TextAlign.end,
             ),
           ),
@@ -489,7 +489,7 @@ class SellerAnalyticsScreen extends StatelessWidget {
                           '${a.views} views · $l leads '
                           '(ðŸ“ž ${a.calls}  ðŸ’¬ ${a.chats}  ðŸŸ¢ ${a.whatsapps})',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 13,
                             color: AppColors.textMuted,
                           ),
                         ),
@@ -524,7 +524,7 @@ class SellerAnalyticsScreen extends StatelessWidget {
               ),
               Text(
                 label,
-                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 13, color: AppColors.textMuted),
               ),
             ],
           ),
@@ -567,7 +567,7 @@ Future<void> showLowerPriceSheet(BuildContext context, Listing listing) async {
                 Text(
                   'A lower price shows a "Price dropped" badge and alerts '
                   'everyone who saved this ad or follows you.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -937,7 +937,7 @@ class SellerDashboardScreen extends StatelessWidget {
       style: TextStyle(
         color: AppColors.textPrimary,
         fontWeight: FontWeight.bold,
-        fontSize: 15.5,
+        fontSize: 16,
       ),
     ),
   );
@@ -989,7 +989,7 @@ class SellerDashboardScreen extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               label,
-              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 13, color: AppColors.textMuted),
             ),
           ],
         ),
@@ -1213,7 +1213,7 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                     return ChoiceChip(
                       label: Text('${shelf.label} (${counts[shelf]})'),
                       labelStyle: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: selected
                             ? Colors.white

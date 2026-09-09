@@ -228,7 +228,7 @@ class _ChatScamBanner extends StatelessWidget {
             child: Text(
               'Stay safe: never pay in advance, share OTPs/bank details, or '
               'deal outside PakBazar. Report anyone who asks.',
-              style: TextStyle(fontSize: 12, color: Colors.black87),
+              style: TextStyle(fontSize: 13, color: Colors.black87),
             ),
           ),
         ],
@@ -579,7 +579,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 widget.listingTitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               )
             // The ad's title used to be a third line here. The strip under the
             // bar carries it now, with the photo and the price, so repeating
@@ -617,7 +617,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: Text(
                       'Admin monitoring — read only. You cannot send messages here.',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: AppColors.textPrimary,
                       ),
                     ),
@@ -761,7 +761,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                       child: Text(
                                         senderLabel,
                                         style: TextStyle(
-                                          fontSize: 10,
+                                          fontSize: 11,
                                           fontWeight: FontWeight.bold,
                                           color: isMine
                                               ? Colors.white70
@@ -813,7 +813,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                           data['createdAt'] as Timestamp?,
                                         ),
                                         style: TextStyle(
-                                          fontSize: 9,
+                                          fontSize: 10,
                                           color: isMine
                                               ? Colors.white70
                                               : Colors.black54,
@@ -874,7 +874,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                 visualDensity: VisualDensity.compact,
                                 label: Text(
                                   q,
-                                  style: const TextStyle(fontSize: 12),
+                                  style: const TextStyle(fontSize: 13),
                                 ),
                                 onPressed: () => sendMessage(q),
                               ),
