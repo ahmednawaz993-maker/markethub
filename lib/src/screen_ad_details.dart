@@ -1057,6 +1057,11 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
             ),
           ),
 
+          // Sits between the description and the safety notice on purpose: the
+          // buyer has just read what the thing is, and this is the moment they
+          // decide how many of them they want.
+          _MoreDesigns(listing: listing),
+
           const Padding(
             padding: EdgeInsets.fromLTRB(
               AppSpacing.page,
@@ -1319,6 +1324,403 @@ class _PriceInsight extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// The seller's other designs of the same thing, pickable in one go.
+///
+/// Sellers here do not post one ad with options — they post one ad PER design.
+/// "Meer Collections" has five separate DHANAK suit ads at the same price, one
+/// per embroidery. A buyer who wants two of them has to leave this page, find
+/// the other ad, and add each separately, which is exactly the point where
+/// somebody gives up and asks on WhatsApp instead.
+///
+/// So the designs come to the buyer: every in-stock ad from this seller in the
+/// same subcategory, each with a quantity, and one button that puts the lot in
+/// the cart. The cart is already multi-item and the master order already fans
+/// out per seller, so "ordered at the same time" needs no change to the money
+/// path — this is the selection step that was missing.
+///
+/// THIS ad is the first tile and starts selected, because the buyer is already
+/// looking at it: the common case is "this one, plus that one", and making them
+/// tick the thing they are reading would be silly.
+class _MoreDesigns extends StatefulWidget {
+  final Listing listing;
+
+  const _MoreDesigns({required this.listing});
+
+  @override
+  State<_MoreDesigns> createState() => _MoreDesignsState();
+}
+
+class _MoreDesignsState extends State<_MoreDesigns> {
+  /// listingId → quantity. Absent means unselected; the current ad starts here.
+  late final Map<String, int> _picked = {widget.listing.id: 1};
+  bool _busy = false;
+
+  /// Matching is by subcategory when the ad has one, because that is what
+  /// separates "another design of this suit" from "this seller also sells
+  /// watches". Only ads with no subcategory at all fall back to the category.
+  bool _isSibling(Listing l) {
+    if (l.id == widget.listing.id) return false;
+    if (!l.isApproved || !l.isAvailableForSale || !isBuyable(l)) return false;
+    return widget.listing.subcategory.isNotEmpty
+        ? l.subcategory == widget.listing.subcategory
+        : l.category == widget.listing.category;
+  }
+
+  void _toggle(String id) => setState(() {
+    if (_picked.containsKey(id)) {
+      _picked.remove(id);
+    } else {
+      _picked[id] = 1;
+    }
+  });
+
+  /// Clamped to the same ceiling as [updateCartQty], so a held-down stepper
+  /// cannot build a line the cart would then refuse to reproduce.
+  void _setQty(String id, int q) => setState(() {
+    if (q < 1) {
+      _picked.remove(id);
+    } else {
+      _picked[id] = q > 99 ? 99 : q;
+    }
+  });
+
+  Future<void> _addPicked(List<Listing> pool) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final byId = {for (final l in pool) l.id: l};
+
+    var added = 0;
+    var refused = 0;
+    for (final entry in _picked.entries) {
+      final l = byId[entry.key];
+      // An ad the seller marked sold while this page was open is skipped
+      // rather than silently dropped — the count in the snackbar is what
+      // actually reached the cart.
+      if (l == null) continue;
+      final ok = await addListingToCart(l, qty: entry.value);
+      ok ? added += entry.value : refused++;
+    }
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      // Back to the starting state: this ad only. Leaving four designs ticked
+      // after they are in the cart invites adding them twice.
+      _picked
+        ..clear()
+        ..[widget.listing.id] = 1;
+    });
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          added == 0
+              ? 'Those designs are no longer available.'
+              : '$added item${added == 1 ? '' : 's'} added to cart'
+                    '${refused > 0 ? ' · $refused unavailable' : ''}.',
+        ),
+        action: added == 0
+            ? null
+            : SnackBarAction(
+                label: 'View cart',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CartScreen()),
+                ),
+              ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final me = FirebaseAuth.instance.currentUser?.uid;
+    // Nothing to offer on your own ad, on an ad nobody can buy, or from a
+    // seller the app is hiding.
+    if (me == widget.listing.userId ||
+        !widget.listing.isAvailableForSale ||
+        !isBuyable(widget.listing) ||
+        isHiddenSeller(widget.listing.userId)) {
+      return const SizedBox.shrink();
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      // Ordered, not just limited: a shop with 200 ads would otherwise hand
+      // back an arbitrary 40 and the designs posted this week — the ones a
+      // buyer is here for — might not be among them. The
+      // userId + approvalStatus + createdAt index this needs already exists
+      // (My Ads uses it), so it costs nothing to ask for.
+      stream: FirebaseFirestore.instance
+          .collection('listings')
+          .where('userId', isEqualTo: widget.listing.userId)
+          .where('approvalStatus', isEqualTo: 'approved')
+          .orderBy('createdAt', descending: true)
+          .limit(40)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+
+        // Already newest-first from the query.
+        final siblings = snapshot.data!.docs
+            .map((d) => Listing.fromDoc(d))
+            .where(_isSibling)
+            .toList();
+        if (siblings.isEmpty) return const SizedBox.shrink();
+
+        final pool = [widget.listing, ...siblings.take(12)];
+        // A tile the buyer scrolled past and ticked, on an ad that has since
+        // gone out of stock, must not keep counting toward the total.
+        final live = {for (final l in pool) l.id};
+        final units = _picked.entries
+            .where((e) => live.contains(e.key))
+            .fold<int>(0, (a, e) => a + e.value);
+        final total = _picked.entries
+            .where((e) => live.contains(e.key))
+            .fold<double>(
+              0,
+              (a, e) =>
+                  a +
+                  parsePrice(pool.firstWhere((l) => l.id == e.key).price) *
+                      e.value,
+            );
+
+        return Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.section),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SectionHeader(
+                title: 'More designs from this seller',
+                subtitle: 'Pick the ones you want — they go in one order.',
+                icon: Icons.grid_view_rounded,
+              ),
+              SizedBox(
+                height: _DesignTile.height,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.page,
+                  ),
+                  itemCount: pool.length,
+                  separatorBuilder: (_, _) =>
+                      const SizedBox(width: AppSpacing.md),
+                  itemBuilder: (context, i) {
+                    final l = pool[i];
+                    return _DesignTile(
+                      listing: l,
+                      isThisAd: i == 0,
+                      quantity: _picked[l.id],
+                      onToggle: () => _toggle(l.id),
+                      onQty: (q) => _setQty(l.id, q),
+                    );
+                  },
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.page,
+                  AppSpacing.md,
+                  AppSpacing.page,
+                  0,
+                ),
+                child: PrimaryActionButton(
+                  label: units == 0
+                      ? 'Select a design'
+                      : 'Add $units item${units == 1 ? '' : 's'} to cart · '
+                            '${formatPrice(total.toStringAsFixed(0))}',
+                  icon: Icons.add_shopping_cart,
+                  busy: _busy,
+                  onPressed: units == 0 ? null : () => _addPicked(pool),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// One design in the picker: photo, price, and a tick that becomes a stepper.
+class _DesignTile extends StatelessWidget {
+  final Listing listing;
+  final bool isThisAd;
+  final int? quantity; // null = not selected
+  final VoidCallback onToggle;
+  final ValueChanged<int> onQty;
+
+  const _DesignTile({
+    required this.listing,
+    required this.isThisAd,
+    required this.quantity,
+    required this.onToggle,
+    required this.onQty,
+  });
+
+  static const double width = 148;
+
+  /// Photo + price line + title line + the stepper row, all fixed, so the rail
+  /// gets a real height instead of a guessed one.
+  static const double height = width + 104;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = quantity != null;
+    return SizedBox(
+      width: width,
+      child: AppCard(
+        padding: EdgeInsets.zero,
+        color: selected ? AppColors.primarySoft : null,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                SizedBox(
+                  width: width,
+                  height: width,
+                  child: AppNetworkImage(
+                    url: listing.imageUrl,
+                    decodeWidth: width,
+                  ),
+                ),
+                Positioned(
+                  top: AppSpacing.sm,
+                  left: AppSpacing.sm,
+                  child: GestureDetector(
+                    onTap: onToggle,
+                    child: Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        color: selected ? AppColors.accent : AppColors.surface,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: selected
+                              ? AppColors.accent
+                              : AppColors.borderSoft,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Icon(
+                        selected ? Icons.check : Icons.add,
+                        size: 17,
+                        color: selected
+                            ? AppColors.textOnPrimary
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+                if (isThisAd)
+                  Positioned(
+                    top: AppSpacing.sm,
+                    right: AppSpacing.sm,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.overlay,
+                        borderRadius: AppRadius.rPill,
+                      ),
+                      child: Text(
+                        'This ad',
+                        style: AppType.caption.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.sm,
+                AppSpacing.sm,
+                AppSpacing.sm,
+                0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    formatPrice(listing.price),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.price,
+                  ),
+                  Text(
+                    listing.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.caption,
+                  ),
+                ],
+              ),
+            ),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xs,
+                0,
+                AppSpacing.xs,
+                AppSpacing.xs,
+              ),
+              child: selected
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _StepButton(
+                          icon: Icons.remove,
+                          onTap: () => onQty(quantity! - 1),
+                        ),
+                        Text('$quantity', style: AppType.cardTitle),
+                        _StepButton(
+                          icon: Icons.add,
+                          onTap: () => onQty(quantity! + 1),
+                        ),
+                      ],
+                    )
+                  : SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: onToggle,
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        child: const Text('Select'),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StepButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _StepButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: AppRadius.rPill,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Icon(icon, size: 18, color: AppColors.textSecondary),
+      ),
     );
   }
 }
