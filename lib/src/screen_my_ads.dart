@@ -199,19 +199,19 @@ class SalesDashboardScreen extends StatelessWidget {
                     'Commission paid',
                     formatPrice(commissionPaid.toStringAsFixed(0)),
                     Icons.percent,
-                    Colors.deepOrange,
+                    AppColors.warning,
                   ),
                   _metric(
                     'In escrow ($escrowCount)',
                     formatPrice(inEscrow.toStringAsFixed(0)),
                     Icons.lock_clock,
-                    Colors.blue,
+                    AppColors.info,
                   ),
                   _metric(
                     'COD pending ($codCount)',
                     formatPrice(codPending.toStringAsFixed(0)),
                     Icons.local_shipping,
-                    Colors.purple,
+                    AppColors.info,
                   ),
                 ],
               ),
@@ -352,7 +352,7 @@ class _MonthBar extends StatelessWidget {
                   Container(
                     height: 22,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
+                      color: AppColors.borderSoft,
                       borderRadius: AppRadius.rSm,
                     ),
                   ),
@@ -480,7 +480,7 @@ class SellerAnalyticsScreen extends StatelessWidget {
                           child: LinearProgressIndicator(
                             value: (a.views / maxViews).clamp(0.0, 1.0),
                             minHeight: 8,
-                            backgroundColor: Colors.grey.shade200,
+                            backgroundColor: AppColors.borderSoft,
                             valueColor: const AlwaysStoppedAnimation(kPakGreen),
                           ),
                         ),
@@ -709,7 +709,7 @@ class SellerDashboardScreen extends StatelessWidget {
                         .length;
                     return _statCardTile(
                       icon: Icons.local_shipping,
-                      color: Colors.orange,
+                      color: AppColors.warning,
                       value: '$n',
                       label: 'Orders to fulfill',
                       onTap: () => Navigator.push(
@@ -1338,9 +1338,9 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                       ),
                       TextButton(
                         onPressed: () => Navigator.pop(context, true),
-                        child: const Text(
+                        child: Text(
                           'Delete',
-                          style: TextStyle(color: Colors.red),
+                          style: TextStyle(color: AppColors.error),
                         ),
                       ),
                     ],
@@ -1383,18 +1383,18 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                 ),
               ),
               if (!listing.isSold)
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'lower',
                   child: ListTile(
-                    leading: Icon(Icons.south, color: Colors.deepOrange),
+                    leading: Icon(Icons.south, color: AppColors.warning),
                     title: Text('Lower price'),
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'delete',
                 child: ListTile(
-                  leading: Icon(Icons.delete, color: Colors.red),
+                  leading: Icon(Icons.delete, color: AppColors.error),
                   title: Text('Delete'),
                   contentPadding: EdgeInsets.zero,
                 ),

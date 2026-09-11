@@ -219,16 +219,16 @@ class _ChatScamBanner extends StatelessWidget {
     return Container(
       width: double.infinity,
       color: const Color(0xFFFFF3CD),
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: EdgeInsets.all(AppSpacing.md),
       child: Row(
-        children: const [
-          Icon(Icons.warning_amber_rounded, color: Colors.deepOrange, size: 20),
+        children: [
+          Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 20),
           SizedBox(width: 8),
           Expanded(
             child: Text(
               'Stay safe: never pay in advance, share OTPs/bank details, or '
               'deal outside PakBazar. Report anyone who asks.',
-              style: TextStyle(fontSize: 13, color: Colors.black87),
+              style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
             ),
           ),
         ],
@@ -742,7 +742,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               decoration: BoxDecoration(
                                 color: isMine
                                     ? kPakGreen
-                                    : Colors.grey.shade300,
+                                    : AppColors.border,
                                 borderRadius: BorderRadius.only(
                                   topLeft: const Radius.circular(14),
                                   topRight: const Radius.circular(14),
@@ -801,7 +801,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                       style: TextStyle(
                                         color: isMine
                                             ? Colors.white
-                                            : Colors.black87,
+                                            : AppColors.textPrimary,
                                       ),
                                     ),
                                   const SizedBox(height: 2),

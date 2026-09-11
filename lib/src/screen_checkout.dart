@@ -18,7 +18,7 @@ class FreeDeliveryBanner extends StatelessWidget {
     final qualifies = qualifiesForFreeDelivery(subtotal);
     final remaining = amountToFreeDelivery(subtotal);
     final progress = (subtotal / freeDeliveryThreshold).clamp(0.0, 1.0);
-    final accent = qualifies ? kPakGreen : Colors.amber.shade800;
+    final accent = qualifies ? kPakGreen : AppColors.warning;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.md),

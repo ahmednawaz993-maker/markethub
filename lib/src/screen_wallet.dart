@@ -512,7 +512,7 @@ class _BannerAdScreenState extends State<BannerAdScreen> {
                   aspectRatio: 16 / 6,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
+                      color: AppColors.borderSoft,
                       borderRadius: AppRadius.rMd,
                       image: imageUrl != null
                           ? DecorationImage(

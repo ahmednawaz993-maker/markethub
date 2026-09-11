@@ -57,6 +57,57 @@ Future<void> setThemeMode(ThemeMode mode) async {
   } catch (_) {}
 }
 
+/// How tightly the app is packed. One control over two levers that already
+/// exist, rather than a third spacing scale to keep in sync:
+///
+///  * **text scale** — multiplies the type scale, and with it every height the
+///    design system derives from type (listing cards and rails measure their
+///    own text: see MarketplaceListingCard.infoHeightFor). So compact does not
+///    just shrink letters, it shortens the cards they sit in.
+///  * **visual density** — Material's own knob for the padding inside buttons,
+///    list tiles, chips and inputs.
+///
+/// Deliberately NOT a third thing that rescales [AppSpacing]: those are `const`
+/// and used inside `const` constructors in several hundred places, so making
+/// them run-time values would be a rewrite of every screen for a few pixels.
+enum AppDensity {
+  compact('Compact', 0.92, -1),
+  standard('Default', 1, 0),
+  large('Large', 1.1, 0.5);
+
+  const AppDensity(this.label, this.textScale, this._density);
+  final String label;
+  final double textScale;
+  final double _density;
+
+  VisualDensity get visualDensity =>
+      VisualDensity(horizontal: _density, vertical: _density);
+}
+
+/// Current layout density; persisted and listened to by PakBazarApp.
+final ValueNotifier<AppDensity> appDensity = ValueNotifier<AppDensity>(
+  AppDensity.standard,
+);
+const String _densityPrefKey = 'app_density';
+
+Future<void> loadSavedDensity() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_densityPrefKey);
+    for (final d in AppDensity.values) {
+      if (d.name == saved) appDensity.value = d;
+    }
+  } catch (_) {}
+}
+
+Future<void> setDensity(AppDensity d) async {
+  appDensity.value = d;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_densityPrefKey, d.name);
+  } catch (_) {}
+}
+
 /// Centralised, theme-aware semantic colours. Screens reference these instead of
 /// hardcoding raw values, so both light and dark modes stay readable.
 ///
@@ -360,10 +411,75 @@ class ThemeTile extends StatelessWidget {
   }
 }
 
+/// A Compact / Default / Large size selector, sitting next to [ThemeTile].
+class DensityTile extends StatelessWidget {
+  const DensityTile({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<AppDensity>(
+      valueListenable: appDensity,
+      builder: (context, current, _) {
+        Widget chip(AppDensity d, IconData icon) => ChoiceChip(
+          avatar: Icon(
+            icon,
+            size: 16,
+            color: current == d ? Colors.white : AppColors.textMuted,
+          ),
+          label: Text(
+            d.label,
+            style: TextStyle(
+              color: current == d ? Colors.white : AppColors.textSecondary,
+            ),
+          ),
+          selected: current == d,
+          onSelected: (_) => setDensity(d),
+        );
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.format_size, color: kPakGreen),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Size',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  'How much fits on a screen.',
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    chip(AppDensity.compact, Icons.density_small),
+                    chip(AppDensity.standard, Icons.density_medium),
+                    chip(AppDensity.large, Icons.density_large),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// Builds the light or dark theme. Because it is constructed once per mode
 /// (not per frame), it uses explicit [brightness]-derived colours rather than
 /// the live [AppColors] getters.
-ThemeData buildAppTheme(Brightness brightness) {
+ThemeData buildAppTheme(Brightness brightness, [AppDensity? density]) {
   final dark = brightness == Brightness.dark;
   final background = dark ? const Color(0xFF0A1526) : const Color(0xFFF7F8FA);
   final surface = dark ? const Color(0xFF17253F) : Colors.white;
@@ -399,6 +515,10 @@ ThemeData buildAppTheme(Brightness brightness) {
       error: errorCol,
     ),
     fontFamily: 'Roboto',
+    // Material's own padding knob, driven by the Size selector: it tightens or
+    // loosens buttons, list tiles, chips and inputs without touching a single
+    // call site.
+    visualDensity: (density ?? appDensity.value).visualDensity,
   );
 
   return base.copyWith(

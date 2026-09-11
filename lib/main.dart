@@ -189,6 +189,7 @@ Future<void> main() async {
   // the wrong one.
   await loadSavedLocale();
   await loadSavedThemeMode();
+  await loadSavedDensity();
 
   runApp(const PakBazarApp());
 

@@ -309,19 +309,19 @@ Future<void> showInventorySheet(BuildContext context, Listing listing) async {
     'in_stock' => (icon: Icons.check_circle, color: kPakGreen, confirm: null),
     'out_of_stock' => (
       icon: Icons.remove_shopping_cart,
-      color: Colors.orange,
+      color: AppColors.warning,
       confirm: null,
     ),
     'sold' => (
       icon: Icons.sell,
-      color: Colors.red,
+      color: AppColors.error,
       confirm:
           'Buyers will no longer be able to purchase this item. '
           'You can set it back to In stock anytime.',
     ),
     _ => (
       icon: Icons.visibility_off,
-      color: Colors.blueGrey,
+      color: AppColors.info,
       confirm:
           'This hides the listing from buyers without deleting it. '
           'Reviews, orders, images and analytics are kept.',

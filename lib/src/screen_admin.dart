@@ -3661,17 +3661,17 @@ class _MasterOrdersPanel extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
                   child: Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.local_shipping_outlined,
                         size: 18,
-                        color: Colors.deepPurple,
+                        color: AppColors.info,
                       ),
                       const SizedBox(width: 6),
                       Text(
                         'Multi-seller orders (${docs.length})',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: Colors.deepPurple,
+                          color: AppColors.info,
                         ),
                       ),
                     ],
@@ -3715,7 +3715,7 @@ class _MasterOrderTile extends StatelessWidget {
         style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: mo.allDelivered ? kPakGreen : Colors.deepPurple,
+          color: mo.allDelivered ? kPakGreen : AppColors.info,
         ),
       ),
       children: [
@@ -4206,7 +4206,7 @@ class _PendingRefundsPanel extends StatelessWidget {
         if (docs.isEmpty) return const SizedBox.shrink();
         return Card(
           margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          color: Colors.deepPurple.shade50,
+          color: AppColors.info.withValues(alpha: 0.10),
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.md),
             child: Column(
@@ -4214,9 +4214,9 @@ class _PendingRefundsPanel extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.currency_exchange,
-                      color: Colors.deepPurple,
+                      color: AppColors.info,
                       size: 18,
                     ),
                     const SizedBox(width: 6),
@@ -4296,7 +4296,7 @@ class _RefundRequestRow extends StatelessWidget {
               const SizedBox(width: 4),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
+                  backgroundColor: AppColors.info,
                 ),
                 onPressed: () => _approve(context),
                 child: const Text('Approve refund'),

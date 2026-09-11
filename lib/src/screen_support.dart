@@ -97,9 +97,9 @@ Future<String?> createSupportTicket({
 
 /// (label, colour) for a ticket status.
 (String, Color) _ticketStatusChip(String s) => switch (s) {
-  'resolved' => ('Resolved', Colors.green),
-  'in_progress' => ('In progress', Colors.blue),
-  _ => ('Open', Colors.orange),
+  'resolved' => ('Resolved', AppColors.success),
+  'in_progress' => ('In progress', AppColors.info),
+  _ => ('Open', AppColors.warning),
 };
 
 String _fmtDur(Duration d) {
@@ -110,17 +110,17 @@ String _fmtDur(Duration d) {
 /// (label, colour) describing the 24h SLA state of a ticket.
 (String, Color) _slaInfo(Map<String, dynamic> t) {
   final status = t['status']?.toString() ?? 'open';
-  if (status == 'resolved') return ('Resolved', Colors.green);
+  if (status == 'resolved') return ('Resolved', AppColors.success);
   final due = (t['slaDueAt'] as Timestamp?)?.toDate();
   if (due == null) return ('Open', kPakGreen);
   final now = DateTime.now();
   if (now.isAfter(due)) {
-    return ('Overdue by ${_fmtDur(now.difference(due))}', Colors.red);
+    return ('Overdue by ${_fmtDur(now.difference(due))}', AppColors.error);
   }
   final left = due.difference(now);
   return (
     'Due in ${_fmtDur(left)}',
-    left.inHours < 6 ? Colors.orange : kPakGreen,
+    left.inHours < 6 ? AppColors.warning : kPakGreen,
   );
 }
 
@@ -758,19 +758,19 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                           if (status != 'in_progress' && status != 'resolved')
                             _actionChip(
                               'Mark in progress',
-                              Colors.blue,
+                              AppColors.info,
                               () => _setStatus('in_progress'),
                             ),
                           if (status != 'resolved')
                             _actionChip(
                               'Mark resolved',
-                              Colors.green,
+                              AppColors.success,
                               () => _setStatus('resolved'),
                             ),
                           if (status == 'resolved')
                             _actionChip(
                               'Reopen',
-                              Colors.orange,
+                              AppColors.warning,
                               () => _setStatus('open'),
                             ),
                         ],
@@ -920,7 +920,7 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                       children: [
                         IconButton(
                           tooltip: 'Cancel',
-                          icon: const Icon(Icons.delete, color: Colors.red),
+                          icon: Icon(Icons.delete, color: AppColors.error),
                           onPressed: _cancelRecording,
                         ),
                         const _RecordingDot(),
@@ -1205,7 +1205,7 @@ class CareNumbersAdminScreen extends StatelessWidget {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: Text('Delete', style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
@@ -1274,10 +1274,10 @@ class CareNumbersAdminScreen extends StatelessWidget {
                                     onPressed: () => _edit(context, numbers, i),
                                   ),
                                   IconButton(
-                                    icon: const Icon(
+                                    icon: Icon(
                                       Icons.delete,
                                       size: 20,
-                                      color: Colors.red,
+                                      color: AppColors.error,
                                     ),
                                     onPressed: () =>
                                         _delete(context, numbers, i),
@@ -1570,8 +1570,8 @@ class _RecordingDotState extends State<_RecordingDot>
       child: Container(
         width: 12,
         height: 12,
-        decoration: const BoxDecoration(
-          color: Colors.red,
+        decoration: BoxDecoration(
+          color: AppColors.error,
           shape: BoxShape.circle,
         ),
       ),

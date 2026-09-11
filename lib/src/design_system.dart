@@ -1929,8 +1929,16 @@ class CategoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The tile widens with the text, not just taller. Its height already
+    // budgets two scaled lines, but the width was fixed — so at the Large size
+    // setting "Supplements" no longer fitted the two lines and broke as
+    // "Supplement / s". The circle stays 58; only the label gets the room.
+    final scale = (MediaQuery.textScalerOf(context).scale(100) / 100).clamp(
+      0.9,
+      1.4,
+    );
     return SizedBox(
-      width: width,
+      width: width * scale,
       child: InkWell(
         borderRadius: AppRadius.rMd,
         onTap: onTap,

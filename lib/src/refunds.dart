@@ -178,7 +178,7 @@ class RefundSection extends StatelessWidget {
           if (!hasPending) return const SizedBox.shrink();
           return _cancelBanner(
             icon: Icons.hourglass_top,
-            color: Colors.deepPurple,
+            color: AppColors.info,
             text: 'Buyer requested a refund — under PakBazar review.',
           );
         }
@@ -196,7 +196,7 @@ class RefundSection extends StatelessWidget {
           final note = data['refundDecisionNote']?.toString() ?? '';
           return _cancelBanner(
             icon: Icons.info_outline,
-            color: Colors.orange,
+            color: AppColors.warning,
             text: note.isEmpty
                 ? 'Your refund request was declined.'
                 : 'Refund request declined: $note',
@@ -205,7 +205,7 @@ class RefundSection extends StatelessWidget {
         if (reqStatus == 'approved') {
           return _cancelBanner(
             icon: Icons.account_balance_wallet,
-            color: Colors.green,
+            color: AppColors.success,
             text: 'Refund approved — credited to your PakBazar wallet.',
           );
         }
@@ -229,7 +229,7 @@ class _BuyerRefundAction extends StatelessWidget {
         onPressed: () => showRefundSheet(context, orderId, data),
         icon: const Icon(Icons.currency_exchange, size: 16),
         label: const Text('Request refund'),
-        style: TextButton.styleFrom(foregroundColor: Colors.deepPurple),
+        style: TextButton.styleFrom(foregroundColor: AppColors.info),
       ),
     );
   }
@@ -253,19 +253,19 @@ class _BuyerRefundPendingCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: Colors.deepPurple.withValues(alpha: 0.08),
+          color: AppColors.info.withValues(alpha: 0.08),
           borderRadius: AppRadius.rSm,
-          border: Border.all(color: Colors.deepPurple.withValues(alpha: 0.3)),
+          border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.hourglass_top,
                   size: 16,
-                  color: Colors.deepPurple,
+                  color: AppColors.info,
                 ),
                 const SizedBox(width: 6),
                 const Expanded(
@@ -279,7 +279,7 @@ class _BuyerRefundPendingCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               'Reason: $reason. PakBazar is reviewing your request.',
-              style: const TextStyle(fontSize: 13, color: Colors.grey),
+              style: TextStyle(fontSize: 13, color: AppColors.textMuted),
             ),
             Align(
               alignment: AlignmentDirectional.centerEnd,
@@ -342,10 +342,10 @@ Future<void> showRefundSheet(
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'Your payment is held by PakBazar. If PakBazar approves, it '
                   'is refunded to your wallet (in full or in part).',
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 12),
                 const Text(

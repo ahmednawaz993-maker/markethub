@@ -1273,15 +1273,15 @@ class _PriceInsight extends StatelessWidget {
         if (ratio <= 0.85) {
           label = 'Great price';
           icon = Icons.thumb_up;
-          color = Colors.green.shade700;
+          color = AppColors.success;
         } else if (ratio <= 1.12) {
           label = 'Fair price';
           icon = Icons.check_circle;
-          color = Colors.blue.shade700;
+          color = AppColors.info;
         } else {
           label = 'Above typical';
           icon = Icons.trending_up;
-          color = Colors.orange.shade800;
+          color = AppColors.warning;
         }
 
         final scope = sameSub ? listing.subcategory : listing.category;
@@ -1804,7 +1804,7 @@ class _SafetyTips extends StatelessWidget {
     return Card(
       color: dark ? const Color(0xFF33301E) : Colors.amber.shade50,
       child: ExpansionTile(
-        leading: const Icon(Icons.shield_outlined, color: Colors.amber),
+        leading: Icon(Icons.shield_outlined, color: AppColors.warning),
         title: const Text('Safety tips'),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         children: [

@@ -73,14 +73,14 @@ class OrderFulfillmentPanel extends StatelessWidget {
                     ? Icons.check_circle
                     : Icons.radio_button_unchecked,
                 size: 14,
-                color: i <= activeIdx ? kPakGreen : Colors.grey.shade400,
+                color: i <= activeIdx ? kPakGreen : AppColors.disabled,
               ),
               const SizedBox(width: 2),
               Text(
                 _shipSteps[i].label,
                 style: TextStyle(
                   fontSize: 11,
-                  color: i <= activeIdx ? kPakGreen : Colors.grey,
+                  color: i <= activeIdx ? kPakGreen : AppColors.textMuted,
                   fontWeight: i == activeIdx
                       ? FontWeight.bold
                       : FontWeight.normal,

@@ -782,15 +782,15 @@ class _OrdersListState extends State<_OrdersList> {
                   Container(
                     padding: const EdgeInsets.all(AppSpacing.sm),
                     decoration: BoxDecoration(
-                      color: Colors.indigo.withValues(alpha: 0.08),
+                      color: AppColors.info.withValues(alpha: 0.08),
                       borderRadius: AppRadius.rSm,
                     ),
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.local_shipping,
                           size: 16,
-                          color: Colors.indigo,
+                          color: AppColors.info,
                         ),
                         const SizedBox(width: 6),
                         Expanded(
@@ -820,10 +820,10 @@ class _OrdersListState extends State<_OrdersList> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.hourglass_top,
                         size: 16,
-                        color: Colors.orange,
+                        color: AppColors.warning,
                       ),
                       const SizedBox(width: 6),
                       Expanded(
@@ -882,11 +882,11 @@ class _OrdersListState extends State<_OrdersList> {
                     runSpacing: 4,
                     children: [
                       if (asSeller && status == 'released')
-                        const Text(
+                        Text(
                           'Paid to your wallet',
                           style: TextStyle(
                             fontSize: 13,
-                            color: Colors.green,
+                            color: AppColors.success,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -975,17 +975,17 @@ class _MultiPackageBanner extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: Colors.deepPurple.withValues(alpha: 0.08),
+        color: AppColors.info.withValues(alpha: 0.08),
         borderRadius: AppRadius.rSm,
-        border: Border.all(color: Colors.deepPurple.withValues(alpha: 0.25)),
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.25)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
+          Icon(
             Icons.local_shipping_outlined,
             size: 18,
-            color: Colors.deepPurple,
+            color: AppColors.info,
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -999,9 +999,9 @@ class _MultiPackageBanner extends StatelessWidget {
                         master.isEmpty
                             ? 'Package $packages of a multi-seller order'
                             : 'Order $master · $packages packages',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: Colors.deepPurple,
+                          color: AppColors.info,
                           fontSize: 14,
                         ),
                       ),
@@ -1014,7 +1014,7 @@ class _MultiPackageBanner extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: allDone ? kPakGreen : Colors.deepPurple,
+                        color: allDone ? kPakGreen : AppColors.info,
                       ),
                     ),
                   ],
@@ -1073,7 +1073,7 @@ class _OrderDeliveryPanel extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: Colors.grey.withValues(alpha: 0.07),
+          color: AppColors.textMuted.withValues(alpha: 0.07),
           borderRadius: AppRadius.rSm,
         ),
         child: Column(

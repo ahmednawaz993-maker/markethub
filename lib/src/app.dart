@@ -12,37 +12,81 @@ class PakBazarApp extends StatelessWidget {
     return ValueListenableBuilder<Locale>(
       valueListenable: appLocale,
       builder: (context, locale, _) {
-        return ValueListenableBuilder<ThemeMode>(
-          valueListenable: appThemeMode,
-          builder: (context, mode, _) {
-            return MaterialApp(
-              title: 'PakBazar',
-              debugShowCheckedModeBanner: false,
-              navigatorKey: rootNavigatorKey,
-              scaffoldMessengerKey: rootMessengerKey,
-              theme: buildAppTheme(Brightness.light),
-              darkTheme: buildAppTheme(Brightness.dark),
-              themeMode: mode,
-              locale: locale,
-              supportedLocales: const [kEnglish, kUrdu],
-              localizationsDelegates: const [
-                GlobalMaterialLocalizations.delegate,
-                GlobalWidgetsLocalizations.delegate,
-                GlobalCupertinoLocalizations.delegate,
-              ],
-              builder: (context, child) {
-                // Record the resolved brightness so AppColors getters (read in
-                // screens further down) return the matching light/dark family.
-                appBrightnessValue = Theme.of(context).brightness;
-                return AppBackground(child: child ?? const SizedBox());
+        return ValueListenableBuilder<AppDensity>(
+          valueListenable: appDensity,
+          builder: (context, density, _) {
+            return ValueListenableBuilder<ThemeMode>(
+              valueListenable: appThemeMode,
+              builder: (context, mode, _) {
+                return MaterialApp(
+                  title: 'PakBazar',
+                  debugShowCheckedModeBanner: false,
+                  navigatorKey: rootNavigatorKey,
+                  scaffoldMessengerKey: rootMessengerKey,
+                  theme: buildAppTheme(Brightness.light, density),
+                  darkTheme: buildAppTheme(Brightness.dark, density),
+                  themeMode: mode,
+                  locale: locale,
+                  supportedLocales: const [kEnglish, kUrdu],
+                  localizationsDelegates: const [
+                    GlobalMaterialLocalizations.delegate,
+                    GlobalWidgetsLocalizations.delegate,
+                    GlobalCupertinoLocalizations.delegate,
+                  ],
+                  builder: (context, child) {
+                    // Record the resolved brightness so AppColors getters (read in
+                    // screens further down) return the matching light/dark family.
+                    final brightness = Theme.of(context).brightness;
+                    if (brightness != appBrightnessValue) {
+                      appBrightnessValue = brightness;
+                      // AppColors reads that GLOBAL, not an InheritedWidget, so
+                      // Flutter has no dependency to invalidate: switching the
+                      // theme rebuilds MaterialApp and anything that reads
+                      // Theme.of, and leaves every widget that only read the
+                      // global holding the colours of the theme it was built in.
+                      // Which is why dark mode used to open with "Browse
+                      // categories" and "What's New on PakBazar" still painted in
+                      // light-mode navy — invisible on a dark page — until the
+                      // screen happened to rebuild for some other reason.
+                      //
+                      // So mark the tree dirty by hand, once, after the frame that
+                      // changed it. Elements rebuild but State survives, so this
+                      // costs one extra build pass on a theme toggle and keeps
+                      // scroll positions, routes and open streams intact.
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        void markDirty(Element el) {
+                          el.markNeedsBuild();
+                          el.visitChildren(markDirty);
+                        }
+
+                        if (context is Element && context.mounted) {
+                          context.visitChildren(markDirty);
+                        }
+                      });
+                    }
+                    // The Size selector's other half. Multiplied onto whatever the
+                    // device is already asking for, so someone who has raised
+                    // their phone's font size keeps that and this sits on top,
+                    // rather than the app quietly overriding an accessibility
+                    // setting.
+                    final mq = MediaQuery.of(context);
+                    final systemScale = mq.textScaler.scale(100) / 100;
+                    return MediaQuery(
+                      data: mq.copyWith(
+                        textScaler: TextScaler.linear(
+                          systemScale * density.textScale,
+                        ),
+                      ),
+                      child: AppBackground(child: child ?? const SizedBox()),
+                    );
+                  },
+                  // Deep links (and web URLs) arrive here. Unrecognised routes
+                  // return null so MaterialApp falls back to `home` — a stale
+                  // shared link should land the user in the app, not on an error.
+                  onGenerateRoute: generateAppRoute,
+                  home: const AppGate(child: SecurityGate(child: AuthGate())),
+                );
               },
-              // Deep links (and web URLs) arrive here. Unrecognised routes
-              // return null so MaterialApp falls back to `home` — a stale
-              // shared link should land the user in the app, not on an error.
-              onGenerateRoute: generateAppRoute,
-              home: const AppGate(
-                child: SecurityGate(child: AuthGate()),
-              ),
             );
           },
         );
@@ -72,10 +116,19 @@ class _AuthGateState extends State<AuthGate> {
   /// signed in is not mistaken for somebody signing in.
   bool? _wasSignedIn;
 
+  /// Subscribed ONCE. `authStateChanges()` hands back a fresh stream object on
+  /// every call, so building it inline made each rebuild of this gate look
+  /// like a new stream to StreamBuilder: it resubscribed, reported `waiting`,
+  /// and painted the spinner below — tearing down the entire signed-in app and
+  /// rebuilding it from scratch, which is why toggling the theme from the Menu
+  /// dropped the user back on the Home tab.
+  late final Stream<User?> _authState = FirebaseAuth.instance
+      .authStateChanges();
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
+      stream: _authState,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
@@ -155,18 +208,37 @@ class _PresenceHostState extends State<_PresenceHost> {
 /// `blocked: true` on the user's profile, they see a suspension notice instead
 /// of the app. Admins bypass. Firestore rules independently block all writes
 /// from a suspended account — this is the user-facing half of the same gate.
-class _GatedHome extends StatelessWidget {
+class _GatedHome extends StatefulWidget {
   const _GatedHome();
 
   @override
-  Widget build(BuildContext context) {
+  State<_GatedHome> createState() => _GatedHomeState();
+}
+
+class _GatedHomeState extends State<_GatedHome> {
+  /// Opened ONCE, not rebuilt with the widget.
+  ///
+  /// This used to be `.snapshots()` inline in build(), which meant every
+  /// rebuild of this gate handed StreamBuilder a brand-new stream: it dropped
+  /// the old subscription, went back to `waiting`, and painted the spinner —
+  /// replacing HomeScreen and destroying its state. The user was standing in
+  /// the Menu tab and landed back on Home, with every tab's scroll position
+  /// and open listeners thrown away, for no reason they could see. Rare while
+  /// nothing rebuilt this gate; routine once the theme switch does.
+  late final Stream<DocumentSnapshot>? _profile = _openProfile();
+
+  Stream<DocumentSnapshot>? _openProfile() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null || isAdminUser()) return const HomeScreen();
+    if (uid == null || isAdminUser()) return null;
+    return FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stream = _profile;
+    if (stream == null) return const HomeScreen();
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .snapshots(),
+      stream: stream,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
           return const Scaffold(

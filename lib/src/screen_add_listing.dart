@@ -66,7 +66,7 @@ class DraftsScreen extends StatelessWidget {
                     ),
                   ),
                   trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
+                    icon: Icon(Icons.delete, color: AppColors.error),
                     tooltip: 'Delete draft',
                     // Was a one-tap delete: a mis-tap next to the row's own
                     // onTap threw away a half-written ad with no way back.
@@ -86,7 +86,7 @@ class DraftsScreen extends StatelessWidget {
                             ),
                             TextButton(
                               style: TextButton.styleFrom(
-                                foregroundColor: Colors.red,
+                                foregroundColor: AppColors.error,
                               ),
                               onPressed: () => Navigator.pop(ctx, true),
                               child: const Text('Delete'),

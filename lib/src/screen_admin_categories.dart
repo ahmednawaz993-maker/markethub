@@ -684,7 +684,7 @@ class _CategoryCard extends StatelessWidget {
               ],
               if (c.advertiseOnly) ...[
                 const SizedBox(width: 6),
-                const _CatPill(text: 'Contact only', color: Colors.deepOrange),
+                _CatPill(text: 'Contact only', color: AppColors.warning),
               ],
             ],
           ),
@@ -778,9 +778,9 @@ class _SubRow extends StatelessWidget {
           const SizedBox(width: 6),
           Expanded(child: Text(name, style: const TextStyle(fontSize: 14))),
           if (advertiseOnly)
-            const Padding(
+            Padding(
               padding: EdgeInsetsDirectional.only(end: 4),
-              child: _CatPill(text: 'Contact only', color: Colors.deepOrange),
+              child: _CatPill(text: 'Contact only', color: AppColors.warning),
             ),
           IconButton(
             visualDensity: VisualDensity.compact,

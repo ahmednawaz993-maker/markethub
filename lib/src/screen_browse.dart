@@ -170,7 +170,7 @@ class SavedSearchesScreen extends StatelessWidget {
                     );
                   },
                   trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
+                    icon: Icon(Icons.delete, color: AppColors.error),
                     onPressed: () => FirebaseFirestore.instance
                         .collection('users')
                         .doc(uid)

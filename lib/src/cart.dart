@@ -659,9 +659,9 @@ class _CartScreenState extends State<CartScreen> {
                     _qtyButton(Icons.add, () => _setQty(it, it.quantity + 1)),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.delete_outline,
-                        color: Colors.red,
+                        color: AppColors.error,
                         size: 20,
                       ),
                       tooltip: 'Remove',
@@ -683,7 +683,7 @@ class _CartScreenState extends State<CartScreen> {
     child: Container(
       padding: const EdgeInsets.all(AppSpacing.xs),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade400),
+        border: Border.all(color: AppColors.disabled),
         borderRadius: AppRadius.rSm,
       ),
       child: Icon(icon, size: 16),

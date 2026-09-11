@@ -260,7 +260,7 @@ class CancellationSection extends StatelessWidget {
           final resp = data['cancellationDecisionNote']?.toString() ?? '';
           return _cancelBanner(
             icon: Icons.info_outline,
-            color: Colors.orange,
+            color: AppColors.warning,
             text: resp.isEmpty
                 ? 'Your cancellation request was declined by the seller.'
                 : 'Cancellation request declined: $resp',
@@ -327,7 +327,7 @@ class _BuyerCancelAction extends StatelessWidget {
             onPressed: () => showCancellationSheet(context, orderId, data, ui),
             icon: const Icon(Icons.cancel_outlined, size: 16),
             label: Text(label),
-            style: TextButton.styleFrom(foregroundColor: Colors.red.shade700),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
           ),
         );
     }
@@ -352,16 +352,16 @@ class _BuyerPendingRequestCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: Colors.orange.withValues(alpha: 0.08),
+          color: AppColors.warning.withValues(alpha: 0.08),
           borderRadius: AppRadius.rSm,
-          border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+          border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(Icons.hourglass_top, size: 16, color: Colors.orange),
+                Icon(Icons.hourglass_top, size: 16, color: AppColors.warning),
                 const SizedBox(width: 6),
                 const Expanded(
                   child: Text(
@@ -374,7 +374,7 @@ class _BuyerPendingRequestCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               'Reason: $reason. Your request has been sent for review.',
-              style: const TextStyle(fontSize: 13, color: Colors.grey),
+              style: TextStyle(fontSize: 13, color: AppColors.textMuted),
             ),
             Align(
               alignment: AlignmentDirectional.centerEnd,
@@ -425,19 +425,19 @@ class _SellerCancellationCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.06),
+          color: AppColors.error.withValues(alpha: 0.06),
           borderRadius: AppRadius.rSm,
-          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+          border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.cancel_schedule_send,
                   size: 16,
-                  color: Colors.red,
+                  color: AppColors.error,
                 ),
                 const SizedBox(width: 6),
                 const Expanded(
@@ -455,7 +455,7 @@ class _SellerCancellationCard extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
                   '“$details”',
-                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
               ),
             const SizedBox(height: 6),
@@ -470,7 +470,7 @@ class _SellerCancellationCard extends StatelessWidget {
                 ElevatedButton(
                   onPressed: () => _decide(context, approve: true),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade700,
+                    backgroundColor: AppColors.error,
                   ),
                   child: const Text('Approve & cancel'),
                 ),
@@ -597,7 +597,7 @@ Future<void> showCancellationSheet(
                 const SizedBox(height: 4),
                 Text(
                   explanation,
-                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 12),
                 const Text(

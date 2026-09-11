@@ -34,7 +34,7 @@ IconData _notificationIcon(String type) {
 Color _notificationColor(String type) {
   switch (type) {
     case 'warning':
-      return Colors.red.shade700;
+      return AppColors.error;
     case 'admin':
       return kGold;
     default:

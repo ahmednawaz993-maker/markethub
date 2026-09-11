@@ -125,12 +125,12 @@ class _OffersList extends StatelessWidget {
             final offer = (d['offerAmount'] as num?)?.toDouble() ?? 0;
             final counter = (d['counterAmount'] as num?)?.toDouble();
             final (label, color) = switch (status) {
-              'accepted' => ('Accepted', Colors.green),
-              'ordered' => ('Deal agreed', Colors.green),
-              'countered' => ('Countered', Colors.blue),
-              'declined' => ('Declined', Colors.grey),
-              'cancelled' => ('Cancelled', Colors.grey),
-              _ => ('Pending', Colors.orange),
+              'accepted' => ('Accepted', AppColors.success),
+              'ordered' => ('Deal agreed', AppColors.success),
+              'countered' => ('Countered', AppColors.info),
+              'declined' => ('Declined', AppColors.textMuted),
+              'cancelled' => ('Cancelled', AppColors.textMuted),
+              _ => ('Pending', AppColors.warning),
             };
             return Card(
               margin: const EdgeInsets.only(bottom: 10),
@@ -177,8 +177,8 @@ class _OffersList extends StatelessWidget {
                     if (counter != null)
                       Text(
                         'Counter: ${formatPrice(counter.toStringAsFixed(0))}',
-                        style: const TextStyle(
-                          color: Colors.blue,
+                        style: TextStyle(
+                          color: AppColors.info,
                           fontWeight: FontWeight.bold,
                         ),
                       ),

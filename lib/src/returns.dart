@@ -173,7 +173,7 @@ class ReturnSection extends StatelessWidget {
           final note = data['returnDecisionNote']?.toString() ?? '';
           return _cancelBanner(
             icon: Icons.info_outline,
-            color: Colors.orange,
+            color: AppColors.warning,
             text: note.isEmpty
                 ? 'Your return request was declined.'
                 : 'Return request declined: $note',
@@ -182,7 +182,7 @@ class ReturnSection extends StatelessWidget {
         if (reqStatus == 'approved' || orderStatusOf(data) == 'returned') {
           return _cancelBanner(
             icon: Icons.assignment_return,
-            color: Colors.blueGrey,
+            color: AppColors.info,
             text: 'This order was returned and refunded.',
           );
         }
@@ -218,7 +218,7 @@ class _BuyerReturnAction extends StatelessWidget {
             onPressed: () => showReturnSheet(context, orderId, data),
             icon: const Icon(Icons.assignment_return_outlined, size: 16),
             label: const Text('Request return'),
-            style: TextButton.styleFrom(foregroundColor: Colors.blueGrey),
+            style: TextButton.styleFrom(foregroundColor: AppColors.info),
           ),
         );
     }
@@ -243,19 +243,19 @@ class _BuyerReturnPendingCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: Colors.blueGrey.withValues(alpha: 0.08),
+          color: AppColors.info.withValues(alpha: 0.08),
           borderRadius: AppRadius.rSm,
-          border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.3)),
+          border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.hourglass_top,
                   size: 16,
-                  color: Colors.blueGrey,
+                  color: AppColors.info,
                 ),
                 const SizedBox(width: 6),
                 const Expanded(
@@ -268,7 +268,7 @@ class _BuyerReturnPendingCard extends StatelessWidget {
             ),
             Text(
               'Reason: $reason',
-              style: const TextStyle(fontSize: 13, color: Colors.grey),
+              style: TextStyle(fontSize: 13, color: AppColors.textMuted),
             ),
             Align(
               alignment: AlignmentDirectional.centerEnd,
@@ -319,19 +319,19 @@ class _SellerReturnCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: Colors.blueGrey.withValues(alpha: 0.06),
+          color: AppColors.info.withValues(alpha: 0.06),
           borderRadius: AppRadius.rSm,
-          border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.3)),
+          border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.assignment_return,
                   size: 16,
-                  color: Colors.blueGrey,
+                  color: AppColors.info,
                 ),
                 const SizedBox(width: 6),
                 const Expanded(
@@ -346,7 +346,7 @@ class _SellerReturnCard extends StatelessWidget {
             if (details.isNotEmpty)
               Text(
                 '“$details”',
-                style: const TextStyle(fontSize: 13, color: Colors.grey),
+                style: TextStyle(fontSize: 13, color: AppColors.textMuted),
               ),
             const SizedBox(height: 6),
             Row(
@@ -360,7 +360,7 @@ class _SellerReturnCard extends StatelessWidget {
                 ElevatedButton(
                   onPressed: () => _decide(context, approve: true),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueGrey,
+                    backgroundColor: AppColors.info,
                   ),
                   child: const Text('Approve & refund'),
                 ),
@@ -469,10 +469,10 @@ Future<void> showReturnSheet(
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'Your payment is held by PakBazar. If the seller or PakBazar '
                   'approves, it is refunded to your wallet.',
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 12),
                 const Text(

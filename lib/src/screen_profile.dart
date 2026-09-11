@@ -533,7 +533,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
         );
       case 'rejected':
         return _statusCard(
-          color: Colors.red,
+          color: AppColors.error,
           icon: Icons.cancel_outlined,
           title: 'Not approved',
           body:
@@ -542,7 +542,7 @@ class _BusinessAccountTileState extends State<_BusinessAccountTile> {
         );
       case 'suspended':
         return _statusCard(
-          color: Colors.orange,
+          color: AppColors.warning,
           icon: Icons.pause_circle_outline,
           title: 'Business suspended',
           body:
@@ -853,7 +853,7 @@ Future<void> _requestAccountDeletion(BuildContext context) async {
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      icon: const Icon(Icons.delete_forever, color: Colors.red, size: 40),
+      icon: Icon(Icons.delete_forever, color: AppColors.error, size: 40),
       title: const Text('Delete my account'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -880,7 +880,7 @@ Future<void> _requestAccountDeletion(BuildContext context) async {
           child: const Text('Cancel'),
         ),
         ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
           onPressed: () => Navigator.pop(ctx, true),
           child: const Text('Request deletion'),
         ),
@@ -1186,19 +1186,19 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     ),
                   )
                 else if (status == 'pending')
-                  const Card(
+                  Card(
                     color: Color(0xFFFFF8E1),
                     child: ListTile(
-                      leading: Icon(Icons.hourglass_top, color: Colors.orange),
+                      leading: Icon(Icons.hourglass_top, color: AppColors.warning),
                       title: Text('Under review'),
                       subtitle: Text('We\'re checking your documents.'),
                     ),
                   )
                 else if (status == 'rejected')
-                  const Card(
+                  Card(
                     color: Color(0xFFFFEBEE),
                     child: ListTile(
-                      leading: Icon(Icons.cancel, color: Colors.red),
+                      leading: Icon(Icons.cancel, color: AppColors.error),
                       title: Text('Verification rejected'),
                       subtitle: Text(
                         'Please re-upload clear photos and resubmit.',
@@ -1354,7 +1354,7 @@ class TrustSafetyScreen extends StatelessWidget {
           // Buyer and seller duties are deliberately written as matching
           // pairs (honesty, fair price, on-platform payment, prompt handover,
           // fair confirmation/review) so both sides know what to expect.
-          _card(Icons.shopping_cart, 'For buyers', Colors.blue, const [
+          _card(Icons.shopping_cart, 'For buyers', AppColors.info, const [
             'Inspect the item and confirm it matches the ad before you pay.',
             'Pay through PakBazar (escrow or Cash on Delivery) — never pay the '
                 'full amount in advance to an unknown seller.',
@@ -1365,7 +1365,7 @@ class TrustSafetyScreen extends StatelessWidget {
                 'fairly.',
             'Leave an honest rating and review after the deal.',
           ]),
-          _card(Icons.sell, 'For sellers', Colors.deepOrange, const [
+          _card(Icons.sell, 'For sellers', AppColors.warning, const [
             'Describe items honestly and use your own real photos — no '
                 'misleading or fake listings.',
             'Only list items you actually own and are legally allowed to sell.',
@@ -1376,7 +1376,7 @@ class TrustSafetyScreen extends StatelessWidget {
                 'payment clears.',
             'Reply quickly and resolve issues fairly to grow your rating.',
           ]),
-          _card(Icons.block, 'Prohibited items & conduct', Colors.red, const [
+          _card(Icons.block, 'Prohibited items & conduct', AppColors.error, const [
             'No weapons, drugs, alcohol, or other illegal or restricted goods.',
             'No counterfeit, replica, stolen, or recalled/unsafe products.',
             'No adult content, and no items banned under Pakistani law.',
@@ -1397,7 +1397,7 @@ class TrustSafetyScreen extends StatelessWidget {
           _card(
             Icons.support_agent,
             'Support, orders & refunds',
-            Colors.indigo,
+            AppColors.info,
             const [
               'Order or delivery problems are between the buyer and the '
                   'seller — contact the seller directly through chat or their '
@@ -1416,7 +1416,7 @@ class TrustSafetyScreen extends StatelessWidget {
           _card(
             Icons.report_gmailerrorred,
             'Spotted something wrong?',
-            Colors.deepOrange,
+            AppColors.warning,
             const [
               'Use the Report button on any suspicious ad or user.',
               'Our team reviews reports and removes bad actors.',
@@ -1889,12 +1889,12 @@ class AboutScreen extends StatelessWidget {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.delete_forever, color: Colors.red),
-                  title: const Text(
+                  leading: Icon(Icons.delete_forever, color: AppColors.error),
+                  title: Text(
                     'Delete my account',
-                    style: TextStyle(color: Colors.red),
+                    style: TextStyle(color: AppColors.error),
                   ),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.red),
+                  trailing: Icon(Icons.chevron_right, color: AppColors.error),
                   onTap: () => _requestAccountDeletion(context),
                 ),
               ],
@@ -2113,6 +2113,8 @@ class ProfileScreen extends StatelessWidget {
           const LanguageTile(),
           const SizedBox(height: AppSpacing.md),
           const ThemeTile(),
+          const SizedBox(height: AppSpacing.md),
+          const DensityTile(),
 
           _MenuGroup(
             title: 'Support',

@@ -601,7 +601,7 @@ class DealsRail extends StatelessWidget {
     return HorizontalListingSection(
       title: 'Deals & price drops',
       icon: Icons.local_fire_department_outlined,
-      iconColor: Colors.deepOrange,
+      iconColor: AppColors.warning,
       listings: items,
       minItems: 2,
     );
@@ -1266,7 +1266,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             title: tr('home.topDeals', 'Top deals'),
                             subtitle: 'Most viewed this week',
                             icon: Icons.local_fire_department_outlined,
-                            iconColor: Colors.deepOrange,
+                            iconColor: AppColors.warning,
                             listings: topDeals.take(10).toList(),
                             minItems: 3,
                           ),

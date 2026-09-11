@@ -229,9 +229,9 @@ class PayoutAccountsScreen extends StatelessWidget {
 
   (String, Color) _statusChip(String s) => switch (s) {
     'verified' => ('Verified', kPakGreen),
-    'rejected' => ('Rejected', Colors.red),
-    'suspended' => ('Suspended', Colors.orange),
-    _ => ('Pending review', Colors.blueGrey),
+    'rejected' => ('Rejected', AppColors.error),
+    'suspended' => ('Suspended', AppColors.warning),
+    _ => ('Pending review', AppColors.info),
   };
 
   @override
@@ -368,10 +368,10 @@ class PayoutAccountsScreen extends StatelessWidget {
                           ),
                           IconButton(
                             tooltip: 'Delete',
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.delete_outline,
                               size: 20,
-                              color: Colors.red,
+                              color: AppColors.error,
                             ),
                             onPressed: () async {
                               final ok = await showDialog<bool>(
