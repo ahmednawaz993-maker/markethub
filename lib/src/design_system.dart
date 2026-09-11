@@ -31,6 +31,10 @@ abstract final class AppSpacing {
   /// navigation (bar height + centre button overhang + breathing room).
   static const double navClearance = 96;
 
+  /// [navClearance] at the current Size setting.
+  static double navClearanceOf(BuildContext context) =>
+      (navClearance * scaleOf(context)).roundToDouble();
+
   static const EdgeInsets pageH = EdgeInsets.symmetric(horizontal: page);
   static const EdgeInsets pageAll = EdgeInsets.all(page);
 
@@ -1659,9 +1663,13 @@ class HorizontalListingSection extends StatelessWidget {
     if (listings.length < minItems) return const SizedBox.shrink();
 
     final screenWidth = MediaQuery.of(context).size.width;
-    final cardWidth = screenWidth < 380
-        ? 152.0
-        : (screenWidth < 600 ? 168.0 : 190.0);
+    // Scaled, because the card is its photo and the photo is square: at
+    // Compact a 168px card is 168px of image before a word of text. This is
+    // the single biggest thing the Size setting can give back on a feed made
+    // of rails.
+    final cardWidth =
+        (screenWidth < 380 ? 152.0 : (screenWidth < 600 ? 168.0 : 190.0)) *
+        AppSpacing.scaleOf(context);
     final railHeight = MarketplaceListingCard.heightFor(context, cardWidth);
 
     return Column(
@@ -1947,8 +1955,15 @@ class CategoryCard extends StatelessWidget {
     this.width = 76,
   });
 
+  /// Circle diameter at the current Size setting. Read by [heightFor] and by
+  /// build(), so the two cannot drift.
+  static double circleFor(BuildContext context) =>
+      (58 * AppSpacing.scaleOf(context)).roundToDouble();
+
   static double heightFor(BuildContext context) =>
-      58 + AppSpacing.sm + MediaQuery.textScalerOf(context).scale(13) * 1.2 * 2;
+      circleFor(context) +
+      AppSpacing.sm +
+      MediaQuery.textScalerOf(context).scale(13) * 1.2 * 2;
 
   @override
   Widget build(BuildContext context) {
@@ -1969,13 +1984,17 @@ class CategoryCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 58,
-              height: 58,
+              width: circleFor(context),
+              height: circleFor(context),
               decoration: BoxDecoration(
                 color: AppColors.primarySoft,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: AppColors.accent, size: 26),
+              child: Icon(
+                icon,
+                color: AppColors.accent,
+                size: (26 * AppSpacing.scaleOf(context)).roundToDouble(),
+              ),
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(

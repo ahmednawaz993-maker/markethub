@@ -146,10 +146,9 @@ class _WhatsNewSectionState extends State<WhatsNewSection> {
     if (_banners.isEmpty) return const SizedBox.shrink();
     final screenWidth = MediaQuery.of(context).size.width;
     // One card plus a peek of the next, so the rail reads as scrollable.
-    final cardWidth = (screenWidth - AppSpacing.page * 2 - 40).clamp(
-      220.0,
-      320.0,
-    );
+    final cardWidth =
+        (screenWidth - AppSpacing.page * 2 - 40).clamp(220.0, 320.0) *
+        AppSpacing.scaleOf(context);
     final railHeight = FeaturedBannerCard.heightFor(context, cardWidth);
 
     return Column(
@@ -993,7 +992,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _homeHeader() {
     return Container(
       color: AppColors.surface,
-      padding: const EdgeInsetsDirectional.fromSTEB(AppSpacing.page, AppSpacing.sm, AppSpacing.sm, AppSpacing.md),
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        AppSpacing.page,
+        AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.md,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1255,7 +1259,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         if (featuringEnabled.value)
                           SliverToBoxAdapter(
                             child: HorizontalListingSection(
-                              title: tr('home.featured', 'Featured on PakBazar'),
+                              title: tr(
+                                'home.featured',
+                                'Featured on PakBazar',
+                              ),
                               icon: Icons.star,
                               iconColor: kGold,
                               listings: featured,
@@ -1333,11 +1340,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
                         // ── Recommended feed ──
                         SliverToBoxAdapter(
-                          child: SizedBox(height: AppSpacing.sectionOf(context)),
+                          child: SizedBox(
+                            height: AppSpacing.sectionOf(context),
+                          ),
                         ),
                         SliverToBoxAdapter(
                           child: SectionHeader(
-                            title: tr('home.recommended', 'Recommended for you'),
+                            title: tr(
+                              'home.recommended',
+                              'Recommended for you',
+                            ),
                             actionLabel: '',
                             padding: const EdgeInsets.fromLTRB(
                               AppSpacing.page,
@@ -1395,8 +1407,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             onRetry: _feedSource.loadMore,
                           ),
                         ),
-                        const SliverToBoxAdapter(
-                          child: SizedBox(height: AppSpacing.navClearance),
+                        SliverToBoxAdapter(
+                          child: SizedBox(
+                            height: AppSpacing.navClearanceOf(context),
+                          ),
                         ),
                       ],
                     ),
