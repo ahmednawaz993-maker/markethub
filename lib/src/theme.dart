@@ -71,7 +71,7 @@ Future<void> setThemeMode(ThemeMode mode) async {
 /// and used inside `const` constructors in several hundred places, so making
 /// them run-time values would be a rewrite of every screen for a few pixels.
 enum AppDensity {
-  compact('Compact', 0.92, -1),
+  compact('Compact', 0.88, -2),
   standard('Default', 1, 0),
   large('Large', 1.1, 0.5);
 

@@ -33,6 +33,26 @@ abstract final class AppSpacing {
 
   static const EdgeInsets pageH = EdgeInsets.symmetric(horizontal: page);
   static const EdgeInsets pageAll = EdgeInsets.all(page);
+
+  /// The Size setting, read as a plain multiplier.
+  ///
+  /// It rides on the text scaler rather than on a global of its own, for two
+  /// reasons: MediaQuery is an InheritedWidget, so anything that asks gets
+  /// rebuilt when the setting changes without any help; and a reader who has
+  /// enlarged their phone's font wants the gaps to grow with it, not to keep
+  /// 24px of air between sections while the type outgrows it.
+  static double scaleOf(BuildContext context) =>
+      MediaQuery.textScalerOf(context).scale(100) / 100;
+
+  /// Structural spacing that follows the Size setting. Compact was only ever
+  /// shrinking type and Material's own padding; the gaps BETWEEN sections —
+  /// the biggest single consumer of a phone screen on the home feed — stayed
+  /// at their full size, which is why compact still read as roomy.
+  static double sectionOf(BuildContext context) =>
+      (section * scaleOf(context)).roundToDouble();
+
+  static double gapOf(BuildContext context, double base) =>
+      (base * scaleOf(context)).roundToDouble();
 }
 
 /// Corner radii. Cards are 14, controls 12, pills fully rounded.
@@ -172,7 +192,8 @@ class AppCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = BorderRadius.circular(radius);
     Widget content = Padding(
-      padding: padding ?? const EdgeInsets.all(AppSpacing.lg),
+      padding:
+          padding ?? EdgeInsets.all(AppSpacing.gapOf(context, AppSpacing.lg)),
       child: child,
     );
     if (onTap != null) {
@@ -787,7 +808,7 @@ class SectionHeader extends StatelessWidget {
   final Color? iconColor;
   final String actionLabel;
   final VoidCallback? onAction;
-  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry? padding;
 
   const SectionHeader({
     super.key,
@@ -797,18 +818,20 @@ class SectionHeader extends StatelessWidget {
     this.iconColor,
     this.actionLabel = 'See all',
     this.onAction,
-    this.padding = const EdgeInsetsDirectional.fromSTEB(
-      AppSpacing.page,
-      0,
-      AppSpacing.sm,
-      AppSpacing.md,
-    ),
+    this.padding,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: padding,
+      padding:
+          padding ??
+          EdgeInsetsDirectional.fromSTEB(
+            AppSpacing.page,
+            0,
+            AppSpacing.sm,
+            AppSpacing.gapOf(context, AppSpacing.md),
+          ),
       child: Row(
         children: [
           if (icon != null) ...[
@@ -1644,7 +1667,7 @@ class HorizontalListingSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: AppSpacing.section),
+        SizedBox(height: AppSpacing.sectionOf(context)),
         SectionHeader(
           title: title,
           subtitle: subtitle,

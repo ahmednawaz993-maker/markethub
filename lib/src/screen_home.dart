@@ -155,7 +155,7 @@ class _WhatsNewSectionState extends State<WhatsNewSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: AppSpacing.section),
+        SizedBox(height: AppSpacing.sectionOf(context)),
         const SectionHeader(title: "What's New on PakBazar"),
         SizedBox(
           height: railHeight,
@@ -438,7 +438,7 @@ class RecentSearchesSection extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: AppSpacing.section),
+                SizedBox(height: AppSpacing.sectionOf(context)),
                 SectionHeader(
                   title: 'Recent Searches',
                   actionLabel: 'Clear',
@@ -630,7 +630,7 @@ class FeaturedBusinessesRail extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: AppSpacing.section),
+        SizedBox(height: AppSpacing.sectionOf(context)),
         SectionHeader(
           title: 'Featured businesses',
           icon: Icons.storefront_outlined,
@@ -1332,8 +1332,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
 
                         // ── Recommended feed ──
-                        const SliverToBoxAdapter(
-                          child: SizedBox(height: AppSpacing.section),
+                        SliverToBoxAdapter(
+                          child: SizedBox(height: AppSpacing.sectionOf(context)),
                         ),
                         SliverToBoxAdapter(
                           child: SectionHeader(
