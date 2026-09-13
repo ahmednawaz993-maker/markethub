@@ -146,9 +146,16 @@ class _WhatsNewSectionState extends State<WhatsNewSection> {
     if (_banners.isEmpty) return const SizedBox.shrink();
     final screenWidth = MediaQuery.of(context).size.width;
     // One card plus a peek of the next, so the rail reads as scrollable.
-    final cardWidth =
-        (screenWidth - AppSpacing.page * 2 - 40).clamp(220.0, 320.0) *
-        AppSpacing.scaleOf(context);
+    // Three banners across a desktop column; on a phone, one plus a peek of
+    // the next so the rail reads as scrollable.
+    final cardWidth = AppBreak.isWide(context)
+        ? ((math.min(screenWidth, AppBreak.content) -
+                      AppSpacing.page * 2 -
+                      AppSpacing.lg * 2) /
+                  3)
+              .clamp(280.0, 400.0)
+        : (screenWidth - AppSpacing.page * 2 - 40).clamp(220.0, 320.0) *
+              AppSpacing.scaleOf(context);
     final railHeight = FeaturedBannerCard.heightFor(context, cardWidth);
 
     return Column(
@@ -1095,6 +1102,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _homeTab() {
+    if (AppBreak.isWide(context)) {
+      return _homeFeed();
+    }
     return SafeArea(
       bottom: false,
       child: Column(
@@ -1512,6 +1522,69 @@ class _HomeScreenState extends State<HomeScreen> {
     return _visitedTabs.contains(index) ? build() : const SizedBox.shrink();
   }
 
+  List<AppNavDestination> get _destinations => [
+    AppNavDestination(
+      icon: Icons.home_outlined,
+      activeIcon: Icons.home,
+      label: tr('nav.home'),
+    ),
+    AppNavDestination(
+      icon: Icons.chat_bubble_outline,
+      activeIcon: Icons.chat_bubble,
+      label: tr('nav.chats'),
+    ),
+    AppNavDestination(
+      icon: Icons.list_alt_outlined,
+      activeIcon: Icons.list_alt,
+      label: tr('nav.myAds'),
+    ),
+    AppNavDestination(
+      icon: Icons.menu,
+      activeIcon: Icons.menu_open,
+      label: tr('nav.menu'),
+    ),
+  ];
+
+  /// The account actions that sit in the phone's home header and in the
+  /// website's top bar.
+  List<Widget> get _headerActions => [
+    IconButton(
+      icon: const Icon(Icons.favorite_border),
+      tooltip: 'Favorites',
+      onPressed: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const FavoritesScreen()),
+      ),
+    ),
+    const CartBell(),
+    const NotificationBell(),
+  ];
+
+  Widget get _brand => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Image.asset(
+        'assets/pakbazar_mark_light.png',
+        height: 30,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stack) =>
+            Icon(Icons.storefront, size: 28, color: AppColors.accent),
+      ),
+      const SizedBox(width: AppSpacing.sm),
+      Text(
+        'PakBazar',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.2,
+          color: AppColors.accent,
+        ),
+      ),
+    ],
+  );
+
   @override
   Widget build(BuildContext context) {
     // IndexedStack keeps each visited tab's scroll position and streams alive,
@@ -1519,43 +1592,55 @@ class _HomeScreenState extends State<HomeScreen> {
     // built LAZILY (see _visitedTabs) — otherwise Favorites, Chats and Menu
     // would each open their Firestore listeners at launch, before the user has
     // even looked at them.
+    final stack = IndexedStack(
+      index: selectedIndex,
+      children: [
+        _homeTab(),
+        _lazyTab(1, () => const ChatsScreen()),
+        _lazyTab(2, () => const MyAdsScreen()),
+        _lazyTab(3, () => const ProfileScreen()),
+      ],
+    );
+
+    // THE WEBSITE, not the app in a window: navigation across the top, content
+    // in a column rather than smeared across the monitor. The phone layout
+    // below is untouched — AppBreak.wide is wider than any phone.
+    if (AppBreak.isWide(context)) {
+      return Scaffold(
+        body: Column(
+          children: [
+            DesktopTopNav(
+              brand: _brand,
+              search: AppSearchBar(
+                controller: searchController,
+                hintText: 'Search in PakBazar',
+                onSubmitted: openSearch,
+                locationLabel: homeCity == 'All Pakistan'
+                    ? 'Pakistan'
+                    : homeCity,
+                onLocationTap: _pickCity,
+              ),
+              currentIndex: selectedIndex,
+              destinations: _destinations,
+              onTap: (i) => setState(() => selectedIndex = i),
+              onSell: _postAd,
+              sellLabel: tr('nav.sell'),
+              actions: _headerActions,
+            ),
+            Expanded(child: ContentColumn(child: stack)),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
-      body: IndexedStack(
-        index: selectedIndex,
-        children: [
-          _homeTab(),
-          _lazyTab(1, () => const ChatsScreen()),
-          _lazyTab(2, () => const MyAdsScreen()),
-          _lazyTab(3, () => const ProfileScreen()),
-        ],
-      ),
+      body: stack,
       bottomNavigationBar: AppBottomNavigation(
         currentIndex: selectedIndex,
         onTap: (i) => setState(() => selectedIndex = i),
         onSell: _postAd,
         sellLabel: tr('nav.sell'),
-        destinations: [
-          AppNavDestination(
-            icon: Icons.home_outlined,
-            activeIcon: Icons.home,
-            label: tr('nav.home'),
-          ),
-          AppNavDestination(
-            icon: Icons.chat_bubble_outline,
-            activeIcon: Icons.chat_bubble,
-            label: tr('nav.chats'),
-          ),
-          AppNavDestination(
-            icon: Icons.list_alt_outlined,
-            activeIcon: Icons.list_alt,
-            label: tr('nav.myAds'),
-          ),
-          AppNavDestination(
-            icon: Icons.menu,
-            activeIcon: Icons.menu_open,
-            label: tr('nav.menu'),
-          ),
-        ],
+        destinations: _destinations,
       ),
     );
   }

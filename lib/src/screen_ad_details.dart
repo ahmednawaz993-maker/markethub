@@ -466,6 +466,60 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
 
   /// The full-bleed image carousel with counter, expand button, arrows and a
   /// thumbnail strip. Sits above the scrolling body, edge to edge.
+
+  /// Page chrome, shared by the phone and desktop layouts.
+  PreferredSizeWidget _detailAppBar(Listing listing, bool isOwnAd) {
+    return AppBar(
+      title: Text(listing.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      actions: [
+        _DetailFavoriteButton(listing: listing),
+        IconButton(
+          icon: const Icon(Icons.share_outlined),
+          tooltip: 'Share',
+          onPressed: shareAd,
+        ),
+        IconButton(
+          icon: const Icon(Icons.flag_outlined),
+          tooltip: tr('ad.reportAd', 'Report ad'),
+          onPressed: reportAd,
+        ),
+        if (!isOwnAd)
+          PopupMenuButton<String>(
+            onSelected: (v) async {
+              if (v == 'block') {
+                await blockUser(listing.userId);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Seller blocked — you won't see their ads."),
+                  ),
+                );
+                Navigator.pop(context);
+              } else if (v == 'unblock') {
+                await unblockUser(listing.userId);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Seller unblocked.')),
+                );
+                setState(() {});
+              }
+            },
+            itemBuilder: (context) => [
+              blockedUserIds.contains(listing.userId)
+                  ? const PopupMenuItem(
+                      value: 'unblock',
+                      child: Text('Unblock seller'),
+                    )
+                  : const PopupMenuItem(
+                      value: 'block',
+                      child: Text('Block seller'),
+                    ),
+            ],
+          ),
+      ],
+    );
+  }
+
   Widget _gallery(List<String> images) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -726,362 +780,352 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
       listing.location,
     ].where((e) => e.isNotEmpty).join(', ');
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          listing.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+    // The page is ONE list on a phone and TWO columns on a desktop, so each
+    // section is built once here and arranged twice below. On a monitor the
+    // photo and the write-up belong on the left, and everything a buyer acts
+    // on — price, contact, seller — belongs in a rail beside them that stays
+    // put while they read. The phone keeps its sticky bar; a desktop does not
+    // need one, because the rail is already always on screen.
+    final galleryBlock = <Widget>[if (images.isNotEmpty) _gallery(images)];
+    final headlineBlock = <Widget>[
+      // ── Headline: status, price, title, meta, location ──
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.page,
+          AppSpacing.xl,
+          AppSpacing.page,
+          0,
         ),
-        actions: [
-          _DetailFavoriteButton(listing: listing),
-          IconButton(
-            icon: const Icon(Icons.share_outlined),
-            tooltip: 'Share',
-            onPressed: shareAd,
-          ),
-          IconButton(
-            icon: const Icon(Icons.flag_outlined),
-            tooltip: tr('ad.reportAd', 'Report ad'),
-            onPressed: reportAd,
-          ),
-          if (!isOwnAd)
-            PopupMenuButton<String>(
-              onSelected: (v) async {
-                if (v == 'block') {
-                  await blockUser(listing.userId);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        "Seller blocked — you won't see their ads.",
-                      ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!listing.isAvailableForSale)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: switch (listing.status) {
+                    'sold' => AppColors.error,
+                    'out_of_stock' => AppColors.warning,
+                    _ => AppColors.textMuted,
+                  },
+                  borderRadius: AppRadius.rMd,
+                ),
+                child: Text(
+                  listing.statusLabel.toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    letterSpacing: 2.5,
+                  ),
+                ),
+              ),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  priceLabel(listing),
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                if (deliveryFeeOf(listing) > 0)
+                  // Muted, not green. Delivery is money the buyer has to
+                  // add on, and the success colour is what this app uses
+                  // to say something went their way.
+                  _Pill(
+                    label: '+ ${formatPrice(listing.deliveryFee)} delivery',
+                    color: AppColors.textSecondary,
+                  ),
+                if (listing.hasRecentPriceDrop) ...[
+                  Text(
+                    formatPrice(listing.previousPrice),
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: AppColors.textMuted,
+                      decoration: TextDecoration.lineThrough,
                     ),
-                  );
-                  Navigator.pop(context);
-                } else if (v == 'unblock') {
-                  await unblockUser(listing.userId);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Seller unblocked.')),
-                  );
-                  setState(() {});
-                }
-              },
-              itemBuilder: (context) => [
-                blockedUserIds.contains(listing.userId)
-                    ? const PopupMenuItem(
-                        value: 'unblock',
-                        child: Text('Unblock seller'),
-                      )
-                    : const PopupMenuItem(
-                        value: 'block',
-                        child: Text('Block seller'),
-                      ),
+                  ),
+                  _Pill(
+                    label: 'Price dropped',
+                    icon: Icons.south,
+                    color: AppColors.error,
+                  ),
+                ],
+                if (listing.negotiable)
+                  _Pill(label: 'Negotiable', color: AppColors.warning),
               ],
             ),
-        ],
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              listing.title,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                height: 1.3,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Wrap(
+              spacing: AppSpacing.lg,
+              runSpacing: 6,
+              children: [
+                if (posted.isNotEmpty)
+                  _IconText(icon: Icons.access_time, text: posted),
+                _IconText(
+                  icon: Icons.remove_red_eye,
+                  text: '${listing.views} views',
+                ),
+                if (listing.condition.isNotEmpty)
+                  _IconText(icon: Icons.verified, text: listing.condition),
+                if (listing.deliveryAvailable)
+                  const _IconText(
+                    icon: Icons.delivery_dining,
+                    text: 'Delivery available',
+                  ),
+                if (listing.codAvailable)
+                  const _IconText(
+                    icon: Icons.local_shipping,
+                    text: 'Cash on Delivery',
+                  ),
+              ],
+            ),
+            if (!listing.isSold) _PriceInsight(listing: listing),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Expanded(
+                  child: _IconText(icon: Icons.location_on, text: locationLine),
+                ),
+                if (listing.hasCoordinates)
+                  TextButton.icon(
+                    onPressed: openMap,
+                    icon: const Icon(Icons.map, size: 18),
+                    label: const Text('View on map'),
+                  ),
+              ],
+            ),
+            if (listing.category.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              _IconText(
+                icon: Icons.category,
+                text: listing.subcategory.isEmpty
+                    ? listing.category
+                    : '${listing.category} • ${listing.subcategory}',
+              ),
+            ],
+          ],
+        ),
       ),
+    ];
+    final sellerBlock = <Widget>[
+      // ── Seller ──
+      _section(
+        'Seller',
+        InkWell(
+          borderRadius: AppRadius.rCard,
+          onTap: openSellerProfile,
+          child: StreamBuilder<DocumentSnapshot>(
+            stream: listing.userId.isEmpty
+                ? null
+                : FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(listing.userId)
+                      .snapshots(),
+            builder: (context, snap) {
+              final data = snap.data?.data() as Map<String, dynamic>? ?? {};
+              final count = (data['ratingCount'] as num?)?.toInt() ?? 0;
+              final sum = (data['ratingSum'] as num?)?.toDouble() ?? 0;
+              final avg = count > 0 ? sum / count : 0.0;
+              final labels = <String>[
+                if (data['idVerified'] == true) 'ID verified',
+                if (data['isBusiness'] == true) 'Business',
+              ];
+
+              return SellerCard(
+                name: listing.sellerName.isEmpty
+                    ? 'Seller'
+                    : listing.sellerName,
+                subtitle: labels.join(' · '),
+                avatarUrl: data['photoUrl']?.toString() ?? '',
+                verified: data['verified'] == true,
+                rating: count > 0 ? avg : null,
+                reviewCount: count > 0 ? count : null,
+                onTap: openSellerProfile,
+                trailing: Icon(Icons.chevron_right, color: AppColors.textMuted),
+              );
+            },
+          ),
+        ),
+      ),
+    ];
+    final detailBlock = <Widget>[
+      // ── Specifications ──
+      if (listing.attributes.isNotEmpty)
+        _section(
+          'Specifications',
+          AppCard(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.sm,
+            ),
+            child: Column(
+              children: [
+                for (final e in listing.attributes.entries)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 7),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 4,
+                          child: Text(e.key, style: AppType.secondary),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          flex: 6,
+                          child:
+                              (e.key == 'Color' &&
+                                  productColorByName(e.value) != null)
+                              ? Row(
+                                  children: [
+                                    Container(
+                                      width: 14,
+                                      height: 14,
+                                      decoration: BoxDecoration(
+                                        color: productColorByName(e.value),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: AppColors.border,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Expanded(
+                                      child: Text(
+                                        e.value,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Text(
+                                  e.value,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+
+      // ── Description ──
+      _section(
+        'Description',
+        ExpandableText(
+          text: listing.description.isNotEmpty
+              ? listing.description
+              : 'No description provided.',
+          style: TextStyle(
+            fontSize: 15,
+            height: 1.5,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ),
+
+      // Sits between the description and the safety notice on purpose: the
+      // buyer has just read what the thing is, and this is the moment they
+      // decide how many of them they want.
+      _MoreDesigns(listing: listing),
+
+      const Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.page,
+          AppSpacing.section,
+          AppSpacing.page,
+          0,
+        ),
+        child: _SafetyTips(),
+      ),
+
+      if (isOwnAd)
+        Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.section),
+          child: Center(child: Text('This is your ad', style: AppType.caption)),
+        ),
+
+      _SimilarAds(listing: listing),
+      const SizedBox(height: AppSpacing.section),
+    ];
+
+    if (AppBreak.isWide(context)) {
+      return Scaffold(
+        appBar: _detailAppBar(listing, isOwnAd),
+        body: ContentColumn(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 3,
+                child: ListView(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.section),
+                  children: [...galleryBlock, ...detailBlock],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xl),
+              SizedBox(
+                width: 380,
+                child: ListView(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.section),
+                  children: [
+                    ...headlineBlock,
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.page,
+                        AppSpacing.lg,
+                        AppSpacing.page,
+                        0,
+                      ),
+                      child: _bottomActions(listing, isOwnAd),
+                    ),
+                    ...sellerBlock,
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: _detailAppBar(listing, isOwnAd),
       bottomNavigationBar: _bottomActions(listing, isOwnAd),
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          if (images.isNotEmpty) _gallery(images),
-
-          // ── Headline: status, price, title, meta, location ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.page,
-              AppSpacing.xl,
-              AppSpacing.page,
-              0,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (!listing.isAvailableForSale)
-                  Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppSpacing.md,
-                    ),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: switch (listing.status) {
-                        'sold' => AppColors.error,
-                        'out_of_stock' => AppColors.warning,
-                        _ => AppColors.textMuted,
-                      },
-                      borderRadius: AppRadius.rMd,
-                    ),
-                    child: Text(
-                      listing.statusLabel.toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
-                        letterSpacing: 2.5,
-                      ),
-                    ),
-                  ),
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(
-                      priceLabel(listing),
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    if (deliveryFeeOf(listing) > 0)
-                      // Muted, not green. Delivery is money the buyer has to
-                      // add on, and the success colour is what this app uses
-                      // to say something went their way.
-                      _Pill(
-                        label: '+ ${formatPrice(listing.deliveryFee)} delivery',
-                        color: AppColors.textSecondary,
-                      ),
-                    if (listing.hasRecentPriceDrop) ...[
-                      Text(
-                        formatPrice(listing.previousPrice),
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: AppColors.textMuted,
-                          decoration: TextDecoration.lineThrough,
-                        ),
-                      ),
-                      _Pill(
-                        label: 'Price dropped',
-                        icon: Icons.south,
-                        color: AppColors.error,
-                      ),
-                    ],
-                    if (listing.negotiable)
-                      _Pill(label: 'Negotiable', color: AppColors.warning),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  listing.title,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    height: 1.3,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Wrap(
-                  spacing: AppSpacing.lg,
-                  runSpacing: 6,
-                  children: [
-                    if (posted.isNotEmpty)
-                      _IconText(icon: Icons.access_time, text: posted),
-                    _IconText(
-                      icon: Icons.remove_red_eye,
-                      text: '${listing.views} views',
-                    ),
-                    if (listing.condition.isNotEmpty)
-                      _IconText(icon: Icons.verified, text: listing.condition),
-                    if (listing.deliveryAvailable)
-                      const _IconText(
-                        icon: Icons.delivery_dining,
-                        text: 'Delivery available',
-                      ),
-                    if (listing.codAvailable)
-                      const _IconText(
-                        icon: Icons.local_shipping,
-                        text: 'Cash on Delivery',
-                      ),
-                  ],
-                ),
-                if (!listing.isSold) _PriceInsight(listing: listing),
-                const SizedBox(height: AppSpacing.md),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _IconText(
-                        icon: Icons.location_on,
-                        text: locationLine,
-                      ),
-                    ),
-                    if (listing.hasCoordinates)
-                      TextButton.icon(
-                        onPressed: openMap,
-                        icon: const Icon(Icons.map, size: 18),
-                        label: const Text('View on map'),
-                      ),
-                  ],
-                ),
-                if (listing.category.isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  _IconText(
-                    icon: Icons.category,
-                    text: listing.subcategory.isEmpty
-                        ? listing.category
-                        : '${listing.category} • ${listing.subcategory}',
-                  ),
-                ],
-              ],
-            ),
-          ),
-
-          // ── Seller ──
-          _section(
-            'Seller',
-            InkWell(
-              borderRadius: AppRadius.rCard,
-              onTap: openSellerProfile,
-              child: StreamBuilder<DocumentSnapshot>(
-                stream: listing.userId.isEmpty
-                    ? null
-                    : FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(listing.userId)
-                          .snapshots(),
-                builder: (context, snap) {
-                  final data = snap.data?.data() as Map<String, dynamic>? ?? {};
-                  final count = (data['ratingCount'] as num?)?.toInt() ?? 0;
-                  final sum = (data['ratingSum'] as num?)?.toDouble() ?? 0;
-                  final avg = count > 0 ? sum / count : 0.0;
-                  final labels = <String>[
-                    if (data['idVerified'] == true) 'ID verified',
-                    if (data['isBusiness'] == true) 'Business',
-                  ];
-
-                  return SellerCard(
-                    name: listing.sellerName.isEmpty
-                        ? 'Seller'
-                        : listing.sellerName,
-                    subtitle: labels.join(' · '),
-                    avatarUrl: data['photoUrl']?.toString() ?? '',
-                    verified: data['verified'] == true,
-                    rating: count > 0 ? avg : null,
-                    reviewCount: count > 0 ? count : null,
-                    onTap: openSellerProfile,
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: AppColors.textMuted,
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-
-          // ── Specifications ──
-          if (listing.attributes.isNotEmpty)
-            _section(
-              'Specifications',
-              AppCard(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: AppSpacing.sm,
-                ),
-                child: Column(
-                  children: [
-                    for (final e in listing.attributes.entries)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 7),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 4,
-                              child: Text(e.key, style: AppType.secondary),
-                            ),
-                            const SizedBox(width: AppSpacing.md),
-                            Expanded(
-                              flex: 6,
-                              child:
-                                  (e.key == 'Color' &&
-                                      productColorByName(e.value) != null)
-                                  ? Row(
-                                      children: [
-                                        Container(
-                                          width: 14,
-                                          height: 14,
-                                          decoration: BoxDecoration(
-                                            color: productColorByName(e.value),
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: AppColors.border,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: AppSpacing.sm),
-                                        Expanded(
-                                          child: Text(
-                                            e.value,
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              color: AppColors.textPrimary,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    )
-                                  : Text(
-                                      e.value,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-
-          // ── Description ──
-          _section(
-            'Description',
-            ExpandableText(
-              text: listing.description.isNotEmpty
-                  ? listing.description
-                  : 'No description provided.',
-              style: TextStyle(
-                fontSize: 15,
-                height: 1.5,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-
-          // Sits between the description and the safety notice on purpose: the
-          // buyer has just read what the thing is, and this is the moment they
-          // decide how many of them they want.
-          _MoreDesigns(listing: listing),
-
-          const Padding(
-            padding: EdgeInsets.fromLTRB(
-              AppSpacing.page,
-              AppSpacing.section,
-              AppSpacing.page,
-              0,
-            ),
-            child: _SafetyTips(),
-          ),
-
-          if (isOwnAd)
-            Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.section),
-              child: Center(
-                child: Text('This is your ad', style: AppType.caption),
-              ),
-            ),
-
-          _SimilarAds(listing: listing),
-          const SizedBox(height: AppSpacing.section),
+          ...galleryBlock,
+          ...headlineBlock,
+          ...sellerBlock,
+          ...detailBlock,
         ],
       ),
     );

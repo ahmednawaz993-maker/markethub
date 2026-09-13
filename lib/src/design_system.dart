@@ -1667,9 +1667,19 @@ class HorizontalListingSection extends StatelessWidget {
     // Compact a 168px card is 168px of image before a word of text. This is
     // the single biggest thing the Size setting can give back on a feed made
     // of rails.
-    final cardWidth =
-        (screenWidth < 380 ? 152.0 : (screenWidth < 600 ? 168.0 : 190.0)) *
-        AppSpacing.scaleOf(context);
+    //
+    // On a desktop column the phone's 168px card leaves two thirds of the row
+    // empty, which is the other half of "an app in a window". There the width
+    // is DERIVED from the space instead — five cards and the gaps between
+    // them — so the rail ends where the column ends.
+    final cardWidth = AppBreak.isWide(context)
+        ? ((math.min(screenWidth, AppBreak.content) -
+                      AppSpacing.page * 2 -
+                      AppSpacing.md * 4) /
+                  5)
+              .clamp(180.0, 240.0)
+        : (screenWidth < 380 ? 152.0 : (screenWidth < 600 ? 168.0 : 190.0)) *
+              AppSpacing.scaleOf(context);
     final railHeight = MarketplaceListingCard.heightFor(context, cardWidth);
 
     return Column(
@@ -2113,6 +2123,187 @@ class SellerCard extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 /// A destination in [AppBottomNavigation].
+/// Where a phone layout stops making sense.
+///
+/// The app is one codebase serving two things that should not feel the same: a
+/// phone app, and a website somebody opens on a 27-inch monitor. Below [wide]
+/// nothing changes — the Android app never crosses it — and above it the shell
+/// becomes a website: navigation moves to the top, and the body stops
+/// stretching edge to edge.
+abstract final class AppBreak {
+  /// Tablet-landscape and up. Chosen so a portrait tablet and every phone stay
+  /// on the mobile layout.
+  static const double wide = 900;
+
+  /// The widest a column of marketplace content should get. Past this, lines of
+  /// text stop being readable and a grid row turns into a horizon of thumbnails.
+  static const double content = 1240;
+
+  static bool isWide(BuildContext context) =>
+      MediaQuery.sizeOf(context).width >= wide;
+}
+
+/// Centres its child in a [AppBreak.content]-wide column on desktop, and gets
+/// out of the way on a phone.
+class ContentColumn extends StatelessWidget {
+  final Widget child;
+  final double? maxWidth;
+
+  const ContentColumn({super.key, required this.child, this.maxWidth});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!AppBreak.isWide(context)) return child;
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth ?? AppBreak.content),
+        child: child,
+      ),
+    );
+  }
+}
+
+/// The website's header: brand, search, the same destinations the phone puts in
+/// its bottom bar, the account actions, and Sell.
+///
+/// A bottom tab bar on a desktop browser is the clearest possible tell that you
+/// are looking at a phone app in a window — nothing on the web puts navigation
+/// down there, and it wastes the one dimension a monitor has to spare while
+/// cramping the one it doesn't.
+class DesktopTopNav extends StatelessWidget {
+  final Widget brand;
+  final Widget search;
+  final int currentIndex;
+  final List<AppNavDestination> destinations;
+  final ValueChanged<int> onTap;
+  final VoidCallback onSell;
+  final String sellLabel;
+  final List<Widget> actions;
+
+  const DesktopTopNav({
+    super.key,
+    required this.brand,
+    required this.search,
+    required this.currentIndex,
+    required this.destinations,
+    required this.onTap,
+    required this.onSell,
+    required this.sellLabel,
+    this.actions = const [],
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Below this the row has to choose between the search field and the tab
+    // labels; the labels go, because an icon with a tooltip still navigates
+    // and a search box three characters wide does not.
+    final showLabels = MediaQuery.sizeOf(context).width >= 1120;
+
+    return Material(
+      color: AppColors.surface,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppColors.borderSoft)),
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xl,
+          vertical: AppSpacing.sm,
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: AppBreak.content),
+            child: Row(
+              children: [
+                InkWell(
+                  borderRadius: AppRadius.rSm,
+                  onTap: () => onTap(0),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.xs,
+                      vertical: AppSpacing.xs,
+                    ),
+                    child: brand,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xl),
+                Expanded(child: search),
+                const SizedBox(width: AppSpacing.lg),
+                for (var i = 0; i < destinations.length; i++)
+                  _NavItem(
+                    destination: destinations[i],
+                    selected: currentIndex == i,
+                    showLabel: showLabels,
+                    onTap: () => onTap(i),
+                  ),
+                ...actions,
+                const SizedBox(width: AppSpacing.sm),
+                FilledButton.icon(
+                  onPressed: onSell,
+                  icon: const Icon(Icons.add, size: 19),
+                  label: Text(sellLabel),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final AppNavDestination destination;
+  final bool selected;
+  final bool showLabel;
+  final VoidCallback onTap;
+
+  const _NavItem({
+    required this.destination,
+    required this.selected,
+    required this.showLabel,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colour = selected ? AppColors.accent : AppColors.textSecondary;
+    return Tooltip(
+      message: destination.label,
+      child: InkWell(
+        borderRadius: AppRadius.rSm,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                selected ? destination.activeIcon : destination.icon,
+                size: 21,
+                color: colour,
+              ),
+              if (showLabel) ...[
+                const SizedBox(width: 6),
+                Text(
+                  destination.label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    color: colour,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class AppNavDestination {
   final IconData icon;
   final IconData activeIcon;
