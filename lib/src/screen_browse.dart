@@ -499,191 +499,72 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
 
   bool get hasCategory => widget.category != null && widget.category != 'All';
 
-  Future<void> openFilters() async {
-    final minController = TextEditingController(
-      text: minPrice == null ? '' : minPrice!.toStringAsFixed(0),
-    );
-    final maxController = TextEditingController(
-      text: maxPrice == null ? '' : maxPrice!.toStringAsFixed(0),
-    );
-    String tempCity = cityFilter;
-    bool tempDelivery = deliveryOnly;
-    bool tempHideSold = hideSold;
-    String tempCondition = conditionFilter;
-    bool tempNegotiable = negotiableOnly;
-    String tempColor = colorFilter;
+  FilterValues get _filterValues => FilterValues(
+    city: cityFilter,
+    minPrice: minPrice,
+    maxPrice: maxPrice,
+    deliveryOnly: deliveryOnly,
+    hideSold: hideSold,
+    condition: conditionFilter,
+    negotiableOnly: negotiableOnly,
+    color: colorFilter,
+  );
 
+  void _applyFilterValues(FilterValues v) {
+    setState(() {
+      cityFilter = v.city;
+      minPrice = v.minPrice;
+      maxPrice = v.maxPrice;
+      deliveryOnly = v.deliveryOnly;
+      hideSold = v.hideSold;
+      conditionFilter = v.condition;
+      negotiableOnly = v.negotiableOnly;
+      colorFilter = v.color;
+    });
+    // Filters decide which documents qualify, so the already-loaded pages are
+    // no longer valid.
+    _restartPaging();
+  }
+
+  /// Bumped on reset so the form rebuilds from the cleared values.
+  int _filterFormGeneration = 0;
+
+  void _resetFilterValues() {
+    _filterFormGeneration++;
+    _applyFilterValues(FilterValues.none);
+  }
+
+  /// The phone's way in. The website shows the same form permanently, beside
+  /// the results — see the sidebar in build().
+  Future<void> openFilters() async {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return Padding(
-              padding: EdgeInsetsDirectional.only(
-                start: 16,
-                end: 16,
-                top: 16,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-              ),
-              // City + 2 fields + condition Wrap + colour swatches + 3
-              // switches + buttons do not fit a short screen, and certainly
-              // not with the keyboard up.
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Filters',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    CitySelector(
-                      value: tempCity,
-                      includeAll: true,
-                      onChanged: (value) =>
-                          setSheetState(() => tempCity = value),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: minController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Min price',
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: maxController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Max price',
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    const Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: Text(
-                        'Condition',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: ['Any', ...itemConditions].map((c) {
-                        final selected = tempCondition == c;
-                        return ChoiceChip(
-                          label: Text(c),
-                          selected: selected,
-                          selectedColor: kPakGreen.withValues(alpha: 0.18),
-                          onSelected: (_) =>
-                              setSheetState(() => tempCondition = c),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 8),
-                    ColorSwatchSelector(
-                      label: 'Colour',
-                      selected: tempColor,
-                      onChanged: (v) => setSheetState(() => tempColor = v),
-                    ),
-                    const SizedBox(height: 8),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Negotiable price only'),
-                      value: tempNegotiable,
-                      activeThumbColor: kPakGreen,
-                      onChanged: (v) => setSheetState(() => tempNegotiable = v),
-                    ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Delivery available only'),
-                      value: tempDelivery,
-                      activeThumbColor: kPakGreen,
-                      onChanged: (v) => setSheetState(() => tempDelivery = v),
-                    ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Hide sold items'),
-                      value: tempHideSold,
-                      activeThumbColor: kPakGreen,
-                      onChanged: (v) => setSheetState(() => tempHideSold = v),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () {
-                              setState(() {
-                                cityFilter = 'All';
-                                minPrice = null;
-                                maxPrice = null;
-                                deliveryOnly = false;
-                                hideSold = false;
-                                conditionFilter = 'Any';
-                                negotiableOnly = false;
-                                colorFilter = '';
-                              });
-                              _restartPaging();
-                              Navigator.pop(context);
-                            },
-                            child: Text(tr('action.reset', 'Reset')),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () {
-                              setState(() {
-                                cityFilter = tempCity;
-                                minPrice = double.tryParse(
-                                  minController.text.trim(),
-                                );
-                                maxPrice = double.tryParse(
-                                  maxController.text.trim(),
-                                );
-                                deliveryOnly = tempDelivery;
-                                hideSold = tempHideSold;
-                                conditionFilter = tempCondition;
-                                negotiableOnly = tempNegotiable;
-                                colorFilter = tempColor;
-                              });
-                              // Filters decide which documents qualify, so the
-                              // already-loaded pages are no longer valid.
-                              _restartPaging();
-                              Navigator.pop(context);
-                            },
-                            child: Text(tr('action.apply', 'Apply')),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsetsDirectional.only(
+          start: 16,
+          end: 16,
+          top: 16,
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
+        ),
+        // City + 2 fields + condition Wrap + colour swatches + 3 switches +
+        // buttons do not fit a short screen, and certainly not with the
+        // keyboard up.
+        child: SingleChildScrollView(
+          child: FilterForm(
+            initial: _filterValues,
+            onApply: (v) {
+              _applyFilterValues(v);
+              Navigator.pop(sheetContext);
+            },
+            onReset: () {
+              _resetFilterValues();
+              Navigator.pop(sheetContext);
+            },
+          ),
+        ),
+      ),
     );
-    minController.dispose();
-    maxController.dispose();
   }
 
   int get activeFilterCount {
@@ -848,7 +729,7 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
     // The search box + filters live OUTSIDE the StreamBuilder so they're never
     // rebuilt by stream ticks or replaced by the loading spinner — the field
     // stays responsive and keeps focus. Only the results list reacts to data.
-    return Column(
+    final column = Column(
       children: [
         // ── Compact search + filter/sort header ──
         Container(
@@ -900,18 +781,30 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
                 height: 38,
                 child: Row(
                   children: [
-                    Expanded(
-                      child: _HeaderPillButton(
-                        icon: Icons.tune,
-                        label: activeFilterCount == 0
-                            ? 'Filters'
-                            : 'Filters ($activeFilterCount)',
-                        active: activeFilterCount > 0,
-                        onTap: openFilters,
+                    // No Filters button on the website — the form stands beside
+                    // the results, so a modal to reach it would be a door in
+                    // the middle of an open room.
+                    if (!AppBreak.isWide(context)) ...[
+                      Expanded(
+                        child: _HeaderPillButton(
+                          icon: Icons.tune,
+                          label: activeFilterCount == 0
+                              ? 'Filters'
+                              : 'Filters ($activeFilterCount)',
+                          active: activeFilterCount > 0,
+                          onTap: openFilters,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
+                      const SizedBox(width: AppSpacing.sm),
+                    ],
+                    // On a phone the two pills share the row; on the website
+                    // the Filters pill is gone, and a sort control stretched
+                    // across the gap it left would look lost.
+                    Flexible(
+                      flex: AppBreak.isWide(context) ? 0 : 1,
+                      fit: AppBreak.isWide(context)
+                          ? FlexFit.loose
+                          : FlexFit.tight,
                       child: PopupMenuButton<String>(
                         initialValue: sortBy,
                         onSelected: (v) => setState(() => sortBy = v),
@@ -1064,6 +957,53 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
           ),
         ),
       ],
+    );
+
+    if (!AppBreak.isWide(context)) return column;
+
+    // THE WEBSITE: the filter form standing on the left, results filling the
+    // rest of the column.
+    return ContentColumn(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 288,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.page,
+                AppSpacing.lg,
+                AppSpacing.sm,
+                AppSpacing.section,
+              ),
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.tune, size: 20, color: AppColors.accent),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      activeFilterCount == 0
+                          ? 'Filters'
+                          : 'Filters ($activeFilterCount)',
+                      style: AppType.sectionTitle,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                FilterForm(
+                  // Rebuilt from the cleared values after a reset.
+                  key: ValueKey(_filterFormGeneration),
+                  initial: _filterValues,
+                  showHeading: false,
+                  onApply: _applyFilterValues,
+                  onReset: _resetFilterValues,
+                ),
+              ],
+            ),
+          ),
+          Expanded(child: column),
+        ],
+      ),
     );
   }
 
@@ -1277,3 +1217,219 @@ class _ListingCardHeartState extends State<_ListingCardHeart> {
 // ---------------------------------------------------------------------------
 
 /// Lists the user's saved ad drafts; tap to resume, swipe/delete to remove.
+
+/// The filter values a browse surface holds. A plain value object so the form
+/// can hand a whole set back at once instead of eight callbacks.
+class FilterValues {
+  final String city;
+  final double? minPrice;
+  final double? maxPrice;
+  final bool deliveryOnly;
+  final bool hideSold;
+  final String condition;
+  final bool negotiableOnly;
+  final String color;
+
+  const FilterValues({
+    required this.city,
+    required this.minPrice,
+    required this.maxPrice,
+    required this.deliveryOnly,
+    required this.hideSold,
+    required this.condition,
+    required this.negotiableOnly,
+    required this.color,
+  });
+
+  static const none = FilterValues(
+    city: 'All',
+    minPrice: null,
+    maxPrice: null,
+    deliveryOnly: false,
+    hideSold: false,
+    condition: 'Any',
+    negotiableOnly: false,
+    color: '',
+  );
+}
+
+/// The filter form, in ONE place because it is shown two ways: as a bottom
+/// sheet on a phone, where screen space has to be borrowed, and as a standing
+/// sidebar on the website, where it can just be there. A modal that a desktop
+/// user has to open, set and dismiss for every adjustment is the phone
+/// compromise leaking onto a screen that never needed it.
+class FilterForm extends StatefulWidget {
+  final FilterValues initial;
+  final ValueChanged<FilterValues> onApply;
+  final VoidCallback onReset;
+
+  /// The sheet needs its own heading; the sidebar has one above it already.
+  final bool showHeading;
+
+  const FilterForm({
+    super.key,
+    required this.initial,
+    required this.onApply,
+    required this.onReset,
+    this.showHeading = true,
+  });
+
+  @override
+  State<FilterForm> createState() => _FilterFormState();
+}
+
+class _FilterFormState extends State<FilterForm> {
+  late String _city = widget.initial.city;
+  late String _condition = widget.initial.condition;
+  late String _color = widget.initial.color;
+  late bool _delivery = widget.initial.deliveryOnly;
+  late bool _hideSold = widget.initial.hideSold;
+  late bool _negotiable = widget.initial.negotiableOnly;
+  late final TextEditingController _min = TextEditingController(
+    text: widget.initial.minPrice == null
+        ? ''
+        : widget.initial.minPrice!.toStringAsFixed(0),
+  );
+  late final TextEditingController _max = TextEditingController(
+    text: widget.initial.maxPrice == null
+        ? ''
+        : widget.initial.maxPrice!.toStringAsFixed(0),
+  );
+
+  @override
+  void dispose() {
+    _min.dispose();
+    _max.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (widget.showHeading) ...[
+          const Text(
+            'Filters',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+        ],
+        CitySelector(
+          value: _city,
+          includeAll: true,
+          onChanged: (value) => setState(() => _city = value),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _min,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Min price',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: _max,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Max price',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        const Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: Text(
+            'Condition',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: ['Any', ...itemConditions].map((c) {
+            return ChoiceChip(
+              label: Text(c),
+              selected: _condition == c,
+              selectedColor: kPakGreen.withValues(alpha: 0.18),
+              onSelected: (_) => setState(() => _condition = c),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 8),
+        ColorSwatchSelector(
+          label: 'Colour',
+          selected: _color,
+          onChanged: (v) => setState(() => _color = v),
+        ),
+        const SizedBox(height: 8),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Negotiable price only'),
+          value: _negotiable,
+          activeThumbColor: kPakGreen,
+          onChanged: (v) => setState(() => _negotiable = v),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Delivery available only'),
+          value: _delivery,
+          activeThumbColor: kPakGreen,
+          onChanged: (v) => setState(() => _hideSoldOrDelivery(delivery: v)),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Hide sold items'),
+          value: _hideSold,
+          activeThumbColor: kPakGreen,
+          onChanged: (v) => setState(() => _hideSoldOrDelivery(hideSold: v)),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: widget.onReset,
+                child: Text(tr('action.reset', 'Reset')),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () => widget.onApply(
+                  FilterValues(
+                    city: _city,
+                    minPrice: double.tryParse(_min.text.trim()),
+                    maxPrice: double.tryParse(_max.text.trim()),
+                    deliveryOnly: _delivery,
+                    hideSold: _hideSold,
+                    condition: _condition,
+                    negotiableOnly: _negotiable,
+                    color: _color,
+                  ),
+                ),
+                child: Text(tr('action.apply', 'Apply')),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _hideSoldOrDelivery({bool? delivery, bool? hideSold}) {
+    if (delivery != null) _delivery = delivery;
+    if (hideSold != null) _hideSold = hideSold;
+  }
+}
