@@ -2163,6 +2163,198 @@ class ContentColumn extends StatelessWidget {
   }
 }
 
+/// The website's footer.
+///
+/// A phone does not need one — everything here is one tap away in the Menu tab,
+/// and a wall of links above the tab bar would just be in the way. A website
+/// without one looks unfinished and, worse, hides the things a first-time
+/// visitor checks before trusting a marketplace with money: who runs it, what
+/// the rules are, and how to reach a human.
+class SiteFooter extends StatelessWidget {
+  final VoidCallback onBrowse;
+  final VoidCallback onSell;
+
+  const SiteFooter({super.key, required this.onBrowse, required this.onSell});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!AppBreak.isWide(context)) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: AppSpacing.section),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.borderSoft)),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xl,
+        vertical: AppSpacing.xxl,
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: AppBreak.content),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Image.asset(
+                              'assets/pakbazar_mark_light.png',
+                              height: 26,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stack) => Icon(
+                                Icons.storefront,
+                                size: 24,
+                                color: AppColors.accent,
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Text(
+                              'PakBazar',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.2,
+                                color: AppColors.accent,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        SizedBox(
+                          width: 320,
+                          child: Text(
+                            'Pakistan’s online marketplace. Buy and sell with '
+                            'the money held safely until the item arrives.',
+                            style: AppType.secondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _FooterColumn(
+                    title: 'Marketplace',
+                    links: [
+                      ('Browse all ads', onBrowse),
+                      ('Post an ad', onSell),
+                      (
+                        'Favourites',
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const FavoritesScreen(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  _FooterColumn(
+                    title: 'Support',
+                    links: [
+                      ('Help & feedback', () => showSupportSheet(context)),
+                      (
+                        'Customer care',
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const CustomerCareScreen(),
+                          ),
+                        ),
+                      ),
+                      (
+                        'About PakBazar',
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const AboutScreen()),
+                        ),
+                      ),
+                    ],
+                  ),
+                  _FooterColumn(
+                    title: 'Legal',
+                    links: [
+                      (
+                        'Terms of use',
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const TermsScreen()),
+                        ),
+                      ),
+                      (
+                        'Privacy policy',
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const PrivacyPolicyScreen(),
+                          ),
+                        ),
+                      ),
+                      (
+                        'Trust & safety',
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const TrustSafetyScreen(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              Divider(height: 1, color: AppColors.borderSoft),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                '© ${DateTime.now().year} PakBazar LLP',
+                style: AppType.caption,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FooterColumn extends StatelessWidget {
+  final String title;
+  final List<(String, VoidCallback)> links;
+
+  const _FooterColumn({required this.title, required this.links});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: AppType.label),
+          const SizedBox(height: AppSpacing.sm),
+          for (final (label, onTap) in links)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: AppRadius.rXs,
+                child: Text(label, style: AppType.secondary),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 /// The website's header: brand, search, the same destinations the phone puts in
 /// its bottom bar, the account actions, and Sell.
 ///

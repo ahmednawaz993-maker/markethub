@@ -1421,10 +1421,23 @@ class _HomeScreenState extends State<HomeScreen> {
                             onRetry: _feedSource.loadMore,
                           ),
                         ),
+                        // The website's footer closes the page; the phone
+                        // gets clearance for its tab bar instead, since that
+                        // is where all of these links already live.
                         SliverToBoxAdapter(
-                          child: SizedBox(
-                            height: AppSpacing.navClearanceOf(context),
-                          ),
+                          child: AppBreak.isWide(context)
+                              ? SiteFooter(
+                                  onBrowse: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const SearchScreen(),
+                                    ),
+                                  ),
+                                  onSell: _postAd,
+                                )
+                              : SizedBox(
+                                  height: AppSpacing.navClearanceOf(context),
+                                ),
                         ),
                       ],
                     ),
