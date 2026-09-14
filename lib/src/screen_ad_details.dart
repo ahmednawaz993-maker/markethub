@@ -698,11 +698,14 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
       child: SafeArea(
         top: false,
         child: Padding(
+          // Two stacked rows pinned over the content: this is the tallest
+          // piece of chrome on the screen people spend the most time on, so
+          // it gives back what it can without shrinking a tap target.
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.page,
-            AppSpacing.md,
+            AppSpacing.sm,
             AppSpacing.page,
-            AppSpacing.md,
+            AppSpacing.sm,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -721,7 +724,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                     Expanded(child: AddToCartButton(listing: listing)),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.sm),
+                const SizedBox(height: AppSpacing.xs),
               ],
               Row(
                 children: [

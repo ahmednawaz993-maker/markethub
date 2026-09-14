@@ -528,6 +528,9 @@ ThemeData buildAppTheme(Brightness brightness, [AppDensity? density]) {
       displayColor: onSurface,
     ),
     appBarTheme: AppBarTheme(
+      // 52 rather than Material's 56: every pushed screen in the app wears one
+      // of these, and on a phone four points of chrome is four points of ad.
+      toolbarHeight: 52,
       // Clean white (or dark-slate) bar with dark (or light) content and a
       // hairline rule instead of a shadow.
       backgroundColor: surface,

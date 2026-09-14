@@ -999,11 +999,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _homeHeader() {
     return Container(
       color: AppColors.surface,
+      // Tighter than it was (8/12 vertical): the brand row and the search
+      // field together were eating a sixth of a phone screen before a single
+      // listing appeared.
       padding: const EdgeInsetsDirectional.fromSTEB(
         AppSpacing.page,
+        AppSpacing.xs,
         AppSpacing.sm,
         AppSpacing.sm,
-        AppSpacing.md,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1026,10 +1029,10 @@ class _HomeScreenState extends State<HomeScreen> {
               // finally introduces itself the same way twice.
               Image.asset(
                 'assets/pakbazar_mark_light.png',
-                height: 30,
+                height: 26,
                 fit: BoxFit.contain,
                 errorBuilder: (context, error, stack) =>
-                    Icon(Icons.storefront, size: 28, color: AppColors.accent),
+                    Icon(Icons.storefront, size: 24, color: AppColors.accent),
               ),
               const SizedBox(width: AppSpacing.sm),
               Flexible(
@@ -1040,7 +1043,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 20,
+                      fontSize: 17,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.2,
                       color: AppColors.accent,
@@ -1050,6 +1053,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const Spacer(),
               IconButton(
+                visualDensity: VisualDensity.compact,
                 icon: const Icon(Icons.favorite_border),
                 tooltip: 'Favorites',
                 onPressed: () => Navigator.push(
@@ -1061,7 +1065,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const NotificationBell(),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.xs),
           Padding(
             padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
             child: AppSearchBar(

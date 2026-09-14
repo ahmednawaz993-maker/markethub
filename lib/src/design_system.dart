@@ -644,7 +644,7 @@ class AppSearchBar extends StatelessWidget {
     );
 
     return Container(
-      height: 54,
+      height: 48,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       // Filled and lifted rather than outlined.
       //
@@ -2339,7 +2339,11 @@ class AppBottomNavigation extends StatelessWidget {
     this.sellLabel = 'SELL',
   });
 
-  static const double barHeight = 62;
+  /// 62 was a bar you noticed. A phone screen is the scarcest surface the
+  /// product has, and this sits on all of it, all of the time — so it gives
+  /// back six points without losing a tap target: the row is still 56 high,
+  /// which is the platform minimum for a comfortable touch.
+  static const double barHeight = 56;
 
   @override
   Widget build(BuildContext context) {
@@ -2382,10 +2386,10 @@ class AppBottomNavigation extends StatelessWidget {
             children: [
               Icon(
                 selected ? d.activeIcon : d.icon,
-                size: 23,
+                size: 22,
                 color: selected ? AppColors.accent : AppColors.textMuted,
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 1),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2),
                 child: Text(
@@ -2394,7 +2398,7 @@ class AppBottomNavigation extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     height: 1.1,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                     color: selected ? AppColors.accent : AppColors.textMuted,
@@ -2416,8 +2420,8 @@ class AppBottomNavigation extends StatelessWidget {
         child: GestureDetector(
           onTap: onSell,
           child: Container(
-            width: 54,
-            height: 54,
+            width: 50,
+            height: 50,
             decoration: BoxDecoration(
               color: AppColors.primary,
               shape: BoxShape.circle,
