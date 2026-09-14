@@ -1660,7 +1660,13 @@ class HorizontalListingSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (listings.length < minItems) return const SizedBox.shrink();
+    // A rail holds five cards across a desktop column. Two of them, left
+    // aligned with three cards' worth of white beside them, reads as a page
+    // that failed to load rather than a short list — so on a wide screen a
+    // rail needs enough to be worth a row, and stays hidden otherwise. A phone
+    // shows one and a half cards at a time, where two is a perfectly good rail.
+    final needed = AppBreak.isWide(context) ? math.max(minItems, 3) : minItems;
+    if (listings.length < needed) return const SizedBox.shrink();
 
     final screenWidth = MediaQuery.of(context).size.width;
     // Scaled, because the card is its photo and the photo is square: at

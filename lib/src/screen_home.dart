@@ -81,6 +81,10 @@ class _WhatsNewSectionState extends State<WhatsNewSection> {
     ),
   ];
 
+  /// Fewer than this and a desktop row is mostly empty, so the curated set
+  /// tops the admin ones up instead of the two replacing each other.
+  static const int _minBanners = 3;
+
   List<PromoBannerData> _banners = _defaultBanners;
 
   @override
@@ -108,18 +112,28 @@ class _WhatsNewSectionState extends State<WhatsNewSection> {
             ),
           );
       if (docs.isNotEmpty && mounted) {
+        final approved = docs.map((d) {
+          final m = d.data();
+          return PromoBannerData(
+            title: m['title']?.toString() ?? '',
+            subtitle: m['subtitle']?.toString() ?? '',
+            image: m['imageUrl']?.toString() ?? '',
+            badge: m['category']?.toString() ?? '',
+            category: m['category']?.toString(),
+            sellerId: m['sellerId']?.toString(),
+          );
+        }).toList();
         setState(() {
-          _banners = docs.map((d) {
-            final m = d.data();
-            return PromoBannerData(
-              title: m['title']?.toString() ?? '',
-              subtitle: m['subtitle']?.toString() ?? '',
-              image: m['imageUrl']?.toString() ?? '',
-              badge: m['category']?.toString() ?? '',
-              category: m['category']?.toString(),
-              sellerId: m['sellerId']?.toString(),
-            );
-          }).toList();
+          // Approved banners come FIRST — somebody asked for those — and the
+          // curated ones fill the rest of the row. Before this, a single
+          // approved banner replaced all four defaults and left the website
+          // showing one card and a lot of white.
+          _banners = approved.length >= _minBanners
+              ? approved
+              : [
+                  ...approved,
+                  ..._defaultBanners.take(_minBanners - approved.length),
+                ];
         });
       }
     } catch (_) {
