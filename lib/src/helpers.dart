@@ -636,12 +636,64 @@ String friendlyName(Map<String, dynamic>? d, {String? email}) {
   return 'User';
 }
 
+/// Asks a guest to sign in, and takes them there if they say yes.
+///
+/// Always returns false: whatever they were trying to do cannot proceed on an
+/// anonymous token, and if they do sign in they land back on the ad and tap
+/// the thing again — which is one tap more than a flow that tried to resume
+/// itself, and cannot strand them mid-action if the sign-in is abandoned.
+Future<bool> _promptGuestToSignIn(BuildContext context) async {
+  if (!context.mounted) return false;
+  final go = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      icon: const Icon(Icons.person_add_alt, color: kPakGreen, size: 44),
+      title: const Text('Sign in to continue'),
+      content: const Text(
+        'You are browsing as a guest. Create a free account — or sign in — to '
+        'message a seller, make an offer, buy, or post an ad.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Not now'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Sign in'),
+        ),
+      ],
+    ),
+  );
+  if (go == true && context.mounted) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AuthScreen()),
+    );
+  }
+  return false;
+}
+
 /// Gates verified-only actions (posting, buying, offering, chatting). Returns
 /// true if allowed; otherwise prompts the user to verify and returns false.
 /// Admins bypass.
 Future<bool> ensureVerified(BuildContext context) async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) return false;
+
+  // A GUEST IS NOT AN ACCOUNT. Firebase issued them an anonymous token, so
+  // `user != null` was true and every gate below waved them through — and then
+  // firestore.rules, which asks for a real participant and a verified user,
+  // refused. What a guest tapping Chat actually saw was the conversation
+  // screen with "Something went wrong. We could not load this conversation."
+  // and a working message box underneath.
+  //
+  // This has to sit ABOVE the admin and verification-switch checks: with
+  // verification turned off platform-wide (`verificationRequired` is false
+  // until config says otherwise) the old code returned true here for anyone
+  // holding a token, guests included.
+  if (user.isAnonymous) return _promptGuestToSignIn(context);
+
   if (isAdminUser() || isDemoUser()) return true;
   // Admin can switch verification off platform-wide.
   if (!verificationRequired.value) return true;
