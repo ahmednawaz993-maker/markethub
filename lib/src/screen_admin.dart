@@ -107,9 +107,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             ],
           ),
         ),
+        // The panel is reached from the website's Menu too, and it was the one
+        // surface the desktop pass never touched: on a monitor its rows of
+        // cards ran the full width of the window, which is the "phone app in a
+        // window" look every public page stopped doing. The tab strip still
+        // spans the window — a strip of 27 tabs wants the room — and only the
+        // content sits in a column.
         body: Stack(
           children: [
-            TabBarView(children: [for (final e in visible) e.$3]),
+            ContentColumn(
+              child: TabBarView(children: [for (final e in visible) e.$3]),
+            ),
             // Invisible: pops a snackbar on new user support messages.
             const SupportAlertWatcher(),
           ],
@@ -299,7 +307,7 @@ class _AdminActivityTabState extends State<_AdminActivityTab> {
                   AppSpacing.page,
                   AppSpacing.lg,
                   AppSpacing.page,
-                  AppSpacing.navClearance,
+                  AppSpacing.section,
                 ),
                 itemCount: docs.length,
                 itemBuilder: (context, i) {
@@ -518,7 +526,7 @@ class _AdminPaymentsTab extends StatelessWidget {
             AppSpacing.page,
             AppSpacing.lg,
             AppSpacing.page,
-            AppSpacing.navClearance,
+            AppSpacing.section,
           ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
@@ -636,7 +644,7 @@ class _AdminFeaturedTab extends StatelessWidget {
         AppSpacing.page,
         AppSpacing.lg,
         AppSpacing.page,
-        AppSpacing.navClearance,
+        AppSpacing.section,
       ),
       children: [
         Card(
@@ -821,7 +829,7 @@ class _AdminEscrowTab extends StatelessWidget {
             AppSpacing.page,
             AppSpacing.lg,
             AppSpacing.page,
-            AppSpacing.navClearance,
+            AppSpacing.section,
           ),
           itemCount: docs.length,
           itemBuilder: (context, i) => _PayoutReviewCard(
@@ -1406,7 +1414,7 @@ class _AdminWithdrawalsTab extends StatelessWidget {
             AppSpacing.page,
             AppSpacing.lg,
             AppSpacing.page,
-            AppSpacing.navClearance,
+            AppSpacing.section,
           ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
@@ -1556,7 +1564,7 @@ class _AdminVerificationsTab extends StatelessWidget {
                   AppSpacing.page,
                   AppSpacing.lg,
                   AppSpacing.page,
-                  AppSpacing.navClearance,
+                  AppSpacing.section,
                 ),
                 itemCount: docs.length,
                 itemBuilder: (context, i) {
@@ -2274,7 +2282,7 @@ class _AdminOverviewTab extends StatelessWidget {
         AppSpacing.page,
         AppSpacing.lg,
         AppSpacing.page,
-        AppSpacing.navClearance,
+        AppSpacing.section,
       ),
       children: [
         const _VerificationToggle(),
@@ -2547,7 +2555,7 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
             AppSpacing.page,
             AppSpacing.lg,
             AppSpacing.page,
-            AppSpacing.navClearance,
+            AppSpacing.section,
           ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
@@ -2778,7 +2786,7 @@ class _AdminOffersTab extends StatelessWidget {
             AppSpacing.page,
             AppSpacing.lg,
             AppSpacing.page,
-            AppSpacing.navClearance,
+            AppSpacing.section,
           ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
@@ -2841,7 +2849,7 @@ class _AdminPurchasesTab extends StatelessWidget {
             AppSpacing.page,
             AppSpacing.lg,
             AppSpacing.page,
-            AppSpacing.navClearance,
+            AppSpacing.section,
           ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
@@ -2923,7 +2931,7 @@ class _AdminReportsTab extends StatelessWidget {
             AppSpacing.page,
             AppSpacing.lg,
             AppSpacing.page,
-            AppSpacing.navClearance,
+            AppSpacing.section,
           ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
@@ -3054,7 +3062,7 @@ class _AdminPromotionsTab extends StatelessWidget {
             AppSpacing.page,
             AppSpacing.lg,
             AppSpacing.page,
-            AppSpacing.navClearance,
+            AppSpacing.section,
           ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
@@ -3206,7 +3214,7 @@ class _AdminTopupsTab extends StatelessWidget {
             AppSpacing.page,
             AppSpacing.lg,
             AppSpacing.page,
-            AppSpacing.navClearance,
+            AppSpacing.section,
           ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
@@ -3547,7 +3555,7 @@ class _AdminOrdersTabState extends State<_AdminOrdersTab> {
                         AppSpacing.page,
                         AppSpacing.lg,
                         AppSpacing.page,
-                        AppSpacing.navClearance,
+                        AppSpacing.section,
                       ),
                       itemCount: shown.length,
                       itemBuilder: (context, i) {
@@ -4090,7 +4098,7 @@ class _AdminLuckyDrawTabState extends State<_AdminLuckyDrawTab> {
                   AppSpacing.page,
                   AppSpacing.lg,
                   AppSpacing.page,
-                  AppSpacing.navClearance,
+                  AppSpacing.section,
                 ),
                 children: [
                   Card(
@@ -4649,7 +4657,7 @@ class _AdminListingsTab extends StatelessWidget {
             AppSpacing.page,
             AppSpacing.lg,
             AppSpacing.page,
-            AppSpacing.navClearance,
+            AppSpacing.section,
           ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
@@ -4902,7 +4910,7 @@ class _AdminChatsTabState extends State<_AdminChatsTab> {
                   AppSpacing.page,
                   AppSpacing.lg,
                   AppSpacing.page,
-                  AppSpacing.navClearance,
+                  AppSpacing.section,
                 ),
                 itemCount: docs.length,
                 itemBuilder: (context, i) {
@@ -5110,7 +5118,7 @@ class _AdminBusinessTabState extends State<_AdminBusinessTab> {
             AppSpacing.page,
             AppSpacing.lg,
             AppSpacing.page,
-            AppSpacing.navClearance,
+            AppSpacing.section,
           ),
           itemCount: docs.length,
           itemBuilder: (context, i) => _BusinessAccountCard(userDoc: docs[i]),
@@ -5146,7 +5154,7 @@ class _AdminBusinessTabState extends State<_AdminBusinessTab> {
             AppSpacing.page,
             AppSpacing.lg,
             AppSpacing.page,
-            AppSpacing.navClearance,
+            AppSpacing.section,
           ),
           itemCount: docs.length,
           itemBuilder: (context, i) => _BusinessActivityCard(userDoc: docs[i]),
@@ -5601,7 +5609,7 @@ class _AdminPayoutAccountsTabState extends State<_AdminPayoutAccountsTab> {
                   AppSpacing.page,
                   AppSpacing.lg,
                   AppSpacing.page,
-                  AppSpacing.navClearance,
+                  AppSpacing.section,
                 ),
                 itemCount: docs.length,
                 itemBuilder: (context, i) {
@@ -5892,7 +5900,7 @@ class _AdminAppealsTab extends StatelessWidget {
             AppSpacing.page,
             AppSpacing.lg,
             AppSpacing.page,
-            AppSpacing.navClearance,
+            AppSpacing.section,
           ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
@@ -6168,7 +6176,7 @@ class _AdminApprovalsTab extends StatelessWidget {
             AppSpacing.page,
             AppSpacing.lg,
             AppSpacing.page,
-            AppSpacing.navClearance,
+            AppSpacing.section,
           ),
           itemCount: docs.length,
           itemBuilder: (context, i) {
@@ -6584,7 +6592,7 @@ class _AdminStaffTab extends StatelessWidget {
                   AppSpacing.page,
                   AppSpacing.lg,
                   AppSpacing.page,
-                  AppSpacing.navClearance,
+                  AppSpacing.section,
                 ),
                 itemCount: docs.length,
                 itemBuilder: (context, i) {
@@ -6742,7 +6750,7 @@ class _AdminDeletionsTab extends StatelessWidget {
                   AppSpacing.page,
                   AppSpacing.lg,
                   AppSpacing.page,
-                  AppSpacing.navClearance,
+                  AppSpacing.section,
                 ),
                 itemCount: docs.length,
                 itemBuilder: (context, i) {
@@ -7054,7 +7062,7 @@ class _AdminBroadcastTabState extends State<_AdminBroadcastTab> {
         AppSpacing.page,
         AppSpacing.lg,
         AppSpacing.page,
-        AppSpacing.navClearance,
+        AppSpacing.section,
       ),
       children: [
         SurfacePanel(

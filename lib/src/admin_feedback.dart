@@ -152,7 +152,7 @@ class _AdminFeedbackTabState extends State<AdminFeedbackTab> {
                         AppSpacing.page,
                         AppSpacing.sm,
                         AppSpacing.page,
-                        AppSpacing.navClearance,
+                        AppSpacing.section,
                       ),
                       itemCount: docs.length,
                       itemBuilder: (context, i) => AdminFeedbackCard(

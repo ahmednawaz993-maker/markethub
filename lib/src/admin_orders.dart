@@ -350,7 +350,7 @@ class AdminOrderView extends StatelessWidget {
           AppSpacing.page,
           AppSpacing.lg,
           AppSpacing.page,
-          AppSpacing.navClearance,
+          AppSpacing.section,
         ),
         children: [
           if (overdue) _overdueBanner(context, age),

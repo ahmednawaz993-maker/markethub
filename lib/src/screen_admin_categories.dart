@@ -517,7 +517,7 @@ class _AdminCategoriesTabState extends State<_AdminCategoriesTab> {
             AppSpacing.page,
             AppSpacing.lg,
             AppSpacing.page,
-            AppSpacing.navClearance + 72,
+            AppSpacing.section + 72,
           ),
           header: _CategoriesHeader(
             count: _items.length,
@@ -552,7 +552,7 @@ class _AdminCategoriesTabState extends State<_AdminCategoriesTab> {
           ),
         PositionedDirectional(
           end: 16,
-          bottom: 16 + AppSpacing.navClearance / 2,
+          bottom: 16 + AppSpacing.section / 2,
           child: FloatingActionButton.extended(
             onPressed: _saving ? null : _addCategory,
             icon: const Icon(Icons.add),
