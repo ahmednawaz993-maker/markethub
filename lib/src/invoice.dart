@@ -245,6 +245,11 @@ class InvoiceScreen extends StatelessWidget {
             );
           }
           final invoice = Invoice.fromOrder(orderId, data);
+          // What gets shared as a picture is this exact card — see
+          // InvoiceActions. Capturing the widget rather than rasterising the
+          // A4 page means the image is receipt-shaped instead of a short
+          // document adrift on a page of white.
+          final captureKey = GlobalKey();
           return ListView(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.page,
@@ -257,9 +262,19 @@ class InvoiceScreen extends StatelessWidget {
                 maxWidth: 720,
                 child: Column(
                   children: [
-                    InvoiceDocument(invoice: invoice, audience: audience),
+                    RepaintBoundary(
+                      key: captureKey,
+                      child: InvoiceDocument(
+                        invoice: invoice,
+                        audience: audience,
+                      ),
+                    ),
                     const SizedBox(height: AppSpacing.lg),
-                    InvoiceActions(invoice: invoice, audience: audience),
+                    InvoiceActions(
+                      invoice: invoice,
+                      audience: audience,
+                      captureKey: captureKey,
+                    ),
                   ],
                 ),
               ),

@@ -14,7 +14,9 @@ import 'url_strategy_stub.dart'
     if (dart.library.js_interop) 'url_strategy_web.dart';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui show ImageByteFormat;
 import 'dart:ui' show PlatformDispatcher;
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart'
     show kIsWeb, kReleaseMode, defaultTargetPlatform, TargetPlatform;

@@ -21,10 +21,15 @@ class InvoiceActions extends StatefulWidget {
   final Invoice invoice;
   final InvoiceAudience audience;
 
+  /// The receipt card on screen. When present the shared picture is a capture
+  /// of it; without it the A4 page is rasterised instead.
+  final GlobalKey? captureKey;
+
   const InvoiceActions({
     super.key,
     required this.invoice,
     required this.audience,
+    this.captureKey,
   });
 
   @override
@@ -41,34 +46,98 @@ class _InvoiceActionsState extends State<InvoiceActions> {
     try {
       await action();
     } catch (_) {
+      // Usually a browser with no Web Share support rather than a broken
+      // document, so point at the way out instead of just apologising.
       messenger.showSnackBar(
-        const SnackBar(content: Text('Could not prepare the receipt file.')),
+        const SnackBar(
+          content: Text(
+            'Sharing is not available here — use Print / save to keep a copy.',
+          ),
+        ),
       );
     }
     if (mounted) setState(() => _busy = false);
   }
 
+  /// The receipt as a PNG of its own first page.
+  ///
+  /// Rasterised from the very PDF that would otherwise be attached, so there is
+  /// one document and not two that can drift. An image matters because it is
+  /// what a chat app can SHOW: WhatsApp renders a picture in the thread and
+  /// files a PDF away as an attachment nobody opens, and a receipt is meant to
+  /// be glanced at.
+  Future<Uint8List> _receiptImage(Invoice i) async {
+    // Preferred: a picture of the card the user is looking at, which is
+    // receipt-shaped. Rasterising the PDF instead would attach an A4 page with
+    // two thirds of it empty — fine to print, poor to send to somebody.
+    final key = widget.captureKey;
+    if (key != null) {
+      final object = key.currentContext?.findRenderObject();
+      if (object is RenderRepaintBoundary) {
+        final image = await object.toImage(pixelRatio: 3);
+        final data = await image.toByteData(format: ui.ImageByteFormat.png);
+        if (data != null) return data.buffer.asUint8List();
+      }
+    }
+    // Fallback — a platform where capture is unavailable still gets a picture.
+    final pdfBytes = await buildInvoicePdf(i, widget.audience);
+    final page = await Printing.raster(pdfBytes, dpi: 140).first;
+    return page.toPng();
+  }
+
   @override
   Widget build(BuildContext context) {
     final i = widget.invoice;
-    return Row(
+    final caption =
+        'PakBazar receipt ${i.number} · '
+        '${formatPrice(i.total.toStringAsFixed(0))}';
+
+    return Wrap(
+      spacing: AppSpacing.md,
+      runSpacing: AppSpacing.sm,
       children: [
-        Expanded(
+        SizedBox(
+          width: 190,
           child: PrimaryActionButton(
-            label: 'Share receipt',
+            label: 'Share',
             icon: Icons.ios_share,
             busy: _busy,
             onPressed: () => _run(() async {
-              final bytes = await buildInvoicePdf(i, widget.audience);
-              await Printing.sharePdf(
-                bytes: bytes,
-                filename: 'PakBazar-${i.number}.pdf',
+              final png = await _receiptImage(i);
+              await SharePlus.instance.share(
+                ShareParams(
+                  text: caption,
+                  files: [
+                    XFile.fromData(
+                      png,
+                      mimeType: 'image/png',
+                      name: 'PakBazar-${i.number}.png',
+                    ),
+                  ],
+                ),
               );
             }),
           ),
         ),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
+        SizedBox(
+          width: 190,
+          child: PrimaryActionButton(
+            label: 'Share PDF',
+            icon: Icons.picture_as_pdf_outlined,
+            outlined: true,
+            onPressed: _busy
+                ? null
+                : () => _run(() async {
+                    final bytes = await buildInvoicePdf(i, widget.audience);
+                    await Printing.sharePdf(
+                      bytes: bytes,
+                      filename: 'PakBazar-${i.number}.pdf',
+                    );
+                  }),
+          ),
+        ),
+        SizedBox(
+          width: 190,
           child: PrimaryActionButton(
             label: 'Print / save',
             icon: Icons.print_outlined,
@@ -78,10 +147,26 @@ class _InvoiceActionsState extends State<InvoiceActions> {
                 : () => _run(() async {
                     await Printing.layoutPdf(
                       name: 'PakBazar-${i.number}',
-                      onLayout: (format) =>
-                          buildInvoicePdf(i, widget.audience),
+                      onLayout: (format) => buildInvoicePdf(i, widget.audience),
                     );
                   }),
+          ),
+        ),
+        SizedBox(
+          width: 190,
+          child: PrimaryActionButton(
+            label: 'Copy details',
+            icon: Icons.copy_all_outlined,
+            outlined: true,
+            onPressed: _busy
+                ? null
+                : () async {
+                    await Clipboard.setData(ClipboardData(text: i.asText()));
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Receipt copied.')),
+                    );
+                  },
           ),
         ),
       ],
