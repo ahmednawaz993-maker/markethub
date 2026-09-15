@@ -24,6 +24,11 @@ List<File> _uiSources({bool includeDesignSystem = false}) {
             includeDesignSystem ||
             !f.path.replaceAll(r'\', '/').endsWith('design_system.dart'),
       )
+      // invoice_pdf.dart draws an A4 page, not a screen: its sizes are print
+      // points and its type is set for paper, so the app's spacing, radius and
+      // type scales do not apply. Excluded deliberately, rather than by
+      // widening the rules every screen still has to obey.
+      .where((f) => !f.path.replaceAll(r'\', '/').endsWith('invoice_pdf.dart'))
       .toList();
 }
 

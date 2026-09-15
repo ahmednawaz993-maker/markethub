@@ -890,6 +890,24 @@ class _OrdersListState extends State<_OrdersList> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                      // The receipt sits with the other end-of-order actions
+                      // rather than behind a menu: a completed order is exactly
+                      // when somebody wants proof of what they paid.
+                      OutlinedButton.icon(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => InvoiceScreen(
+                              orderId: docs[i].id,
+                              audience: asSeller
+                                  ? InvoiceAudience.seller
+                                  : InvoiceAudience.buyer,
+                            ),
+                          ),
+                        ),
+                        icon: const Icon(Icons.receipt_long, size: 18),
+                        label: const Text('Receipt'),
+                      ),
                       OutlinedButton.icon(
                         onPressed: () => showReviewDialog(
                           context,

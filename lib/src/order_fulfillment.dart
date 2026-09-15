@@ -288,12 +288,24 @@ class OrderFulfillmentPanel extends StatelessWidget {
     if (ok != true) return;
     try {
       await confirmOrderDelivery(orderId, isCod: _isCod);
+      if (!context.mounted) return;
+      // This is the moment the buyer has "completed" an order, so it is the
+      // moment to hand them the receipt rather than leaving them to find it.
       messenger.showSnackBar(
         SnackBar(
           content: Text(
             _isCod
                 ? 'Thank you — your order is marked delivered.'
                 : 'Thank you — the seller payout is now under review.',
+          ),
+          action: SnackBarAction(
+            label: 'Receipt',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => InvoiceScreen(orderId: orderId),
+              ),
+            ),
           ),
         ),
       );

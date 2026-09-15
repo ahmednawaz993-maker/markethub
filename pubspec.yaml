@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.5.3+113
+version: 1.6.0+114
 
 environment:
   sdk: ^3.12.1
@@ -53,6 +53,11 @@ dependencies:
   image_picker: ^1.2.2
   url_launcher: ^6.3.2
   share_plus: ^13.2.1
+  # The order receipt. `pdf` builds the document, `printing` hands it to the
+  # platform — a share sheet or a printer on Android, a download or the browser
+  # print dialog on the website.
+  pdf: ^3.11.1
+  printing: ^5.13.4
   in_app_review: ^2.0.12
   geolocator: ^14.0.3
   firebase_messaging: ^16.5.0

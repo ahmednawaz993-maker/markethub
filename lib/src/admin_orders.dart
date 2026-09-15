@@ -624,6 +624,27 @@ class AdminOrderView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
+        // The same receipt the buyer and the seller see, with the commission
+        // and payout lines the admin audience adds. Available at any status,
+        // because the question staff are answering ("what was this person
+        // charged?") does not wait for the order to complete.
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.receipt_long, size: 18),
+            label: const Text('Receipt'),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => InvoiceScreen(
+                  orderId: orderId,
+                  audience: InvoiceAudience.admin,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(

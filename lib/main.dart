@@ -41,6 +41,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -128,6 +131,8 @@ part 'src/feed_api.dart';
 part 'src/user_session.dart';
 part 'src/screen_chat.dart';
 part 'src/screen_support.dart';
+part 'src/invoice.dart';
+part 'src/invoice_pdf.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
