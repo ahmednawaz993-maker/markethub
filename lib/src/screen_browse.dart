@@ -423,6 +423,9 @@ class _ListingsBrowserState extends State<ListingsBrowser> {
       searchText = recent.query;
       if (recent.city.isNotEmpty && recent.city != 'All') {
         cityFilter = recent.city;
+        // The sidebar form reads its values once; rebuild it so it shows the
+        // city, or its next Apply silently drops it.
+        _filterFormGeneration++;
       }
     });
     _restartPaging();

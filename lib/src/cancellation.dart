@@ -74,8 +74,23 @@ CancelUi cancelUiFor(Map<String, dynamic> o) {
     return CancelUi.none;
   }
   // Unpaid — instant cancel, no refund needed.
-  if (status == 'pending_payment' || status == 'cod_pending') {
-    return CancelUi.directCancel;
+  if (status == 'pending_payment') return CancelUi.directCancel;
+  // Cash on delivery holds no money, but the seller may already have packed or
+  // dispatched it, so the stage still decides. A legacy COD order with no
+  // orderStatus predates tracking and keeps the old instant cancel.
+  if (status == 'cod_pending') {
+    final explicit = o['orderStatus']?.toString() ?? '';
+    switch (explicit.isEmpty ? 'pending' : explicit) {
+      case 'pending':
+        return CancelUi.directCancel;
+      case 'accepted':
+      case 'processing':
+        return CancelUi.requestApproval;
+      case 'shipped':
+        return CancelUi.supportOnly;
+      default: // delivered, cancelled, ...
+        return CancelUi.none;
+    }
   }
   // Manual payment submitted, awaiting admin confirmation — unwind via review.
   if (status == 'payment_review') return CancelUi.requestApproval;

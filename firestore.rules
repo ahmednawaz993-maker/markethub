@@ -555,7 +555,13 @@ service cloud.firestore {
                     && isVerifiedUser()
                     && isNotBlocked()
                     && (request.resource.data.status == 'pending_payment'
-                        || request.resource.data.status == 'cod_pending');
+                        || request.resource.data.status == 'cod_pending')
+                    // Server-owned: sub-orders and order numbers come from
+                    // functions, and a client-set masterOrderId used to skip
+                    // the server's price check entirely.
+                    && !request.resource.data.keys()
+                          .hasAny(['masterOrderId', 'orderNumber',
+                                   'paymentStatus']);
       allow read: if isSignedIn() && (
                     resource.data.buyerId == request.auth.uid
                     || resource.data.sellerId == request.auth.uid
@@ -1479,8 +1485,14 @@ service cloud.firestore {
     // update (accept/counter/decline); admin may delete.
     // ---------------------------------------------------------------------
     match /offers/{offerId} {
+      // An offer starts as a plain pending bid. Without these a buyer could
+      // create one already 'accepted' at Rs 1 and order against it — the
+      // update rules stop the buyer accepting, but not creating, that state.
       allow create: if isSignedIn()
                     && request.resource.data.buyerId == request.auth.uid
+                    && request.resource.data.status == 'pending'
+                    && !request.resource.data.keys()
+                          .hasAny(['agreedAmount', 'counterAmount'])
                     && isVerifiedUser()
                     && isNotBlocked();
       allow read: if isSignedIn() && (

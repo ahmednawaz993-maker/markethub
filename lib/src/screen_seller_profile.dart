@@ -131,7 +131,13 @@ class SellerProfileScreen extends StatelessWidget {
         final listings =
             snapshot.data!.docs
                 .map((d) => Listing.fromDoc(d))
-                .where((l) => l.isApproved)
+                // A paused ad stays in its owner's view of the store only.
+                .where(
+                  (l) =>
+                      l.isApproved &&
+                      (l.isPubliclyVisible ||
+                          FirebaseAuth.instance.currentUser?.uid == sellerId),
+                )
                 .toList()
               ..sort((a, b) {
                 final at = a.createdAt?.millisecondsSinceEpoch ?? 0;

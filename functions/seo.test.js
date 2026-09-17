@@ -102,6 +102,21 @@ test("a field added to listings later does not become public by default", () => 
   assert.ok(!out.includes("someone@example.com"));
 });
 
+test("a $ pattern in seller text does not duplicate the page", () => {
+  const shell =
+    '<html><head><title>x</title></head><body>' +
+    '<div id="pb-splash">loading</div>\n<script>boot()</script></body></html>';
+  const v = publicView("abc123", {
+    ...DOC,
+    title: "Deal $& $` $' now",
+    description: "Price $` only",
+  });
+  const out = renderShell(shell, v, URL);
+  assert.strictEqual((out.match(/<head>/g) || []).length, 1);
+  assert.strictEqual((out.match(/<script>boot\(\)/g) || []).length, 1);
+  assert.ok(out.includes("$`"), "the seller's text is kept literally");
+});
+
 test("seller-written HTML is escaped, not executed", () => {
   // Titles and descriptions are user content served to every visitor, so the
   // check is per CONTEXT, not a substring scan of the whole page. The payload

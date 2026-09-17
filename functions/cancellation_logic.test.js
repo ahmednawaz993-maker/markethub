@@ -54,6 +54,14 @@ t("eligibility: unpaid → auto, no refund", () => {
     refund: false,
   });
 });
+t("eligibility: COD follows the fulfilment stage", () => {
+  const cod = (orderStatus) => cancellationEligibility({ status: "cod_pending", orderStatus });
+  assert.deepStrictEqual(cod("pending"), { mode: "auto", refund: false });
+  assert.deepStrictEqual(cod("accepted"), { mode: "review", refund: false });
+  assert.deepStrictEqual(cod("processing"), { mode: "review", refund: false });
+  assert.strictEqual(cod("shipped").mode, "reject");
+  assert.strictEqual(cod("delivered").mode, "reject");
+});
 t("eligibility: paid & not accepted → auto with refund", () => {
   assert.deepStrictEqual(
     cancellationEligibility({ status: "in_escrow", orderStatus: "pending" }),

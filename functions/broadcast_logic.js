@@ -106,11 +106,31 @@ function truncate(s, max) {
 // pending/rejected ads are not public yet, and an out-of-stock ad is not worth
 // waking every phone in the country for. Same gate the previous
 // interest-matched alerts used.
-function shouldBroadcastListing(listing) {
+//
+// An old ad is never "new". Ads posted before listingBroadcasts existed have
+// no claim doc, so without the age check re-approving one after an edit — or
+// the admin "approve existing ads" backfill — would announce it to everyone.
+// Generous enough to cover a slow moderation queue.
+const MAX_BROADCAST_AGE_MS = 21 * 24 * 60 * 60 * 1000;
+
+function createdAtMs(listing) {
+  const c = listing && listing.createdAt;
+  if (!c) return null;
+  if (typeof c.toMillis === "function") return c.toMillis();
+  if (typeof c === "number") return c;
+  if (c instanceof Date) return c.getTime();
+  if (typeof c._seconds === "number") return c._seconds * 1000;
+  return null;
+}
+
+function shouldBroadcastListing(listing, nowMs) {
   if (!listing) return false;
   const approval = String(listing.approvalStatus || "");
   if (approval === "pending" || approval === "rejected") return false;
   if (listing.status && listing.status !== "in_stock") return false;
+  const created = createdAtMs(listing);
+  const now = typeof nowMs === "number" ? nowMs : Date.now();
+  if (created !== null && now - created > MAX_BROADCAST_AGE_MS) return false;
   return true;
 }
 

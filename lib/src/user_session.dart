@@ -68,10 +68,17 @@ class UserSession extends ChangeNotifier {
     _social = null;
     recentlyViewed = const [];
     followingAds = const [];
+    // Or the next account inherits this one's "fresh" follow rail for the TTL.
+    _followingLoadedAt = null;
+    _loadedUid = null;
     unread = 0;
     loaded = false;
     notifyListeners();
   }
+
+  /// The account the held state belongs to.
+  String? _loadedUid;
+  String? _loadingUid;
 
   /// Reads the whole session.
   ///
@@ -86,8 +93,19 @@ class UserSession extends ChangeNotifier {
     }
     // A second refresh while one is in flight is a wasted read, and resume can
     // fire twice in quick succession.
-    if (_loading) return;
+    if (_loading && _loadingUid == uid) return;
+    if (_loadedUid != null && _loadedUid != uid) {
+      // A different account (a guest who signed in, say): nothing held is
+      // theirs, including the follow rail's TTL stamp.
+      profile = null;
+      _social = null;
+      followingAds = const [];
+      _followingLoadedAt = null;
+      unread = 0;
+      loaded = false;
+    }
     _loading = true;
+    _loadingUid = uid;
     try {
       await Future.wait([
         _loadProfile(uid),
@@ -96,10 +114,16 @@ class UserSession extends ChangeNotifier {
         _loadFollowing(uid),
         _loadUnread(uid),
       ]);
+      // Signed out or switched while this ran: its results are not for them.
+      if (_uid != uid) return;
+      _loadedUid = uid;
       loaded = true;
       notifyListeners();
     } finally {
-      _loading = false;
+      if (_loadingUid == uid) {
+        _loading = false;
+        _loadingUid = null;
+      }
     }
   }
 
@@ -109,6 +133,7 @@ class UserSession extends ChangeNotifier {
           .collection('users')
           .doc(uid)
           .get();
+      if (_uid != uid) return;
       profile = doc.data();
     } catch (_) {
       // Leave whatever was there. A failed refresh must not blank a banner
@@ -119,6 +144,7 @@ class UserSession extends ChangeNotifier {
   Future<void> _loadSocial(String uid) async {
     try {
       final doc = await privateSocialRef(uid).get();
+      if (_uid != uid) return;
       _social = doc.data();
     } catch (_) {}
   }
@@ -198,6 +224,7 @@ class UserSession extends ChangeNotifier {
     }
     try {
       final ids = await _followedSellerIds(uid);
+      if (_uid != uid) return;
       if (ids.isEmpty) {
         followingAds = const [];
         _followingLoadedAt = DateTime.now();
@@ -212,6 +239,7 @@ class UserSession extends ChangeNotifier {
           .orderBy('createdAt', descending: true)
           .limit(12)
           .get();
+      if (_uid != uid) return;
       followingAds = snap.docs.map(Listing.fromDoc).toList();
       _followingLoadedAt = DateTime.now();
     } catch (_) {}

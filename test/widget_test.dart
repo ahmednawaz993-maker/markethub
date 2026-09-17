@@ -234,6 +234,13 @@ void main() {
     test('unpaid orders can be cancelled directly', () {
       expect(cancelUiFor({'status': 'pending_payment'}), CancelUi.directCancel);
       expect(cancelUiFor({'status': 'cod_pending'}), CancelUi.directCancel);
+      Map<String, dynamic> cod(String os) =>
+          {'status': 'cod_pending', 'orderStatus': os};
+      expect(cancelUiFor(cod('pending')), CancelUi.directCancel);
+      expect(cancelUiFor(cod('accepted')), CancelUi.requestApproval);
+      expect(cancelUiFor(cod('processing')), CancelUi.requestApproval);
+      expect(cancelUiFor(cod('shipped')), CancelUi.supportOnly);
+      expect(cancelUiFor(cod('delivered')), CancelUi.none);
     });
 
     test('paid & not yet accepted → cancel with refund', () {

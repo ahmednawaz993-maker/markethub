@@ -212,11 +212,15 @@ function renderShell(shell, v, url) {
   // Drop the generic title/description so ours is the only one.
   html = html.replace(/<title>[\s\S]*?<\/title>/i, "");
   html = html.replace(/<meta\s+name="description"[^>]*>/i, "");
-  html = html.replace("</head>", `${headTags(v, url)}\n${SEO_CSS}\n</head>`);
+  // Function replacements: seller text can contain $& or $' or $`, which a
+  // replacement STRING expands into copies of the page.
+  const head = `${headTags(v, url)}\n${SEO_CSS}\n</head>`;
+  html = html.replace("</head>", () => head);
   // Replace the loading splash: on an ad URL there is something better to show.
+  const body = `${seoBody(v, url)}\n  `;
   html = html.replace(
     /<div id="pb-splash">[\s\S]*?<\/div>\s*(?=<script>)/i,
-    `${seoBody(v, url)}\n  `
+    () => body
   );
   html = html.replace(
     /var s = document\.getElementById\('pb-splash'\);/,

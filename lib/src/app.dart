@@ -104,6 +104,17 @@ class PakBazarApp extends StatelessWidget {
 bool shouldClearAuthRoutes(bool? wasSignedIn, bool signedIn) =>
     wasSignedIn == false && signedIn;
 
+/// Who is signed in, for [authIdentityChanged]: null when signed out.
+String? authIdentityOf(User? u) =>
+    u == null ? null : '${u.uid}/${u.isAnonymous ? 'guest' : 'account'}';
+
+/// A guest is already "signed in", so signing in FROM a guest session never
+/// crosses the signed-out edge above. It is still a new identity — a different
+/// uid, or the same uid upgraded from guest by linking — and the login screen
+/// stacked on top has to go just the same.
+bool authIdentityChanged(String? before, String? after) =>
+    before != null && after != null && before != after;
+
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
 
@@ -115,6 +126,7 @@ class _AuthGateState extends State<AuthGate> {
   /// Null until the first auth state arrives, so the app opening already
   /// signed in is not mistaken for somebody signing in.
   bool? _wasSignedIn;
+  String? _identity;
 
   /// Subscribed ONCE. `authStateChanges()` hands back a fresh stream object on
   /// every call, so building it inline made each rebuild of this gate look
@@ -122,8 +134,10 @@ class _AuthGateState extends State<AuthGate> {
   /// and painted the spinner below — tearing down the entire signed-in app and
   /// rebuilding it from scratch, which is why toggling the theme from the Menu
   /// dropped the user back on the Home tab.
-  late final Stream<User?> _authState = FirebaseAuth.instance
-      .authStateChanges();
+  ///
+  /// userChanges rather than authStateChanges: linking a guest to Google keeps
+  /// the uid, and only userChanges reports it.
+  late final Stream<User?> _authState = FirebaseAuth.instance.userChanges();
 
   @override
   Widget build(BuildContext context) {
@@ -152,7 +166,9 @@ class _AuthGateState extends State<AuthGate> {
         // so it covers every way in — Google, email, phone, guest — including
         // any added later.
         final signedIn = snapshot.hasData;
-        if (shouldClearAuthRoutes(_wasSignedIn, signedIn)) {
+        final identity = authIdentityOf(snapshot.data);
+        if (shouldClearAuthRoutes(_wasSignedIn, signedIn) ||
+            authIdentityChanged(_identity, identity)) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             final nav = Navigator.of(context);
@@ -160,9 +176,17 @@ class _AuthGateState extends State<AuthGate> {
           });
         }
         _wasSignedIn = signedIn;
+        _identity = identity;
 
         if (signedIn) {
-          return const _PresenceHost(child: _GatedHome());
+          // Keyed by account, so switching from a guest to a real account
+          // rebuilds everything that loaded per-user state in initState
+          // (profile watch, favourites, staff permissions) instead of keeping
+          // the guest's.
+          return _PresenceHost(
+            key: ValueKey(snapshot.data!.uid),
+            child: const _GatedHome(),
+          );
         }
 
         // Signed out, the app opens on the landing page rather than on a
@@ -181,7 +205,7 @@ class _AuthGateState extends State<AuthGate> {
 /// so signing out disposes it and writes a final "offline".
 class _PresenceHost extends StatefulWidget {
   final Widget child;
-  const _PresenceHost({required this.child});
+  const _PresenceHost({super.key, required this.child});
 
   @override
   State<_PresenceHost> createState() => _PresenceHostState();
@@ -382,6 +406,7 @@ class AccountSuspendedScreen extends StatelessWidget {
                     // Held state, so it has to be dropped deliberately — a
                     // listener would simply have stopped.
                     userSession.clear();
+                    favoriteListings.clear();
                     FirebaseAuth.instance.signOut();
                   },
                   icon: const Icon(Icons.logout, size: 18),

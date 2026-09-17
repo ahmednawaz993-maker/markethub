@@ -331,7 +331,7 @@ Future<bool> addListingToCart(Listing l, {int qty = 1}) async {
           ? (snap.data()?['quantity'] as num?)?.toInt() ?? 0
           : 0;
       final map = item.toMap();
-      map['quantity'] = existing + qty;
+      map['quantity'] = (existing + qty).clamp(1, 99);
       // Keep the original addedAt so ordering stays stable on re-add.
       if (snap.exists && snap.data()?['addedAtMs'] != null) {
         map['addedAtMs'] = snap.data()!['addedAtMs'];
@@ -342,7 +342,7 @@ Future<bool> addListingToCart(Listing l, {int qty = 1}) async {
     final items = await _guestLoad();
     final idx = items.indexWhere((i) => i.listingId == l.id);
     if (idx >= 0) {
-      items[idx].quantity += qty;
+      items[idx].quantity = (items[idx].quantity + qty).clamp(1, 99);
     } else {
       items.add(item);
     }
@@ -811,7 +811,11 @@ Future<String> placeCartOrder({
   } catch (e) {
     throw CheckoutException(_friendlyOrderError(e));
   }
-  await clearCart();
+  // The order exists now. A failure emptying the cart must not surface as
+  // "could not place the order", or the buyer taps again and orders twice.
+  try {
+    await clearCart();
+  } catch (_) {}
   return masterRef.id;
 }
 
@@ -1227,6 +1231,7 @@ class _AddToCartButtonState extends State<AddToCartButton> {
     if (_busy) return;
     setState(() => _busy = true);
     final messenger = ScaffoldMessenger.of(context);
+    final nav = Navigator.of(context);
     final ok = await addListingToCart(widget.listing);
     if (!mounted) return;
     setState(() => _busy = false);
@@ -1238,8 +1243,7 @@ class _AddToCartButtonState extends State<AddToCartButton> {
         action: ok
             ? SnackBarAction(
                 label: 'View cart',
-                onPressed: () => Navigator.push(
-                  context,
+                onPressed: () => nav.push(
                   MaterialPageRoute(builder: (_) => const CartScreen()),
                 ),
               )

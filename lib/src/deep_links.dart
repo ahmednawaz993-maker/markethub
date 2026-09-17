@@ -157,6 +157,10 @@ class _ListingDeepLinkScreenState extends State<ListingDeepLinkScreen> {
         await rememberPendingAd(widget.listingId);
         return null;
       }
+      // Signed in (guests are anonymous users): the rules refuse a deleted,
+      // pending or rejected ad rather than returning "missing", and Retry can
+      // never fix that, so it is shown as no longer available.
+      if (e.code == 'permission-denied') return null;
       rethrow;
     }
   }

@@ -283,7 +283,7 @@ Future<Uint8List> buildInvoicePdf(
                       borderRadius: pw.BorderRadius.circular(3),
                     ),
                     child: pw.Text(
-                      (i.paid ? 'PAID' : i.statusLabel).toUpperCase(),
+                      i.stampLabel.toUpperCase(),
                       style: pw.TextStyle(
                         fontSize: 9,
                         color: stamp,
@@ -432,6 +432,13 @@ Future<Uint8List> buildInvoicePdf(
                   pw.Divider(color: hairline, height: 1),
                   pw.SizedBox(height: 4),
                   totalRow('TOTAL', i.total, bold: true),
+                  if (i.refundAmount > 0) ...[
+                    totalRow('Refunded', -i.refundAmount),
+                    totalRow(
+                      'Net paid',
+                      (i.total - i.refundAmount).clamp(0, double.infinity).toDouble(),
+                    ),
+                  ],
                   if (audience != InvoiceAudience.buyer) ...[
                     pw.SizedBox(height: 8),
                     totalRow('Platform commission', -i.commission),
@@ -445,11 +452,7 @@ Future<Uint8List> buildInvoicePdf(
           pw.Divider(color: hairline, height: 1),
           pw.SizedBox(height: 8),
           pw.Text(
-            i.paymentMethod == 'cod'
-                ? 'Cash was collected on delivery. Returns and refunds are '
-                      'handled in the PakBazar app.'
-                : 'Payment was held by PakBazar until delivery was confirmed, '
-                      'then released to the seller.',
+            i.settlementNote,
             style: const pw.TextStyle(fontSize: 9, color: muted),
           ),
           pw.SizedBox(height: 2),

@@ -185,6 +185,9 @@ Future<String> placeListingOrder({
   required DeliveryAddress address,
   required String paymentMethod, // 'cod' | 'escrow'
   String notes = '',
+  // The total the buyer was shown. If the seller changed the price since, the
+  // order is refused rather than charged at a figure the buyer never saw.
+  double? expectedAmount,
 }) async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) throw CheckoutException('Please log in to place an order.');
@@ -227,6 +230,13 @@ Future<String> placeListingOrder({
       }
       final delivery = effectiveDeliveryFee(current, itemSubtotal);
       final amount = itemSubtotal + delivery;
+      if (expectedAmount != null && (amount - expectedAmount).abs() >= 0.5) {
+        throw CheckoutException(
+          'The price of this item has changed to '
+          '${formatPrice(amount.toStringAsFixed(0))}. Go back and open the ad '
+          'again to review it.',
+        );
+      }
       // Commission is taken on the product only, so the seller keeps the full
       // delivery fee; no commission on COD.
       final commission = isCod ? 0.0 : itemSubtotal * commissionRate;

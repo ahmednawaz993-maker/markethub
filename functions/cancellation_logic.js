@@ -55,8 +55,24 @@ function cancellationEligibility(o) {
   if (["released", "completed", "refunded", "cancelled"].includes(status)) {
     return { mode: "reject", reason: "This order is already finalized." };
   }
-  if (status === "pending_payment" || status === "cod_pending") {
+  if (status === "pending_payment") {
     return { mode: "auto", refund: false };
+  }
+  // COD holds no money, but a packed or dispatched parcel still needs the
+  // seller's say. Legacy COD orders without orderStatus keep the instant cancel.
+  if (status === "cod_pending") {
+    const os = o.orderStatus || "pending";
+    if (os === "pending") return { mode: "auto", refund: false };
+    if (os === "accepted" || os === "processing") {
+      return { mode: "review", refund: false };
+    }
+    if (os === "shipped") {
+      return {
+        mode: "reject",
+        reason: "This order has already shipped — please contact support.",
+      };
+    }
+    return { mode: "reject", reason: "This order can no longer be cancelled." };
   }
   if (status === "payment_review") {
     return { mode: "review", refund: true };

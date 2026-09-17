@@ -53,6 +53,11 @@ class Invoice {
   final String statusLabel;
   final bool paid;
 
+  /// What has gone back to the buyer so far. A partial refund leaves the order
+  /// held, so this can be non-zero on an order that is not [fullyRefunded].
+  final double refundAmount;
+  final bool fullyRefunded;
+
   const Invoice({
     required this.orderId,
     required this.number,
@@ -72,6 +77,8 @@ class Invoice {
     required this.paymentMethod,
     required this.statusLabel,
     required this.paid,
+    this.refundAmount = 0,
+    this.fullyRefunded = false,
   });
 
   /// Builds a receipt from an `orders/{id}` document.
@@ -111,24 +118,27 @@ class Invoice {
 
     final address = (m['deliveryAddress'] as Map?)?.cast<String, dynamic>();
     final addressLine = [
-      address?['line1'],
-      address?['line2'],
+      address?['houseOrBuilding'],
+      address?['streetAddress'],
       address?['area'],
       address?['city'],
+      address?['province'],
     ].map((e) => e?.toString().trim() ?? '').where((e) => e.isNotEmpty).join(', ');
 
     final status = m['status']?.toString() ?? '';
     // "Paid" means the money has actually moved: cash collected on a COD
     // delivery, or escrow released to the seller. An order sitting in escrow is
     // not a completed sale and its receipt should not claim to be one.
-    final paid =
-        status == 'completed' || status == 'released' || status == 'refunded';
+    // A refunded order is not one: the money went back, not to the seller.
+    final paid = status == 'completed' || status == 'released';
+    final fullyRefunded = status == 'refunded';
 
     return Invoice(
       orderId: id,
       number: m['orderNumber']?.toString().trim().isNotEmpty == true
           ? m['orderNumber'].toString().trim()
-          : 'PB-${id.substring(0, id.length < 6 ? id.length : 6).toUpperCase()}',
+          // Not PB-: that would pass for a real order number support can find.
+          : '#${id.substring(0, id.length < 6 ? id.length : 6).toUpperCase()}',
       issuedAt:
           ts('completedAt') ??
           ts('releasedAt') ??
@@ -148,9 +158,36 @@ class Invoice {
       commission: num$('commission'),
       sellerPayout: num$('sellerPayout'),
       paymentMethod: m['paymentMethod']?.toString() ?? '',
-      statusLabel: orderStatusLabel(status),
+      // `status` is the money state (in_escrow, cod_pending…), which
+      // orderStatusLabel does not know; derive the fulfilment state instead.
+      statusLabel: fullyRefunded
+          ? 'Refunded'
+          : orderStatusLabel(orderStatusOf(m)),
       paid: paid,
+      refundAmount: num$('refundAmount'),
+      fullyRefunded: fullyRefunded,
     );
+  }
+
+  /// The label on the stamp.
+  String get stampLabel => paid ? 'PAID' : statusLabel;
+
+  /// The closing line, which has to match what actually happened to the money.
+  String get settlementNote {
+    if (fullyRefunded) {
+      return 'This order was refunded to the buyer’s PakBazar wallet.';
+    }
+    if (paymentMethod == 'cod') {
+      return paid
+          ? 'Cash was collected on delivery. Returns and refunds are handled '
+                'in the PakBazar app.'
+          : 'Cash is paid on delivery. Returns and refunds are handled in the '
+                'PakBazar app.';
+    }
+    return paid
+        ? 'Payment was held by PakBazar until delivery was confirmed, then '
+              'released to the seller.'
+        : 'Payment is held by PakBazar until delivery is confirmed.';
   }
 
   String get paymentLabel =>
@@ -341,7 +378,7 @@ class InvoiceDocument extends StatelessWidget {
             children: [
               InvoiceStatusStamp(
                 paid: i.paid,
-                label: i.paid ? 'PAID' : i.statusLabel,
+                label: i.stampLabel,
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -385,14 +422,7 @@ class InvoiceDocument extends StatelessWidget {
             style: AppType.caption,
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(
-            i.paymentMethod == 'cod'
-                ? 'Cash was collected on delivery. Keep this receipt for your '
-                      'records — returns and refunds are handled in the app.'
-                : 'Payment was held by PakBazar until delivery was confirmed, '
-                      'then released to the seller.',
-            style: AppType.caption,
-          ),
+          Text(i.settlementNote, style: AppType.caption),
         ],
       ),
     );
@@ -519,6 +549,13 @@ class InvoiceLineTable extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.xs),
         InvoiceTotalRow(label: 'Total', value: i.total, emphasise: true),
+        if (i.refundAmount > 0) ...[
+          InvoiceTotalRow(label: 'Refunded', value: -i.refundAmount),
+          InvoiceTotalRow(
+            label: 'Net paid',
+            value: (i.total - i.refundAmount).clamp(0, double.infinity).toDouble(),
+          ),
+        ],
         if (audience != InvoiceAudience.buyer) ...[
           const SizedBox(height: AppSpacing.sm),
           Divider(height: 1, color: AppColors.borderSoft),

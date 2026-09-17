@@ -286,9 +286,12 @@ class OrderFulfillmentPanel extends StatelessWidget {
       ),
     );
     if (ok != true) return;
+    // Captured now: confirming moves a COD order out of the list that builds
+    // this panel, so its context is usually gone by the time the write returns.
+    if (!context.mounted) return;
+    final nav = Navigator.of(context);
     try {
       await confirmOrderDelivery(orderId, isCod: _isCod);
-      if (!context.mounted) return;
       // This is the moment the buyer has "completed" an order, so it is the
       // moment to hand them the receipt rather than leaving them to find it.
       messenger.showSnackBar(
@@ -300,8 +303,7 @@ class OrderFulfillmentPanel extends StatelessWidget {
           ),
           action: SnackBarAction(
             label: 'Receipt',
-            onPressed: () => Navigator.push(
-              context,
+            onPressed: () => nav.push(
               MaterialPageRoute(
                 builder: (_) => InvoiceScreen(orderId: orderId),
               ),
