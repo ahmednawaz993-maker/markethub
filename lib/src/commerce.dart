@@ -73,18 +73,39 @@ Future<void> showPromoteSheet(BuildContext context, Listing listing) async {
               else
                 ElevatedButton.icon(
                   onPressed: () async {
-                    final until = Timestamp.fromDate(
-                      DateTime.now().add(const Duration(days: 90)),
-                    );
-                    await FirebaseFirestore.instance
-                        .collection('listings')
-                        .doc(listing.id)
-                        .update({'isFeatured': true, 'featuredUntil': until});
+                    // A REQUEST, not the grant: onFeatureRequestCreated checks
+                    // the ad is this seller's and that featuring is on, then
+                    // sets the flag. A seller writing isFeatured on their own
+                    // ad is refused by the rules — free top placement for
+                    // anyone who can edit a document is not a promotion.
+                    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+                    try {
+                      await FirebaseFirestore.instance
+                          .collection('featureRequests')
+                          .add({
+                            'listingId': listing.id,
+                            'userId': uid,
+                            'days': 90,
+                            'status': 'pending',
+                            'createdAt': Timestamp.now(),
+                          });
+                    } catch (_) {
+                      if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Could not feature this ad. Please try again.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
                     if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                     messenger.showSnackBar(
                       const SnackBar(
                         content: Text(
-                          'Your ad is now featured — free for 3 months!',
+                          'Featuring your ad — free for 3 months. It appears '
+                          'at the top within a moment.',
                         ),
                       ),
                     );
@@ -614,7 +635,9 @@ Future<void> createOffer(Listing listing, double amount) async {
     'sellerId': listing.userId,
     'sellerName': listing.sellerName,
     'buyerId': user.uid,
-    'buyerName': user.email ?? 'Buyer',
+    // A name, never the email address: this lands on the seller's offer list
+    // and on the order it becomes.
+    'buyerName': buyerDisplayName(user),
     'status': 'pending',
     'createdAt': Timestamp.now(),
   });

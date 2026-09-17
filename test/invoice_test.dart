@@ -193,6 +193,22 @@ void main() {
       await out.writeAsBytes(bytes);
     });
 
+    test('Urdu text does not fall back to placeholder boxes', () async {
+      // The PDF core fonts are Latin only, so this used to print boxes.
+      TestWidgetsFlutterBinding.ensureInitialized();
+      expect(await loadReceiptFallbackFont(), isNotNull);
+      final m = _cartOrder()
+        ..['items'] = [
+          {'title': 'لان کا جوڑا', 'quantity': 1, 'unitPrice': 2450},
+        ]
+        ..['buyerName'] = 'احمد نواز';
+      final bytes = await buildInvoicePdf(
+        Invoice.fromOrder('abc123', m),
+        InvoiceAudience.buyer,
+      );
+      expect(bytes.length, greaterThan(1000));
+    });
+
     test('the staff copy carries the commission lines', () async {
       final buyer = await buildInvoicePdf(
         Invoice.fromOrder('abc123', _cartOrder()),

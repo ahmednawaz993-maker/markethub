@@ -217,15 +217,18 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
   final messenger = ScaffoldMessenger.of(context);
   final snap = await userRef.get();
   final d = snap.data();
+  // Private first, with the legacy public copy as a fallback until
+  // migrateUserContactPii has swept this account.
+  Map<String, dynamic> priv = const {};
+  try {
+    priv = (await privateContactRef(uid).get()).data() ?? const {};
+  } catch (_) {}
+  String payout(String k) => (priv[k] ?? d?[k])?.toString() ?? '';
   if (!context.mounted) return;
 
-  final bank = TextEditingController(text: d?['payoutBank']?.toString() ?? '');
-  final title = TextEditingController(
-    text: d?['payoutTitle']?.toString() ?? '',
-  );
-  final number = TextEditingController(
-    text: d?['payoutNumber']?.toString() ?? '',
-  );
+  final bank = TextEditingController(text: payout('payoutBank'));
+  final title = TextEditingController(text: payout('payoutTitle'));
+  final number = TextEditingController(text: payout('payoutNumber'));
   final amount = TextEditingController();
   // Guards against a double tap creating two withdrawals documents, each of
   // which reserves the amount against the seller's balance.
@@ -330,11 +333,13 @@ Future<void> showWithdrawSheet(BuildContext context, int balance) async {
                   }
                   setSubmitting(true);
                   try {
-                    await userRef.set({
+                    // Where this seller's money goes is not public: the user
+                    // document is readable by every signed-in account.
+                    await savePrivateContact(uid, {
                       'payoutBank': bank.text.trim(),
                       'payoutTitle': title.text.trim(),
                       'payoutNumber': number.text.trim(),
-                    }, SetOptions(merge: true));
+                    });
                     await FirebaseFirestore.instance
                         .collection('withdrawals')
                         .add({

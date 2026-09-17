@@ -859,7 +859,25 @@ exports.notifyOnNewListing = onDocumentCreated(
   async (event) => {
     const listing = event.data && event.data.data();
     if (!listing) return;
-    await broadcastListing(getFirestore(), listing, event.params.listingId);
+    const db = getFirestore();
+
+    // The shield badge is an identity decision, and the client sets it from
+    // its own copy of the profile — so a modified one could award itself the
+    // one real trust marker in the app. Re-read it from the user document.
+    if (listing.userId) {
+      try {
+        const u = await db.collection("users").doc(listing.userId).get();
+        const verified = u.exists && u.get("idVerified") === true;
+        if ((listing.sellerVerified === true) !== verified) {
+          await event.data.ref.set({ sellerVerified: verified }, { merge: true });
+          listing.sellerVerified = verified;
+        }
+      } catch (e) {
+        console.error("sellerVerified check", event.params.listingId, e);
+      }
+    }
+
+    await broadcastListing(db, listing, event.params.listingId);
   }
 );
 
@@ -1918,7 +1936,18 @@ exports.migrateUserContactPii = onSchedule(
     const db = getFirestore();
     // saveUserLocation() writes lat/lng (not latitude/longitude, which only
     // exist on listings) — captured home coordinates, so they belong here.
-    const PII = ["email", "phone", "address", "lat", "lng"];
+    const PII = [
+      "email",
+      "phone",
+      "address",
+      "lat",
+      "lng",
+      // Where a seller's money goes. These were written straight onto the
+      // world-readable profile by the withdrawal sheet.
+      "payoutBank",
+      "payoutTitle",
+      "payoutNumber",
+    ];
 
     // Copying is always safe. CLEARING the public copy is gated, because the
     // admin panel still reads users.email / users.phone in several list views
@@ -5275,5 +5304,79 @@ exports.onPayoutAccountEdited = onDocumentUpdated(
       newStatus: "pending",
       metadata: { changed },
     });
+  }
+);
+
+// Grants the FEATURED placement a seller asked for.
+//
+// The seller cannot write isFeatured on their own ad any more (the listing
+// rules compare it by value), because free top placement for anyone who edits
+// a document is not a promotion. They create a featureRequests doc instead and
+// this decides: the ad must be theirs, featuring must be switched on, and the
+// ad must not already be featured.
+const FEATURE_TRIAL_DAYS = 90;
+
+exports.onFeatureRequestCreated = onDocumentCreated(
+  "featureRequests/{requestId}",
+  async (event) => {
+    const snap = event.data;
+    const req = snap && snap.data();
+    if (!req || !req.listingId || !req.userId) return;
+    const db = getFirestore();
+
+    const decline = (reason) =>
+      snap.ref.set(
+        { status: "rejected", reason, processedAt: Timestamp.now() },
+        { merge: true }
+      );
+
+    try {
+      const cfg = await db.collection("config").doc("featuring").get();
+      if (cfg.exists && cfg.get("enabled") === false) {
+        return decline("featuring_disabled");
+      }
+
+      const listingRef = db.collection("listings").doc(String(req.listingId));
+      const lSnap = await listingRef.get();
+      if (!lSnap.exists) return decline("listing_missing");
+      const listing = lSnap.data();
+      if (listing.userId !== req.userId) return decline("not_owner");
+      if (listing.approvalStatus === "rejected") return decline("not_approved");
+
+      const until = listing.featuredUntil;
+      const activeUntil = until && until.toMillis ? until.toMillis() : 0;
+      if (listing.isFeatured === true && activeUntil > Date.now()) {
+        return decline("already_featured");
+      }
+
+      const days = Number(req.days) > 0 ? Math.min(Number(req.days), 365) : FEATURE_TRIAL_DAYS;
+      const expires = Timestamp.fromMillis(Date.now() + days * 24 * 60 * 60 * 1000);
+      await listingRef.set(
+        { isFeatured: true, featuredUntil: expires },
+        { merge: true }
+      );
+      await snap.ref.set(
+        {
+          status: "approved",
+          days,
+          featuredUntil: expires,
+          processedAt: Timestamp.now(),
+        },
+        { merge: true }
+      );
+      await writeAudit(db, {
+        action: "listing_featured",
+        entityType: "listing",
+        entityId: String(req.listingId),
+        actorId: String(req.userId),
+        actorRole: "seller",
+        newStatus: "featured",
+        reason: "free_trial",
+        metadata: { days },
+      });
+    } catch (e) {
+      console.error("onFeatureRequestCreated", event.params.requestId, e);
+      await decline("error").catch(() => {});
+    }
   }
 );

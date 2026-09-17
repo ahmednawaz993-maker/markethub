@@ -1790,9 +1790,13 @@ class _VerificationActionsState extends State<_VerificationActions> {
       await users.doc(widget.uid).set({
         'idVerified': approve,
         'addressVerified': approve,
-        // Store the approved address on the profile (visible to admins).
-        if (approve && widget.address.isNotEmpty) 'address': widget.address,
       }, SetOptions(merge: true));
+      // The address goes to the private doc, NOT the profile: the profile is
+      // readable by every signed-in user, so "visible to admins" was not what
+      // writing it there did.
+      if (approve && widget.address.isNotEmpty) {
+        await savePrivateContact(widget.uid, {'address': widget.address});
+      }
       await users
           .doc(widget.uid)
           .collection('notifications')
