@@ -50,6 +50,16 @@ class PagedListings extends ChangeNotifier {
   Object? _error;
   int _scanned = 0;
 
+  // Bumped by refresh(); a load that started under an older generation stands
+  // down instead of writing its page into the new result set.
+  int _generation = 0;
+  bool _disposed = false;
+
+  // The last load read [maxPagesPerLoad] pages and found nothing. Scrolling
+  // must not restart it (an empty list is always "near the bottom", so that
+  // would walk the whole collection), so it waits for an explicit tap.
+  bool _stalled = false;
+
   bool get isLoading => _loading;
 
   /// False once the underlying query has been walked to its end.
@@ -64,11 +74,18 @@ class PagedListings extends ChangeNotifier {
 
   bool get isEmpty => items.isEmpty && !_loading;
 
+  /// True when more may exist but the next page must be asked for by hand.
+  bool get isStalled => _stalled && !_exhausted;
+
   /// Fetches forward until at least one new item is accepted, the query is
   /// exhausted, or [maxPagesPerLoad] pages have been read.
-  Future<void> loadMore() async {
-    if (_loading || _exhausted) return;
+  /// Scroll-driven calls leave [manual] false; a "search further" tap sets it.
+  Future<void> loadMore({bool manual = false}) async {
+    if (_disposed || _loading || _exhausted) return;
+    if (_stalled && !manual) return;
+    final gen = _generation;
     _loading = true;
+    _stalled = false;
     _error = null;
     notifyListeners();
 
@@ -80,6 +97,7 @@ class PagedListings extends ChangeNotifier {
         if (_cursor != null) q = q.startAfterDocument(_cursor!);
 
         final snap = await q.get();
+        if (gen != _generation || _disposed) return;
         pages++;
 
         if (snap.docs.isEmpty) {
@@ -98,17 +116,23 @@ class PagedListings extends ChangeNotifier {
           accepted++;
         }
       }
+      if (accepted == 0 && !_exhausted) _stalled = true;
     } catch (e) {
-      _error = e;
+      if (gen == _generation) _error = e;
     } finally {
-      _loading = false;
-      notifyListeners();
+      if (gen == _generation && !_disposed) {
+        _loading = false;
+        notifyListeners();
+      }
     }
   }
 
   /// Discards everything and reloads from the first page. Used by
   /// pull-to-refresh and whenever the filters change.
   Future<void> refresh() async {
+    if (_disposed) return;
+    _generation++;
+    _stalled = false;
     items.clear();
     _cursor = null;
     _exhausted = false;
@@ -120,6 +144,8 @@ class PagedListings extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
+    _generation++;
     items.clear();
     super.dispose();
   }
@@ -220,6 +246,17 @@ class PagedListingFooter extends StatelessWidget {
             height: 26,
             width: 26,
             child: CircularProgressIndicator(strokeWidth: 2.4),
+          ),
+        ),
+      );
+    }
+    if (source.isStalled) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+        child: Center(
+          child: OutlinedButton(
+            onPressed: () => source.loadMore(manual: true),
+            child: Text(tr('action.searchFurther', 'Search further')),
           ),
         ),
       );

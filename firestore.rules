@@ -174,7 +174,8 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
                       (resource.data.userId == request.auth.uid
                         && (noSelfApproval() || isDemo())
-                        && validInventoryStatus())
+                        && validInventoryStatus()
+                        && noSelfPromotion())
                       || onlyBumpsStats()
                       || can('approvals') || can('listings')
                       || ((can('featured') || can('promotions'))
@@ -236,6 +237,18 @@ service cloud.firestore {
                     ['in_stock', 'out_of_stock', 'sold', 'inactive'];
       }
 
+      // Placement and trust marks are not the seller's to grant: FEATURED is a
+      // promotion (granted by featureRequests -> onFeatureRequestCreated, or by
+      // staff) and sellerVerified mirrors an identity decision. Compared BY
+      // VALUE, not by affected keys, so an edit that rewrites the whole
+      // document with the same values still passes.
+      function noSelfPromotion() {
+        return request.resource.data.get('isFeatured', false)
+                 == resource.data.get('isFeatured', false)
+               && request.resource.data.get('sellerVerified', false)
+                    == resource.data.get('sellerVerified', false);
+      }
+
       // Featured/promotions staff may only flip the feature flags on an ad —
       // not edit its content or approval status (least privilege).
       function onlyFeatureFields() {
@@ -264,6 +277,14 @@ service cloud.firestore {
                       || ((can('users') || can('verifyId') || can('appeals')
                            || can('businessVerify'))
                           && noWalletChange())
+                      // The Featured tab's "Turn off" and the Promotions tab's
+                      // business promo write these two fields and nothing else;
+                      // without this both fail with permission-denied.
+                      || ((can('featured') || can('promotions'))
+                          && request.resource.data.diff(resource.data)
+                               .affectedKeys()
+                               .hasOnly(['featuredBusiness',
+                                         'featuredBusinessUntil']))
                     );
       // Deletion staff may delete a profile only when that user actually filed
       // a deletion request (super admin may delete any).
@@ -375,8 +396,11 @@ service cloud.firestore {
                     && (request.auth.uid == userId
                         || can('users') || can('verifyId') || can('orders')
                         || can('feedback'));
+        // can('verifyId') so an approved ID verification can file the
+        // applicant's address HERE instead of on the public profile.
         allow write: if isSignedIn()
-                     && (request.auth.uid == userId || isAdmin());
+                     && (request.auth.uid == userId || isAdmin()
+                         || can('verifyId'));
       }
 
       match /favorites/{favoriteId} {
@@ -555,7 +579,13 @@ service cloud.firestore {
                     && isVerifiedUser()
                     && isNotBlocked()
                     && (request.resource.data.status == 'pending_payment'
-                        || request.resource.data.status == 'cod_pending');
+                        || request.resource.data.status == 'cod_pending')
+                    // Server-owned: sub-orders and order numbers come from
+                    // functions, and a client-set masterOrderId used to skip
+                    // the server's price check entirely.
+                    && !request.resource.data.keys()
+                          .hasAny(['masterOrderId', 'orderNumber',
+                                   'paymentStatus']);
       allow read: if isSignedIn() && (
                     resource.data.buyerId == request.auth.uid
                     || resource.data.sellerId == request.auth.uid
@@ -1110,7 +1140,17 @@ service cloud.firestore {
                           // one. The dice is produced by the ludoRoll callable
                           // via the Admin SDK, which bypasses these rules — so
                           // a modified client cannot claim a six.
-                          && request.resource.data.state.dice == null)
+                          && request.resource.data.state.dice == null
+                          // A move writes the board, the status and the clock —
+                          // never the money. pot / stakeContributions /
+                          // stakeCollectedAt / coinsAwardedAt are written by the
+                          // server alone, and a client that could set them could
+                          // award itself a pot.
+                          && request.resource.data.diff(resource.data)
+                               .affectedKeys()
+                               .hasOnly(['state', 'status', 'updatedAt'])
+                          && request.resource.data.status
+                               in ['playing', 'finished'])
                     );
       // Rooms are cleaned up by their host or an admin, never by a player who
       // is losing.
@@ -1336,6 +1376,20 @@ service cloud.firestore {
     // account and data (doc id == uid). The owner files/updates their own
     // pending request; staff with the 'deletions' permission read and resolve.
     // ---------------------------------------------------------------------
+    // A seller asking for the FEATURED placement. They may only ASK: the
+    // decision (and the write to the listing) is onFeatureRequestCreated's,
+    // because the listing rules no longer let an owner feature their own ad.
+    match /featureRequests/{reqId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.status == 'pending'
+                    && isNotBlocked();
+      allow read: if isSignedIn()
+                  && (resource.data.userId == request.auth.uid
+                      || can('featured') || can('promotions'));
+      allow update, delete: if can('featured') || can('promotions');
+    }
+
     match /deletionRequests/{reqId} {
       allow create: if isSignedIn()
                     && request.resource.data.userId == request.auth.uid
@@ -1343,9 +1397,14 @@ service cloud.firestore {
       allow read: if isSignedIn()
                   && (resource.data.userId == request.auth.uid
                       || can('deletions'));
+      // The owner may leave a pending request alone, or file a fresh one after
+      // theirs was rejected or resolved (the doc id is their uid, so a second
+      // request is an update, not a create — without this they were told
+      // "permission-denied" for ever).
       allow update: if (isSignedIn()
                         && resource.data.userId == request.auth.uid
-                        && resource.data.status == 'pending'
+                        && resource.data.status in ['pending', 'rejected',
+                                                    'resolved']
                         && request.resource.data.status == 'pending')
                     || can('deletions');
       allow delete: if can('deletions');
@@ -1479,8 +1538,14 @@ service cloud.firestore {
     // update (accept/counter/decline); admin may delete.
     // ---------------------------------------------------------------------
     match /offers/{offerId} {
+      // An offer starts as a plain pending bid. Without these a buyer could
+      // create one already 'accepted' at Rs 1 and order against it — the
+      // update rules stop the buyer accepting, but not creating, that state.
       allow create: if isSignedIn()
                     && request.resource.data.buyerId == request.auth.uid
+                    && request.resource.data.status == 'pending'
+                    && !request.resource.data.keys()
+                          .hasAny(['agreedAmount', 'counterAmount'])
                     && isVerifiedUser()
                     && isNotBlocked();
       allow read: if isSignedIn() && (

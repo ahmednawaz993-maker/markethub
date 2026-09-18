@@ -229,6 +229,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         address: address,
         paymentMethod: _paymentMethod,
         notes: _notesController.text,
+        expectedAmount: grandTotal,
       );
       trackPurchase(
         orderId: orderId,
@@ -656,10 +657,22 @@ class OrderConfirmationScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
+          // The PB number is assigned by a function a moment after the order
+          // is written; it is what the Orders list shows and support searches.
           Center(
-            child: Text(
-              'Order #$_orderNo',
-              style: TextStyle(color: AppColors.textSecondary),
+            child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('orders')
+                  .doc(orderId)
+                  .snapshots(),
+              builder: (context, snap) {
+                final n =
+                    snap.data?.data()?['orderNumber']?.toString().trim() ?? '';
+                return Text(
+                  n.isNotEmpty ? 'Order $n' : 'Order #$_orderNo',
+                  style: TextStyle(color: AppColors.textSecondary),
+                );
+              },
             ),
           ),
           const SizedBox(height: 16),

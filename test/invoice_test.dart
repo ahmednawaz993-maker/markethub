@@ -16,7 +16,8 @@ Map<String, dynamic> _cartOrder() => {
   'buyerName': 'Ahmed Nawaz',
   'buyerPhone': '03001234567',
   'deliveryAddress': {
-    'line1': 'House 12, Street 4',
+    'houseOrBuilding': 'House 12',
+    'streetAddress': 'Street 4',
     'area': 'G-10/2',
     'city': 'Islamabad',
   },
@@ -83,7 +84,36 @@ void main() {
 
     test('falls back to a number when the order has none', () {
       final m = _cartOrder()..remove('orderNumber');
-      expect(Invoice.fromOrder('abcdef123', m).number, 'PB-ABCDEF');
+      expect(Invoice.fromOrder('abcdef123', m).number, '#ABCDEF');
+    });
+
+    test('prints the address the order actually stores', () {
+      final i = Invoice.fromOrder('abc123', _cartOrder());
+      expect(i.address, 'House 12, Street 4, G-10/2, Islamabad');
+    });
+
+    test('labels the fulfilment state, not the money state', () {
+      final m = _cartOrder()
+        ..['status'] = 'in_escrow'
+        ..['orderStatus'] = 'shipped';
+      expect(Invoice.fromOrder('abc123', m).stampLabel, 'Dispatched');
+    });
+
+    test('a refunded order is not stamped paid', () {
+      final m = _cartOrder()
+        ..['status'] = 'refunded'
+        ..['refundAmount'] = 7000;
+      final i = Invoice.fromOrder('abc123', m);
+      expect(i.paid, isFalse);
+      expect(i.stampLabel, 'Refunded');
+      expect(i.settlementNote, contains('refunded'));
+    });
+
+    test('a partial refund is shown', () {
+      final m = _cartOrder()
+        ..['status'] = 'in_escrow'
+        ..['refundAmount'] = 500;
+      expect(Invoice.fromOrder('abc123', m).refundAmount, 500);
     });
 
     test('the totals it prints are the order\'s, not a recomputation', () {
@@ -161,6 +191,22 @@ void main() {
       final out = File('build/receipt_preview.pdf');
       await out.parent.create(recursive: true);
       await out.writeAsBytes(bytes);
+    });
+
+    test('Urdu text does not fall back to placeholder boxes', () async {
+      // The PDF core fonts are Latin only, so this used to print boxes.
+      TestWidgetsFlutterBinding.ensureInitialized();
+      expect(await loadReceiptFallbackFont(), isNotNull);
+      final m = _cartOrder()
+        ..['items'] = [
+          {'title': 'لان کا جوڑا', 'quantity': 1, 'unitPrice': 2450},
+        ]
+        ..['buyerName'] = 'احمد نواز';
+      final bytes = await buildInvoicePdf(
+        Invoice.fromOrder('abc123', m),
+        InvoiceAudience.buyer,
+      );
+      expect(bytes.length, greaterThan(1000));
     });
 
     test('the staff copy carries the commission lines', () async {

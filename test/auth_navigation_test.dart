@@ -70,6 +70,17 @@ void main() {
     expect(find.text('home'), findsOneWidget);
   });
 
+  test('signing in from a guest session is a new identity', () {
+    expect(authIdentityChanged('g1/guest', 'u2/account'), isTrue);
+    // Linking the guest to Google keeps the uid but ends the guest.
+    expect(authIdentityChanged('g1/guest', 'g1/account'), isTrue);
+    // A profile update on the same account is not.
+    expect(authIdentityChanged('u2/account', 'u2/account'), isFalse);
+    // The signed-out edges are the other rule's job.
+    expect(authIdentityChanged(null, 'u2/account'), isFalse);
+    expect(authIdentityChanged('u2/account', null), isFalse);
+  });
+
   test('the gate actually uses the rule', () {
     // A source check, because the wiring is the part that broke: the rule
     // being right is no help if the gate does not consult it.

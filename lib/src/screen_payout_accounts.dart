@@ -172,8 +172,8 @@ Future<void> addPayoutAccount(PayoutAccount a) async {
 }
 
 /// Updates a payout account's routing details. Never touches verificationStatus
-/// (rules reject that from a seller). Editing details re-sets it to pending
-/// server-side is NOT done here to avoid a rules conflict; admins re-verify.
+/// (rules reject that from a seller); if the details change on a verified
+/// account, onPayoutAccountEdited puts it back to pending for re-verification.
 Future<void> updatePayoutAccount(PayoutAccount a) async {
   final uid = FirebaseAuth.instance.currentUser?.uid;
   if (uid == null || a.id.isEmpty) return;

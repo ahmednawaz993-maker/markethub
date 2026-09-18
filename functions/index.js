@@ -138,6 +138,11 @@ const ADMIN_EMAIL = "ahmednawaz993@gmail.com";
 // this is the single server-side source of truth for the rate.
 async function resolveCommission(db, opts) {
   opts = opts || {};
+  // opts.at: the moment the rate applies to (an order's createdAt), so an
+  // order placed in the free launch is not charged if released after it ends.
+  const at = typeof opts.at === "number" && Number.isFinite(opts.at)
+    ? opts.at
+    : Date.now();
   let cfg = null;
   try {
     const snap = await db.collection("config").doc("commission").get();
@@ -146,7 +151,7 @@ async function resolveCommission(db, opts) {
     cfg = null;
   }
   const freeUntil = cfg && cfg.freeUntil ? Date.parse(cfg.freeUntil) : FREE_UNTIL;
-  if (Number.isFinite(freeUntil) && Date.now() < freeUntil) {
+  if (Number.isFinite(freeUntil) && at < freeUntil) {
     return { rate: 0, fixedFee: 0, source: "free_launch" };
   }
   if (!cfg) return { rate: commissionRate(), fixedFee: 0, source: "default" };
@@ -175,9 +180,13 @@ async function computePayoutBreakdown(db, order, extra) {
   const amount = Number(order.amount) || 0;
   const deliveryFee = Number(order.deliveryFee) || 0;
   const itemSubtotal = Math.max(0, amount - deliveryFee);
+  const createdAt = order.createdAt;
   const { rate, fixedFee, source } = await resolveCommission(db, {
     category: order.category || order.listingCategory || "",
     sellerId: order.sellerId || "",
+    at: createdAt && typeof createdAt.toMillis === "function"
+      ? createdAt.toMillis()
+      : undefined,
   });
   const platformCommissionAmount = round2(
     itemSubtotal * rate + (rate > 0 ? fixedFee : 0)
@@ -850,7 +859,25 @@ exports.notifyOnNewListing = onDocumentCreated(
   async (event) => {
     const listing = event.data && event.data.data();
     if (!listing) return;
-    await broadcastListing(getFirestore(), listing, event.params.listingId);
+    const db = getFirestore();
+
+    // The shield badge is an identity decision, and the client sets it from
+    // its own copy of the profile — so a modified one could award itself the
+    // one real trust marker in the app. Re-read it from the user document.
+    if (listing.userId) {
+      try {
+        const u = await db.collection("users").doc(listing.userId).get();
+        const verified = u.exists && u.get("idVerified") === true;
+        if ((listing.sellerVerified === true) !== verified) {
+          await event.data.ref.set({ sellerVerified: verified }, { merge: true });
+          listing.sellerVerified = verified;
+        }
+      } catch (e) {
+        console.error("sellerVerified check", event.params.listingId, e);
+      }
+    }
+
+    await broadcastListing(db, listing, event.params.listingId);
   }
 );
 
@@ -882,6 +909,10 @@ exports.notifyOnPriceDrop = onDocumentUpdated(
     const beforeMs = beforeDrop && beforeDrop.toMillis ? beforeDrop.toMillis() : 0;
     const afterMs = afterDrop.toMillis ? afterDrop.toMillis() : 0;
     if (afterMs <= beforeMs) return; // no new drop
+    // priceDropAt is owner-writable; only a genuinely lower price counts.
+    const newPrice = parsePrice(after.price);
+    const oldPrice = parsePrice(before.price);
+    if (!(newPrice > 0 && oldPrice > 0 && newPrice < oldPrice)) return;
 
     const db = getFirestore();
     const saves = await db
@@ -1203,9 +1234,22 @@ exports.notifyOnNewOrder = onDocumentCreated(
     // with all money fields + status already set authoritatively, and it sends
     // the seller notification itself. Skip them here so the single-listing
     // normalizer never touches them and the seller isn't notified twice.
-    if (order.masterOrderId) return;
-
     const db = getFirestore();
+    if (order.masterOrderId) {
+      // Genuine sub-orders come from the fan-out for an existing master order
+      // of the same buyer. Anything else claiming the field skipped every
+      // price check below, so it is voided instead.
+      const m = await db
+        .collection("masterOrders")
+        .doc(String(order.masterOrderId))
+        .get();
+      if (m.exists && m.get("buyerId") === order.buyerId) return;
+      await snap.ref.set(
+        { status: "cancelled", voidReason: "invalid_master_order" },
+        { merge: true }
+      );
+      return;
+    }
 
     // Every order gets a human-readable reference (PB-1042) from the same
     // sequence the multi-seller fan-out uses, so a number is unique across BOTH
@@ -1288,8 +1332,19 @@ exports.notifyOnNewOrder = onDocumentCreated(
           null;
       }
       const agreed = Number(offer && offer.agreedAmount) || 0;
+      // The offer's sellerId is written by the buyer, so it only counts if it
+      // is the listing's real owner.
+      const offerListingSnap = order.listingId
+        ? await db.collection("listings").doc(String(order.listingId)).get()
+        : null;
+      const offerListing =
+        offerListingSnap && offerListingSnap.exists
+          ? offerListingSnap.data()
+          : null;
       const offerOk =
         offer &&
+        offerListing &&
+        String(offer.sellerId || "") === String(offerListing.userId || "") &&
         offer.buyerId === order.buyerId &&
         String(offer.listingId || "") === String(order.listingId || "") &&
         ["accepted", "ordered"].indexOf(String(offer.status || "")) !== -1 &&
@@ -1343,16 +1398,30 @@ exports.notifyOnNewOrder = onDocumentCreated(
         order.status === "cod_pending"
           ? 0
           : round2(agreed * offerRate + (offerRate > 0 ? offerFee : 0));
-      const offerTotal = Number(order.amount) || agreed;
+      // The total is recomputed, never read from the order: the buyer writes
+      // it, and nothing else ties it to the agreed price. Same free-delivery
+      // rule as the app, against the listing's own delivery fee.
+      const offerDelivery =
+        agreed >= FREE_DELIVERY_THRESHOLD ||
+        offerListing.deliveryAvailable !== true
+          ? 0
+          : parsePrice(offerListing.deliveryFee);
+      const offerTotal = round2(agreed + offerDelivery);
       const offerPayout = round2(offerTotal - offerCommission);
+      amount = offerTotal;
 
       if (
+        order.amount !== offerTotal ||
+        order.deliveryFee !== offerDelivery ||
         order.commission !== offerCommission ||
         order.sellerPayout !== offerPayout ||
         order.sellerId !== offerSellerId
       ) {
         await snap.ref.set(
           {
+            amount: offerTotal,
+            deliveryFee: offerDelivery,
+            qualifiesForFreeDelivery: agreed >= FREE_DELIVERY_THRESHOLD,
             commission: offerCommission,
             sellerPayout: offerPayout,
             sellerId: offerSellerId,
@@ -1867,7 +1936,18 @@ exports.migrateUserContactPii = onSchedule(
     const db = getFirestore();
     // saveUserLocation() writes lat/lng (not latitude/longitude, which only
     // exist on listings) — captured home coordinates, so they belong here.
-    const PII = ["email", "phone", "address", "lat", "lng"];
+    const PII = [
+      "email",
+      "phone",
+      "address",
+      "lat",
+      "lng",
+      // Where a seller's money goes. These were written straight onto the
+      // world-readable profile by the withdrawal sheet.
+      "payoutBank",
+      "payoutTitle",
+      "payoutNumber",
+    ];
 
     // Copying is always safe. CLEARING the public copy is gated, because the
     // admin panel still reads users.email / users.phone in several list views
@@ -2493,6 +2573,17 @@ exports.onEscrowAction = onDocumentCreated(
       // itself recorded in the audit log via metadata below.
       if (o.buyerConfirmed !== true && act.override !== true) {
         return actRef.update({ status: "blocked_not_confirmed" });
+      }
+      // A payout an admin REJECTED stays unpaid; releasing it would also
+      // overwrite the rejection on the payout record. (A HOLD is lifted by
+      // releasing — the admin panel has no separate resume action.)
+      const payoutSnap = await payoutRef.get();
+      if (
+        payoutSnap.exists &&
+        payoutSnap.get("releaseStatus") === "rejected" &&
+        act.override !== true
+      ) {
+        return actRef.update({ status: "blocked_payout_rejected" });
       }
       // Do NOT release while an active dispute exists for this order.
       const disp = await db
@@ -4647,8 +4738,8 @@ exports.ludoSweepStuckGames = onSchedule("every 1 minutes", async () => {
   // them.
   //
   // So the sweep reconciles. `coinsAwardedAt` is the marker the payout writes
-  // last, and the payout is written to be safe to run twice, so re-running it
-  // for a room that has no marker is either a repair or a no-op.
+  // last; the payout claims the room (`coinsAwardingAt`) before paying, so a
+  // room is paid at most once whichever of the two gets there first.
   const settled = await db
     .collection("ludoRooms")
     .where("status", "==", "finished")
@@ -4664,8 +4755,12 @@ exports.ludoSweepStuckGames = onSchedule("every 1 minutes", async () => {
 
   for (const doc of settled.docs) {
     const room = doc.data() || {};
-    if (room.coinsAwardedAt) continue;
+    if (room.coinsAwardedAt || room.coinsAwardingAt) continue;
     if (!(room.state && (room.state.winners || []).length)) continue;
+    // Leave a just-finished room to its own trigger for a couple of minutes.
+    const finishedAt =
+      room.updatedAt && room.updatedAt.toMillis ? room.updatedAt.toMillis() : 0;
+    if (Date.now() - finishedAt < 2 * 60 * 1000) continue;
     console.warn("ludo payout repair", doc.id);
     try {
       // Shaped like the trigger event the payout expects. `before` is absent,
@@ -4852,11 +4947,26 @@ async function ludoRunCollectStakes(event) {
   // be the transition into "playing", which meant a collection missed for any
   // reason — a redeploy, a thrown error — was missed for good, and the table
   // played for a pot of nothing. Now any later write to the room repairs it.
-  if (after.stakeCollectedAt) return;
+  if (after.stakeCollectedAt || after.stakeCollectingAt) return;
   const stake = Number(after.stake) || 0;
   if (stake <= 0) return;
 
   const db = getFirestore();
+  // Claim before charging anyone. stakeCollectedAt is written only after the
+  // charges, so two writes landing together (the start, then the first roll)
+  // both passed the check above and charged every player twice.
+  const roomRef = event.data.after.ref;
+  const claimed = await db.runTransaction(async (tx) => {
+    const r = await tx.get(roomRef);
+    const d = r.exists ? r.data() : {};
+    if (d.status !== "playing" || d.stakeCollectedAt || d.stakeCollectingAt) {
+      return false;
+    }
+    tx.update(roomRef, { stakeCollectingAt: Timestamp.now() });
+    return true;
+  });
+  if (!claimed) return;
+
   const seats = after.seats || {};
   const contributions = {};
   let pot = 0;
@@ -4907,12 +5017,24 @@ async function ludoRunAwardCoins(event) {
   const before = event.data?.before?.data();
   if (!after || after.status !== "finished") return;
   if (before && before.status === "finished") return; // already handled
-  if (after.coinsAwardedAt) return;
+  if (after.coinsAwardedAt || after.coinsAwardingAt) return;
 
   const state = after.state || {};
   const seats = after.seats || {};
   const winners = state.winners || [];
   if (winners.length === 0) return;
+
+  // Claim before paying. The trigger and the repair sweep can both reach an
+  // unpaid room, and the per-player writes below are not safe to run twice.
+  const roomRef = event.data.after.ref;
+  const claimed = await getFirestore().runTransaction(async (tx) => {
+    const r = await tx.get(roomRef);
+    const d = r.exists ? r.data() : {};
+    if (d.coinsAwardedAt || d.coinsAwardingAt) return false;
+    tx.update(roomRef, { coinsAwardingAt: Timestamp.now() });
+    return true;
+  });
+  if (!claimed) return;
 
   const humanPlayers = Object.values(seats).filter(
     (v) => typeof v === "string" && !v.startsWith(LUDO_BOT_PREFIX)
@@ -5137,3 +5259,124 @@ exports.ludoSweepOldRooms = onSchedule("every 24 hours", async () => {
     `ludoSweepOldRooms deleted ${deleted} room(s) ${JSON.stringify(byReason)}`
   );
 });
+
+// A seller can edit a payout account's routing details, and the rules (rightly)
+// never let them touch verificationStatus. So editing a VERIFIED account used
+// to keep it verified with an IBAN no admin had seen, and escrow releases only
+// check that some account is verified. Any change to where the money goes puts
+// the account back in the verification queue.
+const PAYOUT_ROUTING_FIELDS = [
+  "type",
+  "accountTitle",
+  "bankName",
+  "iban",
+  "accountNumber",
+  "branchCode",
+  "mobileNumber",
+];
+
+exports.onPayoutAccountEdited = onDocumentUpdated(
+  "users/{uid}/payoutAccounts/{accountId}",
+  async (event) => {
+    const before = event.data && event.data.before.data();
+    const after = event.data && event.data.after.data();
+    if (!before || !after) return;
+    if (after.verificationStatus !== "verified") return;
+    const changed = PAYOUT_ROUTING_FIELDS.filter(
+      (k) => String(before[k] || "") !== String(after[k] || "")
+    );
+    if (changed.length === 0) return;
+    await event.data.after.ref.set(
+      {
+        verificationStatus: "pending",
+        reverifyReason: "details_changed",
+        updatedAt: Timestamp.now(),
+      },
+      { merge: true }
+    );
+    await writeAudit(getFirestore(), {
+      action: "payout_account_reverify",
+      entityType: "payoutAccount",
+      entityId: String(event.params.accountId),
+      actorId: String(event.params.uid),
+      actorRole: "seller",
+      previousStatus: "verified",
+      newStatus: "pending",
+      metadata: { changed },
+    });
+  }
+);
+
+// Grants the FEATURED placement a seller asked for.
+//
+// The seller cannot write isFeatured on their own ad any more (the listing
+// rules compare it by value), because free top placement for anyone who edits
+// a document is not a promotion. They create a featureRequests doc instead and
+// this decides: the ad must be theirs, featuring must be switched on, and the
+// ad must not already be featured.
+const FEATURE_TRIAL_DAYS = 90;
+
+exports.onFeatureRequestCreated = onDocumentCreated(
+  "featureRequests/{requestId}",
+  async (event) => {
+    const snap = event.data;
+    const req = snap && snap.data();
+    if (!req || !req.listingId || !req.userId) return;
+    const db = getFirestore();
+
+    const decline = (reason) =>
+      snap.ref.set(
+        { status: "rejected", reason, processedAt: Timestamp.now() },
+        { merge: true }
+      );
+
+    try {
+      const cfg = await db.collection("config").doc("featuring").get();
+      if (cfg.exists && cfg.get("enabled") === false) {
+        return decline("featuring_disabled");
+      }
+
+      const listingRef = db.collection("listings").doc(String(req.listingId));
+      const lSnap = await listingRef.get();
+      if (!lSnap.exists) return decline("listing_missing");
+      const listing = lSnap.data();
+      if (listing.userId !== req.userId) return decline("not_owner");
+      if (listing.approvalStatus === "rejected") return decline("not_approved");
+
+      const until = listing.featuredUntil;
+      const activeUntil = until && until.toMillis ? until.toMillis() : 0;
+      if (listing.isFeatured === true && activeUntil > Date.now()) {
+        return decline("already_featured");
+      }
+
+      const days = Number(req.days) > 0 ? Math.min(Number(req.days), 365) : FEATURE_TRIAL_DAYS;
+      const expires = Timestamp.fromMillis(Date.now() + days * 24 * 60 * 60 * 1000);
+      await listingRef.set(
+        { isFeatured: true, featuredUntil: expires },
+        { merge: true }
+      );
+      await snap.ref.set(
+        {
+          status: "approved",
+          days,
+          featuredUntil: expires,
+          processedAt: Timestamp.now(),
+        },
+        { merge: true }
+      );
+      await writeAudit(db, {
+        action: "listing_featured",
+        entityType: "listing",
+        entityId: String(req.listingId),
+        actorId: String(req.userId),
+        actorRole: "seller",
+        newStatus: "featured",
+        reason: "free_trial",
+        metadata: { days },
+      });
+    } catch (e) {
+      console.error("onFeatureRequestCreated", event.params.requestId, e);
+      await decline("error").catch(() => {});
+    }
+  }
+);

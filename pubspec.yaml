@@ -125,6 +125,7 @@ flutter:
     - assets/quran/quran_ur.json
     - assets/pakbazar_logo.png
     - assets/pakbazar_mark_light.png
+    - assets/fonts/NotoNaskhArabic.ttf
     - assets/sounds/notify.wav
     - assets/sounds/ludo_dice.wav
     - assets/sounds/ludo_move.wav

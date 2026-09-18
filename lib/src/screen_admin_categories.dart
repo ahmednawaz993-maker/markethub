@@ -135,8 +135,8 @@ class _AdminCategoriesTabState extends State<_AdminCategoriesTab> {
     // to bring them along.
     var migrate = false;
     if (renamed) {
-      final count = await _countListingsIn(current.title);
-      if (!mounted) return;
+      final count = await _countOrWarn(current.title);
+      if (!mounted || count == null) return;
       if (count > 0) {
         final choice = await showDialog<String>(
           context: context,
@@ -224,12 +224,34 @@ class _AdminCategoriesTabState extends State<_AdminCategoriesTab> {
     }
   }
 
+  /// The ad count, or null (with a message) when it can't be read — which is
+  /// what happens to staff who have Categories but not Listings access. Never
+  /// guessed as zero: a delete would then strand real ads.
+  Future<int?> _countOrWarn(String category, {String? subcategory}) async {
+    try {
+      return await _countListingsIn(category, subcategory: subcategory);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not check which ads use this. Renaming or removing '
+              'categories also needs the Listings permission.',
+            ),
+          ),
+        );
+      }
+      return null;
+    }
+  }
+
   Future<void> _deleteCategory(int index) async {
     final c = _items[index];
     setState(() => _saving = true);
-    final count = await _countListingsIn(c.title);
+    final count = await _countOrWarn(c.title);
     if (!mounted) return;
     setState(() => _saving = false);
+    if (count == null) return;
 
     if (count > 0) {
       // Deleting would strand real ads. Offer the reversible option instead.
@@ -367,8 +389,8 @@ class _AdminCategoriesTabState extends State<_AdminCategoriesTab> {
 
     var migrate = false;
     if (result.name != old) {
-      final count = await _countListingsIn(c.title, subcategory: old);
-      if (!mounted) return;
+      final count = await _countOrWarn(c.title, subcategory: old);
+      if (!mounted || count == null) return;
       if (count > 0) {
         final choice = await showDialog<bool>(
           context: context,
@@ -448,9 +470,10 @@ class _AdminCategoriesTabState extends State<_AdminCategoriesTab> {
     final c = _items[catIndex];
     final name = c.subcategories[subIndex];
     setState(() => _saving = true);
-    final count = await _countListingsIn(c.title, subcategory: name);
+    final count = await _countOrWarn(c.title, subcategory: name);
     if (!mounted) return;
     setState(() => _saving = false);
+    if (count == null) return;
 
     final ok = await showDialog<bool>(
       context: context,

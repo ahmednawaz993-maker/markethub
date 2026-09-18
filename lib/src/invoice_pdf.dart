@@ -180,11 +180,39 @@ class _InvoiceActionsState extends State<InvoiceActions> {
 /// printed, forwarded and filed, so it uses the PDF core fonts and leans on
 /// rules and spacing for structure. Colour is only the brand navy and the
 /// paid/unpaid stamp, both of which survive a black-and-white printer.
+/// The Urdu-capable font, loaded once.
+///
+/// The PDF core fonts are Latin only: every Urdu character in a title, a name
+/// or an address came out as a placeholder box, and the app is bilingual. Used
+/// as a FALLBACK so Latin text keeps the core font (and the small file) and
+/// only the characters Helvetica lacks pull from this one.
+pw.Font? _receiptFallbackFont;
+bool _receiptFallbackTried = false;
+
+Future<pw.Font?> loadReceiptFallbackFont() async {
+  if (_receiptFallbackTried) return _receiptFallbackFont;
+  _receiptFallbackTried = true;
+  try {
+    final data = await rootBundle.load('assets/fonts/NotoNaskhArabic.ttf');
+    _receiptFallbackFont = pw.Font.ttf(data);
+  } catch (_) {
+    // A missing font must never cost somebody their receipt.
+    _receiptFallbackFont = null;
+  }
+  return _receiptFallbackFont;
+}
+
 Future<Uint8List> buildInvoicePdf(
   Invoice i,
   InvoiceAudience audience,
 ) async {
-  final doc = pw.Document(title: 'PakBazar receipt ${i.number}');
+  final fallback = await loadReceiptFallbackFont();
+  final doc = pw.Document(
+    title: 'PakBazar receipt ${i.number}',
+    theme: pw.ThemeData.withFont(
+      fontFallback: [?fallback],
+    ),
+  );
   const navy = PdfColor.fromInt(0xFF173A6B);
   const ink = PdfColor.fromInt(0xFF17223B);
   const muted = PdfColor.fromInt(0xFF6B7280);
@@ -283,7 +311,7 @@ Future<Uint8List> buildInvoicePdf(
                       borderRadius: pw.BorderRadius.circular(3),
                     ),
                     child: pw.Text(
-                      (i.paid ? 'PAID' : i.statusLabel).toUpperCase(),
+                      i.stampLabel.toUpperCase(),
                       style: pw.TextStyle(
                         fontSize: 9,
                         color: stamp,
@@ -432,6 +460,13 @@ Future<Uint8List> buildInvoicePdf(
                   pw.Divider(color: hairline, height: 1),
                   pw.SizedBox(height: 4),
                   totalRow('TOTAL', i.total, bold: true),
+                  if (i.refundAmount > 0) ...[
+                    totalRow('Refunded', -i.refundAmount),
+                    totalRow(
+                      'Net paid',
+                      (i.total - i.refundAmount).clamp(0, double.infinity).toDouble(),
+                    ),
+                  ],
                   if (audience != InvoiceAudience.buyer) ...[
                     pw.SizedBox(height: 8),
                     totalRow('Platform commission', -i.commission),
@@ -445,11 +480,7 @@ Future<Uint8List> buildInvoicePdf(
           pw.Divider(color: hairline, height: 1),
           pw.SizedBox(height: 8),
           pw.Text(
-            i.paymentMethod == 'cod'
-                ? 'Cash was collected on delivery. Returns and refunds are '
-                      'handled in the PakBazar app.'
-                : 'Payment was held by PakBazar until delivery was confirmed, '
-                      'then released to the seller.',
+            i.settlementNote,
             style: const pw.TextStyle(fontSize: 9, color: muted),
           ),
           pw.SizedBox(height: 2),

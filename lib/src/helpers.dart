@@ -150,6 +150,15 @@ Future<void> savePrivateContact(String uid, Map<String, dynamic> values) async {
   await privateContactRef(uid).set(values, SetOptions(merge: true));
 }
 
+/// A buyer-facing display name that is never an email address.
+String buyerDisplayName(User user) {
+  final name = user.displayName?.trim() ?? '';
+  if (name.isNotEmpty) return name;
+  final email = user.email?.trim() ?? '';
+  final local = email.contains('@') ? email.split('@').first : email;
+  return local.isNotEmpty ? local : 'Buyer';
+}
+
 /// Public web URL for a single listing, used when sharing an ad.
 ///
 /// The web build does not route on this path yet, so it currently lands on the
@@ -384,18 +393,25 @@ Future<void> saveUserLocation({String? city, double? lat, double? lng}) async {
   final data = <String, dynamic>{};
   if (city != null && city.trim().isNotEmpty && city != 'All Pakistan') {
     data['city'] = city.trim();
+    data['locationUpdatedAt'] = Timestamp.now();
   }
-  if (lat != null && lng != null) {
-    data['lat'] = lat;
-    data['lng'] = lng;
-  }
-  if (data.isEmpty) return;
-  data['locationUpdatedAt'] = Timestamp.now();
   try {
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .set(data, SetOptions(merge: true));
+    if (data.isNotEmpty) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .set(data, SetOptions(merge: true));
+    }
+    // Coordinates are somebody's home, and the public user document is
+    // readable by every signed-in account — so they go to the private doc,
+    // which is where the admin map already looks first.
+    if (lat != null && lng != null) {
+      await savePrivateContact(uid, {
+        'lat': lat,
+        'lng': lng,
+        'locationUpdatedAt': Timestamp.now(),
+      });
+    }
   } catch (_) {}
 }
 

@@ -61,6 +61,15 @@ t("a listing with no approvalStatus at all is treated as public", () => {
   assert.strictEqual(shouldBroadcastListing({}), true);
 });
 
+t("an old listing is never announced as new", () => {
+  const now = Date.UTC(2026, 8, 17);
+  const day = 24 * 60 * 60 * 1000;
+  const at = (ms) => ({ toMillis: () => ms });
+  const l = (ms) => ({ approvalStatus: "approved", createdAt: at(ms) });
+  assert.strictEqual(shouldBroadcastListing(l(now - 2 * day), now), true);
+  assert.strictEqual(shouldBroadcastListing(l(now - 60 * day), now), false);
+});
+
 t("a null listing is never broadcast", () => {
   assert.strictEqual(shouldBroadcastListing(null), false);
 });

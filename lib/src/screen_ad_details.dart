@@ -1418,6 +1418,7 @@ class _MoreDesignsState extends State<_MoreDesigns> {
   }
 
   void _toggle(String id) => setState(() {
+    if (_busy) return;
     if (_picked.containsKey(id)) {
       _picked.remove(id);
     } else {
@@ -1428,6 +1429,7 @@ class _MoreDesignsState extends State<_MoreDesigns> {
   /// Clamped to the same ceiling as [updateCartQty], so a held-down stepper
   /// cannot build a line the cart would then refuse to reproduce.
   void _setQty(String id, int q) => setState(() {
+    if (_busy) return;
     if (q < 1) {
       _picked.remove(id);
     } else {
@@ -1439,20 +1441,41 @@ class _MoreDesignsState extends State<_MoreDesigns> {
     if (_busy) return;
     setState(() => _busy = true);
     final messenger = ScaffoldMessenger.of(context);
+    final nav = Navigator.of(context);
     final byId = {for (final l in pool) l.id: l};
 
     var added = 0;
     var refused = 0;
-    for (final entry in _picked.entries) {
-      final l = byId[entry.key];
-      // An ad the seller marked sold while this page was open is skipped
-      // rather than silently dropped — the count in the snackbar is what
-      // actually reached the cart.
-      if (l == null) continue;
-      final ok = await addListingToCart(l, qty: entry.value);
-      ok ? added += entry.value : refused++;
+    var failed = false;
+    try {
+      // A copy: the map must not change under the awaits below.
+      for (final entry in Map.of(_picked).entries) {
+        final l = byId[entry.key];
+        // An ad the seller marked sold while this page was open is skipped
+        // rather than silently dropped — the count in the snackbar is what
+        // actually reached the cart.
+        if (l == null) continue;
+        final ok = await addListingToCart(l, qty: entry.value);
+        ok ? added += entry.value : refused++;
+      }
+    } catch (_) {
+      failed = true;
     }
     if (!mounted) return;
+    if (failed) {
+      setState(() => _busy = false);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            added == 0
+                ? 'Could not add to cart. Please try again.'
+                : 'Only $added item${added == 1 ? '' : 's'} reached the cart. '
+                      'Please check it and try again.',
+          ),
+        ),
+      );
+      return;
+    }
     setState(() {
       _busy = false;
       // Back to the starting state: this ad only. Leaving four designs ticked
@@ -1474,8 +1497,7 @@ class _MoreDesignsState extends State<_MoreDesigns> {
             ? null
             : SnackBarAction(
                 label: 'View cart',
-                onPressed: () => Navigator.push(
-                  context,
+                onPressed: () => nav.push(
                   MaterialPageRoute(builder: (_) => const CartScreen()),
                 ),
               ),
@@ -1546,7 +1568,7 @@ class _MoreDesignsState extends State<_MoreDesigns> {
                 icon: Icons.grid_view_rounded,
               ),
               SizedBox(
-                height: _DesignTile.height,
+                height: _DesignTile.heightFor(context),
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(
@@ -1610,9 +1632,18 @@ class _DesignTile extends StatelessWidget {
 
   static const double width = 148;
 
-  /// Photo + price line + title line + the stepper row, all fixed, so the rail
-  /// gets a real height instead of a guessed one.
-  static const double height = width + 104;
+  /// Photo + price line + title line + the stepper row. The text parts grow
+  /// with the text scale (phone font size times the in-app Size setting); at
+  /// 1.0 this is the original width + 104.
+  static double heightFor(BuildContext context) {
+    final ts = MediaQuery.textScalerOf(context);
+    double grow(double size) => (ts.scale(size) - size).clamp(0, 200);
+    return width +
+        104 +
+        (grow(17) * 1.2).ceilToDouble() + // price
+        (grow(12) * 1.3).ceilToDouble() + // title
+        grow(16).ceilToDouble(); // stepper / Select
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1798,6 +1829,7 @@ class _SimilarAds extends StatelessWidget {
                   (l) =>
                       l.id != listing.id &&
                       l.isApproved &&
+                      l.isPubliclyVisible &&
                       !l.isSold &&
                       !isHiddenSeller(l.userId),
                 )
