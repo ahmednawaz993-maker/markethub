@@ -30,6 +30,9 @@ on:
       - ".github/workflows/smoke-test.yml"
       # Firestore rules/indexes ship via deploy-firestore.yml, not a Play build.
       - ".github/workflows/deploy-firestore.yml"
+      # Firebase CLI project/deploy config; nothing in it reaches the AAB.
+      - ".firebaserc"
+      - "firebase.json"
       - "firestore.rules"
       - "firestore.indexes.json"
       # Flutter tests and their golden images are not compiled into the AAB
