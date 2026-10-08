@@ -4366,6 +4366,14 @@ async function initiatePayfastCheckout(db, basketId, order) {
   const cfg = await payfastConfig(db);
   const merchantId = process.env.PAYFAST_MERCHANT_ID || "";
   const securedKey = process.env.PAYFAST_SECURED_KEY || "";
+  // Not configured → stop here rather than send PayFast a token request with
+  // blank credentials. The caller records this as a gateway_error.
+  if (!merchantId || !securedKey) {
+    throw new Error(
+      "PayFast is not configured: set and bind the PAYFAST_MERCHANT_ID and " +
+        "PAYFAST_SECURED_KEY secrets before enabling it"
+    );
+  }
   const amount = Number(order.amount) || 0;
 
   const tokenRes = await fetch(cfg.tokenUrl, {
