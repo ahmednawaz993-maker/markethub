@@ -31,6 +31,7 @@ import 'package:flutter/services.dart'
         KeyEvent,
         KeyDownEvent,
         KeyRepeatEvent,
+        HardwareKeyboard,
         SystemChrome,
         SystemUiOverlayStyle;
 import 'package:firebase_core/firebase_core.dart';
@@ -135,6 +136,7 @@ part 'src/screen_chat.dart';
 part 'src/screen_support.dart';
 part 'src/invoice.dart';
 part 'src/invoice_pdf.dart';
+part 'src/keyboard_scroll.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

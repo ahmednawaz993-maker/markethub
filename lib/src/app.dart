@@ -77,7 +77,13 @@ class PakBazarApp extends StatelessWidget {
                           systemScale * density.textScale,
                         ),
                       ),
-                      child: AppBackground(child: child ?? const SizedBox()),
+                      // Arrow / Page / Home / End keys scroll the page on the
+                      // website. See keyboard_scroll.dart.
+                      child: AppBackground(
+                        child: KeyboardScroll(
+                          child: child ?? const SizedBox(),
+                        ),
+                      ),
                     );
                   },
                   // Deep links (and web URLs) arrive here. Unrecognised routes
