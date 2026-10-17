@@ -131,10 +131,12 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   const Icon(Icons.storefront, color: Colors.white, size: 40),
             ),
             const SizedBox(width: AppSpacing.sm),
-            // Flexible, not bare: a Text in a Row takes whatever width it
+            // Expanded, not bare: a Text in a Row takes whatever width it
             // wants and overflows the rest. Caught by the test at 390px, which
-            // is an ordinary phone, not an edge case.
-            Flexible(
+            // is an ordinary phone, not an edge case. And not Flexible + Spacer
+            // either: those split the spare width in half, which parked Sign in
+            // in the middle of the bar on a laptop.
+            Expanded(
               child: Text(
                 'PakBazar',
                 style: AppType.pageTitle.copyWith(color: Colors.white),
@@ -142,7 +144,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const Spacer(),
             // Sign in sits at the top, always visible, next to the name.
             // Somebody who already has an account should not have to read the
             // pitch or scroll past it to get in.

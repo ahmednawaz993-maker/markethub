@@ -129,4 +129,27 @@ void main() {
     expect(find.text('Ready to start?'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('Sign in sits at the right edge of the header on a laptop', (
+    tester,
+  ) async {
+    // Flexible + Spacer split the spare width in half, so at 1366px the link
+    // floated in the middle of the bar. Seen on the website.
+    tester.view.physicalSize = const Size(1366, 768);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(Brightness.light),
+        home: const WelcomeScreen(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    final signIn = find.widgetWithText(TextButton, 'Sign in');
+    expect(signIn, findsOneWidget);
+    expect(tester.getRect(signIn).right, greaterThan(1366 - 40));
+    expect(tester.takeException(), isNull);
+  });
 }
