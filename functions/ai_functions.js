@@ -4,7 +4,7 @@
 // Budget Calculator & Rate List (AI) — the Firebase half. Pure logic and its
 // tests live in ai_helper.js / ai_helper.test.js.
 //
-// Rate lists: Claude searches the web for today's prices in a city and the
+// Rate lists: Gemini searches Google for today's prices in a city and the
 // result is cached in `aiRateLists/{city}`. The scheduler refreshes the big
 // cities every morning; any other city is generated the first time somebody
 // opens it that day. Clients never read the collection directly — they go
@@ -14,8 +14,12 @@
 // Budget advice: a single structured-output call over the user's own numbers,
 // grounded on the cached rate list for their city when there is one.
 //
-// Set the key once with:
-//   firebase functions:secrets:set ANTHROPIC_API_KEY
+// Runs on the Gemini API FREE tier: gemini-2.5-flash includes Google Search
+// grounding (500 requests/day as of 2026-10). No billing account is attached,
+// so going over the quota fails the call (429) instead of charging anything.
+//
+// Set the key once (free, from aistudio.google.com/apikey) with:
+//   firebase functions:secrets:set GEMINI_API_KEY
 // ---------------------------------------------------------------------------
 
 const { onSchedule } = require("firebase-functions/v2/scheduler");
@@ -24,61 +28,88 @@ const { defineSecret } = require("firebase-functions/params");
 const { getFirestore, Timestamp } = require("firebase-admin/firestore");
 const aiHelper = require("./ai_helper");
 
-const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
-const AI_MODEL = "claude-sonnet-5-5";
+const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
+const AI_MODEL = "gemini-2.5-flash";
 
-function anthropicClient() {
-  const Anthropic = require("@anthropic-ai/sdk").default;
-  return new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
+// The free tier answers 503 "high demand" (and 429/500) in bursts; a short
+// pause usually clears it.
+const RETRY_STATUSES = [429, 500, 503];
+const RETRY_DELAYS_MS = [5000, 15000];
+
+/**
+ * One generateContent call. Returns the first candidate, or throws with the
+ * API's own error message (quota, bad key, ...) so it lands in the logs.
+ */
+async function gemini(body) {
+  let res;
+  let json;
+  for (let attempt = 0; ; attempt++) {
+    res = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/" +
+        `${AI_MODEL}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-goog-api-key": GEMINI_API_KEY.value(),
+        },
+        body: JSON.stringify(body),
+      }
+    );
+    json = await res.json().catch(() => ({}));
+    const delay = RETRY_DELAYS_MS[attempt];
+    if (res.ok || !RETRY_STATUSES.includes(res.status) || delay === undefined) {
+      break;
+    }
+    await new Promise((r) => setTimeout(r, delay));
+  }
+  if (!res.ok) {
+    const msg = (json.error && json.error.message) || res.statusText;
+    throw new Error(`Gemini ${res.status}: ${msg}`);
+  }
+  const candidate = json.candidates && json.candidates[0];
+  if (!candidate) {
+    const reason = json.promptFeedback && json.promptFeedback.blockReason;
+    throw new Error(`Gemini returned no candidate (${reason || "unknown"})`);
+  }
+  return candidate;
 }
 
-/** Text of every text block, joined (thinking and tool blocks skipped). */
-function responseText(content) {
-  return (content || [])
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
+/** Text of every text part, joined (thought parts skipped). */
+function responseText(candidate) {
+  return ((candidate.content && candidate.content.parts) || [])
+    .filter((p) => typeof p.text === "string" && !p.thought)
+    .map((p) => p.text)
     .join("");
 }
 
 /**
- * Asks Claude to research today's prices for [city] and returns the validated
- * list, or null when nothing usable came back.
+ * Asks Gemini to research today's prices for [city] with Google Search and
+ * returns the validated list, or null when nothing usable came back.
  */
 async function generateRateList(city) {
-  const client = anthropicClient();
-  const messages = [
-    { role: "user", content: aiHelper.buildRatePrompt(city, Date.now()) },
-  ];
-  const allContent = [];
-  let response;
-  // Server-side web search can pause a long turn; resume it a couple of times.
-  for (let i = 0; i < 3; i++) {
-    response = await client.beta.messages.create({
-      model: AI_MODEL,
-      max_tokens: 16000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      output_config: { effort: "medium" },
-      system: aiHelper.RATE_SYSTEM,
-      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 8 }],
-      messages,
-    });
-    allContent.push(...response.content);
-    if (response.stop_reason !== "pause_turn") break;
-    messages.push({ role: "assistant", content: response.content });
-  }
-  if (response.stop_reason === "refusal") {
-    console.warn("generateRateList refused", city, response.stop_details);
-    return null;
-  }
+  const candidate = await gemini({
+    systemInstruction: { parts: [{ text: aiHelper.RATE_SYSTEM }] },
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: aiHelper.buildRatePrompt(city, Date.now()) }],
+      },
+    ],
+    tools: [{ google_search: {} }],
+    generationConfig: { maxOutputTokens: 16000 },
+  });
   const list = aiHelper.sanitizeRateList(
-    aiHelper.extractJson(responseText(response.content))
+    aiHelper.extractJson(responseText(candidate))
   );
   if (!list) {
-    console.warn("generateRateList unusable", city, response.stop_reason);
+    console.warn("generateRateList unusable", city, candidate.finishReason);
     return null;
   }
-  return { ...list, sources: aiHelper.collectSources(allContent) };
+  return {
+    ...list,
+    sources: aiHelper.collectSources(candidate.groundingMetadata),
+  };
 }
 
 async function refreshRateList(db, city) {
@@ -89,7 +120,7 @@ async function refreshRateList(db, city) {
   return doc;
 }
 
-/** Counts one paid AI call against the user's daily allowance. */
+/** Counts one AI call (free-tier quota) against the user's daily allowance. */
 async function takeAiAllowance(db, uid, kind) {
   const ref = db.collection("aiUsage").doc(uid);
   const today = aiHelper.pkDayKey(Date.now());
@@ -125,7 +156,7 @@ function rateListReply(doc) {
 }
 
 exports.aiRateList = onCall(
-  { secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 300, memory: "512MiB" },
+  { secrets: [GEMINI_API_KEY], timeoutSeconds: 300, memory: "512MiB" },
   async (request) => {
     const uid = request.auth && request.auth.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Sign in to see rates.");
@@ -166,21 +197,31 @@ exports.refreshAiRateLists = onSchedule(
   {
     schedule: "0 5 * * *",
     timeZone: "Asia/Karachi",
-    secrets: [ANTHROPIC_API_KEY],
+    secrets: [GEMINI_API_KEY],
     timeoutSeconds: 1800,
     memory: "512MiB",
   },
   async () => {
     const db = getFirestore();
     const queue = [...aiHelper.PREWARM_CITIES];
+    // A city that fails (busy model, unusable reply) gets one more go at the
+    // back of the queue; until then it keeps yesterday's list.
+    const retried = new Set();
     let ok = 0;
     const worker = async () => {
       while (queue.length) {
         const city = queue.shift();
+        let done = false;
         try {
-          if (await refreshRateList(db, city)) ok++;
+          done = Boolean(await refreshRateList(db, city));
         } catch (e) {
           console.error("refreshAiRateLists", city, e);
+        }
+        if (done) {
+          ok++;
+        } else if (!retried.has(city)) {
+          retried.add(city);
+          queue.push(city);
         }
       }
     };
@@ -192,7 +233,7 @@ exports.refreshAiRateLists = onSchedule(
 );
 
 exports.aiBudgetAdvice = onCall(
-  { secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 120 },
+  { secrets: [GEMINI_API_KEY], timeoutSeconds: 120 },
   async (request) => {
     const uid = request.auth && request.auth.uid;
     // Guests are anonymous accounts, and a fresh one is a fresh allowance —
@@ -222,21 +263,21 @@ exports.aiBudgetAdvice = onCall(
       if (snap.exists) digest = aiHelper.rateListDigest(snap.data());
     }
 
-    let response;
+    let candidate;
     try {
-      response = await anthropicClient().beta.messages.create({
-        model: AI_MODEL,
-        max_tokens: 16000,
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
-        output_config: {
-          effort: "low",
-          format: { type: "json_schema", schema: aiHelper.BUDGET_SCHEMA },
-        },
-        system: aiHelper.BUDGET_SYSTEM,
-        messages: [
-          { role: "user", content: aiHelper.buildBudgetPrompt(budget, digest) },
+      candidate = await gemini({
+        systemInstruction: { parts: [{ text: aiHelper.BUDGET_SYSTEM }] },
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: aiHelper.buildBudgetPrompt(budget, digest) }],
+          },
         ],
+        generationConfig: {
+          maxOutputTokens: 16000,
+          responseMimeType: "application/json",
+          responseJsonSchema: aiHelper.BUDGET_SCHEMA,
+        },
       });
     } catch (e) {
       console.error("aiBudgetAdvice", e);
@@ -245,15 +286,11 @@ exports.aiBudgetAdvice = onCall(
         "The adviser is busy. Please try again shortly."
       );
     }
-    if (response.stop_reason === "refusal") {
+    if (candidate.finishReason === "SAFETY") {
       throw new HttpsError("failed-precondition", "Could not review this budget.");
     }
-    let parsed = null;
-    try {
-      parsed = JSON.parse(responseText(response.content));
-    } catch (_) {
-      parsed = null;
-    }
+    // The schema should give bare JSON; extractJson also copes with fences.
+    const parsed = aiHelper.extractJson(responseText(candidate));
     const advice = aiHelper.sanitizeBudgetAdvice(parsed);
     if (!advice) {
       throw new HttpsError(

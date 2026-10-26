@@ -211,21 +211,25 @@ function sanitizeRateList(raw) {
   };
 }
 
-/** Distinct source URLs from the web_search results in a response. */
-function collectSources(content, max = 8) {
+/**
+ * Distinct source URLs from a Gemini candidate's groundingMetadata. Each
+ * chunk's uri is a Google redirect link and its title is the site's domain.
+ */
+function collectSources(grounding, max = 8) {
   const out = [];
-  for (const block of Array.isArray(content) ? content : []) {
-    if (!block || block.type !== "web_search_tool_result") continue;
-    // A failed search returns an error OBJECT here instead of a list.
-    if (!Array.isArray(block.content)) continue;
-    for (const r of block.content) {
-      if (!r || typeof r.url !== "string" || !/^https?:\/\//.test(r.url)) {
-        continue;
-      }
-      if (out.some((s) => s.url === r.url)) continue;
-      out.push({ url: r.url, title: cleanText(r.title, 100) });
-      if (out.length >= max) return out;
+  const chunks = grounding && grounding.groundingChunks;
+  for (const chunk of Array.isArray(chunks) ? chunks : []) {
+    const r = chunk && chunk.web;
+    if (!r || typeof r.uri !== "string" || !/^https?:\/\//.test(r.uri)) {
+      continue;
     }
+    const title = cleanText(r.title, 100);
+    // Every chunk gets its own redirect link, so one site shows up many times.
+    if (out.some((s) => s.url === r.uri || (title && s.title === title))) {
+      continue;
+    }
+    out.push({ url: r.uri, title });
+    if (out.length >= max) return out;
   }
   return out;
 }

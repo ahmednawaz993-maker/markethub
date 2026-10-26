@@ -4,7 +4,7 @@ part of '../main.dart';
 //
 // The calculator is plain arithmetic and works offline; the numbers never
 // leave the phone unless the user asks for AI advice. The rate list is
-// researched by Claude from the web every morning (functions/ai_functions.js)
+// researched by Gemini (Google Search) every morning (functions/ai_functions.js)
 // and cached per city, so opening it is normally instant and free.
 
 const String _kPrefToolsCity = 'tools_city';

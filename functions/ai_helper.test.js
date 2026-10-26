@@ -84,23 +84,20 @@ t("an empty or malformed list is rejected, not published", () => {
   );
 });
 
-t("sources come from search results only, deduped, errors skipped", () => {
-  const src = ai.collectSources([
-    { type: "text", text: "https://not-a-source.example" },
-    {
-      type: "web_search_tool_result",
-      content: [
-        { type: "web_search_result", url: "https://a.pk/x", title: "A" },
-        { type: "web_search_result", url: "https://a.pk/x", title: "A again" },
-        { type: "web_search_result", url: "javascript:alert(1)", title: "bad" },
-      ],
-    },
-    {
-      type: "web_search_tool_result",
-      content: { type: "web_search_tool_result_error", error_code: "unavailable" },
-    },
-  ]);
-  assert.deepStrictEqual(src, [{ url: "https://a.pk/x", title: "A" }]);
+t("sources come from grounding chunks only, deduped, bad urls skipped", () => {
+  const src = ai.collectSources({
+    groundingChunks: [
+      { web: { uri: "https://a.pk/x", title: "a.pk" } },
+      { web: { uri: "https://a.pk/x", title: "a.pk again" } },
+      { web: { uri: "https://redirect.example/2", title: "a.pk" } },
+      { web: { uri: "javascript:alert(1)", title: "bad" } },
+      { retrievedContext: { uri: "https://not-web.example" } },
+      null,
+    ],
+  });
+  assert.deepStrictEqual(src, [{ url: "https://a.pk/x", title: "a.pk" }]);
+  assert.deepStrictEqual(ai.collectSources(undefined), []);
+  assert.deepStrictEqual(ai.collectSources({}), []);
 });
 
 t("budget input is clamped and validated", () => {
