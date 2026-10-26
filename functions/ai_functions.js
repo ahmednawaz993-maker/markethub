@@ -25,7 +25,7 @@ const { getFirestore, Timestamp } = require("firebase-admin/firestore");
 const aiHelper = require("./ai_helper");
 
 const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
-const AI_MODEL = "claude-opus-5-5";
+const AI_MODEL = "claude-sonnet-5-5";
 
 function anthropicClient() {
   const Anthropic = require("@anthropic-ai/sdk").default;
