@@ -106,6 +106,7 @@ part 'src/admin_orders.dart';
 part 'src/admin_feedback.dart';
 part 'src/prayer_times.dart';
 part 'src/screen_islamic.dart';
+part 'src/screen_budget.dart';
 part 'src/ludo_engine.dart';
 part 'src/ludo_themes.dart';
 part 'src/ludo_collections.dart';

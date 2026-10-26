@@ -47,6 +47,30 @@ class IslamicSectionTiles extends StatelessWidget {
   );
 }
 
+/// Budget Calculator & Rate List, shown in the Menu.
+class BudgetToolsSectionTiles extends StatelessWidget {
+  const BudgetToolsSectionTiles({super.key});
+
+  @override
+  Widget build(BuildContext context) => _MenuGroup(
+    title: 'Budget & Rates',
+    items: [
+      _MenuItem(
+        icon: Icons.calculate_outlined,
+        label: 'Budget Calculator',
+        subtitle: 'Plan your month, with AI tips on where to save',
+        builder: () => const BudgetToolsScreen(),
+      ),
+      _MenuItem(
+        icon: Icons.receipt_long_outlined,
+        label: 'Rate List',
+        subtitle: "Today's prices for atta, petrol, cement and more",
+        builder: () => const BudgetToolsScreen(initialTab: 1),
+      ),
+    ],
+  );
+}
+
 /// Games. Separate from the marketplace on purpose — it is a reason to open
 /// the app on a day nobody is buying anything.
 class GamesSectionTiles extends StatelessWidget {
@@ -147,11 +171,7 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen> {
         body: const Center(child: CircularProgressIndicator()),
       );
     }
-    final today = computePrayerTimes(
-      date: _now,
-      location: _city,
-      asr: _asr,
-    );
+    final today = computePrayerTimes(date: _now, location: _city, asr: _asr);
     final next = today.nextAfter(_now);
     final tomorrowFajr = computePrayerTimes(
       date: _now.add(const Duration(days: 1)),

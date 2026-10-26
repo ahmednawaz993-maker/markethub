@@ -53,6 +53,9 @@ const {
 
 initializeApp();
 
+// Budget Calculator & Rate List: aiRateList, refreshAiRateLists, aiBudgetAdvice.
+Object.assign(exports, require("./ai_functions"));
+
 // SendGrid API key. Set it once with:
 //   firebase functions:secrets:set SENDGRID_API_KEY
 const SENDGRID_API_KEY = defineSecret("SENDGRID_API_KEY");

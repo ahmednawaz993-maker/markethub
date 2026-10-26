@@ -2047,6 +2047,7 @@ class ProfileScreen extends StatelessWidget {
           // reason a lot of people will keep the app installed — and both work
           // with no signal, which is the point.
           const IslamicSectionTiles(),
+          const BudgetToolsSectionTiles(),
           const GamesSectionTiles(),
 
           _MenuGroup(

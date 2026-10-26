@@ -26,6 +26,9 @@ class PromoBannerData {
   /// If set, tapping opens this seller's storefront (business banner ads).
   final String? sellerId;
 
+  /// A built-in screen to open instead of a category or storefront.
+  final PromoAction? action;
+
   const PromoBannerData({
     required this.title,
     required this.subtitle,
@@ -33,8 +36,12 @@ class PromoBannerData {
     this.badge = '',
     this.category,
     this.sellerId,
+    this.action,
   });
 }
+
+/// Screens a curated promo card can open directly.
+enum PromoAction { budgetTools }
 
 /// "What's New on PakBazar" — a horizontally scrolling rail of wide promo
 /// cards. Uses the admin-managed `banners` collection when it has entries, and
@@ -49,12 +56,12 @@ class WhatsNewSection extends StatefulWidget {
 class _WhatsNewSectionState extends State<WhatsNewSection> {
   static const _defaultBanners = <PromoBannerData>[
     PromoBannerData(
-      title: 'Find your next car',
-      subtitle: 'Thousands of verified cars, bikes and parts',
-      badge: 'Motors',
+      title: 'Budget Calculator & Rate List',
+      subtitle: "Today's prices in your city, researched by AI",
+      badge: 'New · AI',
       image:
-          'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=900&q=70',
-      category: 'Motors',
+          'https://images.unsplash.com/photo-1488459716781-31db52582fe9?auto=format&fit=crop&w=900&q=70',
+      action: PromoAction.budgetTools,
     ),
     PromoBannerData(
       title: 'Sell your property',
@@ -145,7 +152,9 @@ class _WhatsNewSectionState extends State<WhatsNewSection> {
     final sid = b.sellerId;
     final cat = b.category;
     final Widget dest;
-    if (sid != null && sid.isNotEmpty) {
+    if (b.action == PromoAction.budgetTools) {
+      dest = const BudgetToolsScreen();
+    } else if (sid != null && sid.isNotEmpty) {
       dest = SellerProfileScreen(sellerId: sid, sellerName: b.title);
     } else if (cat != null && cat.isNotEmpty && cat != 'All') {
       dest = CategoryScreen(title: cat);
@@ -192,6 +201,9 @@ class _WhatsNewSectionState extends State<WhatsNewSection> {
                 subtitle: b.subtitle,
                 badge: b.badge,
                 imageUrl: b.image,
+                fallbackIcon: b.action == PromoAction.budgetTools
+                    ? Icons.calculate_outlined
+                    : Icons.local_offer_outlined,
                 onTap: () => _open(b),
               );
             },
